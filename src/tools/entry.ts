@@ -28,6 +28,10 @@ export interface EntryFields {
   fragment: boolean;
   /** What each placeholder holds, by name. */
   args: Record<string, string>;
+  /** A change asked of whoever edits next; empty is none. */
+  comment: string;
+  /** Asks for the entry to go, with the code that reads it. */
+  remove: boolean;
 }
 
 export interface EntryYaml {
@@ -196,6 +200,8 @@ function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: 
       surface: message.surface ?? '',
       fragment: message.fragment,
       args: Object.fromEntries(message.argDocs),
+      comment: message.comment ?? '',
+      remove: message.remove,
     },
     yaml: {
       catalog: snippetOf(contentOf(config, message.file, unsaved), key)?.text ?? '',
@@ -274,6 +280,8 @@ function withFields(file: string, key: string, fields: EntryFields, source: stri
     ['context', fields.context.trim() || undefined],
     ['args', Object.keys(args).length > 0 ? args : undefined],
     ['fragment', fields.fragment || undefined],
+    ['comment', fields.comment.trim() || undefined],
+    ['remove', fields.remove || undefined],
   ];
   for (const [name, value] of wanted) {
     if (value === undefined) {

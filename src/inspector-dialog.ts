@@ -5,6 +5,9 @@
  * While typing, it asks the server to check the edit unsaved, and shows what lint says of each locale
  * under its text: a finding selects its words, and one that has a fix makes it.
  *
+ * A reviewer who would rather ask than edit leaves a comment, or marks the entry for removal: both are
+ * written in the catalog, where whoever edits next, often an agent, finds them among the warnings.
+ *
  * It renders in a shadow root, so the app's styles don't reach it and its own don't leak out.
  */
 import type { Problem } from '#src/tools/catalog.ts';
@@ -83,6 +86,8 @@ button {
 button.primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
 button.link { border: 0; padding: 7px 0; color: var(--muted); text-decoration: underline; background: transparent; }
 button.close { border: 0; padding: 2px 6px; font-size: 18px; color: var(--muted); background: transparent; }
+button.remove[aria-pressed='true'] { color: var(--err); border-color: currentColor; }
+.removing textarea[name='message'], .removing textarea[name^='translation.'] { text-decoration: line-through; color: var(--muted); }
 `;
 
 let closeOpen: (() => void) | undefined;
@@ -126,6 +131,23 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   };
   let tab: 'fields' | 'yaml' = 'fields';
   let view: EntryView | undefined;
+  // Marked for removal: written with the fields, so it is the YAML tab's to change while that is open.
+  let remove = false;
+  const removeButton = el('button', {
+    type: 'button',
+    className: 'remove',
+    title: 'Leave the entry for whoever edits next to delete, with the code that reads it',
+  });
+  const showRemove = () => {
+    removeButton.hidden = tab === 'yaml' || view === undefined;
+    removeButton.setAttribute('aria-pressed', String(remove));
+    removeButton.textContent = remove ? 'Marked for removal' : 'Mark for removal';
+    panel.classList.toggle('removing', remove && tab === 'fields');
+  };
+  removeButton.addEventListener('click', () => {
+    remove = !remove;
+    showRemove();
+  });
   // What lint said, and each locale's text it said it of: a finding's place and fix are in that text.
   let findings: EntryFinding[] = [];
   let checked = new Map<string, string>();
@@ -222,6 +244,8 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     if (view === undefined) return;
     tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
     tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
+    remove = view.fields.remove;
+    showRemove();
     if (tab === 'yaml') {
       const v = view;
       body.replaceChildren(
@@ -265,6 +289,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
               ...others.map(translation),
             ),
           ]),
+      placeholder(area('comment', 'Comment · for whoever edits next', f.comment, true, 1), 'Ask for a change instead of making it'),
       area('context', 'Context', f.context, true, 1),
       el(
         'div',
@@ -304,6 +329,8 @@ export async function openDialog(options: DialogOptions): Promise<void> {
       surface: value('surface') ?? '',
       fragment: root.querySelector<HTMLInputElement>('input[name="fragment"]')?.checked === true,
       args,
+      comment: value('comment') ?? '',
+      remove,
     };
     return { fields };
   };
@@ -387,7 +414,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     body,
     all,
     problems,
-    el('footer', {}, openFile, el('span', { className: 'grow' }), status, cancel, saveButton),
+    el('footer', {}, openFile, el('span', { className: 'grow' }), status, removeButton, cancel, saveButton),
   );
   // Keys typed here are the dialog's: the app's shortcuts don't see them.
   for (const type of ['keydown', 'keyup', 'keypress'] as const) host.addEventListener(type, (e) => e.stopPropagation());

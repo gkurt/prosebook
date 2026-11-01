@@ -80,7 +80,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
   shadow root, which edits an entry through the plugin's `/__prosebook/entry`. While typing it posts
   the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships
-  to the browser.
+  to the browser. Its comment field and Mark for removal write the entry's `comment` and `remove`:
+  requests for whoever edits next, which `loadCatalog` reports as warnings so agents find them.
 - `src/tools/entry.ts`: an entry in every locale, as fields and as the YAML written for it, and edits
   to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document

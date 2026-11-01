@@ -35,6 +35,10 @@ export interface Message {
   fragment: boolean;
   /** Lint rules the entry is exempt from, each with the reason. */
   allow: Map<string, string>;
+  /** A change someone asked for, left for whoever edits the entry next, and deleted once it is made. */
+  comment?: string;
+  /** Asked to go: the entry, its translations and the code that reads it. */
+  remove: boolean;
   /** The source message, in ICU MessageFormat. */
   text: string;
   ast: MessageFormatElement[];
@@ -83,7 +87,7 @@ export class CatalogError extends Error {
  */
 export const KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)+$/;
 
-const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow']);
+const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow', 'comment', 'remove']);
 
 /**
  * Loads and checks the catalog. Throws a `CatalogError` when anything is an error; warnings ride along.
@@ -120,7 +124,12 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
         continue;
       }
       const message = readEntry(key, area, at, value, config, (m) => error(m, at, key));
-      if (message) byKey.set(key, message);
+      if (!message) continue;
+      byKey.set(key, message);
+      // Asked of whoever edits next, often an agent, which finds them among the warnings of every run.
+      const warn = (m: string) => problems.push({ severity: 'warn', file: at, key, message: m });
+      if (message.remove) warn('marked for removal: delete the entry, its translations and the code that reads it');
+      if (message.comment !== undefined) warn(`a comment to act on, then delete: ${message.comment}`);
     }
   }
 
@@ -165,6 +174,8 @@ function readEntry(
   if (surface !== undefined && !(surface in config.surfaces)) fail(`surface is one of ${Object.keys(config.surfaces).join(', ')}`);
   const context = optionalString(entry, 'context', fail);
   if (entry.fragment !== undefined && typeof entry.fragment !== 'boolean') fail('fragment is true or false');
+  const comment = optionalString(entry, 'comment', fail);
+  if (entry.remove !== undefined && typeof entry.remove !== 'boolean') fail('remove is true or false');
 
   let ast: MessageFormatElement[];
   try {
@@ -194,6 +205,8 @@ function readEntry(
     argDocs,
     fragment: entry.fragment === true,
     allow: stringMap(entry, 'allow', fail),
+    comment,
+    remove: entry.remove === true,
     text,
     ast,
     args,

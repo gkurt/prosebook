@@ -619,6 +619,15 @@
         text-decoration: underline;
         background: transparent;
       }
+      .dlg button.remove[aria-pressed='true'] {
+        color: var(--err);
+        border-color: currentColor;
+      }
+      .dlg.removing textarea[name='message'],
+      .dlg.removing textarea[name='translation'] {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
       .dlg .body {
         padding: 12px;
         overflow: auto;
@@ -883,7 +892,8 @@
           <article class="new">
             <h3>In context</h3>
             <p>
-              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page. The page updates without reloading.
+              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page, or to leave a comment or a mark for
+              removal for your coding agent. The page updates without reloading.
             </p>
           </article>
           <article>
@@ -962,7 +972,7 @@
             <p>
               Alt-click opens the entry through Vite's own <code>/__open-in-editor</code>. Alt-right-click edits it in a dialog on the page,
               as fields or as YAML, checked before it's written. Lint's findings show under each text as you type, with a fix where there is
-              one.
+              one. A comment or a mark for removal goes into the entry, for the next edit, or your agent, to act on.
             </p>
           </div>
         </div>
@@ -1380,13 +1390,13 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
 
       /** An entry's fields, read from its catalog lines. */
       function fieldsFrom(lines) {
-        const fields = { kind: '', surface: '', context: '', fragment: false, args: {}, message: undefined };
+        const fields = { kind: '', surface: '', context: '', fragment: false, args: {}, comment: '', remove: false, message: undefined };
         for (const line of lines.slice(1)) {
           const arg = /^    ([\w-]+): (.*)$/.exec(line);
-          const field = /^  (kind|surface|context|fragment|en): (.*)$/.exec(line);
+          const field = /^  (kind|surface|context|fragment|comment|remove|en): (.*)$/.exec(line);
           if (arg) fields.args[arg[1]] = unquote(arg[2]);
           else if (field?.[1] === 'en') fields.message = unquote(field[2]);
-          else if (field?.[1] === 'fragment') fields.fragment = field[2] === 'true';
+          else if (field?.[1] === 'fragment' || field?.[1] === 'remove') fields[field[1]] = field[2] === 'true';
           else if (field) fields[field[1]] = unquote(field[2]);
         }
         return fields;
@@ -1399,6 +1409,8 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
           ...['kind', 'surface', 'context'].filter((f) => fields[f].trim()).map((f) => `  ${f}: ${quote(fields[f].trim())}`),
           ...(args.length ? ['  args:', ...args.map(([n, v]) => `    ${n}: ${quote(v.trim())}`)] : []),
           ...(fields.fragment ? ['  fragment: true'] : []),
+          ...(fields.comment.trim() ? [`  comment: ${quote(fields.comment.trim())}`] : []),
+          ...(fields.remove ? ['  remove: true'] : []),
           `  en: ${quote(fields.message)}`,
         ];
       }
@@ -1508,6 +1520,19 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
           yaml: make('button', { type: 'button', textContent: 'YAML' }),
         };
         const value = (name) => body.querySelector(`[name="${name}"]`)?.value;
+        // Marked for removal, as the dev dialog has it: the YAML tab's to change while that is open.
+        let remove = false;
+        const removeButton = make('button', { type: 'button', className: 'remove' });
+        const showRemove = () => {
+          removeButton.hidden = tab === 'yaml';
+          removeButton.setAttribute('aria-pressed', String(remove));
+          removeButton.textContent = remove ? 'Marked for removal' : 'Mark for removal';
+          panel.classList.toggle('removing', remove && tab === 'fields');
+        };
+        removeButton.addEventListener('click', () => {
+          remove = !remove;
+          showRemove();
+        });
 
         /** A text field with what lint says of it underneath. */
         const withFindings = (label) => {
@@ -1550,6 +1575,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
           tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
           tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
           if (tab === 'yaml') {
+            showRemove();
             body.replaceChildren(
               area('yaml.catalog', files.en.path, catalogLines.join('\n')),
               hint(area('yaml.translation', files.de.path, translation === '' ? '' : `${key}: ${quote(translation)}`), `${key}: …`),
@@ -1557,6 +1583,8 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
             return;
           }
           const f = fieldsFrom(catalogLines);
+          remove = f.remove;
+          showRemove();
           const german = withFindings(
             hint(
               area('translation', `Translation · de${translation === '' ? ' · none yet' : ''}`, translation, true),
@@ -1568,6 +1596,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
             ...(translated ? [german] : []),
             withFindings(area('message', `${translated ? 'Source' : 'Message'} · en`, f.message ?? '', true)),
             ...(translated ? [] : [german]),
+            hint(area('comment', 'Comment · for whoever edits next', f.comment, true), 'Ask for a change instead of making it'),
             area('context', 'Context', f.context, true),
             make(
               'div',
@@ -1600,6 +1629,8 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
             context: value('context'),
             fragment: fieldsFrom(catalogLines).fragment,
             args,
+            comment: value('comment'),
+            remove,
             message: value('message'),
           };
           return { lines: linesFrom(key, fields), translation: value('translation') };
@@ -1669,6 +1700,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
             {},
             button({ className: 'link', textContent: 'Open in editor' }, () => (open(key, catalog), close())),
             make('span', { className: 'grow' }),
+            removeButton,
             button({ textContent: 'Cancel' }, close),
             button({ className: 'save', textContent: 'Save' }, save),
           ),

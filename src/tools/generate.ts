@@ -89,6 +89,8 @@ function typesBlock(catalog: Catalog, locales: string[]): string {
     // An MF2 message with variants spans lines; each is a line of the doc comment.
     const lines = (m.text.length > 400 ? `${m.text.slice(0, 397)}...` : m.text).split('\n');
     if (m.context) lines.push('', m.context);
+    if (m.remove) lines.push('', 'Marked for removal in the catalog.');
+    if (m.comment) lines.push('', `Comment: ${m.comment}`);
     return `${doc(lines, '  ')}  ${quote(m.key)}: ${shapeOf(m)};`;
   });
   return [
@@ -151,6 +153,8 @@ export function catalogSchema(config: ResolvedConfig): object {
             context: { type: 'string', description: 'One sentence telling a translator where the string appears and what it answers to.' },
             args: { type: 'object', description: 'What each placeholder holds.', additionalProperties: { type: 'string' } },
             fragment: { type: 'boolean', description: 'Completes something beside it rather than standing as a sentence.' },
+            comment: { type: 'string', description: 'A change asked of whoever edits the entry next. Make it, then delete the comment.' },
+            remove: { type: 'boolean', description: 'Asks for the entry to go: delete it, its translations and the code that reads it.' },
             allow: {
               type: 'object',
               description: 'Lint rules this entry is exempt from, each with the reason.',

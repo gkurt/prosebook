@@ -46,8 +46,23 @@ describe('catalog checks', () => {
       'copy/catalog/app.yaml app: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml App.Title: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml other.thing: a key in app.yaml starts with "app."',
-      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, fragment, allow, en',
+      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, fragment, allow, comment, remove, en',
       'copy/catalog/app.yaml app.typo: context is required (`require` in the config)',
+    ]);
+  });
+
+  test('a comment and a mark for removal load, and are warnings until someone acts on them', () => {
+    const problems = problemsOf({
+      'copy/catalog/app.yaml': [
+        `app.a:\n${entry('Hi', '  comment: Too chatty.\n')}`,
+        `app.b:\n${entry('Bye', '  remove: true\n')}`,
+        `app.c:\n${entry('x', '  remove: yes please\n')}`,
+      ].join(''),
+    });
+    expect(problems).toEqual([
+      'copy/catalog/app.yaml app.a: a comment to act on, then delete: Too chatty.',
+      'copy/catalog/app.yaml app.b: marked for removal: delete the entry, its translations and the code that reads it',
+      'copy/catalog/app.yaml app.c: remove is true or false',
     ]);
   });
 

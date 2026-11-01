@@ -114,15 +114,17 @@ server, create one `copy` per request.
 One file per area, `copy/catalog/<area>.yaml`. A key's first segment names its file, so
 `cart.items` lives in `cart.yaml` and nowhere else; searching for a key finds its entry.
 
-| Field      |                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.  |
-| `context`  | One sentence telling a translator where the string appears. Required by default.                        |
-| `args`     | What each placeholder holds, one line each. Required for every placeholder when `context` is.           |
-| `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget. |
-| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                             |
-| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                           |
-| `allow`    | Lint rules the entry is exempt from, each with the reason.                                              |
+| Field      |                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
+| `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.   |
+| `context`  | One sentence telling a translator where the string appears. Required by default.                         |
+| `args`     | What each placeholder holds, one line each. Required for every placeholder when `context` is.            |
+| `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget.  |
+| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                              |
+| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                            |
+| `allow`    | Lint rules the entry is exempt from, each with the reason.                                               |
+| `comment`  | A change asked of whoever edits the entry next. A warning until it is made and the comment deleted.      |
+| `remove`   | `true` asks for the entry to go, with its translations and the code that reads it. A warning until then. |
 
 `key: message` is the shorthand for an entry with nothing to say about itself (set `require: []`).
 Kinds and surfaces are configurable; `prosebook generate` writes `catalog.schema.json` beside the
@@ -507,6 +509,12 @@ As you type, the dialog has the edit checked unsaved and shows what lint says of
 its text, with every rule the config has, plugins included. Clicking a finding selects its words;
 Fix makes the fix `prosebook lint --fix` would. Findings don't stop a save: they are the writing
 guide's, not the catalog's.
+
+To ask for a change rather than make it, write a comment, or press Mark for removal. Both are written
+into the catalog entry (`comment:`, `remove: true`), and every `prosebook generate` and `check` lists
+them as warnings with their file and key, so a coding agent asked to "act on the prosebook comments"
+finds each one, makes the change, and deletes the comment or the entry. Hovering the key at its call
+site shows them too.
 
 Nothing is added to the page to make this work. In dev the runtime reports each string it hands out,
 and the inspector matches the text under the pointer back to it, so `t()`, `<Text>`, a sentence with

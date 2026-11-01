@@ -68,6 +68,21 @@ describe('editing an entry in place', () => {
     expect(read(config, 'copy/locales/fr/cart.yaml')).toBe('cart.title: Panier\n');
   });
 
+  test('a comment and a mark for removal are written in the catalog, and cleared', () => {
+    const config = project();
+    const view = readEntry(config, 'cart.items');
+    expect(view.fields).toMatchObject({ comment: '', remove: false });
+    const marked = { ...view.fields, comment: 'Say "in your cart".', remove: true };
+    expect(editEntry(config, 'cart.items', { fields: marked }, true).problems).toEqual([]);
+    expect(read(config, 'copy/catalog/cart.yaml')).toContain(
+      `    count: how many items\n  comment: Say "in your cart".\n  remove: true\n  en: '{count`,
+    );
+    expect(readEntry(config, 'cart.items').fields).toMatchObject({ comment: 'Say "in your cart".', remove: true });
+
+    expect(editEntry(config, 'cart.items', { fields: view.fields }, true).problems).toEqual([]);
+    expect(read(config, 'copy/catalog/cart.yaml')).toBe(CATALOG);
+  });
+
   test('a translation left empty is removed, and the locale falls back', () => {
     const config = project();
     const view = readEntry(config, 'cart.title');
