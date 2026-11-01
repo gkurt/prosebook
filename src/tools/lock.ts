@@ -35,7 +35,7 @@ export function emptyLock(): Lock {
 export function readLock(path: string): Lock {
   if (!existsSync(path)) return emptyLock();
   const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<Lock> | Record<string, Record<string, string>>;
-  if ((raw as Partial<Lock>).version === 2) return { ...emptyLock(), ...(raw as Partial<Lock>) } as Lock;
+  if ((raw as Partial<Lock>).version === 2) return { ...emptyLock(), ...(raw as Partial<Lock>) };
   return { version: 2, sources: {}, translations: raw as Record<string, Record<string, string>> };
 }
 

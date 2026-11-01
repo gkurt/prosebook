@@ -7,7 +7,7 @@
 import { TYPE, type MessageFormatElement } from './icu.ts';
 
 const PLAIN = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const ACCENTED = [...'áƀçðéƒĝĥíĵķļɱñóþǫŕšţúṽŵẋýžÁƁÇÐÉƑĜĤÍĴĶĻṀÑÓÞǪŔŠŢÚṼŴẊÝŽ'];
+const ACCENTED = Array.from('áƀçðéƒĝĥíĵķļɱñóþǫŕšţúṽŵẋýžÁƁÇÐÉƑĜĤÍĴĶĻṀÑÓÞǪŔŠŢÚṼŴẊÝŽ');
 
 export function pseudoText(text: string): string {
   return text.replace(/[A-Za-z]/g, (c) => {
@@ -22,7 +22,7 @@ function transform(elements: MessageFormatElement[]): MessageFormatElement[] {
     if (el.type === TYPE.tag) return { ...el, children: transform(el.children) };
     if (el.type === TYPE.select || el.type === TYPE.plural) {
       const options = Object.fromEntries(Object.entries(el.options).map(([arm, o]) => [arm, { ...o, value: transform(o.value) }]));
-      return { ...el, options } as MessageFormatElement;
+      return { ...el, options };
     }
     return el;
   });

@@ -23,7 +23,7 @@ export function fixture(files: Record<string, string>, config: CopydeckConfig = 
 
 /** Compiles entries and evaluates them, as a bundler would the generated module. */
 export function compiled(entries: Iterable<Entry>): CompiledMessages {
-  // oxlint-disable-next-line no-new-func -- evaluating our own generated code is the point of the test
+  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- evaluating our own generated code is the point of the test
   return new Function(`return ${localeExpression(compileLocale(entries))};`)() as CompiledMessages;
 }
 

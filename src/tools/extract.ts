@@ -18,6 +18,7 @@ import type { ResolvedConfig } from './config.ts';
 import { looksLikeCode } from './scan.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
 
+// oxlint-disable-next-line typescript/no-explicit-any -- a loose ESTree node: the walk reads whichever fields each node type has
 type Node = { type: string; start: number; end: number; [field: string]: any };
 
 export interface Extraction {
@@ -303,7 +304,7 @@ function planFile(path: string, ctx: Context): FilePlan {
   const file = relative(ctx.config.root, path).replaceAll('\\', '/');
   const plan: FilePlan = { path, file, code, edits: [], extractions: [], warnings: [] };
   const { program } = parseSync(file, code);
-  const topLevel = bindingsIn(program as unknown as Node, false);
+  const topLevel = bindingsIn(program, false);
   const lines = code.split('\n');
   const lineStarts: number[] = [];
   let offset = 0;
@@ -586,10 +587,9 @@ ${indent}const copy = useCopy();`);
     if (isFunction) components.pop();
   };
 
-  visit(program as unknown as Node, undefined);
-  plan.extractions.sort((a, b) => a.line - b.line || a.column - b.column);
-  if (needText || needUseCopy)
-    importEdit(program as unknown as Node, code, plan, [...(needText ? ['Text'] : []), ...(needUseCopy ? ['useCopy'] : [])]);
+  visit(program, undefined);
+  plan.extractions.sort((a, b) => (a.line !== b.line ? a.line - b.line : a.column - b.column));
+  if (needText || needUseCopy) importEdit(program, code, plan, [...(needText ? ['Text'] : []), ...(needUseCopy ? ['useCopy'] : [])]);
   return plan;
 }
 
@@ -632,7 +632,7 @@ function jsxExpressions(file: string, code: string): Span[] {
       }
     }
   };
-  walk(parseSync(file, code).program as unknown as Node);
+  walk(parseSync(file, code).program);
   return spans;
 }
 
@@ -681,7 +681,7 @@ export function applyExtract(config: ResolvedConfig, plan: ExtractPlan): string[
   for (const file of plan.files) {
     if (file.edits.length === 0) continue;
     let code = file.code;
-    for (const edit of [...file.edits].sort((a, b) => b.start - a.start || b.end - a.end))
+    for (const edit of [...file.edits].sort((a, b) => (a.start !== b.start ? b.start - a.start : b.end - a.end)))
       code = code.slice(0, edit.start) + edit.text + code.slice(edit.end);
 
     writeFileSync(file.path, code);

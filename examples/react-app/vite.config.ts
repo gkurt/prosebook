@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-import { copydeck } from '../../src/vite.ts';
+import { copydeck } from '#src/vite.ts';
 
 const src = (path: string) => fileURLToPath(new URL(`../../src/${path}`, import.meta.url));
 

@@ -142,7 +142,7 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   for (const dir of [config.catalog, config.locales]) {
     if (!existsSync(dir)) continue;
     watch(dir, { recursive: true }, (_event, file) => {
-      if (file === null || !String(file).endsWith('.yaml')) return;
+      if (file === null || !file.endsWith('.yaml')) return;
       clearTimeout(timer);
       timer = setTimeout(regenerate, 50);
     });

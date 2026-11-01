@@ -31,6 +31,9 @@ function argType(el: MessageFormatElement): string | undefined {
       const named = Object.keys(el.options).filter((o) => o !== 'other');
       return named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')} | (string & {})` : 'string';
     }
+    case TYPE.literal:
+    case TYPE.pound:
+    case TYPE.tag:
     default:
       return undefined;
   }

@@ -7,7 +7,7 @@ import { copyOf } from './fixture.ts';
 
 const say = (message: string, args?: Record<string, unknown>, locale = 'en') => {
   const copy = copyOf({ [locale]: { 'x.y': message } }, {});
-  return copy.t('x.y', args as never);
+  return copy.t('x.y', args);
 };
 
 describe('compiled messages', () => {
@@ -73,7 +73,7 @@ describe('compiled messages', () => {
     const out = copy.rich('a.b', {
       link: (chunks: unknown[]) => ({ link: chunks }),
       b: (chunks: unknown[]) => ({ b: chunks }),
-    } as never);
+    });
     expect(out).toEqual(['Read the ', { link: ['terms of ', { b: ['sale'] }] }, '.']);
   });
 

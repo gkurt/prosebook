@@ -12,7 +12,10 @@ import { dirname, join, resolve } from 'node:path';
 import type * as TsSync from 'typescript/unstable/sync';
 import type { Checker, Type } from 'typescript/unstable/sync';
 
+// oxlint-disable-next-line typescript/no-explicit-any -- a loose ESTree node: the walk reads whichever fields each node type has
 type Node = { type: string; start: number; end: number; [field: string]: any };
+
+type TsNode = { pos: number; end: number; forEachChild(visit: (child: TsNode) => unknown): unknown };
 
 /** `node` is markup or an object, which a message can't hold as text. */
 export type ValueKind = 'string' | 'number' | 'date' | 'node' | 'unknown';
@@ -71,16 +74,16 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
   const classify = (checker: Checker, type: Type | undefined): ValueKind | undefined => {
     if (type === undefined) return undefined;
     const t = checker.getNonNullableType(type) ?? type;
-    if (t.flags & ANY_OR_UNKNOWN) return 'unknown';
-    if (t.flags & UNION) {
+    if ((t.flags & ANY_OR_UNKNOWN) !== 0) return 'unknown';
+    if ((t.flags & UNION) !== 0) {
       const kinds = new Set((t as Type & { getTypes(): readonly Type[] }).getTypes().map((m) => classify(checker, m)));
       if (kinds.size === 1) return [...kinds][0];
       return kinds.has('node') ? 'node' : 'unknown';
     }
-    if (t.flags & NUMBER_LIKE) return 'number';
-    if (t.flags & STRING_LIKE) return 'string';
+    if ((t.flags & NUMBER_LIKE) !== 0) return 'number';
+    if ((t.flags & STRING_LIKE) !== 0) return 'string';
     if (checker.typeToString(t) === 'Date') return 'date';
-    if (t.flags & OBJECT) return 'node';
+    if ((t.flags & OBJECT) !== 0) return 'node';
     return 'unknown';
   };
 
@@ -92,10 +95,10 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
       if (project === undefined || sourceFile === undefined) return spans.map(() => undefined);
       // The smallest node covering each span is the expression itself.
       const nodes = spans.map(({ start, end }) => {
-        let node: { forEachChild(visit: (child: any) => unknown): unknown } = sourceFile;
+        let node: TsNode = sourceFile;
         for (;;) {
-          let next: typeof node | undefined;
-          node.forEachChild((child: { pos: number; end: number } & typeof node) => {
+          let next: TsNode | undefined;
+          node.forEachChild((child) => {
             if (next === undefined && child.pos <= start && child.end >= end) next = child;
           });
           if (next === undefined) return node;

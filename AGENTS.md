@@ -16,9 +16,13 @@ bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root exam
 bun run example    # the example app in Vite
 ```
 
-Before finishing, run `bun run fix` then `bun run checks`. After changing the compiler or the
-generator, regenerate the example (`bun run cli generate --root examples/react-app`) and commit its
-`src/copy/`, so it shows the current output.
+Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when a bare alias exists
+(`bun check`, `bun typecheck`) — those are whitelisted for agent use. Before finishing, run `bun run fix`
+then `bun run checks` — the linter (type-aware, through `oxlint-tsgolint`), formatter and `tsc` own all
+mechanical style rules. Fix the code; don't disable rules. A pre-commit hook runs both on staged files.
+
+After changing the compiler or the generator, regenerate the example
+(`bun run cli generate --root examples/react-app`) and commit its `src/copy/`, so it shows the current output.
 
 ## Structure
 
@@ -56,3 +60,15 @@ projects on disk under `test/.tmp/` and evaluates compiled messages.
 - Problem messages state the fix: `args.n is missing: say what the placeholder holds`.
 - Comments say what the code cannot: the reason, the constraint, the trap. Match the density around them.
 - The runtime has no dependencies. Anything that needs a parser belongs in the tools.
+- Imports from parent directories go through the `#src/` alias, with the extension (`#src/runtime/types.ts`).
+- Prefer colocation, and early returns and guard clauses over nested conditionals.
+- Check for existing helpers before creating new ones. Avoid duplication.
+- Remove dead and commented-out code; don't preserve old APIs unless asked.
+- When moving code, don't leave a re-export behind: update every importer and delete the old definition.
+- Line endings are LF, on every OS. Scripts that write files must write LF too: on Windows, Python's text
+  mode writes CRLF unless opened with `newline=''`.
+
+## Documentation
+
+When changing user-facing APIs, update README.md and AGENTS.md in the same change. Documentation must
+not go stale.

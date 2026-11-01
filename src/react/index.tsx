@@ -15,7 +15,7 @@ type L = RegisteredLocale;
 
 /** `Copy`, with `rich` returning a `ReactNode`. */
 export interface ReactCopy extends Omit<Copy<M, L>, 'rich'> {
-  rich<K extends RichKey<M>>(key: K, ...values: RichParam<M[K], ReactNode>): ReactNode;
+  rich<K extends RichKey<M>>(this: void, key: K, ...values: RichParam<M[K], ReactNode>): ReactNode;
 }
 
 const CopyContext = createContext<{ copy: Copy<M, L>; tags: Tags } | null>(null);
@@ -80,7 +80,7 @@ function readerFor(copy: Copy<M, L>, tags: Tags, _locale: string): ReactCopy {
       for (const [name, value] of Object.entries(merged))
         if (typeof value === 'function') merged[name] = (chunks: unknown[]) => (value as TagFn<ReactNode>)(keyed(chunks));
 
-      return <>{keyed(copy.rich(key as never, merged as never) as unknown[])}</>;
+      return <>{keyed(copy.rich(key as never, merged as never))}</>;
     },
   };
 }
@@ -89,6 +89,7 @@ function readerFor(copy: Copy<M, L>, tags: Tags, _locale: string): ReactCopy {
 function keyed(parts: unknown[]): (string | ReactNode)[] {
   if (parts.every((p) => typeof p === 'string')) return [parts.join('')];
   return parts.map((p, i) =>
+    // oxlint-disable-next-line react/no-array-index-key -- the parts of one message never reorder, so positions are stable keys
     isValidElement(p) || typeof p === 'object' ? <Fragment key={i}>{p as ReactNode}</Fragment> : (p as ReactNode),
   );
 }
@@ -97,14 +98,14 @@ type ValuesProp<S extends MessageShape> = {} extends S['args'] & { [T in S['tags
   ? { values?: S['args'] & { [T in S['tags']]?: TagFn<ReactNode> } }
   : { values: RichParam<S, ReactNode>[0] };
 
-export type TextProps<K extends keyof M & string> = { id: K } & ValuesProp<M[K]>;
+export type TextProps<K extends Extract<keyof M, string>> = { id: K } & ValuesProp<M[K]>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
  * tags through the provider's renderers and any given in `values`.
  */
-export function Text<K extends keyof M & string>(props: TextProps<K>) {
+export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>) {
   const copy = useCopy();
   const values = (props as { values?: object }).values;
-  return <>{copy.rich(props.id as RichKey<M>, values as never)}</>;
+  return <>{copy.rich(props.id as RichKey<M>, values)}</>;
 }

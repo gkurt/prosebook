@@ -44,6 +44,7 @@ export interface CopyOptions<L extends string> {
   onMissing?: (key: string, locale: L) => string;
 }
 
+/** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
 export interface Copy<M extends MessageShapes = MessageShapes, L extends string = string> {
   /** The locale messages are coming back in. */
   readonly locale: L;
@@ -54,22 +55,22 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   /** Settles once the starting locale's messages are loaded. */
   readonly ready: Promise<void>;
   /** A message as plain text. Tags render as the text they wrap. */
-  t<K extends keyof M & string>(key: K, ...args: ArgsParam<M[K]>): string;
+  t<K extends keyof M & string>(this: void, key: K, ...args: ArgsParam<M[K]>): string;
   /** A message with elements inside it: each tag's function turns what it wraps into a node. */
-  rich<K extends RichKey<M>, N = unknown>(key: K, ...values: RichParam<M[K], N>): Chunks<N>;
-  has(key: string): key is keyof M & string;
+  rich<K extends RichKey<M>, N = unknown>(this: void, key: K, ...values: RichParam<M[K], N>): Chunks<N>;
+  has(this: void, key: string): key is keyof M & string;
   /** Switches locale once its messages (and its fallbacks') are loaded. */
-  setLocale(next: L | (string & {}) | readonly string[]): Promise<void>;
+  setLocale(this: void, next: L | (string & {}) | readonly string[]): Promise<void>;
   /** Called after each locale switch. Returns the unsubscribe. */
-  subscribe(listener: () => void): () => void;
+  subscribe(this: void, listener: () => void): () => void;
   /** Formats a number in the current locale. */
-  number(value: number | bigint, options?: Intl.NumberFormatOptions): string;
+  number(this: void, value: number | bigint, options?: Intl.NumberFormatOptions): string;
   /** Formats a date in the current locale. */
-  date(value: Date | number, options?: Intl.DateTimeFormatOptions): string;
+  date(this: void, value: Date | number, options?: Intl.DateTimeFormatOptions): string;
   /** Joins items as a list in the current locale: `a, b and c`. */
-  list(items: Iterable<string>, options?: Intl.ListFormatOptions): string;
+  list(this: void, items: Iterable<string>, options?: Intl.ListFormatOptions): string;
   /** `in 3 days`, `2 hours ago`, in the current locale. */
-  relative(value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions): string;
+  relative(this: void, value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions): string;
 }
 
 type Layer = { messages: CompiledMessages; h: Helpers };
@@ -98,6 +99,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     if (done) return Promise.resolve(done);
     let p = pending.get(l);
     if (p === undefined) {
+      // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- `L` is a string union, not an enum; the rule misreads the mapped type
       const loader = catalog.loaders[l];
       if (loader === undefined) return Promise.reject(new Error(`copydeck: no messages for locale "${l}"`));
       p = loader().then((mod) => {
@@ -113,7 +115,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   }
 
   async function setLocale(next: L | (string & {}) | readonly string[]): Promise<void> {
-    const target = negotiate(next as string | readonly string[], catalog.locales, catalog.source);
+    const target = negotiate(next, catalog.locales, catalog.source);
     const ticket = ++latest;
     const locales = chainOf(target, catalog.locales, catalog.source);
     await Promise.all(locales.map(load));

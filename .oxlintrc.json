@@ -1,25 +1,113 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // `react` is harmless in non-React repos; drop it if you want a leaner rule set.
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "react"],
+  // House rules no built-in covers; see scripts/oxlint-plugin.js.
+  "jsPlugins": ["./scripts/oxlint-plugin.js"],
+  // Type-aware rules run through `oxlint-tsgolint` (TypeScript 7), using each file's tsconfig.
+  "options": { "typeAware": true },
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
   },
-  "ignorePatterns": ["**/.claude", "examples/react-app/src/copy/**", "test/.tmp/**"],
+  "ignorePatterns": ["**/.claude", "**/build", "examples/react-app/src/copy/**", "test/.tmp/**"],
   "rules": {
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }],
+    // Also bans inline `import('./x.ts').Type` annotations.
     "typescript/consistent-type-imports": "error",
+    // Escape hatch: `// oxlint-disable-next-line typescript/no-explicit-any -- <why>`.
+    "typescript/no-explicit-any": "error",
+
+    // Shape: braces only for multi-line bodies, early returns over `else`, no nested lonely `if`s, short files.
     "curly": ["error", "multi-or-nest", "consistent"],
     "no-else-return": ["error", { "allowElseIf": false }],
     "no-lonely-if": "error",
+    "unicorn/no-lonely-if": "error",
+    "max-lines": ["warn", { "max": 1000, "skipBlankLines": true, "skipComments": true }],
+
+    // Type-aware.
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/no-unnecessary-type-assertion": "warn",
+    "typescript/no-deprecated": "warn",
+    // Numbers only: `{count && <X />}` renders `0`, so compare explicitly (`count > 0`). Strings, objects and nullable booleans stay allowed.
+    "typescript/strict-boolean-expressions": [
+      "error",
+      { "allowNumber": false, "allowNullableBoolean": true, "allowNullableString": true, "allowAny": true }
+    ],
+
+    // Suspicious-category rules that are mostly noise.
     "no-shadow": "off",
+    "no-underscore-dangle": "off",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
     "import/no-unassigned-import": "off",
+    "import/no-named-as-default": "off",
+
+    // React: mirrors eslint-plugin-react-hooks v7 `recommended` (Rules of Hooks + React Compiler rules).
+    // The compiler rules (purity, refs, immutability, set-state-in-render, …) come from the correctness category.
     "react/react-in-jsx-scope": "off",
+    "react/no-children-prop": "off",
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
-    "react/only-export-components": "off",
-    "react/no-array-index-key": "off"
+    "react/incompatible-library": "warn",
+    "react/unsupported-syntax": "warn",
+    // Compiler-powered duplicates of `rules-of-hooks` / `exhaustive-deps`.
+    "react/hooks": "off",
+    "react/memo-dependencies": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    // https://react.dev/learn/you-might-not-need-an-effect
+    "react/no-deriving-state-in-effects": "warn",
+    // `use*` names are for hooks only; effects need a comment above or a named function.
+    "local/hook-prefix": "error",
+    "local/explained-effect": "error",
+    "local/context-provider": "error",
+    "react/prefer-function-component": "error",
+    "react/button-has-type": "error",
+    "react/no-danger": "error",
+    "react/no-array-index-key": "warn",
+    "react/no-clone-element": "warn",
+    "react/no-react-children": "warn",
+    "react/hook-use-state": "warn",
+    "typescript/no-restricted-types": [
+      "error",
+      {
+        "types": {
+          "React.FC": "Type the props parameter instead: `function Foo(props: FooProps)`",
+          "React.FunctionComponent": "Type the props parameter instead: `function Foo(props: FooProps)`"
+        }
+      }
+    ],
+    // JSX style the formatter doesn't touch; all autofixable.
+    "react/self-closing-comp": "error",
+    "react/jsx-boolean-value": "error",
+    "react/jsx-curly-brace-presence": "error",
+    "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
+    "react/jsx-fragments": "error",
+
+    // Parent-directory imports go through the `#*` subpath alias; `./` siblings are fine.
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "react", "importNames": ["forwardRef"], "message": "React 19 passes `ref` as a regular prop; don't use `forwardRef`" },
+          { "name": "react", "importNames": ["useContext"], "message": "Use `use(Context)` (React 19); it also works conditionally" },
+          {
+            "name": "react",
+            "importNames": ["FC", "FunctionComponent"],
+            "message": "Type the props parameter instead: `function Foo(props: FooProps)`"
+          }
+        ],
+        "patterns": [
+          {
+            "regex": "^[.]{2}/",
+            "message": "Import from parent directories through the `#src/` alias, with the extension (e.g. `#src/env.ts`)"
+          }
+        ]
+      }
+    ]
   }
 }

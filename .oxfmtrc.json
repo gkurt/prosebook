@@ -2,9 +2,17 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 140,
   "singleQuote": true,
+  // Sort within blank-line-separated chunks; never insert blank lines between groups.
   "sortImports": {
     "newlinesBetween": false,
     "partitionByNewline": true
   },
-  "ignorePatterns": ["**/.claude", "examples/react-app/src/copy/**", "**/catalog.schema.json", "**/copy/lock.json", "test/.tmp/**"]
+  "ignorePatterns": [
+    "**/.claude",
+    "**/build",
+    "examples/react-app/src/copy/**",
+    "**/catalog.schema.json",
+    "**/copy/lock.json",
+    "test/.tmp/**"
+  ]
 }

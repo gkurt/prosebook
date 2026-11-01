@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    // Environment setup & latest features
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "target": "ESNext",
     "module": "nodenext",
@@ -16,9 +17,11 @@
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "noEmit": true,
+    // tsc never emits (noEmit), but tsdown reads `declarationMap` for .d.ts source maps; it requires `declaration`.
     "declaration": true,
     "declarationMap": true,
 
+    // Best practices
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,

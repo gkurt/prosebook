@@ -24,7 +24,7 @@ function banner(config: ResolvedConfig): string {
 
 /** Every locale the app can switch to, in order: the source, the translations, the pseudo-locale. */
 export function localesOf(catalog: Catalog, config: ResolvedConfig): string[] {
-  return [config.source, ...catalog.locales, ...(config.pseudo ? [config.pseudo] : [])];
+  return [config.source, ...catalog.locales, ...(config.pseudo !== false ? [config.pseudo] : [])];
 }
 
 /** Per locale, the messages its module holds. A translated locale holds only what it translates. */
@@ -48,7 +48,7 @@ export function localeEntries(
       }),
     );
   }
-  if (config.pseudo) {
+  if (config.pseudo !== false) {
     out.set(
       config.pseudo,
       catalog.messages.map((m) => [m.key, pseudoAst(m.ast)]),

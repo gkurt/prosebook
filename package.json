@@ -14,10 +14,19 @@
     "typescript",
     "ux-writing"
   ],
+  "homepage": "https://github.com/gkurt/copydeck",
+  "bugs": {
+    "url": "https://github.com/gkurt/copydeck/issues"
+  },
   "license": "MIT",
   "author": {
     "name": "Gokhan Kurt",
+    "email": "krtgkn@gmail.com",
     "url": "https://gkurt.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gkurt/copydeck.git"
   },
   "bin": {
     "copydeck": "./dist/cli.js"
@@ -31,8 +40,6 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "imports": {
     "#*": "./*"
   },
@@ -86,7 +93,8 @@
     "prepack": "tsdown",
     "cli": "bun --conditions=copydeck@dev src/cli.ts",
     "example": "vite examples/react-app",
-    "example:build": "vite build examples/react-app"
+    "example:build": "vite build examples/react-app",
+    "prepare": "husky"
   },
   "dependencies": {
     "@formatjs/icu-messageformat-parser": "^3.5.22",
@@ -94,13 +102,16 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "21.0.4",
+    "@happy-dom/global-registrator": "^21.0.4",
     "@types/bun": "^1.4.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tsdown": "^0.23.4",
@@ -122,5 +133,11 @@
     "typescript": {
       "optional": true
     }
+  },
+  "lint-staged": {
+    "*": [
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ]
   }
 }

@@ -155,7 +155,7 @@ const CHECKS: Record<LintRule, Check> = {
     const n = sentences(prose(primary));
     return n > most
       ? [
-          `${an(m.kind)}${kind?.maxSentencesOn?.[m.surface ?? ''] ? ` on ${m.surface}` : ''} is ${most} sentence(s) at most, and this is ${n}`,
+          `${an(m.kind)}${kind?.maxSentencesOn?.[m.surface ?? ''] !== undefined ? ` on ${m.surface}` : ''} is ${most} sentence(s) at most, and this is ${n}`,
         ]
       : [];
   },

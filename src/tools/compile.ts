@@ -60,7 +60,7 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null):
     case TYPE.plural: {
       // `#` is the plural's own value less its offset, formatted as a number.
       const value = access(el.value);
-      const hash = `h.n(${value}${el.offset ? ` - ${el.offset}` : ''})`;
+      const hash = `h.n(${value}${el.offset !== 0 ? ` - ${el.offset}` : ''})`;
       return `h.p(${value}, ${el.offset}, ${el.pluralType === 'ordinal'}, ${arms(el.options, hoisted, hash)})`;
     }
     case TYPE.tag:
