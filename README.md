@@ -183,6 +183,22 @@ copydeck todo de           # missing and stale entries, with context, ready to t
 copydeck accept de cart.items
 ```
 
+The lock also keeps the text each translation was made from, so a translator sees what changed,
+in the notation of `git diff --word-diff`:
+
+```text
+$ copydeck status --verbose
+de           13/14  92%        1      2
+  stale   cart.add: Add {+one +}to cart
+  stale   cart.checkout: [-Check out-]{+Pay now+}
+
+$ copydeck todo de
+# The button on a product that adds one to the cart.
+# en: Add one to cart
+# stale, the source changed: Add {+one +}to cart
+cart.add: In den Warenkorb
+```
+
 Stale translations still show by default; `stale: 'fallback'` shows the source instead.
 
 **Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ⟧` from the source. Switch to it and
@@ -270,9 +286,24 @@ profile.hi-read-the-terms:
 - Whitespace renders exactly as before. Code-like tokens (`form.json()`, `src/index.ts`), text in
   `<code>` and `<pre>`, and lines marked `copydeck-ignore` stay where they are.
 
+**Typed placeholders.** extract asks the project's TypeScript (7 or later, found through the nearest
+`tsconfig.json`) what each expression holds:
+
+| The value is                                   | The placeholder becomes                                                 |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| text                                           | `{name}`                                                                |
+| a number                                       | `{count, number}`, so it's formatted for the locale (`1,234`, `1.234`)  |
+| a number followed by a plural noun, in English | `{count, plural, one {# file} other {# files}}`                         |
+| a `Date`                                       | `{when, date, medium}`                                                  |
+| markup (`ReactNode`, elements)                 | nothing: the sentence is left as it is, with a warning to make it a tag |
+
+Without TypeScript (a JavaScript project, a file outside any tsconfig) the syntax decides where it can:
+`items.length`, arithmetic and number literals are numbers, `new Date()` is a date. The report says
+which of the two it used.
+
 Every new entry is marked `TODO(copydeck extract)`. The key is a suggestion: rename it to say what
-the string is for, then fill in the context a translator needs. A placeholder is a string: where the
-value is a number, the type checker flags the call, and the message wants `{n, number}` or a plural.
+the string is for, then fill in the context a translator needs. Check a drafted plural's arms too:
+the singular is the plural less its `s`, `es` or `ies`.
 
 ## Pruning
 
@@ -338,15 +369,13 @@ pruning, and the YAML 1.1/1.2 divergence check. What changed:
 
 Ideas not built yet, roughly in order of value:
 
-1. **Show what changed** for a stale translation: keep the old source text in the lock, so `todo`
-   prints a diff rather than only the new English.
-2. **Draft translations with an LLM**: `copydeck translate de --draft`, prompted with `context`,
+1. **Draft translations with an LLM**: `copydeck translate de --draft`, prompted with `context`,
    `kind`, `surface` and `args`, written to a draft file a person reviews before it ships.
-3. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
-4. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-5. **In-context editing in dev**: alt-click a string to open its YAML entry, using a key attribute
+2. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
+3. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
+4. **In-context editing in dev**: alt-click a string to open its YAML entry, using a key attribute
    `<Text>` adds in dev builds.
-6. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
-7. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
+5. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
+6. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
    Rust for its tray and menus.
-8. **MessageFormat 2** once `Intl.MessageFormat` lands.
+7. **MessageFormat 2** once `Intl.MessageFormat` lands.

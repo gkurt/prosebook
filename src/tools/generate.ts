@@ -11,7 +11,7 @@ import { dirname, join, relative } from 'node:path';
 import { loadCatalog, type Catalog, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
-import { readLock, reconcile, serializeLock, type Lock } from './lock.ts';
+import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { pseudoAst } from './pseudo.ts';
 
 const quote = (s: string) => JSON.stringify(s);
@@ -28,7 +28,11 @@ export function localesOf(catalog: Catalog, config: ResolvedConfig): string[] {
 }
 
 /** Per locale, the messages its module holds. A translated locale holds only what it translates. */
-export function localeEntries(catalog: Catalog, config: ResolvedConfig, stale: Map<string, Set<string>>): Map<string, Entry[]> {
+export function localeEntries(
+  catalog: Catalog,
+  config: ResolvedConfig,
+  stale: Map<string, Map<string, StaleTranslation>>,
+): Map<string, Entry[]> {
   const out = new Map<string, Entry[]>();
   out.set(
     config.source,
@@ -163,7 +167,7 @@ export interface Generated {
   /** Absolute path to content. */
   files: Map<string, string>;
   lock: Lock;
-  stale: Map<string, Set<string>>;
+  stale: Map<string, Map<string, StaleTranslation>>;
   entries: Map<string, Entry[]>;
 }
 
@@ -222,7 +226,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
   }
 
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
-  if (Object.keys(lock).length > 0 || existsSync(config.lock)) files.set(config.lock, serializeLock(lock));
+  if (Object.keys(lock.translations).length > 0 || existsSync(config.lock)) files.set(config.lock, serializeLock(lock));
   return { catalog, files, lock, stale, entries };
 }
 

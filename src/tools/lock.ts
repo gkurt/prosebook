@@ -6,37 +6,63 @@
  * the source leaves the old anchor in place, which is what marks it stale. Nobody has to remember
  * to flag anything: `copydeck status` lists what is stale, and `copydeck accept` re-anchors a
  * translation that was still right.
+ *
+ * The lock also keeps the text behind each anchor, once per distinct text, so a stale translation
+ * can show its translator what changed rather than only what the source says now.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 
 import type { Catalog } from './catalog.ts';
 
-/** Per locale, per key: `<source hash>:<translation hash>`. */
-export type Lock = Record<string, Record<string, string>>;
+export interface Lock {
+  version: 2;
+  /** Source text by hash: every text some translation is anchored to. */
+  sources: Record<string, string>;
+  /** Per locale, per key: `<source hash>:<translation hash>`. */
+  translations: Record<string, Record<string, string>>;
+}
 
 export function hash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 10);
 }
 
-export function readLock(path: string): Lock {
-  if (!existsSync(path)) return {};
-  return JSON.parse(readFileSync(path, 'utf8')) as Lock;
+export function emptyLock(): Lock {
+  return { version: 2, sources: {}, translations: {} };
 }
 
+/** The lock at `path`. A version 1 lock, which held only the translations, reads with no source texts. */
+export function readLock(path: string): Lock {
+  if (!existsSync(path)) return emptyLock();
+  const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<Lock> | Record<string, Record<string, string>>;
+  if ((raw as Partial<Lock>).version === 2) return { ...emptyLock(), ...(raw as Partial<Lock>) } as Lock;
+  return { version: 2, sources: {}, translations: raw as Record<string, Record<string, string>> };
+}
+
+const sortedEntries = <T>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : 1)));
+
 export function serializeLock(lock: Lock): string {
-  const sorted = Object.fromEntries(
-    Object.keys(lock)
+  const translations = Object.fromEntries(
+    Object.keys(lock.translations)
       .sort()
-      .map((locale) => [locale, Object.fromEntries(Object.entries(lock[locale]!).sort(([a], [b]) => (a < b ? -1 : 1)))]),
+      .map((locale) => [locale, sortedEntries(lock.translations[locale]!)]),
   );
-  return `${JSON.stringify(sorted, null, 2)}\n`;
+  return `${JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations }, null, 2)}\n`;
+}
+
+export interface StaleTranslation {
+  /** The source the translation was made from, where the lock recorded it. */
+  was: string | undefined;
+  /** The source now. */
+  now: string;
+  /** The translation, made from `was`. */
+  translation: string;
 }
 
 export interface Reconciled {
   lock: Lock;
-  /** Per locale, the keys whose translation was made from a source that has changed since. */
-  stale: Map<string, Set<string>>;
+  /** Per locale, per key: the translations made from a source that has changed since. */
+  stale: Map<string, Map<string, StaleTranslation>>;
 }
 
 /**
@@ -44,21 +70,24 @@ export interface Reconciled {
  * translations (per locale, keys, or `true` for all of them) to the current source.
  */
 export function reconcile(catalog: Catalog, previous: Lock, accept: Map<string, Set<string> | true> = new Map()): Reconciled {
-  const lock: Lock = {};
-  const stale = new Map<string, Set<string>>();
+  const lock = emptyLock();
+  const stale = new Map<string, Map<string, StaleTranslation>>();
   for (const message of catalog.messages) {
     const source = hash(message.text);
     for (const [locale, translation] of message.translations) {
       const text = hash(translation.text);
-      const [anchor, recorded] = (previous[locale]?.[message.key] ?? '').split(':');
+      const [anchor, recorded] = (previous.translations[locale]?.[message.key] ?? '').split(':');
       const accepted = accept.get(locale);
       const reanchor =
         anchor === undefined || anchor === '' || recorded !== text || accepted === true || accepted?.has(message.key) === true;
-      (lock[locale] ??= {})[message.key] = `${reanchor ? source : anchor}:${text}`;
+      const kept = reanchor ? source : anchor;
+      (lock.translations[locale] ??= {})[message.key] = `${kept}:${text}`;
+      const keptText = kept === source ? message.text : previous.sources[kept];
+      if (keptText !== undefined) lock.sources[kept] = keptText;
       if (!reanchor && anchor !== source) {
         let keys = stale.get(locale);
-        if (keys === undefined) stale.set(locale, (keys = new Set()));
-        keys.add(message.key);
+        if (keys === undefined) stale.set(locale, (keys = new Map()));
+        keys.set(message.key, { was: keptText, now: message.text, translation: translation.text });
       }
     }
   }

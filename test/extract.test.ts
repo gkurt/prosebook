@@ -54,7 +54,7 @@ describe('copydeck extract', () => {
       },
       { scan: { dirs: ['src'] } },
     );
-    const plan = planExtract(config, [join(config.root, 'src', 'After.tsx')], { area: 'profile' });
+    const plan = await planExtract(config, [join(config.root, 'src', 'After.tsx')], { area: 'profile' });
     expect(plan.files[0]!.extractions.map((x) => `${x.line} ${x.key}${x.reused ? ' (reused)' : ''}: ${x.message}`)).toEqual([
       '6 profile.your-profile-tooltip: Your profile',
       '7 profile.profile: Profile',
@@ -87,9 +87,9 @@ describe('copydeck extract', () => {
     expect(render(After)).toBe(render(Before));
   });
 
-  test('the catalog entries carry a kind, surface, context and argument docs to review', () => {
+  test('the catalog entries carry a kind, surface, context and argument docs to review', async () => {
     const config = fixture({ 'src/Cart.tsx': COMPONENT });
-    const plan = planExtract(config, [join(config.root, 'src', 'Cart.tsx')]);
+    const plan = await planExtract(config, [join(config.root, 'src', 'Cart.tsx')]);
     applyExtract(config, plan);
     const yaml = readFileSync(join(config.catalog, 'cart.yaml'), 'utf8');
     expect(yaml.startsWith('# yaml-language-server: $schema=./catalog.schema.json\n')).toBe(true);
@@ -109,14 +109,14 @@ describe('copydeck extract', () => {
     expect(loadCatalog(config).messages).toHaveLength(9);
   });
 
-  test('an attribute outside a component body is left alone, with a warning', () => {
+  test('an attribute outside a component body is left alone, with a warning', async () => {
     const config = fixture({ 'src/Badge.tsx': 'export const Badge = () => <span aria-label="New badge">New</span>;\n' });
-    const [file] = planExtract(config, [join(config.root, 'src', 'Badge.tsx')]).files;
+    const [file] = (await planExtract(config, [join(config.root, 'src', 'Badge.tsx')])).files;
     expect(file!.extractions.map((x) => x.key)).toEqual(['badge.new']);
     expect(file!.warnings[0]).toContain('aria-label="New badge" is not inside a component with a body');
   });
 
-  test('t joins an existing useCopy() call, and copy.t stands in where t is taken', () => {
+  test('t joins an existing useCopy() call, and copy.t stands in where t is taken', async () => {
     const config = fixture({
       'src/A.tsx': [
         "import { useCopy } from 'copydeck/react';",
@@ -133,7 +133,7 @@ describe('copydeck extract', () => {
         '}',
       ].join('\n'),
     });
-    const plan = planExtract(config, [join(config.root, 'src', 'A.tsx')]);
+    const plan = await planExtract(config, [join(config.root, 'src', 'A.tsx')]);
     applyExtract(config, plan);
     const code = readFileSync(join(config.root, 'src', 'A.tsx'), 'utf8');
     expect(code).toContain('const { t, locale } = useCopy();');
@@ -145,14 +145,14 @@ describe('copydeck extract', () => {
     expect(plan.files[0]!.warnings).toEqual([]);
   });
 
-  test('an argument YAML 1.1 reads as a boolean is quoted, so the catalog still loads', () => {
+  test('an argument YAML 1.1 reads as a boolean is quoted, so the catalog still loads', async () => {
     const config = fixture({ 'src/Count.tsx': 'export function Count({ n }: { n: string }) {\n  return <p>You have {n} files</p>;\n}\n' });
-    applyExtract(config, planExtract(config, [join(config.root, 'src', 'Count.tsx')]));
+    applyExtract(config, await planExtract(config, [join(config.root, 'src', 'Count.tsx')]));
     expect(readFileSync(join(config.catalog, 'count.yaml'), 'utf8')).toContain('    "n": "TODO: what `n` holds"');
     expect(loadCatalog(config).messages.map((m) => m.text)).toEqual(['You have {n} files']);
   });
 
-  test('an area is named after the file, or its folder for an index', () => {
+  test('an area is named after the file, or its folder for an index', async () => {
     expect(areaOf('src/components/CartPanel.tsx')).toBe('cart-panel');
     expect(areaOf('src/routes/settings/index.tsx')).toBe('settings');
     expect(areaOf('src/HTMLViewer.tsx')).toBe('html-viewer');

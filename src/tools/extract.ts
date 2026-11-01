@@ -16,6 +16,7 @@ import { stringify } from 'yaml';
 import { CatalogError, KEY_PATTERN, loadCatalog } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { looksLikeCode } from './scan.ts';
+import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
 
 type Node = { type: string; start: number; end: number; [field: string]: any };
 
@@ -61,6 +62,8 @@ export interface FilePlan {
 export interface ExtractPlan {
   files: FilePlan[];
   entries: NewEntry[];
+  /** What said which placeholders are numbers and dates: `TypeScript`, or `syntax` alone. */
+  types: string;
 }
 
 const MODULE = 'copydeck/react';
@@ -149,6 +152,46 @@ export function slugOf(message: string): string {
     .filter(Boolean)
     .slice(0, 4);
   return words.length === 0 ? 'text' : words.join('-');
+}
+
+/** Words a count is followed by that are not plural nouns, though they end in s. */
+const NOT_PLURAL = new Set([
+  'is',
+  'was',
+  'has',
+  'does',
+  'this',
+  'its',
+  'plus',
+  'minus',
+  'less',
+  'yes',
+  'us',
+  'as',
+  'bus',
+  'gas',
+  'news',
+  'series',
+]);
+
+/** The singular of an English plural noun, or nothing where it doesn't look like one. */
+export function singularOf(word: string): string | undefined {
+  const lower = word.toLowerCase();
+  if (word.length < 3 || !lower.endsWith('s') || lower.endsWith('ss') || NOT_PLURAL.has(lower)) return undefined;
+  if (/[^aeiou]ies$/.test(lower)) return `${word.slice(0, -3)}y`;
+  if (/(?:s|x|z|ch|sh)es$/.test(lower)) return word.slice(0, -2);
+  return word.slice(0, -1);
+}
+
+/**
+ * A count followed by a plural noun, `{n, number} files`, as the plural it needs: `{n, plural, one {#
+ * file} other {# files}}`. English only, and a draft: the TODO above the entry asks for a look.
+ */
+export function draftPlurals(message: string): string {
+  return message.replace(/\{(\w+), number\} (\p{L}+)(?![\p{L}'])/gu, (whole, name: string, word: string) => {
+    const one = singularOf(word);
+    return one === undefined ? whole : `{${name}, plural, one {# ${one}} other {# ${word}}}`;
+  });
 }
 
 /** Text written literally inside an ICU message. */
@@ -250,6 +293,8 @@ interface Context {
   /** Every key's source message, the catalog's and those added in this run. */
   known: Map<string, string>;
   entries: NewEntry[];
+  /** The kind of value each JSX expression holds, by `start:end`. */
+  kinds: Map<string, ValueKind>;
 }
 
 /** Plans the extraction from one file: the edits and the entries, without writing anything. */
@@ -399,10 +444,21 @@ function planFile(path: string, ctx: Context): FilePlan {
       const expr = node.expression as Node;
       if (expr.type === 'Literal' && typeof expr.value === 'string') return escapeIcu(expr.value);
       if (expr.type === 'TemplateLiteral' && expr.expressions.length === 0) return escapeIcu(expr.quasis[0].value.cooked as string);
-      return `{${argName(expr)}}`;
+      const kind = ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr);
+      if (kind === 'node') markup.push(code.slice(expr.start, expr.end));
+      return `{${argName(expr)}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
     };
 
-    const message = nodes.map(piece).join('').trim();
+    const markup: string[] = [];
+    let message = nodes.map(piece).join('').trim();
+    if (markup.length > 0) {
+      const at = position(first.start);
+      plan.warnings.push(
+        `${file}:${at.line}:${at.column} {${markup.join('}, {')}} holds markup, not text, so this sentence was left as it is: make it a tag, or give the text around it entries of its own`,
+      );
+      return;
+    }
+    if (/^en\b/.test(ctx.config.source)) message = draftPlurals(message);
     // A run of spaces, placeholders and punctuation is layout, not words.
     const words = message.replace(/\{[^}]*\}|<\/?[\w-]+>|'[{}<]'/g, '');
     if (!LETTER.test(words) || (values.size === 0 && looksLikeCode(message))) return;
@@ -561,8 +617,34 @@ function importEdit(program: Node, code: string, plan: FilePlan, wanted: string[
   }
 }
 
-/** Plans an extraction over `paths`, each a file or a folder, against the current catalog. */
-export function planExtract(config: ResolvedConfig, paths: string[], options: { area?: string } = {}): ExtractPlan {
+/** The spans of every expression inside JSX, which are the ones that may become placeholders. */
+function jsxExpressions(file: string, code: string): Span[] {
+  const spans: Span[] = [];
+  const walk = (node: Node) => {
+    if (node.type === 'JSXExpressionContainer' && node.expression.type !== 'JSXEmptyExpression')
+      spans.push({ start: node.expression.start as number, end: node.expression.end as number });
+
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const child of value) if (isNode(child)) walk(child);
+      } else if (isNode(value)) {
+        walk(value);
+      }
+    }
+  };
+  walk(parseSync(file, code).program as unknown as Node);
+  return spans;
+}
+
+/**
+ * Plans an extraction over the files in `paths` against the current catalog. With `types` (the
+ * default), the project's TypeScript says which placeholders are numbers and dates.
+ */
+export async function planExtract(
+  config: ResolvedConfig,
+  paths: string[],
+  options: { area?: string; types?: boolean } = {},
+): Promise<ExtractPlan> {
   if (options.area !== undefined && !KEY_PATTERN.test(`${options.area}.x`))
     throw new Error(`copydeck: "${options.area}" is not an area: lowercase words joined by -`);
   const known = new Map<string, string>();
@@ -575,8 +657,22 @@ export function planExtract(config: ResolvedConfig, paths: string[], options: { 
     }
   }
   const entries: NewEntry[] = [];
-  const files = paths.map((path) => planFile(path, { config, area: options.area ?? areaOf(path), known, entries }));
-  return { files, entries };
+  const oracle = options.types === false ? undefined : await typescriptOracle(config.root, paths);
+  try {
+    const files = paths.map((path) => {
+      const kinds = new Map<string, ValueKind>();
+      if (oracle) {
+        const spans = jsxExpressions(path, readFileSync(path, 'utf8'));
+        oracle.kinds(path, spans).forEach((kind, i) => {
+          if (kind !== undefined && kind !== 'unknown') kinds.set(`${spans[i]!.start}:${spans[i]!.end}`, kind);
+        });
+      }
+      return planFile(path, { config, area: options.area ?? areaOf(path), known, entries, kinds });
+    });
+    return { files, entries, types: oracle?.source ?? 'syntax' };
+  } finally {
+    oracle?.close();
+  }
 }
 
 /** Applies a plan: rewrites the files and appends the new entries to their area's catalog file. */

@@ -1,26 +1,44 @@
 {
-  "de": {
-    "app.greeting": "87bc4ebbde:7ec3ddf9e8",
-    "app.language": "a4fe65264e:f2a1cc71fa",
-    "app.last-visit": "4269328d55:92a5aac3e8",
-    "app.title": "61867ba9e0:03dc591317",
-    "cart.add": "0e9408353c:9284974089",
-    "cart.checkout": "326e405a5b:95176937a3",
-    "cart.express": "2e7b142546:a9531ab222",
-    "cart.items": "024366de02:4e41fdd4fa",
-    "cart.place": "ce695896f5:40ee38e233",
-    "cart.remove": "09abed023c:02c8f0bd86",
-    "cart.terms": "52cfb085d8:81959d60d0",
-    "cart.title": "6d2d59aed4:d6de36e1cf",
-    "cart.total": "57fb423119:c0ecf46fa0"
+  "version": 2,
+  "sources": {
+    "024366de02": "{count, plural, =0 {Your cart is empty.} one {# item in your cart.} other {# items in your cart.}}",
+    "09abed023c": "Empty cart",
+    "0e9408353c": "Add to cart",
+    "2e7b142546": "Express delivery",
+    "326e405a5b": "Check out",
+    "4269328d55": "Your last visit was {when, date, medium} at {when, time, short}.",
+    "52cfb085d8": "By checking out you agree to our <link>terms of sale</link>.",
+    "57fb423119": "Total: {amount, number, ::currency/EUR}",
+    "61867ba9e0": "Corner Shop",
+    "6d2d59aed4": "Cart",
+    "87bc4ebbde": "Welcome back, {name}.",
+    "a4fe65264e": "Language",
+    "ce695896f5": "Today's {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} order!"
   },
-  "tr": {
-    "app.greeting": "87bc4ebbde:2b2224ca77",
-    "app.language": "a4fe65264e:78152f3fec",
-    "app.title": "61867ba9e0:7bee69e8f4",
-    "cart.add": "0e9408353c:0e4c1a8c4a",
-    "cart.checkout": "326e405a5b:1b7b52974d",
-    "cart.items": "024366de02:e68068268e",
-    "cart.title": "6d2d59aed4:034fe767aa"
+  "translations": {
+    "de": {
+      "app.greeting": "87bc4ebbde:7ec3ddf9e8",
+      "app.language": "a4fe65264e:f2a1cc71fa",
+      "app.last-visit": "4269328d55:92a5aac3e8",
+      "app.title": "61867ba9e0:03dc591317",
+      "cart.add": "0e9408353c:9284974089",
+      "cart.checkout": "326e405a5b:95176937a3",
+      "cart.express": "2e7b142546:a9531ab222",
+      "cart.items": "024366de02:4e41fdd4fa",
+      "cart.place": "ce695896f5:40ee38e233",
+      "cart.remove": "09abed023c:02c8f0bd86",
+      "cart.terms": "52cfb085d8:81959d60d0",
+      "cart.title": "6d2d59aed4:d6de36e1cf",
+      "cart.total": "57fb423119:c0ecf46fa0"
+    },
+    "tr": {
+      "app.greeting": "87bc4ebbde:2b2224ca77",
+      "app.language": "a4fe65264e:78152f3fec",
+      "app.title": "61867ba9e0:7bee69e8f4",
+      "cart.add": "0e9408353c:0e4c1a8c4a",
+      "cart.checkout": "326e405a5b:1b7b52974d",
+      "cart.items": "024366de02:e68068268e",
+      "cart.title": "6d2d59aed4:034fe767aa"
+    }
   }
 }

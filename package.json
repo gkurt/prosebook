@@ -1,6 +1,6 @@
 {
   "name": "copydeck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
     "i18n",
@@ -109,6 +109,7 @@
   },
   "peerDependencies": {
     "react": ">=18",
+    "typescript": ">=7",
     "vite": ">=6"
   },
   "peerDependenciesMeta": {
@@ -116,6 +117,9 @@
       "optional": true
     },
     "vite": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   }

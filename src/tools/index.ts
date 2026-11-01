@@ -13,11 +13,24 @@ export {
   type Translation,
 } from './catalog.ts';
 export { compileLocale, localeExpression, localeModule, type CompiledLocale, type Entry } from './compile.ts';
-export { applyExtract, areaOf, planExtract, slugOf, type Extraction, type ExtractPlan, type FilePlan, type NewEntry } from './extract.ts';
+export {
+  applyExtract,
+  areaOf,
+  draftPlurals,
+  planExtract,
+  singularOf,
+  slugOf,
+  type Extraction,
+  type ExtractPlan,
+  type FilePlan,
+  type NewEntry,
+} from './extract.ts';
 export { defineConfig, loadConfig, resolveConfig, type CopydeckConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export { lint, LINT_RULES, type Finding, type LintRule } from './lint.ts';
-export { hash, readLock, reconcile, serializeLock, type Lock } from './lock.ts';
+export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
+export { emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 export { pseudoAst, pseudoText } from './pseudo.ts';
+export { syntaxKind, typescriptOracle, type Span, type TypeOracle, type ValueKind } from './types.ts';
 export { hardcodedText, isReferenced, keyRefs, looksLikeCode, scan, sourceFiles, type Hardcoded, type KeyRefs } from './scan.ts';

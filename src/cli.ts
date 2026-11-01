@@ -11,9 +11,11 @@ import { stringify } from 'yaml';
 
 import { CatalogError, type Catalog } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
+import { formatDiff, wordDiff } from './tools/diff.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint } from './tools/lint.ts';
+import type { StaleTranslation } from './tools/lock.ts';
 import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
 
 const HELP = `copydeck: every string your app shows, in one typed catalog
@@ -179,7 +181,8 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): n
   out(`${'locale'.padEnd(10)} ${'translated'.padStart(12)} ${'missing'.padStart(8)} ${'stale'.padStart(6)}`);
   for (const locale of catalog.locales) {
     const missing = missingKeys(catalog, locale);
-    const staleKeys = [...(stale.get(locale) ?? [])];
+    const staleHere = stale.get(locale) ?? new Map<string, StaleTranslation>();
+    const staleKeys = [...staleHere.keys()];
     const done = total - missing.length;
     if (missing.length > 0 || staleKeys.length > 0) incomplete = true;
     const pct = total === 0 ? 100 : Math.floor((done / total) * 100);
@@ -188,7 +191,7 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): n
     );
     if (verbose) {
       for (const key of missing) out(`  missing ${key}`);
-      for (const key of staleKeys) out(`  stale   ${key}`);
+      for (const [key, s] of staleHere) out(`  stale   ${key}: ${changeOf(s)}`);
     }
   }
   if (incomplete && !verbose) out('\n`copydeck status --verbose` lists the keys; `copydeck todo <locale>` prints them ready to translate.');
@@ -201,12 +204,18 @@ function runAccept(config: ResolvedConfig, args: string[], all: boolean): number
     err('Usage: copydeck accept <locale> <key>... | copydeck accept <locale> --all');
     return 1;
   }
-  const before = render(config).stale.get(locale) ?? new Set<string>();
-  const accepting = all ? before : new Set(keys);
+  const before = render(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
+  const accepting = all ? new Set(before.keys()) : new Set(keys);
   for (const key of accepting) if (!before.has(key)) err(`warn  ${locale} ${key} is not stale`);
   generate(config, { accept: new Map([[locale, all ? true : new Set(keys)]]) });
   out(`copydeck: accepted ${[...accepting].filter((k) => before.has(k)).length} translation(s) in ${locale}`);
   return 0;
+}
+
+/** What changed in the source of a stale translation, as a word diff, or why that isn't known. */
+function changeOf(stale: StaleTranslation): string {
+  if (stale.was === undefined) return "the earlier text isn't recorded (the lock predates copydeck 0.2)";
+  return formatDiff(wordDiff(stale.was, stale.now)).replaceAll('\n', ' ');
 }
 
 function runTodo(config: ResolvedConfig, locale: string | undefined): number {
@@ -215,7 +224,7 @@ function runTodo(config: ResolvedConfig, locale: string | undefined): number {
     return 1;
   }
   const { catalog, stale } = render(config);
-  const staleKeys = stale.get(locale) ?? new Set<string>();
+  const staleKeys = stale.get(locale) ?? new Map<string, StaleTranslation>();
   const byArea = new Map<string, string[]>();
   let count = 0;
   for (const m of catalog.messages) {
@@ -227,7 +236,8 @@ function runTodo(config: ResolvedConfig, locale: string | undefined): number {
     if (m.context) lines.push(`# ${m.context}`);
     for (const [arg, said] of m.argDocs) lines.push(`#   {${arg}}: ${said}`);
     lines.push(`# ${config.source}: ${m.text.replaceAll('\n', ' ')}`);
-    if (current !== undefined) lines.push('# stale: the source changed since this was translated');
+    const change = staleKeys.get(m.key);
+    if (change !== undefined) lines.push(`# stale, the source changed: ${changeOf(change)}`);
     lines.push(stringify({ [m.key]: current?.text ?? '' }, { lineWidth: 0 }).trimEnd());
     byArea.set(m.area, lines);
   }
@@ -261,10 +271,10 @@ function runScan(config: ResolvedConfig, strict: boolean): number {
   return strict && result.hardcoded.length + unused.length > 0 ? 1 : 0;
 }
 
-function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): number {
+async function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): Promise<number> {
   const targets = paths.length > 0 ? paths.map((p) => resolve(config.root, p)) : config.scan.dirs;
   const files = sourceFiles(targets, ['.tsx', '.jsx'], [config.out]).concat(targets.filter((t) => /\.[jt]sx$/.test(t) && existsSync(t)));
-  const plan = planExtract(config, [...new Set(files)], { area });
+  const plan = await planExtract(config, [...new Set(files)], { area });
   const extractions = plan.files.flatMap((f) => f.extractions);
   for (const x of extractions) {
     out(`${x.file}:${x.line}:${x.column}  ${x.where === 'text' ? '' : `${x.where}=`}"${x.message}"`);
@@ -278,9 +288,10 @@ function runExtract(config: ResolvedConfig, paths: string[], write: boolean, are
   const changedFiles = plan.files.filter((f) => f.edits.length > 0).length;
   const areas = [...new Set(plan.entries.map((e) => e.area))].map((a) => `${a}.yaml`);
   const summary = `${extractions.length} string(s) in ${changedFiles} file(s), ${plan.entries.length} new entr${plan.entries.length === 1 ? 'y' : 'ies'}${areas.length > 0 ? ` in ${areas.join(', ')}` : ''}`;
+  out(`
+Placeholder types: ${plan.types === 'syntax' ? 'read from the code alone (no TypeScript 7 project found)' : `from ${plan.types}`}.`);
   if (!write) {
-    out(`
-copydeck: would extract ${summary}. Run again with --write to apply.`);
+    out(`copydeck: would extract ${summary}. Run again with --write to apply.`);
     return 0;
   }
   applyExtract(config, plan);

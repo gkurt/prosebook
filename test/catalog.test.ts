@@ -109,15 +109,15 @@ describe('stale translations', () => {
     expect(generate(config).stale.size).toBe(0);
 
     writeFileSync(join(config.catalog, 'app.yaml'), 'app.a: Save draft\napp.b: Open\n');
-    expect([...(generate(config).stale.get('de') ?? [])]).toEqual(['app.a']);
+    expect([...(generate(config).stale.get('de')?.keys() ?? [])]).toEqual(['app.a']);
     // Still stale on the next run: nothing re-anchored it.
-    expect([...(generate(config).stale.get('de') ?? [])]).toEqual(['app.a']);
+    expect([...(generate(config).stale.get('de')?.keys() ?? [])]).toEqual(['app.a']);
 
     writeFileSync(join(config.locales, 'de', 'app.yaml'), 'app.a: Entwurf speichern\napp.b: Öffnen\n');
     expect(generate(config).stale.size).toBe(0);
 
     writeFileSync(join(config.catalog, 'app.yaml'), 'app.a: Save draft\napp.b: Open file\n');
-    expect([...(generate(config).stale.get('de') ?? [])]).toEqual(['app.b']);
+    expect([...(generate(config).stale.get('de')?.keys() ?? [])]).toEqual(['app.b']);
     generate(config, { accept: new Map([['de', new Set(['app.b'])]]) });
     expect(generate(config).stale.size).toBe(0);
   });
