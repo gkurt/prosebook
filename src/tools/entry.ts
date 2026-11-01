@@ -104,7 +104,7 @@ export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, 
   ];
   if (renamed.length > 0) {
     const problem = `the entry is still ${key}: rename a key in the code and the catalog together`;
-    return { problems: renamed.map((file) => ({ severity: 'error', where: `${file} ${key}`, message: problem })) };
+    return { problems: renamed.map((file) => ({ severity: 'error', file, key, message: problem })) };
   }
 
   if (write) {

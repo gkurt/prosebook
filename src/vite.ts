@@ -170,10 +170,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         };
         const fail = (e: unknown) =>
           reply(e instanceof CatalogError ? 409 : 400, {
-            problems:
-              e instanceof CatalogError
-                ? e.problems
-                : [{ severity: 'error', where: 'prosebook', message: e instanceof Error ? e.message : String(e) }],
+            problems: e instanceof CatalogError ? e.problems : [{ severity: 'error', message: e instanceof Error ? e.message : String(e) }],
           });
         if (req.method === 'GET') {
           try {
@@ -186,7 +183,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         const origin = req.headers.origin;
         const sameOrigin = origin === undefined || new URL(origin).host === req.headers.host;
         if (req.method !== 'POST' || !sameOrigin || req.headers['content-type']?.startsWith('application/json') !== true) {
-          reply(403, { problems: [{ severity: 'error', where: 'prosebook', message: 'edits come from the page, as JSON' }] });
+          reply(403, { problems: [{ severity: 'error', message: 'edits come from the page, as JSON' }] });
           return;
         }
         let body = '';

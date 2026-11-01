@@ -2,15 +2,15 @@ import { describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CatalogError, definePlugin, generate, lint, loadCatalog, phrase, resolveConfig, words } from 'prosebook/tools';
+import { CatalogError, definePlugin, generate, lint, loadCatalog, phrase, resolveConfig, whereOf, words } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
 const problemsOf = (files: Record<string, string>, config = {}) => {
   try {
-    return loadCatalog(fixture(files, config)).problems.map((p) => `${p.where}: ${p.message}`);
+    return loadCatalog(fixture(files, config)).problems.map((p) => `${whereOf(p)}: ${p.message}`);
   } catch (e) {
-    if (e instanceof CatalogError) return e.problems.map((p) => `${p.where}: ${p.message}`);
+    if (e instanceof CatalogError) return e.problems.map((p) => `${whereOf(p)}: ${p.message}`);
     throw e;
   }
 };

@@ -312,6 +312,26 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 written as literals, and catalog keys no code names. Mark a deliberate literal with
 `prosebook-ignore` on its line or the line above.
 
+**SARIF.** `lint`, `scan`, `status` and `check` take `--format sarif` and write a
+[SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log to stdout for
+code scanning; the usual text goes to stderr and the exit code is the same. Each result points at
+the line it is about: the entry in the catalog or translation file, or the JSX for hardcoded text.
+Lint results carry the rule's name and description; the other checks are `catalog`, `out-of-date`,
+`missing-translation`, `stale-translation`, `hardcoded-text` and `unused-key`. In GitHub Actions:
+
+```yaml
+- run: npx prosebook check --format sarif > prosebook.sarif
+- uses: github/codeql-action/upload-sarif@v4
+  if: always()
+  with:
+    sarif_file: prosebook.sarif
+    category: prosebook
+```
+
+Paths are relative to the project root, which the log names as `%SRCROOT%`, so a project in a
+subfolder of its repository resolves too. `scan` writes a log of its own; upload it with its own
+`category`.
+
 ## Extracting hardcoded text
 
 `prosebook extract` moves what `scan` finds into the catalog and rewrites the code to read it. It

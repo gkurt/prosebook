@@ -14,6 +14,7 @@ import {
   resolveConfig,
   toMf1,
   toMf2,
+  whereOf,
 } from 'prosebook/tools';
 import type { CatalogError, Problem } from 'prosebook/tools';
 
@@ -151,7 +152,7 @@ describe('reading MessageFormat 2', () => {
     } catch (e) {
       problems = (e as CatalogError).problems;
     }
-    expect(problems.map((p) => `${p.where}: ${p.message}`)).toEqual([
+    expect(problems.map((p) => `${whereOf(p)}: ${p.message}`)).toEqual([
       'copy/locales/de.yaml cart.items: differs from the source: missing {count}; unknown {n}',
     ]);
 

@@ -49,8 +49,16 @@ export interface Message {
 
 export interface Problem {
   severity: 'error' | 'warn';
-  where: string;
+  /** Relative to the project root; none for a problem that isn't in a file. */
+  file?: string;
+  /** The entry it is about, in `file`; none for the file as a whole. */
+  key?: string;
   message: string;
+}
+
+/** `file key`, as the CLI names where a problem is. */
+export function whereOf(problem: Problem): string {
+  return [problem.file, problem.key].filter((s) => s !== undefined).join(' ');
 }
 
 export interface Catalog {
@@ -64,7 +72,7 @@ export class CatalogError extends Error {
   readonly problems: Problem[];
 
   constructor(problems: Problem[]) {
-    super(`the catalog has ${problems.length} problem(s):\n  ${problems.map((p) => `${p.where}: ${p.message}`).join('\n  ')}`);
+    super(`the catalog has ${problems.length} problem(s):\n  ${problems.map((p) => `${whereOf(p)}: ${p.message}`).join('\n  ')}`);
     this.problems = problems;
   }
 }
@@ -85,33 +93,33 @@ const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow
 export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string, string>): Catalog {
   const read = (path: string) => unsaved?.get(resolve(path)) ?? readFileSync(path, 'utf8');
   const problems: Problem[] = [];
-  const error = (where: string, message: string) => problems.push({ severity: 'error', where, message });
+  const error = (message: string, file?: string, key?: string) => problems.push({ severity: 'error', file, key, message });
   const byKey = new Map<string, Message>();
   const rel = (path: string) => relative(config.root, path).replaceAll('\\', '/');
 
   if (!existsSync(config.catalog)) {
-    error(rel(config.catalog), 'no catalog folder here: run `prosebook init`, or set `catalog` in the config');
+    error('no catalog folder here: run `prosebook init`, or set `catalog` in the config', rel(config.catalog));
     throw new CatalogError(problems);
   }
 
   for (const file of yamlFiles(config.catalog)) {
     const area = file.slice(0, -'.yaml'.length);
     const path = join(config.catalog, file);
-    for (const [key, value] of Object.entries(readEntries(read(path), rel(path), error))) {
-      const where = `${rel(path)} ${key}`;
+    const at = rel(path);
+    for (const [key, value] of Object.entries(readEntries(read(path), (m) => error(m, at)))) {
       if (!KEY_PATTERN.test(key)) {
-        error(where, 'a key is dotted lowercase with two segments at least: `area.thing`');
+        error('a key is dotted lowercase with two segments at least: `area.thing`', at, key);
         continue;
       }
       if (key.slice(0, key.indexOf('.')) !== area) {
-        error(where, `a key in ${file} starts with "${area}."`);
+        error(`a key in ${file} starts with "${area}."`, at, key);
         continue;
       }
       if (byKey.has(key)) {
-        error(where, 'duplicate key');
+        error('duplicate key', at, key);
         continue;
       }
-      const message = readEntry(key, area, rel(path), value, config, (m) => error(where, m));
+      const message = readEntry(key, area, at, value, config, (m) => error(m, at, key));
       if (message) byKey.set(key, message);
     }
   }
@@ -225,32 +233,32 @@ function readLocales(
 
   for (const [locale, paths] of files) {
     for (const path of paths) {
-      const error = (where: string, message: string) => problems.push({ severity: 'error', where, message });
-      for (const [key, value] of Object.entries(readEntries(read(path), rel(path), error))) {
-        const where = `${rel(path)} ${key}`;
+      const file = rel(path);
+      const error = (message: string, key?: string) => problems.push({ severity: 'error', file, key, message });
+      for (const [key, value] of Object.entries(readEntries(read(path), error))) {
         const message = byKey.get(key);
         if (message === undefined) {
-          problems.push({ severity: 'warn', where, message: 'no such key in the catalog, so this translation is unused' });
+          problems.push({ severity: 'warn', file, key, message: 'no such key in the catalog, so this translation is unused' });
           continue;
         }
         if (typeof value !== 'string' || value === '') {
-          error(where, 'a translation is the message, as a string');
+          error('a translation is the message, as a string', key);
           continue;
         }
         let ast: MessageFormatElement[];
         try {
           ast = readMessage(config.messageFormat, value, locale);
         } catch (e) {
-          error(where, syntaxError(config, value, e));
+          error(syntaxError(config, value, e), key);
           continue;
         }
         const drift = driftFrom(message, ast);
         if (drift !== undefined) {
-          error(where, drift);
+          error(drift, key);
           continue;
         }
-        for (const problem of formatProblems(ast)) error(where, problem);
-        message.translations.set(locale, { text: value, ast, file: rel(path) });
+        for (const problem of formatProblems(ast)) error(problem, key);
+        message.translations.set(locale, { text: value, ast, file });
       }
     }
   }
@@ -302,24 +310,24 @@ function yamlFiles(dir: string): string[] {
  * booleans and `12:30` as a number. Translation tools are often 1.1, so a file that reads differently
  * under each fails here, naming the value to quote, rather than corrupting quietly in the next tool.
  */
-function readEntries(text: string, where: string, error: (where: string, message: string) => void): Record<string, unknown> {
+function readEntries(text: string, error: (message: string) => void): Record<string, unknown> {
   let raw: unknown;
   try {
     raw = parseYaml(text);
   } catch (e) {
-    error(where, `is not valid YAML: ${(e as Error).message}`);
+    error(`is not valid YAML: ${(e as Error).message}`);
     return {};
   }
   if (raw === null || raw === undefined) return {};
   if (typeof raw !== 'object' || Array.isArray(raw)) {
-    error(where, 'a catalog file is a mapping of key to entry');
+    error('a catalog file is a mapping of key to entry');
     return {};
   }
   try {
     const found = divergence(raw, parseYaml(text, { version: '1.1' }), '');
-    if (found !== undefined) error(where, found);
+    if (found !== undefined) error(found);
   } catch (e) {
-    error(where, `does not parse as YAML 1.1, which another tool may well be: ${(e as Error).message}`);
+    error(`does not parse as YAML 1.1, which another tool may well be: ${(e as Error).message}`);
   }
   return raw as Record<string, unknown>;
 }
@@ -379,14 +387,33 @@ export interface EntryLocation {
  * Read from the file as it is now, so an entry moved since the catalog was loaded is still found.
  */
 export function entryLocation(config: ResolvedConfig, message: Message, locale?: string): EntryLocation {
-  const file = join(config.root, (locale === undefined ? undefined : message.translations.get(locale)?.file) ?? message.file);
-  const lines = new LineCounter();
-  const doc = parseDocument(existsSync(file) ? readFileSync(file, 'utf8') : '', { lineCounter: lines });
-  const pair = isMap(doc.contents) ? doc.contents.items.find((p) => isScalar(p.key) && p.key.value === message.key) : undefined;
-  const start = isScalar(pair?.key) ? pair.key.range?.[0] : undefined;
-  if (start === undefined) return { file, line: 1, column: 1 };
-  const { line, col } = lines.linePos(start);
-  return { file, line, column: col };
+  const file = (locale === undefined ? undefined : message.translations.get(locale)?.file) ?? message.file;
+  return { file: join(config.root, file), ...entryLocator(config.root)(file, message.key) };
+}
+
+/**
+ * Finds a key's line and column in a catalog or translation file, given relative to `root`. Each file
+ * is read once, so a report that places many entries parses each file once. A key it can't find, or no
+ * key, is the top of the file.
+ */
+export function entryLocator(root: string): (file: string, key?: string) => Omit<EntryLocation, 'file'> {
+  const read = new Map<string, { doc: ReturnType<typeof parseDocument>; lines: LineCounter }>();
+  return (file, key) => {
+    let parsed = read.get(file);
+    if (parsed === undefined) {
+      const path = join(root, file);
+      const lines = new LineCounter();
+      parsed = { doc: parseDocument(existsSync(path) ? readFileSync(path, 'utf8') : '', { lineCounter: lines }), lines };
+      read.set(file, parsed);
+    }
+    const { doc, lines } = parsed;
+    const pair =
+      key !== undefined && isMap(doc.contents) ? doc.contents.items.find((p) => isScalar(p.key) && p.key.value === key) : undefined;
+    const start = isScalar(pair?.key) ? pair.key.range?.[0] : undefined;
+    if (start === undefined) return { line: 1, column: 1 };
+    const { line, col } = lines.linePos(start);
+    return { line, column: col };
+  };
 }
 
 /** The source message as a reader sees it with no placeholders filled: for docs and reports. */

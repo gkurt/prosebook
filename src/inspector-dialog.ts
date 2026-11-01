@@ -116,7 +116,9 @@ export async function openDialog(options: DialogOptions): Promise<void> {
 
   const showProblems = (list: readonly Problem[]) =>
     problems.replaceChildren(
-      ...list.map((p) => el('li', { textContent: p.where === 'prosebook' ? p.message : `${p.where}: ${p.message}` })),
+      ...list.map((p) =>
+        el('li', { textContent: p.file === undefined ? p.message : `${[p.file, p.key].filter(Boolean).join(' ')}: ${p.message}` }),
+      ),
     );
 
   const area = (name: string, label: string, value: string, prose = false, least = 2) =>

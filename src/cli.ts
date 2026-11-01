@@ -3,13 +3,13 @@
  * The `prosebook` command. Each subcommand is a function of the resolved config; `check` runs the
  * ones CI needs in one go.
  */
-import { existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { stringify } from 'yaml';
 
-import { CatalogError, type Catalog } from './tools/catalog.ts';
+import { CatalogError, entryLocator, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { formatDiff, wordDiff } from './tools/diff.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
@@ -17,6 +17,7 @@ import { generate, render } from './tools/generate.ts';
 import { lint } from './tools/lint.ts';
 import type { StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
+import { SarifReport } from './tools/sarif.ts';
 import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 
@@ -40,10 +41,26 @@ Commands:
 
 Options:
   --root <dir>            Project root (default: the current directory)
+  --format <text|sarif>   With lint, scan, status and check: sarif writes a SARIF 2.1.0 log to stdout
+                          for code scanning, and the usual text to stderr
   -h, --help              Show this help
 `;
 
-const out = (s = '') => process.stdout.write(`${s}\n`);
+const SARIF_COMMANDS = ['lint', 'scan', 'status', 'check'];
+
+/** What the checks that aren't lint rules hold the project to, for the rules in a SARIF log. */
+const RULES = {
+  catalog: 'The catalog and its translations parse, and each translation keeps the placeholders of its source.',
+  'out-of-date': 'The generated modules match the catalog: run `prosebook generate`.',
+  'missing-translation': 'Every locale translates every entry.',
+  'stale-translation': 'A translation was made from the source text as it is now.',
+  'hardcoded-text': 'Text a person reads comes from the catalog, not from a literal in JSX.',
+  'unused-key': 'Code reads every catalog key.',
+  allow: "An entry's exemption names a rule the entry breaks, and says why in a sentence.",
+};
+
+/** Text for people. Under `--format sarif` stdout holds only the log, so this goes to stderr. */
+let out = (s = '') => process.stdout.write(`${s}\n`);
 const err = (s = '') => process.stderr.write(`${s}\n`);
 
 async function main(argv: string[]): Promise<number> {
@@ -59,6 +76,7 @@ async function main(argv: string[]): Promise<number> {
       all: { type: 'boolean' },
       write: { type: 'boolean' },
       area: { type: 'string' },
+      format: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -67,9 +85,22 @@ async function main(argv: string[]): Promise<number> {
     out(HELP);
     return 0;
   }
+  if (values.format !== undefined && values.format !== 'text' && values.format !== 'sarif') {
+    err(`prosebook: --format is text or sarif, not "${values.format}"`);
+    return 1;
+  }
+  const report = values.format === 'sarif' ? new SarifReport() : undefined;
+  if (report !== undefined) {
+    if (!SARIF_COMMANDS.includes(command)) {
+      err(`prosebook: --format sarif works with ${SARIF_COMMANDS.join(', ')}`);
+      return 1;
+    }
+    out = err;
+  }
   const root = values.root ?? process.cwd();
   if (command === 'init') return init(root);
   const config = await loadConfig(root);
+  let code: number;
   try {
     switch (command) {
       case 'generate':
@@ -77,22 +108,26 @@ async function main(argv: string[]): Promise<number> {
         if (values.watch) return watchMode(config);
         return runGenerate(config, values.check === true);
       case 'lint':
-        return runLint(config);
+        code = runLint(config, report);
+        break;
       case 'status':
-        return runStatus(config, values.strict === true, values.verbose === true);
+        code = runStatus(config, values.strict === true, values.verbose === true, report);
+        break;
       case 'accept':
         return runAccept(config, rest, values.all === true);
       case 'todo':
         return runTodo(config, rest[0]);
       case 'scan':
-        return runScan(config, values.strict === true);
+        code = runScan(config, values.strict === true, report);
+        break;
       case 'extract':
         return runExtract(config, rest, values.write === true, values.area);
       case 'migrate':
         return runMigrate(config, rest[0], values.write === true);
       case 'check': {
-        const results = [runGenerate(config, true), runLint(config), runStatus(config, true, false)];
-        return results.some((r) => r !== 0) ? 1 : 0;
+        const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
+        code = results.some((r) => r !== 0) ? 1 : 0;
+        break;
       }
       default:
         err(`prosebook: no command "${command}"\n`);
@@ -100,26 +135,43 @@ async function main(argv: string[]): Promise<number> {
         return 1;
     }
   } catch (e) {
-    if (e instanceof CatalogError) {
-      reportProblems(e);
-      return 1;
-    }
-    throw e;
+    if (!(e instanceof CatalogError)) throw e;
+    reportProblems(config, e.problems, report);
+    err(`\n${e.problems.filter((p) => p.severity === 'error').length} error(s) in the catalog.`);
+    code = 1;
   }
+  if (report !== undefined) process.stdout.write(`${JSON.stringify(report.toJSON(config.root, tool()), null, 2)}\n`);
+  return code;
 }
 
-function reportProblems(e: CatalogError) {
-  for (const p of e.problems) err(`${p.severity === 'error' ? 'error' : 'warn '} ${p.where}: ${p.message}`);
-  err(`\n${e.problems.filter((p) => p.severity === 'error').length} error(s) in the catalog.`);
+function tool() {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string; homepage: string };
+  return { name: 'prosebook', version: pkg.version, informationUri: pkg.homepage };
+}
+
+function reportProblems(config: ResolvedConfig, problems: Problem[], report?: SarifReport) {
+  for (const p of problems) err(`${p.severity === 'error' ? 'error' : 'warn '} ${whereOf(p)}: ${p.message}`);
+  if (report === undefined) return;
+  const locate = entryLocator(config.root);
+  report.rule('catalog', RULES.catalog);
+  for (const p of problems) {
+    report.add({
+      rule: 'catalog',
+      level: p.severity === 'error' ? 'error' : 'warning',
+      message: p.message,
+      file: p.file,
+      ...(p.file !== undefined && p.key !== undefined ? locate(p.file, p.key) : {}),
+    });
+  }
 }
 
 function rel(config: ResolvedConfig, path: string) {
   return relative(config.root, path).replaceAll('\\', '/');
 }
 
-function runGenerate(config: ResolvedConfig, check: boolean): number {
+function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifReport): number {
   const { changed, catalog, stale } = generate(config, { check });
-  for (const p of catalog.problems) err(`warn  ${p.where}: ${p.message}`);
+  reportProblems(config, catalog.problems, report);
   const staleCount = [...stale.values()].reduce((n, s) => n + s.size, 0);
   const summary = `${catalog.messages.length} messages, ${catalog.locales.length + 1} locale(s)${staleCount > 0 ? `, ${staleCount} stale translation(s)` : ''}`;
   if (check) {
@@ -128,6 +180,9 @@ function runGenerate(config: ResolvedConfig, check: boolean): number {
       return 0;
     }
     err(`prosebook: out of date, run \`prosebook generate\`:\n  ${changed.map((p) => rel(config, p)).join('\n  ')}`);
+    report?.rule('out-of-date', RULES['out-of-date']);
+    for (const p of changed)
+      report?.add({ rule: 'out-of-date', level: 'error', message: 'out of date: run `prosebook generate`', file: rel(config, p) });
     return 1;
   }
   out(`prosebook: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
@@ -139,7 +194,7 @@ function watchMode(config: ResolvedConfig): Promise<number> {
     try {
       runGenerate(config, false);
     } catch (e) {
-      if (e instanceof CatalogError) reportProblems(e);
+      if (e instanceof CatalogError) reportProblems(config, e.problems);
       else err(String(e));
     }
   };
@@ -157,10 +212,24 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   return new Promise(() => {});
 }
 
-function runLint(config: ResolvedConfig): number {
+function runLint(config: ResolvedConfig, report?: SarifReport): number {
   const { catalog } = render(config);
   const findings = lint(catalog.messages, config);
   for (const f of findings) err(`${f.severity === 'error' ? 'error' : 'warn '} ${f.file} ${f.key}: [${f.rule}] ${f.message}`);
+  if (report !== undefined) {
+    const locate = entryLocator(config.root);
+    for (const [name, { rule }] of Object.entries(config.lint.rules)) report.rule(name, rule.description);
+    report.rule('allow', RULES.allow);
+    for (const f of findings) {
+      report.add({
+        rule: f.rule,
+        level: f.severity === 'error' ? 'error' : 'warning',
+        message: `${f.key}: ${f.message}`,
+        file: f.file,
+        ...locate(f.file, f.key),
+      });
+    }
+  }
   const errors = findings.filter((f) => f.severity === 'error').length;
   if (findings.length === 0) {
     out(`prosebook: ${catalog.messages.length} messages pass the writing rules`);
@@ -176,8 +245,9 @@ function missingKeys(catalog: Catalog, locale: string): string[] {
   return catalog.messages.filter((m) => !m.translations.has(locale)).map((m) => m.key);
 }
 
-function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): number {
+function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean, report?: SarifReport): number {
   const { catalog, stale } = render(config);
+  if (report !== undefined) reportStatus(config, catalog, stale, strict ? 'error' : 'warning', report);
   const total = catalog.messages.length;
   if (catalog.locales.length === 0) {
     out(`prosebook: ${total} messages in ${config.source}, no translations yet`);
@@ -203,6 +273,31 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): n
   if (incomplete && !verbose)
     out('\n`prosebook status --verbose` lists the keys; `prosebook todo <locale>` prints them ready to translate.');
   return strict && incomplete ? 1 : 0;
+}
+
+function reportStatus(
+  config: ResolvedConfig,
+  catalog: Catalog,
+  stale: Map<string, Map<string, StaleTranslation>>,
+  level: 'error' | 'warning',
+  report: SarifReport,
+) {
+  const locate = entryLocator(config.root);
+  report.rule('missing-translation', RULES['missing-translation']);
+  report.rule('stale-translation', RULES['stale-translation']);
+  for (const locale of catalog.locales) {
+    for (const m of catalog.messages) {
+      if (m.translations.has(locale)) continue;
+      const message = `${m.key} has no ${locale} translation: \`prosebook todo ${locale}\` prints it ready to translate`;
+      report.add({ rule: 'missing-translation', level, message, file: m.file, ...locate(m.file, m.key) });
+    }
+    for (const [key, s] of stale.get(locale) ?? []) {
+      const file = catalog.messages.find((m) => m.key === key)?.translations.get(locale)?.file;
+      if (file === undefined) continue;
+      const message = `the ${locale} translation of ${key} was made from an earlier source (${changeOf(s)}): update it, or \`prosebook accept ${locale} ${key}\` if it is still right`;
+      report.add({ rule: 'stale-translation', level, message, file, ...locate(file, key) });
+    }
+  }
 }
 
 function runAccept(config: ResolvedConfig, args: string[], all: boolean): number {
@@ -262,13 +357,26 @@ function runTodo(config: ResolvedConfig, locale: string | undefined): number {
   return 0;
 }
 
-function runScan(config: ResolvedConfig, strict: boolean): number {
+function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport): number {
   const { catalog } = render(config);
   const result = scan(config.scan.dirs, config.scan.extensions, config.scan.attributes, config.root, [config.out]);
   for (const h of result.hardcoded)
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text' : `${h.where}=`} "${h.text}"`);
   const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
+  if (report !== undefined) {
+    const level = strict ? 'error' : 'warning';
+    const locate = entryLocator(config.root);
+    report.rule('hardcoded-text', RULES['hardcoded-text']);
+    report.rule('unused-key', RULES['unused-key']);
+    for (const h of result.hardcoded) {
+      const what = `${h.where === 'text' ? '' : `${h.where}=`}"${h.text}"`;
+      const message = `${what} is hardcoded: move it into the catalog with \`prosebook extract\`, or mark the line \`prosebook-ignore\``;
+      report.add({ rule: 'hardcoded-text', level, message, file: h.file, line: h.line, column: h.column });
+    }
+    for (const m of unused)
+      report.add({ rule: 'unused-key', level, message: `no code reads ${m.key}: remove it`, file: m.file, ...locate(m.file, m.key) });
+  }
   out(
     `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s)` +
       (result.hardcoded.length > 0

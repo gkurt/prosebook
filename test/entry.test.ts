@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { editEntry, readEntry } from 'prosebook/tools';
+import { editEntry, readEntry, whereOf } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -107,7 +107,7 @@ describe('editing an entry in place', () => {
       { yaml: { catalog: yaml, translations: { tr: "cart.count: '{count, plural, other {# şey}}'" } } },
       true,
     );
-    expect(renamed.problems.map((p) => p.where)).toEqual(['copy/locales/tr.yaml cart.items']);
+    expect(renamed.problems.map(whereOf)).toEqual(['copy/locales/tr.yaml cart.items']);
 
     const result = editEntry(
       config,
