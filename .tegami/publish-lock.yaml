@@ -1,10 +1,14 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A typed copy catalog: YAML entries compiled to plain functions, for React and any JavaScript\n\n### ICU MessageFormat or MessageFormat 2, switchable per catalog, with `prosebook migrate`\n\n### Stale translations marked from the lock, with a word diff of what changed\n\n### `prosebook scan` and `extract` move hardcoded JSX text into the catalog\n\n### In dev, Alt-click a string to open its entry; Alt-right-click edits it on the page\n\n### Lint plugins, rules as data, translation linting, `lint --fix` and SARIF output\n"
-    filename: first-release.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `plural-count` leaves unit symbols alone: `{rate, number} kbps` is no plural\n\n### `arm-endings` doesn't count an arm that trails off in an ellipsis, as in `Uploading # files…`\n"
+    filename: lint-units-ellipsis.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A date skeleton's `j` is the hour as each locale writes it\n\n`{when, date, ::yMMMdjmm}` read \"Oct 28, 2026, 5\"; it now reads \"Oct 28, 2026, 2:05 PM\", and \"14:05\" in German. A date field the formatter would drop, such as `J`, fails the build.\n\n### A build fails on a read whose key it can't see\n\n`prune` is `'strict'` by default: `t(item.key)` or `<Text id={id} />` fails the build instead of showing the key where its message was pruned. Mark a deliberate one `prosebook-ignore`, or set `prune: 'loose'`. `prune: true` is gone.\n\n### The Vite plugin takes a `root` for apps that share one catalog\n\n### Generated TypeScript passes `noUnusedParameters`\n\n### Lint rules scoped by area: `on.area`, and `lint.areas` for severities per area\n\n### A `path` rule under `strict`: `Settings › General`, with `lint.pathSeparator`\n\n### The catalog schema offers the `key: message` shorthand only when no field is required\n"
+    filename: drasyn-findings.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - first-release.md
+      - lint-units-ellipsis.md
+      - drasyn-findings.md
     id: npm:prosebook
     updated: true
 npm:packages:
