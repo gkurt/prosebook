@@ -157,7 +157,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         next();
       });
 
-      // The inspector's dialog: GET `?key=…&locale=…` reads an entry, POST `{ key, locale, edit, write }`
+      // The inspector's dialog: GET `?key=…` reads an entry in every locale, POST `{ key, edit, write }`
       // applies an edit (`tools/entry.ts`). A POST writes files, so only the page itself may send one:
       // same origin, and JSON, which a form on another site can't send without asking first.
       server.middlewares.use((req, res, next) => {
@@ -177,7 +177,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
           });
         if (req.method === 'GET') {
           try {
-            reply(200, readEntry(config, url.searchParams.get('key') ?? '', url.searchParams.get('locale') ?? undefined));
+            reply(200, readEntry(config, url.searchParams.get('key') ?? ''));
           } catch (e) {
             fail(e);
           }
@@ -194,8 +194,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         req.on('data', (chunk: string) => (body += chunk));
         req.on('end', () => {
           try {
-            const { key, locale, edit, write } = JSON.parse(body) as { key: string; locale?: string; edit: EntryEdit; write?: boolean };
-            const result = editEntry(config, key, locale, edit, write === true);
+            const { key, edit, write } = JSON.parse(body) as { key: string; edit: EntryEdit; write?: boolean };
+            const result = editEntry(config, key, edit, write === true);
             reply(result.problems.length > 0 ? 422 : 200, result);
           } catch (e) {
             fail(e);

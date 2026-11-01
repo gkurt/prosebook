@@ -371,8 +371,10 @@ the catalog entry either way. Save, and the string changes on the page, which ke
 state. Only adding or removing a locale reloads it.
 
 Alt-right-click edits the entry without leaving the page. A dialog opens beside the string with its
-fields (the translation and the source message, context, kind, surface, fragment and what each
-placeholder holds) and a YAML tab with the entry as written in each file. Save checks the whole
+fields: the source message and its translation in every locale (the one the string was read in
+first), context, kind, surface, fragment and what each placeholder holds. A YAML tab shows the entry
+as written in each file. A translation left empty is none, so the locale falls back; filling one in
+adds it to that locale's file, the area's file for a locale kept in a folder. Save checks the whole
 catalog with the edit first, so a broken message or a missing argument doc shows in the dialog and
 nothing is written; a clean edit is written into the file, which keeps its comments and layout, and
 the page updates in place. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> closes.

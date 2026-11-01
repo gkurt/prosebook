@@ -69,9 +69,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
   shadow root, which edits an entry through the plugin's `/__prosebook/entry`.
-- `src/tools/entry.ts`: an entry as fields and as the YAML written for it, and edits to it. Every edit
-  is checked as the whole catalog (`loadCatalog`'s `unsaved`) before a file is written; fields go into
-  the parsed document so the rest of the file stays as it was.
+- `src/tools/entry.ts`: an entry in every locale, as fields and as the YAML written for it, and edits
+  to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
+  translation files an edit would create) before a file is written; fields go into the parsed document
+  so the rest of the file stays as it was. An empty translation removes the key from its locale.
 
 `site/index.html` is the homepage, deployed with the example by `.github/workflows/pages.yml` on every push
 to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so keep

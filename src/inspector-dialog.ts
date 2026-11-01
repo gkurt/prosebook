@@ -1,7 +1,7 @@
 /**
- * The inspector's dialog: Alt-right-click a string to edit its entry on the page, as fields or as the
- * YAML written in its files. The server checks each edit as the whole catalog before writing it
- * (`tools/entry.ts`); once written, the page updates in place like after any catalog edit.
+ * The inspector's dialog: Alt-right-click a string to edit its entry on the page, in every locale, as
+ * fields or as the YAML written in its files. The server checks each edit as the whole catalog before
+ * writing it (`tools/entry.ts`); once written, the page updates in place like after any catalog edit.
  *
  * It renders in a shadow root, so the app's styles don't reach it and its own don't leak out.
  */
@@ -11,7 +11,7 @@ import type { EntryEdit, EntryFields, EntryView } from '#src/tools/entry.ts';
 export interface DialogOptions {
   base: string;
   key: string;
-  /** The locale the string was found in, or nothing to open the catalog entry alone. */
+  /** The locale the string was found in, whose translation comes first, or nothing to start at the source. */
   locale?: string;
   /** Where the pointer was, so the dialog opens beside it. */
   x: number;
@@ -89,7 +89,6 @@ const rowsFor = (text: string, least: number) => Math.min(12, Math.max(least, te
 export async function openDialog(options: DialogOptions): Promise<void> {
   closeOpen?.();
   const query = new URLSearchParams({ key: options.key });
-  if (options.locale !== undefined) query.set('locale', options.locale);
   const host = el('div');
   const root = host.attachShadow({ mode: 'open' });
   const panel = el('div', { className: 'panel' });
@@ -136,20 +135,36 @@ export async function openDialog(options: DialogOptions): Promise<void> {
       }),
     );
 
+  // The locale the string was read in comes first; the others follow, in the catalog's order.
+  const focus = () => (options.locale !== undefined && view?.locales.includes(options.locale) === true ? options.locale : undefined);
+  const ordered = () => (view === undefined ? [] : [...new Set([focus(), ...view.locales].filter((l) => l !== undefined))]);
+  const placeholder = (label: HTMLLabelElement, text: string) => {
+    label.querySelector('textarea')!.placeholder = text;
+    return label;
+  };
+
   const render = () => {
     if (view === undefined) return;
     tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
     tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
     if (tab === 'yaml') {
+      const v = view;
       body.replaceChildren(
-        area('yaml.catalog', view.files.catalog, view.yaml.catalog, false, 3),
-        ...(view.files.translation === undefined
-          ? []
-          : [area('yaml.translation', view.files.translation, view.yaml.translation ?? '', false, 1)]),
+        area('yaml.catalog', v.files.catalog, v.yaml.catalog, false, 3),
+        ...ordered().map((l) =>
+          placeholder(area(`yaml.${l}`, v.files.translations[l]!, v.yaml.translations[l] ?? '', false, 1), `${v.key}: …`),
+        ),
       );
       return;
     }
     const f = view.fields;
+    const fallsBack = `No translation: the ${view.source} text shows`;
+    const translation = (l: string) =>
+      placeholder(
+        area(`translation.${l}`, `Translation · ${l}${f.translations[l] === '' ? ' · none yet' : ''}`, f.translations[l] ?? '', true),
+        fallsBack,
+      );
+    const others = ordered().filter((l) => l !== focus());
     const select = (name: string, value: string, choices: string[]) =>
       el(
         'select',
@@ -159,8 +174,18 @@ export async function openDialog(options: DialogOptions): Promise<void> {
       );
     const argNames = [...new Set([...view.argNames, ...Object.keys(f.args)])];
     body.replaceChildren(
-      ...(view.locale === undefined ? [] : [area('translation', `Translation · ${view.locale}`, f.translation ?? '', true)]),
-      area('message', `${view.locale === undefined ? 'Message' : 'Source'} · ${view.source}`, f.message, true),
+      ...(focus() === undefined ? [] : [translation(focus()!)]),
+      area('message', `${focus() === undefined ? 'Message' : 'Source'} · ${view.source}`, f.message, true),
+      ...(others.length === 0
+        ? []
+        : [
+            el(
+              'fieldset',
+              {},
+              el('legend', { textContent: focus() === undefined ? 'Translations' : 'Other translations' }),
+              ...others.map(translation),
+            ),
+          ]),
       area('context', 'Context', f.context, true, 1),
       el(
         'div',
@@ -187,12 +212,13 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   const value = (name: string) => root.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[name="${name}"]`)?.value;
 
   const current = (): EntryEdit => {
-    if (tab === 'yaml') return { yaml: { catalog: value('yaml.catalog') ?? '', translation: value('yaml.translation') } };
+    const byLocale = (prefix: string) => Object.fromEntries(ordered().map((l) => [l, value(`${prefix}${l}`) ?? '']));
+    if (tab === 'yaml') return { yaml: { catalog: value('yaml.catalog') ?? '', translations: byLocale('yaml.') } };
     const args: Record<string, string> = {};
     for (const input of root.querySelectorAll<HTMLInputElement>('input[name^="arg."]')) args[input.name.slice(4)] = input.value;
     const fields: EntryFields = {
       message: value('message') ?? '',
-      translation: value('translation'),
+      translations: byLocale('translation.'),
       context: value('context') ?? '',
       kind: value('kind') ?? '',
       surface: value('surface') ?? '',
@@ -206,7 +232,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     const res = await fetch(`${options.base}__prosebook/entry`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: options.key, locale: view?.locale, edit: current(), write }),
+      body: JSON.stringify({ key: options.key, edit: current(), write }),
     });
     const reply = (await res.json()) as Reply;
     showProblems(reply.problems ?? []);
@@ -289,5 +315,5 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     const fitted = Math.max(12, Math.min(now.top, innerHeight - now.height - 12));
     if (fitted !== now.top) panel.style.top = `${fitted}px`;
   }).observe(panel);
-  root.querySelector<HTMLElement>('textarea')?.focus();
+  (root.querySelector<HTMLElement>(`[name="translation.${focus()}"]`) ?? root.querySelector<HTMLElement>('textarea'))?.focus();
 }

@@ -80,7 +80,7 @@ const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow
 /**
  * Loads and checks the catalog. Throws a `CatalogError` when anything is an error; warnings ride along.
  * `unsaved` holds file contents by absolute path to read in place of what is on disk, so an edit can be
- * checked before it is written.
+ * checked before it is written; a translation file in it that isn't on disk yet is read too.
  */
 export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string, string>): Catalog {
   const read = (path: string) => unsaved?.get(resolve(path)) ?? readFileSync(path, 'utf8');
@@ -116,7 +116,8 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
     }
   }
 
-  const locales = readLocales(config, byKey, problems, rel, read);
+  const created = [...(unsaved?.keys() ?? [])].filter((path) => !existsSync(path));
+  const locales = readLocales(config, byKey, problems, rel, read, created);
   if (problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };
 }
@@ -200,6 +201,7 @@ function readLocales(
   problems: Problem[],
   rel: (p: string) => string,
   read: (path: string) => string,
+  created: string[],
 ): string[] {
   if (!existsSync(config.locales)) return [];
   const files = new Map<string, string[]>();
@@ -210,6 +212,14 @@ function readLocales(
     const locale = isDir ? name : name.slice(0, -'.yaml'.length);
     const found = isDir ? yamlFiles(path).map((f) => join(path, f)) : [path];
     files.set(locale, [...(files.get(locale) ?? []), ...found]);
+  }
+  // A translation file an edit would create, read as if it were there already.
+  for (const path of created) {
+    const inside = relative(config.locales, path).replaceAll('\\', '/');
+    if (inside.startsWith('..') || !inside.endsWith('.yaml')) continue;
+    const [first = '', second] = inside.split('/');
+    const locale = second === undefined ? first.slice(0, -'.yaml'.length) : first;
+    files.set(locale, [...(files.get(locale) ?? []), path]);
   }
   files.delete(config.source);
 

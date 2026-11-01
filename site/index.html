@@ -1334,7 +1334,8 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         if (catalogLines[0] !== `${key}:`)
           problems.push(`${key}: the entry is still ${key}: rename a key in the code and the catalog together`);
         const fields = fieldsFrom(catalogLines);
-        const messages = [[files.en.path, fields.message], ...(translation === undefined ? [] : [[files.de.path, translation]])];
+        // An empty translation is none: German falls back to the source.
+        const messages = [[files.en.path, fields.message], ...(translation === '' ? [] : [[files.de.path, translation]])];
         for (const [path, text] of messages) {
           if (text === undefined) {
             problems.push(`${path} ${key}: en is the message, and it is missing`);
@@ -1354,7 +1355,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         const translated = !catalog && source(key) === 'de';
         let tab = 'fields';
         let catalogLines = entryLines('en', key);
-        let translation = translated ? message('de', key) : undefined;
+        let translation = message('de', key) ?? '';
 
         const make = (tag, props = {}, ...children) => {
           const node = Object.assign(document.createElement(tag), props);
@@ -1375,6 +1376,10 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
               wrap: prose ? 'soft' : 'off',
             }),
           );
+        const hint = (label, text) => {
+          label.querySelector('textarea').placeholder = text;
+          return label;
+        };
         const select = (name, value, choices) =>
           make(
             'select',
@@ -1397,14 +1402,20 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
           if (tab === 'yaml') {
             body.replaceChildren(
               area('yaml.catalog', files.en.path, catalogLines.join('\n')),
-              ...(translation === undefined ? [] : [area('yaml.translation', files.de.path, `${key}: ${quote(translation)}`)]),
+              hint(area('yaml.translation', files.de.path, translation === '' ? '' : `${key}: ${quote(translation)}`), `${key}: …`),
             );
             return;
           }
           const f = fieldsFrom(catalogLines);
+          const german = hint(
+            area('translation', `Translation · de${translation === '' ? ' · none yet' : ''}`, translation, true),
+            'No translation: the en text shows',
+          );
+          // The locale the string was read in comes first, as in the dev dialog.
           body.replaceChildren(
-            ...(translation === undefined ? [] : [area('translation', 'Translation · de', translation, true)]),
-            area('message', `${translation === undefined ? 'Message' : 'Source'} · en`, f.message ?? '', true),
+            ...(translated ? [german] : []),
+            area('message', `${translated ? 'Source' : 'Message'} · en`, f.message ?? '', true),
+            ...(translated ? [] : [german]),
             area('context', 'Context', f.context, true),
             make(
               'div',
@@ -1421,11 +1432,11 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         /** The edit on screen, as catalog lines and a translation. */
         const current = () => {
           if (tab === 'yaml') {
-            const line = value('yaml.translation')?.trim();
+            const line = value('yaml.translation').trim();
             return {
               lines: value('yaml.catalog').replace(/\n+$/, '').split('\n'),
-              translation: line === undefined ? undefined : unquote(line.slice(`${key}: `.length)),
-              renamed: line !== undefined && !line.startsWith(`${key}: `),
+              translation: line === '' ? '' : unquote(line.slice(`${key}: `.length)),
+              renamed: line !== '' && !line.startsWith(`${key}: `),
             };
           }
           const args = {};
@@ -1461,7 +1472,12 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
           if (!take()) return;
           const at = locate('en', key);
           files.en.lines.splice(at.start, at.line - at.start + 1, ...catalogLines);
-          if (translation !== undefined) files.de.lines[locate('de', key).line] = `${key}: ${quote(translation)}`;
+          // German gains the line, changes it, or loses it when left empty.
+          const de = locate('de', key);
+          const line = `${key}: ${quote(translation)}`;
+          if (de === undefined && translation !== '') files.de.lines.push(line);
+          else if (de !== undefined && translation === '') files.de.lines.splice(de.line, 1);
+          else if (de !== undefined) files.de.lines[de.line] = line;
           paint();
           if (state.open) open(state.open.key, state.open.locale === 'en' && source(state.open.key) === 'de');
           status.className = 'status ok';
