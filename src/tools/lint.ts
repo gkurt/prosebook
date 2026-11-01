@@ -12,12 +12,20 @@ import type { ResolvedConfig } from './config.ts';
 import { staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 import type { KindRule, Severity } from './presets.ts';
 
-/** What a rule is given about one source message. */
+/** What a rule is given about one message in one locale. */
 export interface RuleContext {
+  /** The entry, as the source catalog has it. */
   message: Message;
+  /** The locale read: the source, or a translation's. */
+  locale: string;
+  /** The message in that locale. */
+  ast: MessageFormatElement[];
   /** The shape the message's kind is held to, when it names a kind the config defines. */
   kind: KindRule | undefined;
+  /** The message in that locale, as prose. */
   text: Readings;
+  /** The source message as prose, to hold a translation to it: `text` itself in the source locale. */
+  source: Readings;
   config: ResolvedConfig;
 }
 
@@ -28,8 +36,12 @@ interface RuleBase {
   recommended?: Severity;
   /** Its severity under `extends: 'strict'`; `error` when unset. */
   strict?: Severity;
-  /** Only entries of these kinds, or on these surfaces. An entry that says neither is skipped. */
-  on?: { kind?: string[]; surface?: string[] };
+  /**
+   * Only entries of these kinds, or on these surfaces; an entry that says neither is skipped. Only
+   * the source unless `locale` says otherwise, since most writing rules are written for one language:
+   * `all` reads every locale, and a list those languages and their regions (`de` covers `de-CH`).
+   */
+  on?: { kind?: string[]; surface?: string[]; locale?: 'all' | string[] };
 }
 
 /** A rule written as code. */
@@ -72,7 +84,9 @@ export interface OccurrenceRule extends RuleBase {
   count: 'words' | 'sentences' | 'characters';
   max?: number;
   min?: number;
-  /** `{count}`, `{max}` and `{min}`. */
+  /** `max` and `min` are multiples of the source's count: `max: 1.4` is 40% longer than the source at most. */
+  relative?: boolean;
+  /** `{count}`, `{max}`, `{min}`, and with `relative`, `{source}` (the source's count) and `{limit}`. */
   message?: string;
 }
 
@@ -111,7 +125,10 @@ export function definePlugin(plugin: Plugin): Plugin {
 
 export interface Finding {
   key: string;
+  /** The catalog file, or for a translation, the locale's file. */
   file: string;
+  /** The locale whose text the finding is about; the source for an `allow` finding. */
+  locale: string;
   /** The rule's name, or `allow` for an exemption that is itself wrong. */
   rule: string;
   severity: Exclude<Severity, 'off'>;
@@ -150,9 +167,9 @@ export interface Readings {
   skeleton: string;
 }
 
-function readings(message: Message): Readings {
-  const literal = staticLiteral(message.ast);
-  const ast = literal === undefined ? message.ast : ([{ type: TYPE.literal, value: literal }] as MessageFormatElement[]);
+function readings(message: MessageFormatElement[]): Readings {
+  const literal = staticLiteral(message);
+  const ast = literal === undefined ? message : ([{ type: TYPE.literal, value: literal }] as MessageFormatElement[]);
   const arms = new Set<string>();
   const collect = (els: MessageFormatElement[]) => {
     for (const el of els) {
@@ -291,9 +308,11 @@ const COUNT_NAME = /^(?:n|num|count|total|amount|quantity)$|(?:count|total)$/i;
  */
 function endsWithStop(arm: MessageFormatElement[]): boolean | undefined {
   const text = prose(renderAs(arm, 'other')).trim();
-  if (text.replaceAll(HOLE, '').trim() === '') return undefined;
-  return /[.!?…:]["')”]*$/.test(text);
+  return text.replaceAll(HOLE, '').trim() === '' ? undefined : hasStop(text);
 }
+
+/** Ends with a stop in any script (`。`, `؟`, `;` as Greek writes `?`), though not a comma. */
+const hasStop = (text: string) => /(?![,，、،])[\p{Terminal_Punctuation}…]["')”»」』]*$/u.test(prose(text).trim());
 
 const CURRENCY_BEFORE = /[$€£¥₹]\s?$/;
 
@@ -305,6 +324,7 @@ export const CORE_RULES = {
   whitespace: {
     description: 'No leading, trailing or doubled spaces.',
     recommended: 'error',
+    on: { locale: 'all' },
     check: ({ text }) =>
       text.variants.some((v) => /^\s|\s$| {2}/.test(v.replaceAll(HOLE, 'x'))) ? ['no leading, trailing or doubled spaces'] : [],
   },
@@ -399,14 +419,15 @@ export const CORE_RULES = {
   },
   ellipsis: {
     description: 'An ellipsis is one character, `…`, not three periods.',
+    on: { locale: 'all' },
     check: ({ text }) => (text.variants.some((v) => v.includes('...')) ? ['an ellipsis is one character: …'] : []),
   },
   'plural-count': {
     description: 'A count followed by a plural noun, `{count} files`, is a plural, or it reads "1 files". English.',
     recommended: 'warn',
-    check: ({ message }) => {
+    check: ({ ast }) => {
       const said: string[] = [];
-      eachRun(message.ast, (run, counted) =>
+      eachRun(ast, (run, counted) =>
         run.forEach((el, i) => {
           if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
           if (counted.has(el.value) || (el.type === TYPE.argument && !COUNT_NAME.test(el.value))) return;
@@ -423,13 +444,15 @@ export const CORE_RULES = {
   'plural-one': {
     description: "A plural's `one` arm says something other than `other`, and says `#` rather than `1`.",
     recommended: 'warn',
-    check: ({ message }) => {
+    on: { locale: 'all' },
+    check: ({ ast, locale, config }) => {
       const said: string[] = [];
-      walk(message.ast, (el) => {
+      walk(ast, (el) => {
         if (el.type !== TYPE.plural || el.pluralType !== 'cardinal') return;
         const { one, other } = el.options;
         if (one === undefined) return;
-        if (other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other'))
+        // Turkish says "# dosya" for one and other alike, so only the source must tell them apart.
+        if (locale === config.source && other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other'))
           said.push(`the one and other arms of ${el.value} say the same: write the singular in one`);
         let literalOne = false;
         walk(one.value, (inner) => {
@@ -444,9 +467,10 @@ export const CORE_RULES = {
   'arm-endings': {
     description: 'The arms of a plural or select end alike: all with a stop, or all without one.',
     recommended: 'warn',
-    check: ({ message }) => {
+    on: { locale: 'all' },
+    check: ({ ast }) => {
       const said: string[] = [];
-      walk(message.ast, (el) => {
+      walk(ast, (el) => {
         if (el.type !== TYPE.plural && el.type !== TYPE.select) return;
         const endings = new Set(Object.values(el.options).flatMap((o) => endsWithStop(o.value) ?? []));
         if (endings.size > 1) said.push(`some arms of ${el.value} end with a stop and some without: end them alike`);
@@ -457,9 +481,10 @@ export const CORE_RULES = {
   'formatted-by-hand': {
     description: 'A currency symbol or `%` typed beside a placeholder, or digits grouped by hand, which only suit one locale.',
     recommended: 'warn',
-    check: ({ message, text }) => {
+    on: { locale: 'all' },
+    check: ({ ast, text }) => {
       const said = new Set<string>();
-      eachRun(message.ast, (run) =>
+      eachRun(ast, (run) =>
         run.forEach((el, i) => {
           if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
           const before = run[i - 1];
@@ -474,6 +499,20 @@ export const CORE_RULES = {
       const grouped = text.variants.map((v) => /\d{1,3}(?:,\d{3})+(?!\d)/.exec(v)?.[0]).find((g) => g !== undefined);
       if (grouped !== undefined) said.add(`"${grouped}" groups its digits the English way: make it a placeholder formatted as a number`);
       return [...said];
+    },
+  },
+  'source-ending': {
+    description: 'A translation ends with a stop where its source does, and without one where it does not.',
+    recommended: 'warn',
+    on: { locale: 'all' },
+    check: ({ text, source }) => {
+      const ends = hasStop(text.primary);
+      if (ends === hasStop(source.primary)) return [];
+      return [
+        ends
+          ? 'ends with a stop, and the source does not: drop it'
+          : 'the source ends with a stop, and this does not: end it as the source does',
+      ];
     },
   },
 } satisfies Record<string, CheckRule>;
@@ -534,18 +573,26 @@ export function compileRule(name: string, rule: Rule): CheckRule {
       };
     }
     case 'occurrence': {
-      const { count: unit, max, min } = rule;
+      const { count: unit, max, min, relative } = rule;
       const counter = Object.hasOwn(COUNTERS, unit) ? COUNTERS[unit] : fail(`counts ${unit}: count words, sentences or characters`);
       if (max === undefined && min === undefined) fail('has no max or min: give it one');
       if (rule.message !== undefined) said(rule.message);
       return {
         ...base,
-        check: ({ text }) => {
+        check: ({ text, source }) => {
           const count = counter(text.primary);
-          const over = max !== undefined && count > max;
-          if (!over && (min === undefined || count >= min)) return [];
-          const fallback = over ? `{max} ${unit} at most, and this is {count}` : `{min} ${unit} at least, and this is {count}`;
-          return [fill(rule.message ?? fallback, { count, max, min })];
+          const of = relative === true ? counter(source.primary) : 1;
+          const over = max !== undefined && count > max * of;
+          const under = min !== undefined && count < min * of;
+          if (!over && !under) return [];
+          // The limit shown is one the count could meet: 1.5 times 11 characters is 16 at most, 17 at least.
+          const limit = over && max !== undefined ? Math.floor(max * of) : Math.ceil((min ?? 0) * of);
+          const bound = over ? 'at most' : 'at least';
+          const fallback =
+            relative === true
+              ? `{limit} ${unit} ${bound} ({${over ? 'max' : 'min'}} times the source's {source}), and this is {count}`
+              : `{${over ? 'max' : 'min'}} ${unit} ${bound}, and this is {count}`;
+          return [fill(rule.message ?? fallback, { count, max, min, source: relative === true ? of : undefined, limit })];
         },
       };
     }
@@ -595,10 +642,17 @@ function reasonProblem(why: string): string | undefined {
   return undefined;
 }
 
-function applies(rule: RuleBase, message: Message): boolean {
-  if (rule.on === undefined) return true;
-  const { kind, surface } = rule.on;
+/** A locale is one a rule reads when it names its language, or the locale and a region of it. */
+const readsLocale = (locales: 'all' | string[] | undefined, locale: string, sourceLocale: string) =>
+  locales === undefined
+    ? locale === sourceLocale
+    : locales === 'all' ||
+      locales.some((l) => locale.toLowerCase() === l.toLowerCase() || locale.toLowerCase().startsWith(`${l.toLowerCase()}-`));
+
+function applies(rule: RuleBase, message: Message, locale: string, sourceLocale: string): boolean {
+  const { kind, surface, locale: locales } = rule.on ?? {};
   return (
+    readsLocale(locales, locale, sourceLocale) &&
     (kind === undefined || (message.kind !== undefined && kind.includes(message.kind))) &&
     (surface === undefined || (message.surface !== undefined && surface.includes(message.surface)))
   );
@@ -608,28 +662,33 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
   const findings: Finding[] = [];
   const rules = Object.entries(config.lint.rules);
   for (const message of messages) {
-    const context: RuleContext = {
-      message,
-      kind: message.kind === undefined ? undefined : config.kinds[message.kind],
-      text: readings(message),
-      config,
-    };
+    const kind = message.kind === undefined ? undefined : config.kinds[message.kind];
+    const source = readings(message.ast);
+    const locales = [
+      { locale: config.source, ast: message.ast, file: message.file },
+      ...[...message.translations].map(([locale, t]) => ({ locale, ast: t.ast, file: t.file })),
+    ];
+    // An exemption is the entry's, so it holds in every locale, and is still needed if any locale needs it.
     const fired = new Set<string>();
-    for (const [name, { rule, severity }] of rules) {
-      if (severity === 'off' || !applies(rule, message)) continue;
-      let said: string[];
-      try {
-        said = rule.check(context);
-      } catch (cause) {
-        throw new Error(`lint rule ${name} failed on ${message.key}: fix or turn off the rule`, { cause });
+    for (const { locale, ast, file } of locales) {
+      const text = locale === config.source ? source : readings(ast);
+      const context: RuleContext = { message, locale, ast, kind, text, source, config };
+      for (const [name, { rule, severity }] of rules) {
+        if (severity === 'off' || !applies(rule, message, locale, config.source)) continue;
+        let said: string[];
+        try {
+          said = rule.check(context);
+        } catch (cause) {
+          throw new Error(`lint rule ${name} failed on ${message.key} in ${locale}: fix or turn off the rule`, { cause });
+        }
+        if (said.length === 0) continue;
+        fired.add(name);
+        if (message.allow.has(name)) continue;
+        for (const s of said) findings.push({ key: message.key, file, locale, rule: name, severity, message: s });
       }
-      if (said.length === 0) continue;
-      fired.add(name);
-      if (message.allow.has(name)) continue;
-      for (const s of said) findings.push({ key: message.key, file: message.file, rule: name, severity, message: s });
     }
     for (const [name, why] of message.allow) {
-      const at = { key: message.key, file: message.file, rule: 'allow', severity: 'error' as const };
+      const at = { key: message.key, file: message.file, locale: config.source, rule: 'allow', severity: 'error' as const };
       const rule = config.lint.rules[name];
       if (rule === undefined) {
         findings.push({ ...at, message: `allow.${name} is not a rule: ${rules.map(([n]) => n).join(', ')}` });

@@ -352,6 +352,62 @@ describe('lint', () => {
       'app.b [arm-endings] some arms of count end with a stop and some without: end them alike',
     ]);
   });
+
+  test('translations are read by the rules written for every locale, or for theirs', () => {
+    const catalog = [
+      'app.a:\n  context: After a save.\n  en: Saved.',
+      'app.b:\n  context: A count.\n  args:\n    count: The files.\n  en: "{count, plural, one {# file} other {# files}}"',
+      'app.c:\n  context: A total.\n  args:\n    price: The sum.\n  en: "Total: {price, number}"',
+      'app.d:\n  context: A wait.\n  en: Please wait.',
+      'app.e:\n  kind: action\n  surface: action\n  context: A button.\n  en: Add to cart',
+      'app.f:\n  context: A check.\n  allow:\n    source-ending: German closes this one, as its other confirmations do.\n  en: Done',
+    ].join('\n');
+    const germanUsesDu = definePlugin({
+      name: 'de',
+      rules: {
+        du: {
+          description: 'The product says du.',
+          on: { locale: ['de'] },
+          recommended: 'warn',
+          check: ({ text }) => (text.variants.some((v) => phrase('Sie').test(v)) ? ['"Sie" addresses the reader formally: say du'] : []),
+        },
+      },
+    });
+    const growth = {
+      name: 'fit',
+      rules: {
+        button: {
+          type: 'occurrence',
+          description: 'A button grows half again at most.',
+          on: { surface: ['action'], locale: 'all' },
+          count: 'characters',
+          max: 1.5,
+          relative: true,
+          recommended: 'warn',
+        },
+      },
+    } as const satisfies Plugin;
+    const config = fixture(
+      {
+        'copy/catalog/app.yaml': catalog,
+        'copy/locales/de.yaml':
+          'app.a: Gespeichert\napp.c: "Summe:  {price, number}"\napp.d: Bitte warten Sie.\napp.e: In den Warenkorb legen\napp.f: Fertig.\n',
+        'copy/locales/de-CH.yaml': 'app.d: Warten Sie.\n',
+        'copy/locales/ru.yaml': 'app.b: "{count, plural, one {1 файл} few {# файла} many {# файлов} other {# файла}}"\n',
+        'copy/locales/tr.yaml': 'app.b: "{count, plural, one {# dosya} other {# dosya}}"\n',
+      },
+      { lint: { plugins: [germanUsesDu, growth], banned: [{ words: ['please'], why: 'pleads: say what to do' }] } },
+    );
+    expect(lint(loadCatalog(config).messages, config).map((f) => `${f.locale} ${f.key} [${f.rule}] ${f.message}`)).toEqual([
+      'de app.a [source-ending] the source ends with a stop, and this does not: end it as the source does',
+      'ru app.b [plural-one] the one arm of count writes 1, which one is not in every language: write #, or make the arm =1',
+      'de app.c [whitespace] no leading, trailing or doubled spaces',
+      'en app.d [banned-word] "please" pleads: say what to do',
+      'de-CH app.d [de/du] "Sie" addresses the reader formally: say du',
+      'de app.d [de/du] "Sie" addresses the reader formally: say du',
+      "de app.e [fit/button] 16 characters at most (1.5 times the source's 11), and this is 22",
+    ]);
+  });
 });
 
 test('generate --check reports what is out of date without writing', () => {

@@ -142,7 +142,8 @@
                 "plural-count",
                 "plural-one",
                 "arm-endings",
-                "formatted-by-hand"
+                "formatted-by-hand",
+                "source-ending"
               ]
             },
             "additionalProperties": {

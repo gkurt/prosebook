@@ -61,7 +61,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, ...), which
   `compileRule` turns into code and checks when the config loads. The core word and case rules use
   the same matchers (`listed`, `outOfCase`) as the data rules; the format rules (`plural-count`,
-  `arm-endings`, ...) walk `message.ast`, which MF2 is read into too. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
+  `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
+  by the rules whose `on.locale` reads it; unset is the source only, since most rules are English. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its

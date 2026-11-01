@@ -28,7 +28,7 @@ Usage: prosebook <command> [options]
 Commands:
   init                    Create a config and a first catalog file
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
-  lint                    Check the source messages against the writing rules
+  lint                    Check the messages and their translations against the writing rules
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate

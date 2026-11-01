@@ -35,7 +35,7 @@ const { t } = useCopy();
 - **Pruned.** A Vite build ships only the messages the code names.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
-  own rules, scoped by kind and surface.
+  own rules, scoped by kind, surface and locale, and translations are held to their source.
 
 ## Quick start
 
@@ -274,6 +274,12 @@ reads the message format too:
 | `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                  |
 | `arm-endings`       | plural or select arms where some end with a stop and some don't                           |
 | `formatted-by-hand` | `${price}` or `{rate}%` typed around a placeholder, and digits grouped by hand (`10,000`) |
+| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round      |
+
+Translations are linted too, by the rules that hold in any language: `whitespace`, `ellipsis`,
+`arm-endings`, `formatted-by-hand`, `source-ending`, and `plural-one`'s `#` (not its `one`
+and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
+finding names the translation's file.
 
 `strict` adds sentence case, contractions, em-dashes, `…`, American spelling and a list of filler
 and marketing words. Add your own `banned`, `spelling` and `concepts` (one word per concept:
@@ -290,12 +296,16 @@ legal.privacy:
 ```
 
 A reason that is a shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs.
+An exemption covers the entry in every locale, and is needed while any of them needs it.
 
 **Lint plugins.** A plugin's rules are named `<plugin>/<rule>` in `lint.rules` and `allow`. A rule
 is given the entry and its readings: `primary` takes every `other` arm, `variants` holds one reading
 per plural or select arm, and `skeleton` only the words every arm carries. Placeholders and verbatim
-tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds or surfaces; `recommended` is
-its severity under that preset (off when unset), `strict` under strict (`error` when unset).
+tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds or surfaces, and says which
+locales it reads: the source when unset, `'all'`, or a list of languages (`['de']` covers `de-CH`).
+A rule is then given the `locale`, that locale's `ast` and `text`, and the `source` readings to
+compare with. `recommended` is its severity under that preset (off when unset), `strict` under
+strict (`error` when unset).
 
 ```ts
 import { defineConfig, definePlugin, words } from 'prosebook/config';
@@ -322,13 +332,13 @@ can carry. Words are matched whole and in any case; a pattern is a regular expre
 `ignoreCase` to add `i`). Words and patterns are looked for in every plural and select arm; counts
 and case read the `other` arms. A message names what was found with `{match}`.
 
-| `type`           | Fields                                                       | Fails when                                                                          |
-| ---------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `existence`      | `words`, `patterns`, `message`                               | the string says one of them                                                         |
-| `substitution`   | `swap: { word: use }`, `message` (`{use}`)                   | the string says a word the product writes another way                               |
-| `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`   | the count is out of bounds (`{count}`); placeholders count as words, not characters |
-| `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions` | a word is out of case; `lint.properNouns` keep theirs too                           |
-| `conditional`    | `when`, `require`, `message`                                 | the string matches `when` (or `when` is unset) but not `require`                    |
+| `type`           | Fields                                                                 | Fails when                                                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `existence`      | `words`, `patterns`, `message`                                         | the string says one of them                                                                                                                                            |
+| `substitution`   | `swap: { word: use }`, `message` (`{use}`)                             | the string says a word the product writes another way                                                                                                                  |
+| `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`, `relative` | the count is out of bounds (`{count}`); placeholders count as words, not characters. With `relative`, `max` and `min` are multiples of the source's count (`{source}`) |
+| `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions`           | a word is out of case; `lint.properNouns` keep theirs too                                                                                                              |
+| `conditional`    | `when`, `require`, `message`                                           | the string matches `when` (or `when` is unset) but not `require`                                                                                                       |
 
 ```json
 {
@@ -343,6 +353,15 @@ and case read the `other` arms. A message names what was found with `{match}`.
             "on": { "surface": ["toast"] },
             "count": "characters",
             "max": 40,
+            "recommended": "warn"
+          },
+          "button-growth": {
+            "type": "occurrence",
+            "description": "A translated button is half again as long as the source at most.",
+            "on": { "surface": ["action"], "locale": "all" },
+            "count": "characters",
+            "max": 1.5,
+            "relative": true,
             "recommended": "warn"
           },
           "sign-in": { "type": "substitution", "description": "One verb for signing in.", "swap": { "log in": "sign in" } }
