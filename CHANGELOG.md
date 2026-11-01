@@ -1,7 +1,4 @@
----
-packages:
-  'prosebook': minor
----
+## prosebook@0.1.0
 
 ### A typed copy catalog: YAML entries compiled to plain functions, for React and any JavaScript
 
