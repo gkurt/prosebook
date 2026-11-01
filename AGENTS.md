@@ -67,7 +67,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   `prosebook` command.
 - `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
   own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
-  keys. Its test drives `keyAt` over a DOM.
+  keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
+  shadow root, which edits an entry through the plugin's `/__prosebook/entry`.
+- `src/tools/entry.ts`: an entry as fields and as the YAML written for it, and edits to it. Every edit
+  is checked as the whole catalog (`loadCatalog`'s `unsaved`) before a file is written; fields go into
+  the parsed document so the rest of the file stays as it was.
 
 `site/index.html` is the homepage, deployed with the example by `.github/workflows/pages.yml` on every push
 to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so keep

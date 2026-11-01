@@ -6,7 +6,7 @@
  * translation's placeholders drifted from the source instead of dropping a value off the screen.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml } from 'yaml';
 
@@ -77,8 +77,13 @@ export const KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-
 
 const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow']);
 
-/** Loads and checks the catalog. Throws a `CatalogError` when anything is an error; warnings ride along. */
-export function loadCatalog(config: ResolvedConfig): Catalog {
+/**
+ * Loads and checks the catalog. Throws a `CatalogError` when anything is an error; warnings ride along.
+ * `unsaved` holds file contents by absolute path to read in place of what is on disk, so an edit can be
+ * checked before it is written.
+ */
+export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string, string>): Catalog {
+  const read = (path: string) => unsaved?.get(resolve(path)) ?? readFileSync(path, 'utf8');
   const problems: Problem[] = [];
   const error = (where: string, message: string) => problems.push({ severity: 'error', where, message });
   const byKey = new Map<string, Message>();
@@ -92,7 +97,7 @@ export function loadCatalog(config: ResolvedConfig): Catalog {
   for (const file of yamlFiles(config.catalog)) {
     const area = file.slice(0, -'.yaml'.length);
     const path = join(config.catalog, file);
-    for (const [key, value] of Object.entries(readEntries(path, rel(path), error))) {
+    for (const [key, value] of Object.entries(readEntries(read(path), rel(path), error))) {
       const where = `${rel(path)} ${key}`;
       if (!KEY_PATTERN.test(key)) {
         error(where, 'a key is dotted lowercase with two segments at least: `area.thing`');
@@ -111,7 +116,7 @@ export function loadCatalog(config: ResolvedConfig): Catalog {
     }
   }
 
-  const locales = readLocales(config, byKey, problems, rel);
+  const locales = readLocales(config, byKey, problems, rel, read);
   if (problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };
 }
@@ -189,7 +194,13 @@ function readEntry(
   };
 }
 
-function readLocales(config: ResolvedConfig, byKey: Map<string, Message>, problems: Problem[], rel: (p: string) => string): string[] {
+function readLocales(
+  config: ResolvedConfig,
+  byKey: Map<string, Message>,
+  problems: Problem[],
+  rel: (p: string) => string,
+  read: (path: string) => string,
+): string[] {
   if (!existsSync(config.locales)) return [];
   const files = new Map<string, string[]>();
   for (const name of readdirSync(config.locales).sort()) {
@@ -205,7 +216,7 @@ function readLocales(config: ResolvedConfig, byKey: Map<string, Message>, proble
   for (const [locale, paths] of files) {
     for (const path of paths) {
       const error = (where: string, message: string) => problems.push({ severity: 'error', where, message });
-      for (const [key, value] of Object.entries(readEntries(path, rel(path), error))) {
+      for (const [key, value] of Object.entries(readEntries(read(path), rel(path), error))) {
         const where = `${rel(path)} ${key}`;
         const message = byKey.get(key);
         if (message === undefined) {
@@ -281,8 +292,7 @@ function yamlFiles(dir: string): string[] {
  * booleans and `12:30` as a number. Translation tools are often 1.1, so a file that reads differently
  * under each fails here, naming the value to quote, rather than corrupting quietly in the next tool.
  */
-function readEntries(path: string, where: string, error: (where: string, message: string) => void): Record<string, unknown> {
-  const text = readFileSync(path, 'utf8');
+function readEntries(text: string, where: string, error: (where: string, message: string) => void): Record<string, unknown> {
   let raw: unknown;
   try {
     raw = parseYaml(text);

@@ -21,6 +21,7 @@ import type { Plugin } from 'vite';
 import { CatalogError, entryLocation } from './tools/catalog.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
+import { editEntry, readEntry, type EntryEdit } from './tools/entry.ts';
 import { generate, type Generated } from './tools/generate.ts';
 import { isReferenced, keyRefs, type KeyRefs } from './tools/scan.ts';
 
@@ -154,6 +155,52 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         const { file, line, column } = entryLocation(config, message, locale);
         req.url = `${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`;
         next();
+      });
+
+      // The inspector's dialog: GET `?key=…&locale=…` reads an entry, POST `{ key, locale, edit, write }`
+      // applies an edit (`tools/entry.ts`). A POST writes files, so only the page itself may send one:
+      // same origin, and JSON, which a form on another site can't send without asking first.
+      server.middlewares.use((req, res, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname !== `${base}__prosebook/entry`) return next();
+        const reply = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(body));
+        };
+        const fail = (e: unknown) =>
+          reply(e instanceof CatalogError ? 409 : 400, {
+            problems:
+              e instanceof CatalogError
+                ? e.problems
+                : [{ severity: 'error', where: 'prosebook', message: e instanceof Error ? e.message : String(e) }],
+          });
+        if (req.method === 'GET') {
+          try {
+            reply(200, readEntry(config, url.searchParams.get('key') ?? '', url.searchParams.get('locale') ?? undefined));
+          } catch (e) {
+            fail(e);
+          }
+          return;
+        }
+        const origin = req.headers.origin;
+        const sameOrigin = origin === undefined || new URL(origin).host === req.headers.host;
+        if (req.method !== 'POST' || !sameOrigin || req.headers['content-type']?.startsWith('application/json') !== true) {
+          reply(403, { problems: [{ severity: 'error', where: 'prosebook', message: 'edits come from the page, as JSON' }] });
+          return;
+        }
+        let body = '';
+        req.setEncoding('utf8');
+        req.on('data', (chunk: string) => (body += chunk));
+        req.on('end', () => {
+          try {
+            const { key, locale, edit, write } = JSON.parse(body) as { key: string; locale?: string; edit: EntryEdit; write?: boolean };
+            const result = editEntry(config, key, locale, edit, write === true);
+            reply(result.problems.length > 0 ? 422 : 200, result);
+          } catch (e) {
+            fail(e);
+          }
+        });
       });
     },
 

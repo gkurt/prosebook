@@ -686,7 +686,9 @@
           </article>
           <article class="new">
             <h3>In context</h3>
-            <p>In dev, Alt-click any string to open its entry. Save, and the page updates without reloading.</p>
+            <p>
+              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page. The page updates without reloading.
+            </p>
           </article>
           <article>
             <h3>Pseudo-locale</h3>
@@ -759,10 +761,10 @@
             </p>
           </div>
           <div>
-            <h3>Your editor</h3>
+            <h3>Your editor, or none</h3>
             <p>
-              The entry opens through Vite's own <code>/__open-in-editor</code>, in the editor it finds running or the one
-              <code>LAUNCH_EDITOR</code> names.
+              Alt-click opens the entry through Vite's own <code>/__open-in-editor</code>. Alt-right-click edits it in a dialog on the page,
+              as fields or as YAML, checked before it's written.
             </p>
           </div>
         </div>
@@ -1149,6 +1151,13 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         },
         true,
       );
+      // In an app Alt-right-click opens a dialog over the page; here the editor beside it stands in.
+      app.addEventListener('contextmenu', (e) => {
+        const el = e.target.closest('[data-key]');
+        if (!e.altKey || !el) return;
+        e.preventDefault();
+        open(el.dataset.key, e.shiftKey);
+      });
       // Alt-click on a link would download it; on a button, focus it.
       app.addEventListener('mousedown', (e) => e.altKey && e.preventDefault());
       addEventListener('keydown', (e) => {

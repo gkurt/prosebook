@@ -370,6 +370,13 @@ translation for a translated string, the catalog entry for one that fell back. A
 the catalog entry either way. Save, and the string changes on the page, which keeps its locale and
 state. Only adding or removing a locale reloads it.
 
+Alt-right-click edits the entry without leaving the page. A dialog opens beside the string with its
+fields (the translation and the source message, context, kind, surface, fragment and what each
+placeholder holds) and a YAML tab with the entry as written in each file. Save checks the whole
+catalog with the edit first, so a broken message or a missing argument doc shows in the dialog and
+nothing is written; a clean edit is written into the file, which keeps its comments and layout, and
+the page updates in place. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> closes.
+
 Nothing is added to the page to make this work. In dev the runtime reports each string it hands out,
 and the inspector matches the text under the pointer back to it, so `t()`, `<Text>`, a sentence with
 a link inside it and readable attributes (`placeholder`, `title`, `aria-label`, `alt`) all work. Text

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { build, createServer } from 'vite';
 
+import type { EntryView } from 'prosebook/tools';
+
 import { prosebook } from '#src/vite.ts';
 import { fixture } from './fixture.ts';
 
@@ -45,7 +47,7 @@ test('a build ships only the messages the code names', async () => {
   expect(js).not.toContain('Unbenutzte Nachricht');
 });
 
-test('in dev, the page gets the hot hooks and the inspector, and the generated modules accept their updates', async () => {
+test('in dev, the page gets the hot hooks and the inspector, the generated modules accept their updates, and entries edit from the page only', async () => {
   const config = fixture({ 'copy/catalog/app.yaml': 'app.used: Used message\n', 'index.html': '<html><head></head><body></body></html>' });
   const server = await createServer({
     root: config.root,
@@ -71,6 +73,20 @@ test('in dev, the page gets the hot hooks and the inspector, and the generated m
     const missing = await fetch(`${origin}__prosebook/open?key=app.gone&locale=en`);
     expect(missing.status).toBe(404);
     expect(await missing.text()).toContain('no entry for "app.gone"');
+
+    const read = (await (await fetch(`${origin}__prosebook/entry?key=app.used`)).json()) as EntryView;
+    expect(read.yaml.catalog).toBe('app.used: Used message');
+    const post = (body: object, headers: Record<string, string> = {}) =>
+      fetch(`${origin}__prosebook/entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      });
+    const edit = { key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true };
+    expect((await post(edit, { Origin: 'https://elsewhere.example' })).status).toBe(403);
+    expect((await post({ ...edit, edit: { yaml: { catalog: 'app.used: Broken {' } } })).status).toBe(422);
+    expect((await post(edit)).status).toBe(200);
+    expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe('app.used: Still used\n');
   } finally {
     await server.close();
   }

@@ -1,13 +1,15 @@
 /**
  * The dev inspector the Vite plugin loads into the page: hold Alt and point at a string to see its
  * key, Alt-click to open the entry it came from, Alt-Shift-click to open the catalog entry instead of
- * the translation.
+ * the translation. Alt-right-click edits the entry on the page instead (`inspector-dialog.ts`).
  *
  * Text on screen carries no key. `<Text>` renders a fragment, so marking it would take a wrapper
  * element that exists only in dev and changes what a stylesheet sees; `t()` returns a bare string. So
  * the runtime reports every read (`ReadHook`) and the text under the pointer is matched back to them.
  */
 import type { DevHooks } from '#src/runtime/types.ts';
+
+import { openDialog } from './inspector-dialog.ts';
 
 export interface Read {
   key: string;
@@ -192,6 +194,27 @@ export function install({ base }: InspectorOptions): void {
       e.preventDefault();
       e.stopPropagation();
       void open(base, hit.read, e.shiftKey);
+    },
+    true,
+  );
+  window.addEventListener(
+    'contextmenu',
+    (e) => {
+      if (!e.altKey) return;
+      const hit = hitAt(e.clientX, e.clientY);
+      if (hit === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hide();
+      const catalog = e.shiftKey;
+      void openDialog({
+        base,
+        key: hit.read.key,
+        locale: catalog ? undefined : hit.read.locale,
+        x: e.clientX,
+        y: e.clientY,
+        openFile: () => void open(base, hit.read, catalog),
+      });
     },
     true,
   );
