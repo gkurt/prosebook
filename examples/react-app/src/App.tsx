@@ -1,4 +1,4 @@
-import { Text, useCopy } from 'copydeck/react';
+import { Text, useCopy } from 'prosebook/react';
 import { useState } from 'react';
 
 const PRICE = 4.5;

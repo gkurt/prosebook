@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { draftPlurals, formatDiff, generate, planExtract, readLock, singularOf, wordDiff } from 'copydeck/tools';
+import { draftPlurals, formatDiff, generate, planExtract, readLock, singularOf, wordDiff } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -34,7 +34,7 @@ describe('stale translations show what changed', () => {
       { 'copy/catalog/app.yaml': 'app.a: Save draft\n', 'copy/locales/de/app.yaml': 'app.a: Speichern\n' },
       { require: [] },
     );
-    // Written by copydeck 0.1 when the source said "Save".
+    // Written by prosebook 0.1 when the source said "Save".
     writeFileSync(config.lock, JSON.stringify({ de: { 'app.a': 'd0b8a2d5b4:4ab7d2ad1e' } }));
     const stale = generate(config).stale.get('de')?.get('app.a');
     expect(stale?.was).toBeUndefined();

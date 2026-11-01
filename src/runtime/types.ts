@@ -20,7 +20,7 @@ export type MessageShapes = { [key: string]: MessageShape };
  * (`useCopy()`, `<Text>`) still know its keys:
  *
  * ```ts
- * declare module 'copydeck' {
+ * declare module 'prosebook' {
  *   interface Register { messages: Messages; locale: Locale }
  * }
  * ```

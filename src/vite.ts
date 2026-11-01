@@ -1,5 +1,5 @@
 /**
- * `copydeck/vite`: the catalog as part of the build.
+ * `prosebook/vite`: the catalog as part of the build.
  *
  * Generates on start and again whenever a catalog or translation file changes, so dev never runs on
  * stale modules and a broken entry shows in the error overlay. A build ships only the messages the
@@ -12,24 +12,24 @@ import type { Plugin } from 'vite';
 
 import { CatalogError } from './tools/catalog.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
-import { loadConfig, type CopydeckConfig, type ResolvedConfig } from './tools/config.ts';
+import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { generate, type Generated } from './tools/generate.ts';
 import { isReferenced, keyRefs, type KeyRefs } from './tools/scan.ts';
 
-export interface CopydeckPluginOptions {
-  /** The config, inline. Without it, `copydeck.config.*` at the Vite root is read. */
-  config?: CopydeckConfig;
+export interface ProsebookPluginOptions {
+  /** The config, inline. Without it, `prosebook.config.*` at the Vite root is read. */
+  config?: ProsebookConfig;
   /** Ship only the messages the code names. On by default. */
   prune?: boolean;
   /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
   keep?: string[];
 }
 
-const PLACEHOLDER = /__COPYDECK_LOCALE_(\d+)__/g;
+const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
 
-export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
+export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
   let generated: Generated | undefined;
   let building = false;
@@ -51,7 +51,7 @@ export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
     isReferenced(key, refs) || (options.keep ?? []).some((k) => (k.endsWith('.*') ? key.startsWith(k.slice(0, -1)) : k === key));
 
   return {
-    name: 'copydeck',
+    name: 'prosebook',
 
     async configResolved(resolved) {
       building = resolved.command === 'build';
@@ -77,10 +77,10 @@ export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
         try {
           generated = generate(config);
-          server.config.logger.info(`copydeck: regenerated from ${path.slice(normalize(config.root).length + 1)}`, { timestamp: true });
+          server.config.logger.info(`prosebook: regenerated from ${path.slice(normalize(config.root).length + 1)}`, { timestamp: true });
         } catch (e) {
           server.config.logger.error(describe(e), { timestamp: true });
-          server.ws.send({ type: 'error', err: { message: describe(e), stack: '', plugin: 'copydeck' } });
+          server.ws.send({ type: 'error', err: { message: describe(e), stack: '', plugin: 'prosebook' } });
         }
       };
       server.watcher.on('change', onChange);
@@ -93,7 +93,7 @@ export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
       const locale = localeOf(id);
       if (locale === undefined) return null;
       placeholders.push(locale);
-      return `export default __COPYDECK_LOCALE_${placeholders.length - 1}__;\n`;
+      return `export default __PROSEBOOK_LOCALE_${placeholders.length - 1}__;\n`;
     },
 
     transform(code, id) {
@@ -104,7 +104,7 @@ export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
     },
 
     renderChunk(code) {
-      if (!code.includes('__COPYDECK_LOCALE_') || generated === undefined) return null;
+      if (!code.includes('__PROSEBOOK_LOCALE_') || generated === undefined) return null;
       const entries = generated.entries;
       const replaced = code.replace(PLACEHOLDER, (_match, index: string) => {
         const locale = placeholders[Number(index)]!;
@@ -126,4 +126,4 @@ export function copydeck(options: CopydeckPluginOptions = {}): Plugin {
   };
 }
 
-export default copydeck;
+export default prosebook;

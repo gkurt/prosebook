@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The `copydeck` command. Each subcommand is a function of the resolved config; `check` runs the
+ * The `prosebook` command. Each subcommand is a function of the resolved config; `check` runs the
  * ones CI needs in one go.
  */
 import { existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
@@ -18,9 +18,9 @@ import { lint } from './tools/lint.ts';
 import type { StaleTranslation } from './tools/lock.ts';
 import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
 
-const HELP = `copydeck: every string your app shows, in one typed catalog
+const HELP = `prosebook: every string your app shows, in one typed catalog
 
-Usage: copydeck <command> [options]
+Usage: prosebook <command> [options]
 
 Commands:
   init                    Create a config and a first catalog file
@@ -89,7 +89,7 @@ async function main(argv: string[]): Promise<number> {
         return results.some((r) => r !== 0) ? 1 : 0;
       }
       default:
-        err(`copydeck: no command "${command}"\n`);
+        err(`prosebook: no command "${command}"\n`);
         out(HELP);
         return 1;
     }
@@ -118,13 +118,13 @@ function runGenerate(config: ResolvedConfig, check: boolean): number {
   const summary = `${catalog.messages.length} messages, ${catalog.locales.length + 1} locale(s)${staleCount > 0 ? `, ${staleCount} stale translation(s)` : ''}`;
   if (check) {
     if (changed.length === 0) {
-      out(`copydeck: generated files are up to date (${summary})`);
+      out(`prosebook: generated files are up to date (${summary})`);
       return 0;
     }
-    err(`copydeck: out of date, run \`copydeck generate\`:\n  ${changed.map((p) => rel(config, p)).join('\n  ')}`);
+    err(`prosebook: out of date, run \`prosebook generate\`:\n  ${changed.map((p) => rel(config, p)).join('\n  ')}`);
     return 1;
   }
-  out(`copydeck: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
+  out(`prosebook: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
   return 0;
 }
 
@@ -147,7 +147,7 @@ function watchMode(config: ResolvedConfig): Promise<number> {
       timer = setTimeout(regenerate, 50);
     });
   }
-  out('copydeck: watching the catalog for changes');
+  out('prosebook: watching the catalog for changes');
   return new Promise(() => {});
 }
 
@@ -157,7 +157,7 @@ function runLint(config: ResolvedConfig): number {
   for (const f of findings) err(`${f.severity === 'error' ? 'error' : 'warn '} ${f.file} ${f.key}: [${f.rule}] ${f.message}`);
   const errors = findings.filter((f) => f.severity === 'error').length;
   if (findings.length === 0) {
-    out(`copydeck: ${catalog.messages.length} messages pass the writing rules`);
+    out(`prosebook: ${catalog.messages.length} messages pass the writing rules`);
   } else {
     err(
       `\n${errors} error(s), ${findings.length - errors} warning(s). Fix the string, or add \`allow: { <rule>: <why> }\` where the rule is wrong about it.`,
@@ -174,7 +174,7 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): n
   const { catalog, stale } = render(config);
   const total = catalog.messages.length;
   if (catalog.locales.length === 0) {
-    out(`copydeck: ${total} messages in ${config.source}, no translations yet`);
+    out(`prosebook: ${total} messages in ${config.source}, no translations yet`);
     return 0;
   }
   let incomplete = false;
@@ -194,33 +194,34 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean): n
       for (const [key, s] of staleHere) out(`  stale   ${key}: ${changeOf(s)}`);
     }
   }
-  if (incomplete && !verbose) out('\n`copydeck status --verbose` lists the keys; `copydeck todo <locale>` prints them ready to translate.');
+  if (incomplete && !verbose)
+    out('\n`prosebook status --verbose` lists the keys; `prosebook todo <locale>` prints them ready to translate.');
   return strict && incomplete ? 1 : 0;
 }
 
 function runAccept(config: ResolvedConfig, args: string[], all: boolean): number {
   const [locale, ...keys] = args;
   if (locale === undefined || (keys.length === 0 && !all)) {
-    err('Usage: copydeck accept <locale> <key>... | copydeck accept <locale> --all');
+    err('Usage: prosebook accept <locale> <key>... | prosebook accept <locale> --all');
     return 1;
   }
   const before = render(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
   const accepting = all ? new Set(before.keys()) : new Set(keys);
   for (const key of accepting) if (!before.has(key)) err(`warn  ${locale} ${key} is not stale`);
   generate(config, { accept: new Map([[locale, all ? true : new Set(keys)]]) });
-  out(`copydeck: accepted ${[...accepting].filter((k) => before.has(k)).length} translation(s) in ${locale}`);
+  out(`prosebook: accepted ${[...accepting].filter((k) => before.has(k)).length} translation(s) in ${locale}`);
   return 0;
 }
 
 /** What changed in the source of a stale translation, as a word diff, or why that isn't known. */
 function changeOf(stale: StaleTranslation): string {
-  if (stale.was === undefined) return "the earlier text isn't recorded (the lock predates copydeck 0.2)";
+  if (stale.was === undefined) return "the earlier text isn't recorded (the lock predates prosebook 0.2)";
   return formatDiff(wordDiff(stale.was, stale.now)).replaceAll('\n', ' ');
 }
 
 function runTodo(config: ResolvedConfig, locale: string | undefined): number {
   if (locale === undefined) {
-    err('Usage: copydeck todo <locale>');
+    err('Usage: prosebook todo <locale>');
     return 1;
   }
   const { catalog, stale } = render(config);
@@ -246,7 +247,7 @@ function runTodo(config: ResolvedConfig, locale: string | undefined): number {
     return 0;
   }
   out(
-    `# copydeck todo: ${count} entr${count === 1 ? 'y' : 'ies'} for ${locale}. Fill them in and paste each block into ${rel(config, config.locales)}/${locale}/<area>.yaml (or ${locale}.yaml).`,
+    `# prosebook todo: ${count} entr${count === 1 ? 'y' : 'ies'} for ${locale}. Fill them in and paste each block into ${rel(config, config.locales)}/${locale}/<area>.yaml (or ${locale}.yaml).`,
   );
   for (const [area, lines] of byArea) {
     out(`\n# ── ${area}.yaml ──`);
@@ -263,9 +264,9 @@ function runScan(config: ResolvedConfig, strict: boolean): number {
   const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   out(
-    `copydeck: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s)` +
+    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s)` +
       (result.hardcoded.length > 0
-        ? '. `copydeck extract` moves the text into the catalog; mark a deliberate line `copydeck-ignore`.'
+        ? '. `prosebook extract` moves the text into the catalog; mark a deliberate line `prosebook-ignore`.'
         : ''),
   );
   return strict && result.hardcoded.length + unused.length > 0 ? 1 : 0;
@@ -282,7 +283,7 @@ async function runExtract(config: ResolvedConfig, paths: string[], write: boolea
   }
   for (const f of plan.files) for (const w of f.warnings) err(`warn  ${w}`);
   if (extractions.length === 0) {
-    out('copydeck: no hardcoded text to extract');
+    out('prosebook: no hardcoded text to extract');
     return 0;
   }
   const changedFiles = plan.files.filter((f) => f.edits.length > 0).length;
@@ -291,17 +292,17 @@ async function runExtract(config: ResolvedConfig, paths: string[], write: boolea
   out(`
 Placeholder types: ${plan.types === 'syntax' ? 'read from the code alone (no TypeScript 7 project found)' : `from ${plan.types}`}.`);
   if (!write) {
-    out(`copydeck: would extract ${summary}. Run again with --write to apply.`);
+    out(`prosebook: would extract ${summary}. Run again with --write to apply.`);
     return 0;
   }
   applyExtract(config, plan);
   out(`
-copydeck: extracted ${summary}.`);
-  out('The new entries are marked `TODO(copydeck extract)`: check each key, kind, context and argument, then run `copydeck lint`.');
+prosebook: extracted ${summary}.`);
+  out('The new entries are marked `TODO(prosebook extract)`: check each key, kind, context and argument, then run `prosebook lint`.');
   return runGenerate(config, false);
 }
 
-const SAMPLE_CONFIG = `import { defineConfig } from 'copydeck/config';
+const SAMPLE_CONFIG = `import { defineConfig } from 'prosebook/config';
 
 export default defineConfig({
   catalog: 'copy/catalog',
@@ -330,8 +331,8 @@ app.greeting:
 function init(root: string): number {
   const configured = CONFIG_FILES.find((f) => existsSync(join(root, f)));
   if (configured === undefined) {
-    writeFileSync(join(root, 'copydeck.config.ts'), SAMPLE_CONFIG);
-    out('created copydeck.config.ts');
+    writeFileSync(join(root, 'prosebook.config.ts'), SAMPLE_CONFIG);
+    out('created prosebook.config.ts');
   }
   const catalogDir = join(root, 'copy', 'catalog');
   if (!existsSync(catalogDir)) {
@@ -340,7 +341,7 @@ function init(root: string): number {
     writeFileSync(join(catalogDir, 'app.yaml'), SAMPLE_CATALOG);
     out('created copy/catalog/app.yaml');
   }
-  out('\nNext: `copydeck generate`, then `createCopy(catalog)` from the generated src/copy.');
+  out('\nNext: `prosebook generate`, then `createCopy(catalog)` from the generated src/copy.');
   return 0;
 }
 

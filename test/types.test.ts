@@ -5,7 +5,7 @@
  */
 import { expect, test } from 'bun:test';
 
-import { createCopy, defineCatalog } from 'copydeck';
+import { createCopy, defineCatalog } from 'prosebook';
 
 type Messages = {
   'a.plain': { args: {}; tags: never };

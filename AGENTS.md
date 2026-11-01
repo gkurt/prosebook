@@ -5,7 +5,7 @@ Guidance for AI agents working in this repository.
 ## Commands
 
 ```bash
-bun run test       # All tests (with the copydeck@dev condition: source, not dist)
+bun run test       # All tests (with the prosebook@dev condition: source, not dist)
 bun typecheck      # TypeScript 7; includes the example app and test/types.test.ts's @ts-expect-error checks
 bun run lint       # oxlint
 bun run format     # oxfmt
@@ -29,7 +29,7 @@ After changing the compiler or the generator, regenerate the example
 One package, ESM-only. Two halves that share only types: the runtime, which ships to browsers and
 must stay small and dependency-free, and the tools, which run at build time in Node or Bun.
 
-Runtime (`copydeck`, `copydeck/react`):
+Runtime (`prosebook`, `prosebook/react`):
 
 - `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
@@ -37,7 +37,7 @@ Runtime (`copydeck`, `copydeck/react`):
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`.
 
-Tools (`copydeck/tools`, `copydeck/config`, `copydeck/vite`, the CLI):
+Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading. `presets.ts`: kinds, surfaces, lint presets.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with where and a fix.
@@ -46,13 +46,13 @@ Tools (`copydeck/tools`, `copydeck/config`, `copydeck/vite`, the CLI):
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed.
 - `src/tools/lint.ts`: writing rules. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
-- `src/tools/extract.ts`: `copydeck extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
+- `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
   test renders a component before and after and compares the HTML; keep that passing.
 - `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/sync`
   API (an optional peer) or, without it, from the expression's syntax.
-- `src/vite.ts`: regenerate on change, prune in builds. `src/cli.ts`: the `copydeck` command.
+- `src/vite.ts`: regenerate on change, prune in builds. `src/cli.ts`: the `prosebook` command.
 
-`examples/react-app/` uses copydeck from source through Vite aliases. `test/fixture.ts` builds
+`examples/react-app/` uses prosebook from source through Vite aliases. `test/fixture.ts` builds
 projects on disk under `test/.tmp/` and evaluates compiled messages.
 
 ## Conventions

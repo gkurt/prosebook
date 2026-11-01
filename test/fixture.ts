@@ -1,8 +1,8 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { createCopy, defineCatalog, type CompiledMessages, type CopyOptions } from 'copydeck';
-import { compileLocale, localeExpression, resolveConfig, type CopydeckConfig, type Entry, type ResolvedConfig } from 'copydeck/tools';
+import { createCopy, defineCatalog, type CompiledMessages, type CopyOptions } from 'prosebook';
+import { compileLocale, localeExpression, resolveConfig, type ProsebookConfig, type Entry, type ResolvedConfig } from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
 
@@ -10,7 +10,7 @@ const TMP = join(import.meta.dir, '.tmp');
 let counter = 0;
 
 /** A project on disk holding `files`, and its resolved config. */
-export function fixture(files: Record<string, string>, config: CopydeckConfig = {}): ResolvedConfig {
+export function fixture(files: Record<string, string>, config: ProsebookConfig = {}): ResolvedConfig {
   const root = join(TMP, `${process.pid}-${counter++}`);
   rmSync(root, { recursive: true, force: true });
   for (const [path, content] of Object.entries(files)) {

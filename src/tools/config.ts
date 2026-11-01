@@ -1,6 +1,6 @@
 /**
- * `copydeck/config`: where the catalog lives, what an entry may say about itself, and how strictly
- * its words are checked. Written as `copydeck.config.ts` (or `.js`, `.mjs`, `.json`) at the project root.
+ * `prosebook/config`: where the catalog lives, what an entry may say about itself, and how strictly
+ * its words are checked. Written as `prosebook.config.ts` (or `.js`, `.mjs`, `.json`) at the project root.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
@@ -28,7 +28,7 @@ export interface LintConfig extends WordLists {
   rules?: Partial<Record<LintRule, Severity>>;
 }
 
-export interface CopydeckConfig {
+export interface ProsebookConfig {
   /** The source-language catalog: one `<area>.yaml` per area. */
   catalog?: string;
   /** Translations: `<locale>/<area>.yaml` or `<locale>.yaml`, holding `key: message`. */
@@ -56,7 +56,7 @@ export interface CopydeckConfig {
   /** Where a string may sit, with what each surface means. */
   surfaces?: Record<string, string>;
   lint?: LintConfig;
-  /** Where `copydeck scan` looks for hardcoded text and catalog keys. */
+  /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
   scan?: {
     dirs?: string[];
     extensions?: string[];
@@ -84,33 +84,33 @@ export interface ResolvedConfig {
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
-/** Typed config, for `copydeck.config.ts`. */
-export function defineConfig(config: CopydeckConfig): CopydeckConfig {
+/** Typed config, for `prosebook.config.ts`. */
+export function defineConfig(config: ProsebookConfig): ProsebookConfig {
   return config;
 }
 
 export const CONFIG_FILES = [
-  'copydeck.config.ts',
-  'copydeck.config.mts',
-  'copydeck.config.js',
-  'copydeck.config.mjs',
-  'copydeck.config.json',
+  'prosebook.config.ts',
+  'prosebook.config.mts',
+  'prosebook.config.js',
+  'prosebook.config.mjs',
+  'prosebook.config.json',
 ];
 
 /** Finds and reads the config at `root`, or the defaults when there is none. */
-export async function loadConfig(root: string, inline?: CopydeckConfig): Promise<ResolvedConfig> {
+export async function loadConfig(root: string, inline?: ProsebookConfig): Promise<ResolvedConfig> {
   if (inline) return resolveConfig(root, inline);
   for (const name of CONFIG_FILES) {
     const path = join(root, name);
     if (!existsSync(path)) continue;
-    if (name.endsWith('.json')) return resolveConfig(root, JSON.parse(readFileSync(path, 'utf8')) as CopydeckConfig);
-    const mod = (await import(pathToFileURL(path).href)) as { default?: CopydeckConfig };
+    if (name.endsWith('.json')) return resolveConfig(root, JSON.parse(readFileSync(path, 'utf8')) as ProsebookConfig);
+    const mod = (await import(pathToFileURL(path).href)) as { default?: ProsebookConfig };
     return resolveConfig(root, mod.default ?? {});
   }
   return resolveConfig(root, {});
 }
 
-export function resolveConfig(root: string, config: CopydeckConfig): ResolvedConfig {
+export function resolveConfig(root: string, config: ProsebookConfig): ResolvedConfig {
   const at = (path: string) => (isAbsolute(path) ? path : resolve(root, path));
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';

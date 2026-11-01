@@ -4,7 +4,7 @@
  * The lock records, per translation, a hash of the source it was made from and a hash of the
  * translation itself. Editing the translation re-anchors it to the current source; editing only
  * the source leaves the old anchor in place, which is what marks it stale. Nobody has to remember
- * to flag anything: `copydeck status` lists what is stale, and `copydeck accept` re-anchors a
+ * to flag anything: `prosebook status` lists what is stale, and `prosebook accept` re-anchors a
  * translation that was still right.
  *
  * The lock also keeps the text behind each anchor, once per distinct text, so a stale translation

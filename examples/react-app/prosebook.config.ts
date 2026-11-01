@@ -1,4 +1,4 @@
-import type { CopydeckConfig } from 'copydeck/config';
+import type { ProsebookConfig } from 'prosebook/config';
 
 export default {
   catalog: 'copy/catalog',
@@ -7,4 +7,4 @@ export default {
   source: 'en',
   pseudo: 'en-XA',
   lint: { extends: 'strict', properNouns: ['Corner', 'Shop'] },
-} satisfies CopydeckConfig;
+} satisfies ProsebookConfig;

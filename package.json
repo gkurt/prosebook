@@ -1,5 +1,5 @@
 {
-  "name": "copydeck",
+  "name": "prosebook",
   "version": "0.2.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
@@ -14,9 +14,9 @@
     "typescript",
     "ux-writing"
   ],
-  "homepage": "https://github.com/gkurt/copydeck",
+  "homepage": "https://github.com/gkurt/prosebook",
   "bugs": {
-    "url": "https://github.com/gkurt/copydeck/issues"
+    "url": "https://github.com/gkurt/prosebook/issues"
   },
   "license": "MIT",
   "author": {
@@ -26,10 +26,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gkurt/copydeck.git"
+    "url": "git+https://github.com/gkurt/prosebook.git"
   },
   "bin": {
-    "copydeck": "./dist/cli.js"
+    "prosebook": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -45,35 +45,35 @@
   },
   "exports": {
     ".": {
-      "copydeck@dev": "./src/index.ts",
+      "prosebook@dev": "./src/index.ts",
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
     },
     "./react": {
-      "copydeck@dev": "./src/react/index.tsx",
+      "prosebook@dev": "./src/react/index.tsx",
       "import": {
         "types": "./dist/react/index.d.ts",
         "default": "./dist/react/index.js"
       }
     },
     "./vite": {
-      "copydeck@dev": "./src/vite.ts",
+      "prosebook@dev": "./src/vite.ts",
       "import": {
         "types": "./dist/vite.d.ts",
         "default": "./dist/vite.js"
       }
     },
     "./config": {
-      "copydeck@dev": "./src/tools/config.ts",
+      "prosebook@dev": "./src/tools/config.ts",
       "import": {
         "types": "./dist/config.d.ts",
         "default": "./dist/config.js"
       }
     },
     "./tools": {
-      "copydeck@dev": "./src/tools/index.ts",
+      "prosebook@dev": "./src/tools/index.ts",
       "import": {
         "types": "./dist/tools.d.ts",
         "default": "./dist/tools.js"
@@ -87,11 +87,11 @@
     "format": "oxfmt",
     "check": "oxlint && oxfmt --check",
     "fix": "oxlint --fix && oxfmt",
-    "test": "bun test --conditions=copydeck@dev",
+    "test": "bun test --conditions=prosebook@dev",
     "checks": "bun check && bun typecheck && bun run test",
     "build": "tsdown",
     "prepack": "tsdown",
-    "cli": "bun --conditions=copydeck@dev src/cli.ts",
+    "cli": "bun --conditions=prosebook@dev src/cli.ts",
     "example": "vite examples/react-app",
     "example:build": "vite build examples/react-app",
     "prepare": "husky"

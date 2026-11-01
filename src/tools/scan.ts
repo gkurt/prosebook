@@ -103,7 +103,7 @@ export function hardcodedText(file: string, code: string, attributes: string[]):
     return { line: lo + 1, column: at - lineStarts[lo]! + 1 };
   };
   const ignored = (line: number) =>
-    (lines[line - 1] ?? '').includes('copydeck-ignore') || (lines[line - 2] ?? '').includes('copydeck-ignore');
+    (lines[line - 1] ?? '').includes('prosebook-ignore') || (lines[line - 2] ?? '').includes('prosebook-ignore');
   const report = (node: Node, text: string, where: string) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;

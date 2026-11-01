@@ -3,7 +3,7 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { CopyProvider, Text, useCopy } from 'copydeck/react';
+import { CopyProvider, Text, useCopy } from 'prosebook/react';
 
 import { copyOf } from './fixture.ts';
 

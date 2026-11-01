@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CatalogError, generate, lint, loadCatalog, resolveConfig } from 'copydeck/tools';
+import { CatalogError, generate, lint, loadCatalog, resolveConfig } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 

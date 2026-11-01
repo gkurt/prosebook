@@ -1,5 +1,5 @@
 /**
- * `copydeck/tools`: the build-time half, for scripts and other bundler integrations. The CLI and the
+ * `prosebook/tools`: the build-time half, for scripts and other bundler integrations. The CLI and the
  * Vite plugin are written on these.
  */
 export {
@@ -25,7 +25,7 @@ export {
   type FilePlan,
   type NewEntry,
 } from './extract.ts';
-export { defineConfig, loadConfig, resolveConfig, type CopydeckConfig, type ResolvedConfig } from './config.ts';
+export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export { lint, LINT_RULES, type Finding, type LintRule } from './lint.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';

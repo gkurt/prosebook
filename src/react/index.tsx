@@ -1,5 +1,5 @@
 /**
- * `copydeck/react`: the catalog in components.
+ * `prosebook/react`: the catalog in components.
  *
  * `useCopy()` re-renders its component when the locale changes, and its `rich` returns a ready
  * `ReactNode`: elements are keyed and tag functions receive keyed children, so a sentence with a
@@ -37,7 +37,7 @@ export function CopyProvider({ copy, tags, children }: CopyProviderProps) {
 /** The catalog, in the current locale. Re-renders the component when the locale changes. */
 export function useCopy(): ReactCopy {
   const context = use(CopyContext);
-  if (context === null) throw new Error('copydeck: useCopy() needs a <CopyProvider> above it');
+  if (context === null) throw new Error('prosebook: useCopy() needs a <CopyProvider> above it');
   const { copy, tags } = context;
   const locale = useSyncExternalStore(
     copy.subscribe,
@@ -50,7 +50,7 @@ export function useCopy(): ReactCopy {
 /** The current locale alone, for components that only format or switch. */
 export function useLocale(): L {
   const context = use(CopyContext);
-  if (context === null) throw new Error('copydeck: useLocale() needs a <CopyProvider> above it');
+  if (context === null) throw new Error('prosebook: useLocale() needs a <CopyProvider> above it');
   return useSyncExternalStore(
     context.copy.subscribe,
     () => context.copy.locale,

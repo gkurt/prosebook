@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { build } from 'vite';
 
-import { copydeck } from '#src/vite.ts';
+import { prosebook } from '#src/vite.ts';
 import { fixture } from './fixture.ts';
 
 test('a build ships only the messages the code names', async () => {
@@ -18,7 +18,7 @@ test('a build ships only the messages the code names', async () => {
     'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\napp.unused: Unbenutzte Nachricht\n',
     'index.html': '<script type="module" src="/src/main.ts"></script>',
     'src/main.ts': [
-      "import { createCopy } from 'copydeck';",
+      "import { createCopy } from 'prosebook';",
       "import { catalog } from './copy/index.ts';",
       'const copy = createCopy(catalog);',
       "const state = location.hash ? 'ok' : 'down';",
@@ -30,8 +30,8 @@ test('a build ships only the messages the code names', async () => {
     root: config.root,
     logLevel: 'silent',
     configFile: false,
-    plugins: [copydeck({ config: { require: [] } })],
-    resolve: { alias: [{ find: /^copydeck$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
+    plugins: [prosebook({ config: { require: [] } })],
+    resolve: { alias: [{ find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
     build: { outDir, minify: false },
   });
   const js = readdirSync(join(outDir, 'assets'))

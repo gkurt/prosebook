@@ -1,5 +1,5 @@
 /**
- * `copydeck extract`: moves hardcoded JSX text into the catalog and rewrites the code to read it.
+ * `prosebook extract`: moves hardcoded JSX text into the catalog and rewrites the code to read it.
  *
  * It works on runs, not fragments. The children of an element that together make one sentence, text,
  * simple expressions and inline elements holding only text, become one message: `Hi {user.name}, <a
@@ -67,7 +67,7 @@ export interface ExtractPlan {
   types: string;
 }
 
-const MODULE = 'copydeck/react';
+const MODULE = 'prosebook/react';
 const NON_PROSE = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path', 'Text']);
 const LETTER = /\p{L}/u;
 
@@ -319,7 +319,7 @@ function planFile(path: string, ctx: Context): FilePlan {
   };
   const ignored = (at: number) => {
     const { line } = position(at);
-    return (lines[line - 1] ?? '').includes('copydeck-ignore') || (lines[line - 2] ?? '').includes('copydeck-ignore');
+    return (lines[line - 1] ?? '').includes('prosebook-ignore') || (lines[line - 2] ?? '').includes('prosebook-ignore');
   };
 
   let needText = false;
@@ -593,7 +593,7 @@ ${indent}const copy = useCopy();`);
   return plan;
 }
 
-/** Adds the names to an existing `copydeck/react` import, or a new import after the last one. */
+/** Adds the names to an existing `prosebook/react` import, or a new import after the last one. */
 function importEdit(program: Node, code: string, plan: FilePlan, wanted: string[]) {
   const imports = (program.body as Node[]).filter((s) => s.type === 'ImportDeclaration');
   const existing = imports.find((s) => s.source.value === MODULE && s.importKind !== 'type');
@@ -646,14 +646,14 @@ export async function planExtract(
   options: { area?: string; types?: boolean } = {},
 ): Promise<ExtractPlan> {
   if (options.area !== undefined && !KEY_PATTERN.test(`${options.area}.x`))
-    throw new Error(`copydeck: "${options.area}" is not an area: lowercase words joined by -`);
+    throw new Error(`prosebook: "${options.area}" is not an area: lowercase words joined by -`);
   const known = new Map<string, string>();
   if (existsSync(config.catalog)) {
     try {
       for (const m of loadCatalog(config).messages) known.set(m.key, m.text);
     } catch (e) {
       if (!(e instanceof CatalogError)) throw e;
-      throw new Error(`copydeck: fix the catalog before extracting into it:\n${e.message}`, { cause: e });
+      throw new Error(`prosebook: fix the catalog before extracting into it:\n${e.message}`, { cause: e });
     }
   }
   const entries: NewEntry[] = [];
@@ -700,7 +700,7 @@ export function applyExtract(config: ResolvedConfig, plan: ExtractPlan): string[
       body.context = e.context;
       if (Object.keys(e.args).length > 0) body.args = e.args;
       body[config.source] = e.message;
-      return `# TODO(copydeck extract): check the key, kind and context.\n${stringify({ [e.key]: body }, { lineWidth: 0, version: '1.1' })}`;
+      return `# TODO(prosebook extract): check the key, kind and context.\n${stringify({ [e.key]: body }, { lineWidth: 0, version: '1.1' })}`;
     });
     mkdirSync(config.catalog, { recursive: true });
     const current = existsSync(path) ? readFileSync(path, 'utf8') : '# yaml-language-server: $schema=./catalog.schema.json\n';

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { chainOf, createCopy, defineCatalog, negotiate, type CompiledMessages } from 'copydeck';
+import { chainOf, createCopy, defineCatalog, negotiate, type CompiledMessages } from 'prosebook';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { compiled, copyOf } from './fixture.ts';

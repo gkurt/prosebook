@@ -101,7 +101,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     if (p === undefined) {
       // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- `L` is a string union, not an enum; the rule misreads the mapped type
       const loader = catalog.loaders[l];
-      if (loader === undefined) return Promise.reject(new Error(`copydeck: no messages for locale "${l}"`));
+      if (loader === undefined) return Promise.reject(new Error(`prosebook: no messages for locale "${l}"`));
       p = loader().then((mod) => {
         const layer = { messages: mod.default, h: createHelpers(l) };
         loaded.set(l, layer);

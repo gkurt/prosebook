@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "copydeck",
+      "name": "prosebook",
       "dependencies": {
         "@formatjs/icu-messageformat-parser": "^3.5.22",
         "oxc-parser": "^0.156.0",

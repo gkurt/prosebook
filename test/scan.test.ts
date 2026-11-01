@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { hardcodedText, isReferenced, keyRefs, looksLikeCode } from 'copydeck/tools';
+import { hardcodedText, isReferenced, keyRefs, looksLikeCode } from 'prosebook/tools';
 
 describe('hardcoded text', () => {
   const ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
@@ -14,7 +14,7 @@ export function A({ n }) {
       <input placeholder={'Search'} type="text" />
       <span>{n} · ×</span>
       <code>npm install</code>
-      {/* copydeck-ignore */}
+      {/* prosebook-ignore */}
       <p>Brand™</p>
       <img alt="" />
       {"Literal child"}

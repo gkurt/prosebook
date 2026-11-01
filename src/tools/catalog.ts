@@ -84,7 +84,7 @@ export function loadCatalog(config: ResolvedConfig): Catalog {
   const rel = (path: string) => relative(config.root, path).replaceAll('\\', '/');
 
   if (!existsSync(config.catalog)) {
-    error(rel(config.catalog), 'no catalog folder here: run `copydeck init`, or set `catalog` in the config');
+    error(rel(config.catalog), 'no catalog folder here: run `prosebook init`, or set `catalog` in the config');
     throw new CatalogError(problems);
   }
 

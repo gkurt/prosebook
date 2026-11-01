@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { compileLocale } from 'copydeck/tools';
+import { compileLocale } from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { copyOf } from './fixture.ts';

@@ -66,7 +66,7 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null):
     case TYPE.tag:
       return `h.t(a, ${JSON.stringify(el.value)}, ${nodes(el.children, hoisted, pound)})`;
     default:
-      throw new Error(`copydeck: no compiler for ICU element type ${(el as MessageFormatElement).type}`);
+      throw new Error(`prosebook: no compiler for ICU element type ${(el as MessageFormatElement).type}`);
   }
 }
 
@@ -95,7 +95,7 @@ export function compileLocale(entries: Iterable<Entry>, keep?: (key: string) => 
 
 /** The locale as an ES module whose default export is its messages. */
 export function localeModule(compiled: CompiledLocale, banner: string, ts: boolean): string {
-  const head = ts ? `${banner}\nimport type { CompiledMessages } from 'copydeck';\n` : `${banner}\n`;
+  const head = ts ? `${banner}\nimport type { CompiledMessages } from 'prosebook';\n` : `${banner}\n`;
   // `as const` keeps `style: "currency"` a literal, which is what `Intl`'s option types ask for.
   const declarations = ts ? compiled.declarations.map((d) => d.replace(/;$/, ' as const;')) : compiled.declarations;
   const consts = declarations.length > 0 ? `\n${declarations.join('\n')}\n` : '';

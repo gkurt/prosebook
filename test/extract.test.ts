@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { createCopy, type Catalog } from 'copydeck';
-import { CopyProvider } from 'copydeck/react';
-import { applyExtract, areaOf, generate, loadCatalog, planExtract } from 'copydeck/tools';
+import { createCopy, type Catalog } from 'prosebook';
+import { CopyProvider } from 'prosebook/react';
+import { applyExtract, areaOf, generate, loadCatalog, planExtract } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -29,7 +29,7 @@ export function Profile({ user, items }: { user: { name: string }; items: string
         <span>{items.length}</span>
       </footer>
       <img src="x.png" alt="" /> Next step
-      {/* copydeck-ignore */}
+      {/* prosebook-ignore */}
       <span>ACME</span>
       <code>npm install</code>
       <ul>
@@ -44,7 +44,7 @@ export function Profile({ user, items }: { user: { name: string }; items: string
 }
 `;
 
-describe('copydeck extract', () => {
+describe('prosebook extract', () => {
   test('the rewritten component renders exactly what the hardcoded one did', async () => {
     const config = fixture(
       {
@@ -70,7 +70,7 @@ describe('copydeck extract', () => {
     generate(config);
 
     const after = readFileSync(join(config.root, 'src', 'After.tsx'), 'utf8');
-    expect(after).toContain("import { Text, useCopy } from 'copydeck/react';");
+    expect(after).toContain("import { Text, useCopy } from 'prosebook/react';");
     expect(after).toContain('  const { t } = useCopy();\n  const [q]');
     expect(after).toContain('<li key={item} title={t("profile.an-item-tooltip")}>');
     expect(after).toContain('<Text id="profile.done" values={{ item: item }} />');
@@ -95,7 +95,7 @@ describe('copydeck extract', () => {
     expect(yaml.startsWith('# yaml-language-server: $schema=./catalog.schema.json\n')).toBe(true);
     expect(yaml).toContain(
       [
-        '# TODO(copydeck extract): check the key, kind and context.',
+        '# TODO(prosebook extract): check the key, kind and context.',
         'cart.hi-read-the-terms:',
         '  context: In Profile, the text of a <p>.',
         '  args:',
@@ -119,7 +119,7 @@ describe('copydeck extract', () => {
   test('t joins an existing useCopy() call, and copy.t stands in where t is taken', async () => {
     const config = fixture({
       'src/A.tsx': [
-        "import { useCopy } from 'copydeck/react';",
+        "import { useCopy } from 'prosebook/react';",
         'export function A() {',
         '  const { locale } = useCopy();',
         '  return <input placeholder="Search" lang={locale} />;',
