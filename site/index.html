@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>prosebook</title>
+    <meta
+      name="description"
+      content="Every string your app shows, in one typed catalog. ICU and MessageFormat 2 compiled to plain functions, for React and any JavaScript."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='20' text-anchor='middle' fill='white'%3E¶%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fbfaf6;
+        --raised: #ffffff;
+        --sunk: #f3f1ea;
+        --ink: #1d1b17;
+        --muted: #69645a;
+        --line: #e3dfd3;
+        --accent: #7c3aed;
+        --accent-soft: rgb(124 58 237 / 0.1);
+        --code-bg: #f6f4ee;
+        --tok-key: #7c3aed;
+        --tok-str: #0f766e;
+        --tok-com: #8a8476;
+        --tok-kw: #b45309;
+        --ok: #15803d;
+        --err: #b91c1c;
+        --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+        --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --paper: #15140f;
+          --raised: #1d1c17;
+          --sunk: #111009;
+          --ink: #ece8dd;
+          --muted: #a29c8d;
+          --line: #2f2d25;
+          --accent: #a78bfa;
+          --accent-soft: rgb(167 139 250 / 0.14);
+          --code-bg: #1a1914;
+          --tok-key: #c4b5fd;
+          --tok-str: #5eead4;
+          --tok-com: #7d7869;
+          --tok-kw: #fbbf24;
+          --ok: #4ade80;
+          --err: #f87171;
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --paper: #15140f;
+        --raised: #1d1c17;
+        --sunk: #111009;
+        --ink: #ece8dd;
+        --muted: #a29c8d;
+        --line: #2f2d25;
+        --accent: #a78bfa;
+        --accent-soft: rgb(167 139 250 / 0.14);
+        --code-bg: #1a1914;
+        --tok-key: #c4b5fd;
+        --tok-str: #5eead4;
+        --tok-com: #7d7869;
+        --tok-kw: #fbbf24;
+        --ok: #4ade80;
+        --err: #f87171;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.6 var(--sans);
+      }
+      a {
+        color: inherit;
+      }
+      code,
+      pre,
+      kbd {
+        font-family: var(--mono);
+        font-size: 0.875em;
+      }
+      :not(pre) > code {
+        background: var(--sunk);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 4px;
+      }
+      kbd {
+        display: inline-block;
+        min-width: 1.6em;
+        padding: 0 6px;
+        border: 1px solid var(--line);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        background: var(--raised);
+        text-align: center;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+
+      /* Top bar */
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 20px 0;
+      }
+      .mark {
+        font: 600 22px/1 var(--serif);
+        text-decoration: none;
+        letter-spacing: -0.01em;
+      }
+      .mark span {
+        color: var(--accent);
+      }
+      .bar nav {
+        display: flex;
+        gap: 20px;
+        font-size: 15px;
+      }
+      .bar nav a {
+        text-decoration: none;
+        color: var(--muted);
+      }
+      .bar nav a:hover {
+        color: var(--ink);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 56px 0 40px;
+        max-width: 760px;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--serif);
+        font-weight: 500;
+        letter-spacing: -0.015em;
+        line-height: 1.15;
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(38px, 6vw, 60px);
+      }
+      .lede {
+        font-size: clamp(17px, 2.2vw, 20px);
+        color: var(--muted);
+        margin: 20px 0 28px;
+        max-width: 640px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--ink);
+        text-decoration: none;
+        font: 500 15px/1.2 var(--sans);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      :root[data-theme='dark'] .btn.primary {
+        color: #15140f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) .btn.primary {
+          color: #15140f;
+        }
+      }
+      .note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      /* Code */
+      .pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin: 8px 0 72px;
+      }
+      .code {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        min-width: 0;
+      }
+      .code header {
+        font: 12px/1 var(--mono);
+        color: var(--muted);
+        padding: 12px 16px 0;
+      }
+      .code pre {
+        margin: 0;
+        padding: 12px 16px 16px;
+        overflow-x: auto;
+        line-height: 1.6;
+      }
+      .k {
+        color: var(--tok-key);
+      }
+      .s {
+        color: var(--tok-str);
+      }
+      .c {
+        color: var(--tok-com);
+      }
+      .w {
+        color: var(--tok-kw);
+      }
+
+      section.block {
+        padding: 0 0 80px;
+      }
+      .eyebrow {
+        font: 600 12px/1 var(--sans);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 12px;
+      }
+      h2 {
+        font-size: clamp(28px, 4vw, 38px);
+        max-width: 720px;
+      }
+      .intro {
+        color: var(--muted);
+        max-width: 680px;
+        margin: 14px 0 32px;
+      }
+
+      /* Features */
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .features article {
+        background: var(--raised);
+        padding: 22px 22px 24px;
+      }
+      .features h3 {
+        font-size: 21px;
+        margin-bottom: 8px;
+      }
+      .features p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .features .new h3::after {
+        content: 'New';
+        font: 600 11px/1 var(--sans);
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 999px;
+        padding: 4px 8px;
+        margin-left: 8px;
+        vertical-align: 4px;
+      }
+
+      /* In-context demo */
+      .demo {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+        gap: 16px;
+        align-items: stretch;
+      }
+      .window {
+        background: var(--raised);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--sunk);
+        font: 12px/1 var(--mono);
+        color: var(--muted);
+        min-height: 40px;
+      }
+      .dots {
+        display: flex;
+        gap: 6px;
+        flex: none;
+      }
+      .dots i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--line);
+      }
+      .chrome .grow {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        overflow: hidden;
+        flex: none;
+      }
+      .seg button {
+        font: 12px/1 var(--mono);
+        padding: 5px 8px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--accent);
+        color: #fff;
+      }
+      .app {
+        position: relative;
+        padding: 20px;
+        flex: 1;
+        font-size: 15px;
+      }
+      .app h4 {
+        margin: 0 0 4px;
+        font: 600 18px/1.3 var(--sans);
+      }
+      .app .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 14px 0;
+      }
+      .app button.ui {
+        font: inherit;
+        font-size: 14px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .app button.ui.primary {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--paper);
+      }
+      .app .small {
+        color: var(--muted);
+        font-size: 13.5px;
+        margin: 6px 0 0;
+      }
+      .app a {
+        color: var(--accent);
+      }
+      .app.inspecting,
+      .app.inspecting * {
+        cursor: pointer;
+      }
+      .outline {
+        position: absolute;
+        display: none;
+        pointer-events: none;
+        outline: 2px solid #7c3aed;
+        background: rgb(124 58 237 / 0.08);
+        z-index: 2;
+      }
+      .outline span {
+        position: absolute;
+        left: -2px;
+        bottom: 100%;
+        padding: 1px 6px;
+        font: 12px/1.5 var(--mono);
+        white-space: nowrap;
+        color: #fff;
+        background: #7c3aed;
+      }
+      .hint {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .toggle {
+        font: 500 13px/1 var(--sans);
+        padding: 7px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .toggle[aria-pressed='true'] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .editor {
+        font: 13px/1.65 var(--mono);
+        background: var(--code-bg);
+        flex: 1;
+        overflow: auto;
+        max-height: 360px;
+        min-height: 260px;
+        position: relative;
+      }
+      .editor .empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 24px;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: 14px;
+      }
+      .line {
+        display: flex;
+        white-space: pre;
+        padding-right: 12px;
+      }
+      .line .n {
+        flex: none;
+        width: 40px;
+        padding-right: 12px;
+        text-align: right;
+        color: var(--tok-com);
+        user-select: none;
+      }
+      .line.hit {
+        background: var(--accent-soft);
+      }
+      .line input {
+        font: inherit;
+        color: var(--tok-str);
+        background: var(--raised);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 0 4px;
+        margin: -1px 0;
+        min-width: 8ch;
+        max-width: 100%;
+        flex: 1;
+      }
+      .status {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--muted);
+        min-height: 41px;
+      }
+      .status.ok {
+        color: var(--ok);
+      }
+      .status.err {
+        color: var(--err);
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+        margin-top: 28px;
+      }
+      .facts h3 {
+        font-size: 19px;
+        margin-bottom: 6px;
+      }
+      .facts p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      /* Translators */
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 40px;
+        align-items: start;
+      }
+      .split ul {
+        padding: 0;
+        margin: 20px 0 0;
+        list-style: none;
+        display: grid;
+        gap: 14px;
+      }
+      .split li {
+        color: var(--muted);
+      }
+      .split li strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .add {
+        color: var(--ok);
+      }
+      .del {
+        color: var(--err);
+        text-decoration: line-through;
+      }
+
+      /* Start */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .steps .code pre {
+        white-space: pre-wrap;
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 28px 0 48px;
+        color: var(--muted);
+        font-size: 14px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 860px) {
+        .pair,
+        .demo,
+        .split,
+        .steps,
+        .facts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .split {
+          gap: 24px;
+        }
+        .hero {
+          padding-top: 32px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bar">
+        <a class="mark" href="./">prose<span>book</span></a>
+        <nav>
+          <a href="#in-context">In context</a>
+          <a href="./demo/">Demo</a>
+          <a href="https://github.com/gkurt/prosebook">GitHub</a>
+        </nav>
+      </div>
+
+      <header class="hero">
+        <h1>Every string your app shows, in one typed catalog.</h1>
+        <p class="lede">
+          UX writers keep a product's words in one document, the copy deck. prosebook makes it the source of truth: each string lives in
+          YAML with the context a translator needs, and the code holds only keys.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="./demo/">Try the demo</a>
+          <a class="btn" href="https://github.com/gkurt/prosebook">Read the docs on GitHub</a>
+        </div>
+      </header>
+
+      <div class="pair">
+        <div class="code">
+          <header>copy/catalog/cart.yaml</header>
+          <pre><span class="k">cart.items</span>:
+  <span class="k">kind</span>: state
+  <span class="k">surface</span>: status
+  <span class="k">context</span>: Under the cart heading, counts what is in the cart.
+  <span class="k">args</span>:
+    <span class="k">count</span>: how many items are in the cart
+  <span class="k">en</span>: <span class="s">'{count, plural, =0 {Your cart is empty.}
+    one {# item in your cart.} other {# items in your cart.}}'</span></pre>
+        </div>
+        <div class="code">
+          <header>src/Cart.tsx</header>
+          <pre><span class="w">const</span> { t } = useCopy();
+
+<span class="c">// A missing key or argument is a type error.</span>
+&lt;p&gt;{t(<span class="s">'cart.items'</span>, { count })}&lt;/p&gt;
+<span class="c">// "3 items in your cart."</span>
+
+&lt;Text id=<span class="s">"cart.terms"</span> /&gt;
+<span class="c">// "By checking out you agree to our <u>terms of sale</u>."</span></pre>
+        </div>
+      </div>
+
+      <section class="block">
+        <p class="eyebrow">What you get</p>
+        <h2>Words you can change without touching code, checked like code.</h2>
+        <p class="intro">
+          <code>prosebook generate</code> compiles the catalog into typed modules, one per locale. Everything a parser would do in the
+          browser happens at build time instead.
+        </p>
+        <div class="features">
+          <article>
+            <h3>Typed</h3>
+            <p>
+              A missing key, a misspelled key or a missing argument is a type error. Completing a key shows its English text and context.
+            </p>
+          </article>
+          <article>
+            <h3>Compiled</h3>
+            <p>Each message, in ICU MessageFormat or MessageFormat 2, becomes a plain function. No parser ships, no <code>eval</code>.</p>
+          </article>
+          <article>
+            <h3>Checked</h3>
+            <p>
+              Placeholders that drift between the source and a translation fail the build. A translation whose source changed is marked
+              stale.
+            </p>
+          </article>
+          <article>
+            <h3>Pruned</h3>
+            <p>A Vite build ships only the messages the code names. Keys built from data still count.</p>
+          </article>
+          <article>
+            <h3>Written well</h3>
+            <p>An optional lint holds the words to a writing guide: word budgets per kind, periods, sentence case, banned filler.</p>
+          </article>
+          <article>
+            <h3>Extracted</h3>
+            <p>
+              <code>prosebook extract</code> moves hardcoded JSX text into the catalog, whole sentences with their links, and rewrites the
+              component.
+            </p>
+          </article>
+          <article class="new">
+            <h3>In context</h3>
+            <p>In dev, Alt-click any string to open its entry. Save, and the page updates without reloading.</p>
+          </article>
+          <article>
+            <h3>Pseudo-locale</h3>
+            <p><code>⟦Ýóóúúŕ çááŕţ⟧</code> shows hardcoded text, clipped text and sentences spliced from fragments at a glance.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="block" id="in-context">
+        <p class="eyebrow">New in dev</p>
+        <h2>Point at a string, land on its entry.</h2>
+        <p class="intro">
+          Hold <kbd class="alt-key">Alt</kbd> and point at text in your running app: the Vite plugin outlines the string and names its key.
+          Click to open the entry in your editor, the translation for a translated string or the catalog for one that fell back. Try it on
+          the shop below, then edit the message.
+        </p>
+
+        <div class="demo">
+          <div class="window">
+            <div class="chrome">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="grow">localhost:5173</span>
+              <span class="seg" role="group" aria-label="Locale">
+                <button type="button" data-locale="en" aria-pressed="true">en</button>
+                <button type="button" data-locale="de" aria-pressed="false">de</button>
+              </span>
+            </div>
+            <div class="app" id="app">
+              <div class="outline" id="outline"><span></span></div>
+              <h4 data-key="cart.title"></h4>
+              <div data-key="cart.items"></div>
+              <div class="row">
+                <button type="button" class="ui" data-key="cart.add" data-act="add"></button>
+                <button type="button" class="ui" data-key="cart.remove" data-act="empty"></button>
+                <button type="button" class="ui primary" data-key="cart.checkout"></button>
+              </div>
+              <p class="small" data-key="cart.shipping"></p>
+              <p class="small" data-key="cart.terms"></p>
+            </div>
+            <div class="hint">
+              <span>Hold <kbd class="alt-key">Alt</kbd> and click a string, or</span>
+              <button type="button" class="toggle" id="inspect" aria-pressed="false">Inspect</button>
+            </div>
+          </div>
+
+          <div class="window">
+            <div class="chrome">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="grow" id="file">your editor</span>
+            </div>
+            <div class="editor" id="editor">
+              <div class="empty">The entry you click opens here, as it would in your editor.</div>
+            </div>
+            <div class="status" id="status" aria-live="polite">Shift-click opens the catalog entry, even for a translated string.</div>
+          </div>
+        </div>
+
+        <div class="facts">
+          <div>
+            <h3>No keys in the DOM</h3>
+            <p>
+              In dev the runtime reports each string it hands out, and the text under the pointer is matched back to it. <code>t()</code>,
+              <code>&lt;Text&gt;</code>, rich sentences and attributes all work.
+            </p>
+          </div>
+          <div>
+            <h3>Edits keep your place</h3>
+            <p>
+              Saving a catalog or translation swaps that locale's messages in place. The page keeps its locale, its state and your scroll.
+            </p>
+          </div>
+          <div>
+            <h3>Your editor</h3>
+            <p>
+              The entry opens through Vite's own <code>/__open-in-editor</code>, in the editor it finds running or the one
+              <code>LAUNCH_EDITOR</code> names.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="split">
+          <div>
+            <p class="eyebrow">For translators</p>
+            <h2>Know what changed since the last translation.</h2>
+            <ul>
+              <li>
+                <strong>Only text to translate.</strong> A locale file holds <code>key: translation</code>; the context stays in the
+                catalog.
+              </li>
+              <li>
+                <strong>Stale, automatically.</strong> <code>copy/lock.json</code> records the source each translation was made from, and
+                shows the change as a word diff.
+              </li>
+              <li>
+                <strong>Fallback, key by key.</strong> A missing key falls back through its parents (<code>pt-BR</code> → <code>pt</code>)
+                to the source.
+              </li>
+            </ul>
+          </div>
+          <div class="code">
+            <header>terminal</header>
+            <pre><span class="c">$</span> prosebook status --verbose
+de           13/14  92%        1      2
+  stale   cart.add: Add <span class="add">{+one +}</span>to cart
+  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{+Pay now+}</span>
+
+<span class="c">$</span> prosebook todo de
+<span class="c"># The button on a product that adds one to the cart.</span>
+<span class="c"># en: Add one to cart</span>
+<span class="c"># stale, the source changed: Add {+one +}to cart</span>
+<span class="k">cart.add</span>: In den Warenkorb</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="start">
+        <p class="eyebrow">Get started</p>
+        <h2>Three steps to a typed catalog.</h2>
+        <p class="intro">Not on npm yet: build it from the repository with <code>bun run build</code> and add it by path.</p>
+        <div class="steps">
+          <div class="code">
+            <header>1. Set up</header>
+            <pre><span class="c">$</span> bun add prosebook
+<span class="c">$</span> bunx prosebook init</pre>
+          </div>
+          <div class="code">
+            <header>2. vite.config.ts</header>
+            <pre><span class="w">import</span> { prosebook } <span class="w">from</span> <span class="s">'prosebook/vite'</span>;
+
+plugins: [react(), prosebook()]</pre>
+          </div>
+          <div class="code">
+            <header>3. main.tsx</header>
+            <pre><span class="w">const</span> copy = createCopy(catalog, {
+  locale: preferredLocales(),
+});
+&lt;CopyProvider copy={copy}&gt;…</pre>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <span>MIT licensed. Made by <a href="https://gkurt.com">Gokhan Kurt</a>.</span>
+        <span><a href="https://github.com/gkurt/prosebook">github.com/gkurt/prosebook</a></span>
+      </footer>
+    </div>
+
+    <script>
+      // A recreation of the dev inspector over the example's own cart catalog. In an app, the Vite
+      // plugin does this against the running page and your real files.
+      const CATALOG = `# yaml-language-server: $schema=./catalog.schema.json
+cart.title:
+  kind: name
+  surface: heading
+  context: Heads the shopping cart panel.
+  en: Cart
+
+cart.items:
+  kind: state
+  surface: status
+  context: Under the cart heading, counts what is in the cart.
+  args:
+    count: how many items are in the cart
+  en: '{count, plural, =0 {Your cart is empty.} one {# item in your cart.} other {# items in your cart.}}'
+
+cart.total:
+  kind: state
+  surface: status
+  context: The sum of the cart, beside the checkout button.
+  args:
+    amount: the total price, in euros
+  fragment: true
+  en: 'Total: {amount, number, ::currency/EUR}'
+
+cart.add:
+  kind: action
+  surface: action
+  context: The button on a product that adds one to the cart.
+  en: Add to cart
+
+cart.remove:
+  kind: action
+  surface: action
+  context: The button that empties the cart.
+  en: Empty cart
+
+cart.checkout:
+  kind: action
+  surface: action
+  context: The button that starts paying for the cart.
+  en: Check out
+
+cart.terms:
+  kind: description
+  surface: hint
+  context: Under the checkout button. The link opens the terms of sale.
+  en: By checking out you agree to our <link>terms of sale</link>.
+
+cart.shipping:
+  kind: description
+  surface: hint
+  context: Under the total, says how long delivery takes.
+  args:
+    days: how many working days delivery takes
+  en: 'Arrives in {days, plural, one {# working day} other {# working days}}.'`;
+
+      const GERMAN = `cart.title: Warenkorb
+cart.items: '{count, plural, =0 {Dein Warenkorb ist leer.} one {# Artikel im Warenkorb.} other {# Artikel im Warenkorb.}}'
+cart.total: 'Summe: {amount, number, ::currency/EUR}'
+cart.add: In den Warenkorb
+cart.remove: Warenkorb leeren
+cart.checkout: Zur Kasse
+cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</link> zu.`;
+
+      const files = {
+        en: { path: 'copy/catalog/cart.yaml', lines: CATALOG.split('\n') },
+        de: { path: 'copy/locales/de/cart.yaml', lines: GERMAN.split('\n') },
+      };
+
+      const unquote = (v) => (v.startsWith("'") ? v.slice(1, -1).replaceAll("''", "'") : v.startsWith('"') ? JSON.parse(v) : v);
+      const quote = (v) => (/[{}<>:#'"]|^\s|\s$/.test(v) ? `'${v.replaceAll("'", "''")}'` : v);
+
+      /** Where a key's message is in a file: the line, and the text before the value on it. */
+      function locate(locale, key) {
+        const { lines } = files[locale];
+        if (locale === 'de') {
+          const line = lines.findIndex((l) => l.startsWith(`${key}: `));
+          return line === -1 ? undefined : { start: line, line, prefix: `${key}: ` };
+        }
+        const start = lines.indexOf(`${key}:`);
+        if (start === -1) return undefined;
+        const line = lines.findIndex((l, i) => i > start && l.startsWith('  en: '));
+        return { start, line, prefix: '  en: ' };
+      }
+
+      function message(locale, key) {
+        const at = locate(locale, key);
+        return at && unquote(files[locale].lines[at.line].slice(at.prefix.length));
+      }
+
+      // Just enough ICU for these messages: arguments, plural and select, `#` and tags.
+      function parse(src) {
+        let i = 0;
+        const fail = (what) => {
+          throw new Error(`${what} at character ${i + 1}`);
+        };
+        const eat = (ch) => (src[i] === ch ? i++ : fail(`expected "${ch}"`));
+        const skip = () => {
+          while (src[i] === ' ') i++;
+        };
+        const word = () => {
+          skip();
+          const m = /^[=\w-]+/.exec(src.slice(i));
+          if (!m) fail('expected a name');
+          i += m[0].length;
+          skip();
+          return m[0];
+        };
+        const nodes = () => {
+          const out = [];
+          let text = '';
+          const flush = () => {
+            if (text) out.push(text);
+            text = '';
+          };
+          while (i < src.length && src[i] !== '}' && !(src[i] === '<' && src[i + 1] === '/')) {
+            if (src[i] === '{') (flush(), out.push(arg()));
+            else if (src[i] === '<') (flush(), out.push(tag()));
+            else if (src[i] === '#') (flush(), out.push({ hash: true }), i++);
+            else text += src[i++];
+          }
+          flush();
+          return out;
+        };
+        const arg = () => {
+          eat('{');
+          const name = word();
+          if (src[i] === '}') return (i++, { arg: name });
+          eat(',');
+          const type = word();
+          if (src[i] === '}') return (i++, { arg: name, type });
+          eat(',');
+          const arms = {};
+          for (skip(); src[i] !== '}'; skip()) {
+            if (i >= src.length) fail('the message ends inside {' + name + '}');
+            const key = word();
+            eat('{');
+            arms[key] = nodes();
+            eat('}');
+          }
+          i++;
+          if (!arms.other) throw new Error(`{${name}, ${type}} needs an other arm`);
+          return { arg: name, type, arms };
+        };
+        const tag = () => {
+          eat('<');
+          const name = word();
+          eat('>');
+          const children = nodes();
+          eat('<');
+          eat('/');
+          if (word() !== name) fail(`expected </${name}>`);
+          eat('>');
+          return { tag: name, children };
+        };
+        const out = nodes();
+        if (i < src.length) fail(`unexpected "${src[i]}"`);
+        return out;
+      }
+
+      function render(nodes, locale, values, n) {
+        const frag = document.createDocumentFragment();
+        for (const node of nodes) {
+          if (typeof node === 'string') frag.append(node);
+          else if (node.hash) frag.append(new Intl.NumberFormat(locale).format(n));
+          else if (node.tag) {
+            const a = document.createElement('a');
+            a.href = '#in-context';
+            a.append(render(node.children, locale, values, n));
+            frag.append(a);
+          } else if (node.arms) {
+            const v = values[node.arg];
+            const arm =
+              node.type === 'plural'
+                ? (node.arms[`=${v}`] ?? node.arms[new Intl.PluralRules(locale).select(v)] ?? node.arms.other)
+                : (node.arms[v] ?? node.arms.other);
+            frag.append(render(arm, locale, values, v));
+          } else frag.append(String(values[node.arg]));
+        }
+        return frag;
+      }
+
+      const app = document.getElementById('app');
+      const outline = document.getElementById('outline');
+      const editor = document.getElementById('editor');
+      const fileLabel = document.getElementById('file');
+      const status = document.getElementById('status');
+      const toggle = document.getElementById('inspect');
+      const state = { locale: 'en', count: 3, inspecting: false, alt: false, open: undefined };
+
+      if (/Mac|iPhone|iPad/.test(navigator.platform)) for (const k of document.querySelectorAll('.alt-key')) k.textContent = '⌥ Option';
+
+      /** The message an element shows, and the locale it was found in. */
+      function source(key) {
+        const translated = state.locale === 'de' && message('de', key) !== undefined;
+        return translated ? 'de' : 'en';
+      }
+
+      function paint() {
+        for (const el of app.querySelectorAll('[data-key]')) {
+          const key = el.dataset.key;
+          const from = source(key);
+          try {
+            el.replaceChildren(render(parse(message(from, key)), state.locale, { count: state.count, days: 3 }));
+          } catch {
+            // A message mid-edit that doesn't parse keeps what it showed.
+          }
+        }
+        for (const b of document.querySelectorAll('[data-locale]'))
+          b.setAttribute('aria-pressed', String(b.dataset.locale === state.locale));
+      }
+
+      const inspecting = () => state.inspecting || state.alt;
+
+      function hover(target) {
+        const el = inspecting() ? target?.closest?.('[data-key]') : null;
+        if (!el || !app.contains(el)) {
+          outline.style.display = 'none';
+          return;
+        }
+        const box = el.getBoundingClientRect();
+        const host = app.getBoundingClientRect();
+        Object.assign(outline.style, {
+          display: 'block',
+          left: `${box.left - host.left}px`,
+          top: `${box.top - host.top}px`,
+          width: `${box.width}px`,
+          height: `${box.height}px`,
+        });
+        outline.firstChild.textContent = `${el.dataset.key} · ${source(el.dataset.key)}`;
+      }
+
+      function open(key, catalog) {
+        const locale = catalog ? 'en' : source(key);
+        const file = files[locale];
+        const at = locate(locale, key);
+        state.open = { key, locale };
+        fileLabel.textContent = `${file.path}:${at.start + 1}`;
+        editor.replaceChildren(
+          ...file.lines.map((text, index) => {
+            const row = document.createElement('div');
+            row.className = 'line';
+            const num = document.createElement('span');
+            num.className = 'n';
+            num.textContent = index + 1;
+            row.append(num);
+            const inEntry = locale === 'de' ? index === at.line : index >= at.start && index <= at.line;
+            if (inEntry) row.classList.add('hit');
+            if (index !== at.line) {
+              row.append(text || ' ');
+              return row;
+            }
+            const input = document.createElement('input');
+            input.value = message(locale, key);
+            input.spellcheck = false;
+            input.setAttribute('aria-label', `${key} in ${file.path}`);
+            input.addEventListener('input', () => edit(locale, key, at, input.value));
+            row.append(at.prefix, input);
+            return row;
+          }),
+        );
+        const hit = editor.querySelector('.hit');
+        editor.scrollTop = hit.offsetTop - 24;
+        const why =
+          locale === 'de'
+            ? 'The German translation.'
+            : state.locale === 'de' && !catalog
+              ? 'No German translation, so the string fell back to the catalog.'
+              : 'The catalog entry.';
+        status.className = 'status';
+        status.textContent = `${why} Edit the message: the shop updates in place.`;
+      }
+
+      function edit(locale, key, at, value) {
+        try {
+          parse(value);
+        } catch (e) {
+          status.className = 'status err';
+          status.textContent = `${files[locale].path} ${key}: is not valid ICU MessageFormat: ${e.message}`;
+          return;
+        }
+        files[locale].lines[at.line] = at.prefix + quote(value);
+        paint();
+        status.className = 'status ok';
+        status.textContent = 'Saved. prosebook regenerated, and the page swapped the message in without reloading.';
+      }
+
+      app.addEventListener('mousemove', (e) => {
+        state.alt = e.altKey;
+        hover(e.target);
+      });
+      app.addEventListener('mouseleave', () => (outline.style.display = 'none'));
+      app.addEventListener(
+        'click',
+        (e) => {
+          const el = e.target.closest('[data-key]');
+          if (inspecting() || e.altKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (el) open(el.dataset.key, e.shiftKey);
+            return;
+          }
+          const act = e.target.closest('[data-act]')?.dataset.act;
+          if (act === 'add') state.count++;
+          if (act === 'empty') state.count = 0;
+          if (e.target.closest('a')) e.preventDefault();
+          paint();
+        },
+        true,
+      );
+      // Alt-click on a link would download it; on a button, focus it.
+      app.addEventListener('mousedown', (e) => e.altKey && e.preventDefault());
+      addEventListener('keydown', (e) => {
+        if (e.key === 'Alt') state.alt = true;
+      });
+      addEventListener('keyup', (e) => {
+        if (e.key !== 'Alt') return;
+        state.alt = false;
+        outline.style.display = 'none';
+      });
+      addEventListener('blur', () => {
+        state.alt = false;
+        outline.style.display = 'none';
+      });
+      toggle.addEventListener('click', () => {
+        state.inspecting = !state.inspecting;
+        toggle.setAttribute('aria-pressed', String(state.inspecting));
+        app.classList.toggle('inspecting', state.inspecting);
+        if (!state.inspecting) outline.style.display = 'none';
+      });
+      for (const b of document.querySelectorAll('[data-locale]'))
+        b.addEventListener('click', () => {
+          state.locale = b.dataset.locale;
+          paint();
+          if (state.open) open(state.open.key, false);
+        });
+
+      paint();
+    </script>
+  </body>
+</html>

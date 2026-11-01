@@ -14,6 +14,7 @@ bun run checks     # check + typecheck + test
 bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/react-app`
 bun run example    # the example app in Vite
+bun run site       # the homepage (site/) and the built example under demo/, in _site/, as Pages deploys them
 ```
 
 Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when a bare alias exists
@@ -66,6 +67,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
   own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM.
+
+`site/index.html` is the homepage, deployed with the example by `.github/workflows/pages.yml` on every push
+to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so keep
+it in step when the inspector or that catalog changes, and add new features to its list.
 
 `examples/react-app/` uses prosebook from source through Vite aliases. `test/fixture.ts` builds
 projects on disk under `test/.tmp/` and evaluates compiled messages.

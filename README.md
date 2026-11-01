@@ -2,6 +2,8 @@
 
 Every string your app shows, in one typed catalog. For React and any JavaScript.
 
+[Homepage](https://gkurt.com/prosebook/) · [Live demo](https://gkurt.com/prosebook/demo/)
+
 UX writers keep every string in a product in one document, the copy deck. prosebook makes that
 book of your app's prose the source of truth: the words live in YAML, one entry per string, with the
 context a translator needs beside them, and the code holds only keys. Changing what the app says is an edit to the
