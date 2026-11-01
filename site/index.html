@@ -513,6 +513,131 @@
       .status.err {
         color: var(--err);
       }
+      /* The Alt-right-click dialog, as the dev inspector draws it. */
+      .dlg {
+        position: fixed;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        width: min(440px, calc(100vw - 24px));
+        max-height: min(80vh, 640px);
+        background: var(--raised);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 16px 48px rgb(0 0 0 / 0.22);
+        font: 13px/1.45 var(--sans);
+      }
+      .dlg header,
+      .dlg footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+      }
+      .dlg header {
+        border-bottom: 1px solid var(--line);
+      }
+      .dlg footer {
+        border-top: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .dlg .key {
+        font: 600 12px/1.5 var(--mono);
+        color: #fff;
+        background: #7c3aed;
+        padding: 1px 6px;
+        border-radius: 4px;
+      }
+      .dlg .loc {
+        font: 12px/1 var(--mono);
+        color: var(--muted);
+      }
+      .dlg .grow {
+        flex: 1;
+      }
+      .dlg .tabs {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .dlg button {
+        font: 500 13px/1 var(--sans);
+        color: var(--ink);
+        background: var(--raised);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 12px;
+        cursor: pointer;
+      }
+      .dlg .tabs button {
+        border: 0;
+        border-radius: 0;
+        padding: 4px 10px;
+      }
+      .dlg .tabs button[aria-selected='true'],
+      .dlg button.save {
+        background: #7c3aed;
+        border-color: #7c3aed;
+        color: #fff;
+      }
+      .dlg button.x {
+        border: 0;
+        padding: 2px 6px;
+        font-size: 18px;
+        color: var(--muted);
+        background: transparent;
+      }
+      .dlg button.link {
+        border: 0;
+        padding: 7px 0;
+        color: var(--muted);
+        text-decoration: underline;
+        background: transparent;
+      }
+      .dlg .body {
+        padding: 12px;
+        overflow: auto;
+        display: grid;
+        gap: 12px;
+      }
+      .dlg label {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .dlg textarea,
+      .dlg input,
+      .dlg select {
+        font: 13px/1.45 var(--mono);
+        color: var(--ink);
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 8px;
+        width: 100%;
+        resize: vertical;
+      }
+      .dlg .prose {
+        font-family: var(--sans);
+      }
+      .dlg .pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 0;
+      }
+      .dlg .problems {
+        margin: 0;
+        padding: 0 12px 0 28px;
+        color: var(--err);
+      }
+      .dlg .problems:empty {
+        display: none;
+      }
       .facts {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -702,8 +827,8 @@
         <h2>Point at a string, land on its entry.</h2>
         <p class="intro">
           Hold <kbd class="alt-key">Alt</kbd> and point at text in your running app: the Vite plugin outlines the string and names its key.
-          Click to open the entry in your editor, the translation for a translated string or the catalog for one that fell back. Try it on
-          the shop below, then edit the message.
+          Click to open the entry in your editor, the translation for a translated string or the catalog for one that fell back, or
+          right-click to edit it in a dialog on the page. Try both on the shop below.
         </p>
 
         <div class="demo">
@@ -729,7 +854,7 @@
               <p class="small" data-key="cart.terms"></p>
             </div>
             <div class="hint">
-              <span>Hold <kbd class="alt-key">Alt</kbd> and click a string, or</span>
+              <span>Hold <kbd class="alt-key">Alt</kbd> and click a string, or right-click to edit it here. Or</span>
               <button type="button" class="toggle" id="inspect" aria-pressed="false">Inspect</button>
             </div>
           </div>
@@ -1151,12 +1276,267 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         },
         true,
       );
-      // In an app Alt-right-click opens a dialog over the page; here the editor beside it stands in.
+      // The Alt-right-click dialog. In an app the plugin reads and writes the real files and checks the whole
+      // catalog; here it edits the copies above and checks the messages.
+      const KINDS = ['name', 'action', 'description', 'state'];
+      const SURFACES = [
+        'action',
+        'aria',
+        'choice',
+        'confirm',
+        'empty',
+        'error',
+        'heading',
+        'hint',
+        'label',
+        'placeholder',
+        'status',
+        'title',
+        'toast',
+        'tooltip',
+      ];
+      let dialog;
+
+      /** The lines an entry takes in a file. */
+      function entryLines(locale, key) {
+        const at = locate(locale, key);
+        return files[locale].lines.slice(locale === 'de' ? at.line : at.start, at.line + 1);
+      }
+
+      /** An entry's fields, read from its catalog lines. */
+      function fieldsFrom(lines) {
+        const fields = { kind: '', surface: '', context: '', fragment: false, args: {}, message: undefined };
+        for (const line of lines.slice(1)) {
+          const arg = /^    ([\w-]+): (.*)$/.exec(line);
+          const field = /^  (kind|surface|context|fragment|en): (.*)$/.exec(line);
+          if (arg) fields.args[arg[1]] = unquote(arg[2]);
+          else if (field?.[1] === 'en') fields.message = unquote(field[2]);
+          else if (field?.[1] === 'fragment') fields.fragment = field[2] === 'true';
+          else if (field) fields[field[1]] = unquote(field[2]);
+        }
+        return fields;
+      }
+
+      function linesFrom(key, fields) {
+        const args = Object.entries(fields.args).filter(([, v]) => v.trim());
+        return [
+          `${key}:`,
+          ...['kind', 'surface', 'context'].filter((f) => fields[f].trim()).map((f) => `  ${f}: ${quote(fields[f].trim())}`),
+          ...(args.length ? ['  args:', ...args.map(([n, v]) => `    ${n}: ${quote(v.trim())}`)] : []),
+          ...(fields.fragment ? ['  fragment: true'] : []),
+          `  en: ${quote(fields.message)}`,
+        ];
+      }
+
+      /** What is wrong with an edit, as prosebook would say it, or nothing. */
+      function check(key, catalogLines, translation) {
+        const problems = [];
+        if (catalogLines[0] !== `${key}:`)
+          problems.push(`${key}: the entry is still ${key}: rename a key in the code and the catalog together`);
+        const fields = fieldsFrom(catalogLines);
+        const messages = [[files.en.path, fields.message], ...(translation === undefined ? [] : [[files.de.path, translation]])];
+        for (const [path, text] of messages) {
+          if (text === undefined) {
+            problems.push(`${path} ${key}: en is the message, and it is missing`);
+            continue;
+          }
+          try {
+            parse(text);
+          } catch (e) {
+            problems.push(`${path} ${key}: is not valid ICU MessageFormat: ${e.message}`);
+          }
+        }
+        return problems;
+      }
+
+      function openDialog(key, catalog, x, y) {
+        dialog?.remove();
+        const translated = !catalog && source(key) === 'de';
+        let tab = 'fields';
+        let catalogLines = entryLines('en', key);
+        let translation = translated ? message('de', key) : undefined;
+
+        const make = (tag, props = {}, ...children) => {
+          const node = Object.assign(document.createElement(tag), props);
+          node.append(...children);
+          return node;
+        };
+        const area = (name, label, value, prose) =>
+          make(
+            'label',
+            {},
+            label,
+            make('textarea', {
+              name,
+              value,
+              rows: Math.min(10, Math.max(2, value.split('\n').length + 1)),
+              className: prose ? 'prose' : '',
+              spellcheck: prose,
+              wrap: prose ? 'soft' : 'off',
+            }),
+          );
+        const select = (name, value, choices) =>
+          make(
+            'select',
+            { name },
+            make('option', { value: '', textContent: '—' }),
+            ...choices.map((c) => make('option', { value: c, textContent: c, selected: c === value })),
+          );
+
+        const body = make('div', { className: 'body' });
+        const problems = make('ul', { className: 'problems' });
+        const tabs = {
+          fields: make('button', { type: 'button', textContent: 'Fields' }),
+          yaml: make('button', { type: 'button', textContent: 'YAML' }),
+        };
+        const value = (name) => body.querySelector(`[name="${name}"]`)?.value;
+
+        const render = () => {
+          tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
+          tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
+          if (tab === 'yaml') {
+            body.replaceChildren(
+              area('yaml.catalog', files.en.path, catalogLines.join('\n')),
+              ...(translation === undefined ? [] : [area('yaml.translation', files.de.path, `${key}: ${quote(translation)}`)]),
+            );
+            return;
+          }
+          const f = fieldsFrom(catalogLines);
+          body.replaceChildren(
+            ...(translation === undefined ? [] : [area('translation', 'Translation · de', translation, true)]),
+            area('message', `${translation === undefined ? 'Message' : 'Source'} · en`, f.message ?? '', true),
+            area('context', 'Context', f.context, true),
+            make(
+              'div',
+              { className: 'pair' },
+              make('label', {}, 'Kind', select('kind', f.kind, KINDS)),
+              make('label', {}, 'Surface', select('surface', f.surface, SURFACES)),
+            ),
+            ...Object.entries(f.args).map(([n, v]) =>
+              make('label', {}, `What {${n}} holds`, make('input', { name: `arg.${n}`, value: v })),
+            ),
+          );
+        };
+
+        /** The edit on screen, as catalog lines and a translation. */
+        const current = () => {
+          if (tab === 'yaml') {
+            const line = value('yaml.translation')?.trim();
+            return {
+              lines: value('yaml.catalog').replace(/\n+$/, '').split('\n'),
+              translation: line === undefined ? undefined : unquote(line.slice(`${key}: `.length)),
+              renamed: line !== undefined && !line.startsWith(`${key}: `),
+            };
+          }
+          const args = {};
+          for (const input of body.querySelectorAll('input[name^="arg."]')) args[input.name.slice(4)] = input.value;
+          const fields = {
+            kind: value('kind'),
+            surface: value('surface'),
+            context: value('context'),
+            fragment: fieldsFrom(catalogLines).fragment,
+            args,
+            message: value('message'),
+          };
+          return { lines: linesFrom(key, fields), translation: value('translation') };
+        };
+
+        const take = () => {
+          const edit = current();
+          const found = check(key, edit.lines, edit.translation);
+          if (edit.renamed)
+            found.push(`${files.de.path} ${key}: the entry is still ${key}: rename a key in the code and the catalog together`);
+          problems.replaceChildren(...found.map((p) => make('li', { textContent: p })));
+          if (found.length) return false;
+          catalogLines = edit.lines;
+          translation = edit.translation;
+          return true;
+        };
+
+        const close = () => {
+          panel.remove();
+          if (dialog === panel) dialog = undefined;
+        };
+        const save = () => {
+          if (!take()) return;
+          const at = locate('en', key);
+          files.en.lines.splice(at.start, at.line - at.start + 1, ...catalogLines);
+          if (translation !== undefined) files.de.lines[locate('de', key).line] = `${key}: ${quote(translation)}`;
+          paint();
+          if (state.open) open(state.open.key, state.open.locale === 'en' && source(state.open.key) === 'de');
+          status.className = 'status ok';
+          status.textContent = `Saved ${key} from the dialog. prosebook regenerated, and the page swapped it in without reloading.`;
+          close();
+        };
+        const switchTo = (next) => {
+          if (next === tab || !take()) return;
+          tab = next;
+          render();
+        };
+        tabs.fields.addEventListener('click', () => switchTo('fields'));
+        tabs.yaml.addEventListener('click', () => switchTo('yaml'));
+        const button = (props, onClick) => {
+          const b = make('button', { type: 'button', ...props });
+          b.addEventListener('click', onClick);
+          return b;
+        };
+
+        const panel = make(
+          'div',
+          { className: 'dlg' },
+          make(
+            'header',
+            {},
+            make('span', { className: 'key', textContent: key }),
+            make('span', { className: 'loc', textContent: translated ? 'de' : 'en' }),
+            make('span', { className: 'grow' }),
+            make('span', { className: 'tabs' }, tabs.fields, tabs.yaml),
+            button({ className: 'x', textContent: '×', title: 'Close' }, close),
+          ),
+          body,
+          problems,
+          make(
+            'footer',
+            {},
+            button({ className: 'link', textContent: 'Open in editor' }, () => (open(key, catalog), close())),
+            make('span', { className: 'grow' }),
+            button({ textContent: 'Cancel' }, close),
+            button({ className: 'save', textContent: 'Save' }, save),
+          ),
+        );
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', `Edit ${key}`);
+        panel.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') close();
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
+        });
+        render();
+        panel.style.visibility = 'hidden';
+        document.body.append(panel);
+        dialog = panel;
+        // Beside the pointer, inside the window, and moved up if it grows past the bottom.
+        const box = panel.getBoundingClientRect();
+        const below = y + 16;
+        Object.assign(panel.style, {
+          left: `${Math.max(12, Math.min(x - 24, innerWidth - box.width - 12))}px`,
+          top: `${below + box.height <= innerHeight - 12 ? below : Math.max(12, y - box.height - 16)}px`,
+          visibility: '',
+        });
+        new ResizeObserver(() => {
+          const now = panel.getBoundingClientRect();
+          const fitted = Math.max(12, Math.min(now.top, innerHeight - now.height - 12));
+          if (fitted !== now.top) panel.style.top = `${fitted}px`;
+        }).observe(panel);
+        panel.querySelector('textarea')?.focus();
+      }
+
+      // Alt-right-click, or a right-click or long-press while inspecting.
       app.addEventListener('contextmenu', (e) => {
         const el = e.target.closest('[data-key]');
-        if (!e.altKey || !el) return;
+        if (!(e.altKey || state.inspecting) || !el) return;
         e.preventDefault();
-        open(el.dataset.key, e.shiftKey);
+        outline.style.display = 'none';
+        openDialog(el.dataset.key, e.shiftKey, e.clientX, e.clientY);
       });
       // Alt-click on a link would download it; on a button, focus it.
       app.addEventListener('mousedown', (e) => e.altKey && e.preventDefault());
