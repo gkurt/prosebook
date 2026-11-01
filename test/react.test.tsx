@@ -63,7 +63,7 @@ test('in dev, a catalog edit re-renders what reads it, keeping the locale', asyn
   await act(async () =>
     root.render(
       <CopyProvider copy={copy}>
-        <Text id={'a.title' as never} values={{} as never} />
+        <Text id={'a.title' as never} values={{}} />
       </CopyProvider>,
     ),
   );

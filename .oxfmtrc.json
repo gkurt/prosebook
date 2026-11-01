@@ -10,7 +10,13 @@
   "ignorePatterns": [
     "**/.claude",
     "**/build",
-    "examples/react-app/src/copy/**",
+    "examples/*/src/copy/**",
+    "examples/*/dist/**",
+    "examples/*/.next/**",
+    "examples/*/.output/**",
+    "examples/*/.tanstack/**",
+    "examples/*/next-env.d.ts",
+    "examples/*/src/routeTree.gen.ts",
     "**/catalog.schema.json",
     "**/copy/lock.json",
     "test/.tmp/**"

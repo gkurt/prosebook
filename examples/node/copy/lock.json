@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "sources": {
+    "04b62875ea": "Thanks for shopping with us.",
+    "57fb423119": "Total: {amount, number, ::currency/EUR}",
+    "58854c1327": "{count, plural, =0 {Nothing bought.} one {# item bought.} other {# items bought.}}",
+    "61867ba9e0": "Corner Shop",
+    "8ac70527f7": "Printed on {when, date, long} at {when, time, short}."
+  },
+  "translations": {
+    "de": {
+      "receipt.items": "58854c1327:9fcbd13a8d",
+      "receipt.printed": "8ac70527f7:d20fe0a157",
+      "receipt.thanks": "04b62875ea:38160b9249",
+      "receipt.title": "61867ba9e0:03dc591317",
+      "receipt.total": "57fb423119:c0ecf46fa0"
+    }
+  }
+}

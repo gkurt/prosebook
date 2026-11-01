@@ -10,7 +10,19 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "ignorePatterns": ["**/.claude", "**/build", "examples/react-app/src/copy/**", "test/.tmp/**"],
+  // Generated: each example's catalog modules and its framework's build output and route tree.
+  "ignorePatterns": [
+    "**/.claude",
+    "**/build",
+    "test/.tmp/**",
+    "examples/*/src/copy/**",
+    "examples/*/dist/**",
+    "examples/*/.next/**",
+    "examples/*/.output/**",
+    "examples/*/.tanstack/**",
+    "examples/*/next-env.d.ts",
+    "examples/*/src/routeTree.gen.ts"
+  ],
   "rules": {
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }],
     // Also bans inline `import('./x.ts').Type` annotations.

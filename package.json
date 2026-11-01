@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
+    "bun",
     "i18n",
     "icu",
     "intl",
@@ -10,10 +11,12 @@
     "localization",
     "messageformat",
     "messageformat2",
+    "nextjs",
     "react",
     "translation",
     "typescript",
-    "ux-writing"
+    "ux-writing",
+    "vite"
   ],
   "homepage": "https://gkurt.com/prosebook/",
   "bugs": {
@@ -32,6 +35,9 @@
   "bin": {
     "prosebook": "./dist/cli.js"
   },
+  "workspaces": [
+    "examples/*"
+  ],
   "files": [
     "dist",
     "src",
@@ -66,6 +72,20 @@
         "default": "./dist/vite.js"
       }
     },
+    "./next": {
+      "prosebook@dev": "./src/next.ts",
+      "default": {
+        "types": "./dist/next.d.ts",
+        "default": "./dist/next.js"
+      }
+    },
+    "./bun": {
+      "prosebook@dev": "./src/bun.ts",
+      "import": {
+        "types": "./dist/bun.d.ts",
+        "default": "./dist/bun.js"
+      }
+    },
     "./config": {
       "prosebook@dev": "./src/tools/config.ts",
       "import": {
@@ -93,8 +113,9 @@
     "build": "tsdown",
     "prepack": "tsdown",
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
-    "example": "vite examples/react-app",
-    "example:build": "vite build examples/react-app",
+    "example": "tsdown && bun run --cwd examples/vite dev",
+    "examples:generate": "tsdown && bun run --filter 'example-*' generate",
+    "examples:smoke": "bun scripts/smoke.mts",
     "site": "rm -rf _site && mkdir -p _site && cp -R site/* _site/",
     "prepare": "husky",
     "tegami": "bun scripts/tegami.mts"
@@ -124,6 +145,7 @@
     "vite": "^8.3.5"
   },
   "peerDependencies": {
+    "next": ">=16",
     "react": ">=18",
     "typescript": ">=7",
     "vite": ">=6"
@@ -136,6 +158,9 @@
       "optional": true
     },
     "typescript": {
+      "optional": true
+    },
+    "next": {
       "optional": true
     }
   },

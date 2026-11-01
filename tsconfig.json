@@ -30,5 +30,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "test", "examples/react-app/src", "examples/react-app/*.ts", "tsdown.config.ts"]
+  "include": ["src", "test", "tsdown.config.ts"]
 }

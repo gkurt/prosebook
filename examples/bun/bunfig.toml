@@ -1,0 +1,4 @@
+# The dev server bundles the page with these: prosebook regenerates on catalog edits and swaps the
+# messages in place.
+[serve.static]
+plugins = ["prosebook/bun"]

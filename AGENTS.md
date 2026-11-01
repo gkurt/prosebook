@@ -6,14 +6,16 @@ Guidance for AI agents working in this repository.
 
 ```bash
 bun run test       # All tests (with the prosebook@dev condition: source, not dist)
-bun typecheck      # TypeScript 7; includes the example app and test/types.test.ts's @ts-expect-error checks
+bun typecheck      # TypeScript 7, over src and test, with test/types.test.ts's @ts-expect-error checks
 bun run lint       # oxlint
 bun run format     # oxfmt
 bun run fix        # lint + format with autofix
 bun run checks     # check + typecheck + test
 bun run build      # dist/ with tsdown
-bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/react-app`
-bun run example    # the example app in Vite
+bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/vite`
+bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
+bun run examples:generate     # build, then `prosebook generate` in every example
+bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
 bun run site       # the homepage (site/) in _site/, as Pages deploys it
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
@@ -27,8 +29,8 @@ Releases are Tegami's: a change that ships gets a `.tegami/<slug>.md` entry (the
 `release.yml` turns pending entries into a version PR, then publishes. Never edit `version` in
 `package.json` or put a version in a commit title; only that workflow bumps it.
 
-After changing the compiler or the generator, regenerate the example
-(`bun run cli generate --root examples/react-app`) and commit its `src/copy/`, so it shows the current output.
+After changing the compiler or the generator, regenerate the examples (`bun run examples:generate`) and
+commit their `src/copy/`, so they show the current output; CI fails on an example whose output is stale.
 
 ## Structure
 
@@ -46,7 +48,7 @@ Runtime (`prosebook`, `prosebook/react`):
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`.
 
-Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
+Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `presets.ts`: kinds, surfaces, the strict preset's word lists.
@@ -81,14 +83,29 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/async`
   API (an optional peer) or, without it, from the expression's syntax. Not `unstable/sync`: under Bun on
   Linux and macOS it throws, and CI runs there.
+- `src/tools/bundle.ts`: what the bundler integrations share: `keeper`, the unseen reads that are a
+  copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
+  the code reading it, the pruned locale module, the catalog watcher, and the dev code appended to the
+  generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`).
 - `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
   are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
-  apps that share a catalog. In dev it makes the generated modules accept
-  their own updates (the index reloads only when the locales change), sets the dev hooks before the app
-  runs, serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`, then
-  Vite's `/__open-in-editor`). `src/cli.ts`: the
-  `prosebook` command.
+  apps that share a catalog. In dev it makes the generated modules accept their own updates (the index
+  reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
+  first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
+  HTML too. It serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`,
+  then Vite's `/__open-in-editor`). `src/cli.ts`: the `prosebook` command.
+- `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
+  watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
+  path's end (Turbopack's root may be the monorepo's). `next-loader.ts` is the loader those rules name
+  by path (a tsdown entry of its own): in a build each locale's pruned module travels to it as its
+  options, so no config is loaded in Turbopack's workers; in dev, in the browser, the index sets the
+  hot set and each locale, run again by Fast Refresh, updates the copies. Turbopack only: Next 16 fails
+  a Turbopack build whose config has a `webpack` key. Its export has a `default` condition, since Next
+  `require`s the config.
+- `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so it prunes there; the dev server
+  (bunfig.toml's `[serve.static]`) names none, so there it watches and appends the Vite plugin's hot
+  code, which Bun's `import.meta.hot` runs as Vite's does.
 - `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
   own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
@@ -105,12 +122,16 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   escaped in the text has none, so neither has a finding in it.
 
 `site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
-push to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so
+push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so
 keep it in step when the inspector or that catalog changes, and add new features to its list. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
 
-`examples/react-app/` uses prosebook from source through Vite aliases. `test/fixture.ts` builds
-projects on disk under `test/.tmp/` and evaluates compiled messages.
+`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`), each a
+private workspace that imports prosebook from `dist` as a user's app would, so build before running
+one. They share the shop catalog, but each is standalone. `scripts/smoke.mts` serves an example's
+build and checks what it says; CI's `examples` job runs it after each example's check, typecheck and
+build. The examples link prosebook's bin only once `dist/cli.js` exists, so CI installs again after
+building. `test/fixture.ts` builds projects on disk under `test/.tmp/` and evaluates compiled messages.
 
 ## Conventions
 

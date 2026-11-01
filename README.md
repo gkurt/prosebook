@@ -32,8 +32,8 @@ const { t } = useCopy();
   2.5 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build. A
   translation whose source has changed since is marked stale, automatically.
-- **Pruned.** A Vite build ships only the messages the code names, and fails on a read whose key
-  it can't see rather than show a key where a message was.
+- **Pruned.** A Vite, Next.js or Bun build ships only the messages the code names, and fails on a
+  read whose key it can't see rather than show a key where a message was.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
@@ -67,6 +67,43 @@ export default defineConfig({ plugins: [react(), prosebook()] });
 
 Several apps that share one catalog each point the plugin at it: `prosebook({ root: '../../packages/copy' })`
 reads the config there and resolves its paths from there, so every app generates the same files.
+
+### With Next.js
+
+```ts
+// next.config.ts
+import { withProsebook } from 'prosebook/next';
+
+export default withProsebook({/* the rest of your Next config */});
+```
+
+`next dev` and `next build` generate first, and dev regenerates on every catalog edit: server
+components read the new text on their next render, and in the browser the messages change in
+place. A build ships only the messages the code names. It works with Turbopack, Next's default
+bundler, which doesn't resolve `./en.js` to `en.ts`, so set `importExtension: ''` in the prosebook
+config.
+
+### With Bun
+
+`Bun.serve`'s dev server bundles a page with the plugins bunfig.toml names, and regenerates and
+swaps the messages in place with this one:
+
+```toml
+# bunfig.toml
+[serve.static]
+plugins = ["prosebook/bun"]
+```
+
+The `bun build` command reads no plugins, so a build that prunes calls `Bun.build`:
+
+```ts
+// build.ts
+import { prosebook } from 'prosebook/bun';
+
+await Bun.build({ entrypoints: ['./src/server.ts'], target: 'bun', outdir: './dist', plugins: [prosebook()] });
+```
+
+TanStack Start, React Router and other frameworks built on Vite take the Vite plugin as it is.
 
 ### In React
 
@@ -108,8 +145,37 @@ document.title = copy.t('app.title');
 copy.subscribe(() => render()); // after a locale switch, and in dev after a catalog edit
 ```
 
-Set `language: 'js'` in the config to generate `.js` modules with a `.d.ts` beside the index. On a
-server, create one `copy` per request.
+Set `language: 'js'` in the config to generate `.js` modules with a `.d.ts` beside the index, or
+`importExtension: '.ts'` to run the generated TypeScript in Node as it is.
+
+### On a server
+
+Create one `copy` per request, in the locale it asks for, and wait for its messages:
+
+```ts
+const copy = createCopy(catalog, { locale: requestedLocales }); // from the cookie or Accept-Language
+await copy.ready;
+```
+
+A page rendered on the server must hydrate in the same locale, so the browser's copy waits for its
+messages too. Create it above a `<Suspense>` boundary and wait below it: a component that suspends
+before it first mounts loses its state, copy included.
+
+```tsx
+function Providers({ locale, children }: { locale: Locale; children: ReactNode }) {
+  const [copy] = useState(() => createCopy(catalog, { locale }));
+  return (
+    <Suspense>
+      <Ready copy={copy}>{children}</Ready>
+    </Suspense>
+  );
+}
+
+function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
+  use(copy.ready);
+  return <CopyProvider copy={copy}>{children}</CopyProvider>;
+}
+```
 
 ## The catalog
 
@@ -496,7 +562,8 @@ the singular is the plural less its `s`, `es` or `ies`.
 ## Pruning
 
 The Vite plugin replaces each locale module in a build with only the messages some module
-references. A reference is any string literal equal to a key, so keys kept in arrays or maps count;
+references. Next's Turbopack and Bun load a locale before the code that reads it, so their
+integrations read the source under `scan.dirs` instead, and every key a file there names is kept. A reference is any string literal equal to a key, so keys kept in arrays or maps count;
 ``t(`status.${state}`)`` and `t('status.' + state)` keep every key under `status.`. For keys built
 some other way, list them: `prosebook({ keep: ['plan.*'] })`.
 
@@ -506,6 +573,7 @@ or, where every key it reads is written elsewhere (in an array, say) or listed i
 line with `prosebook-ignore`. Reads are known by name: `t` and `rich` alone or as methods, the names
 they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Text>` from
 `prosebook/react`. `prune: 'loose'` prunes without the check, and `prune: false` ships everything.
+`prune` and `keep` are options of each integration.
 
 ## Finding a string's entry
 
@@ -542,7 +610,9 @@ the code changes after reading it (`t('…').toUpperCase()`) can't be traced. Wh
 same text, the label says so and the click opens the one read last.
 
 The editor is the one Vite's `/__open-in-editor` launches: one it finds running, or the command in
-`LAUNCH_EDITOR`. Turn the inspector off with `prosebook({ inspect: false })`.
+`LAUNCH_EDITOR`. Turn the inspector off with `prosebook({ inspect: false })`. The inspector comes
+with the Vite plugin, so it works in any framework built on Vite, TanStack Start among them, but not
+yet under Next.js or Bun.
 
 ## Config
 
@@ -580,13 +650,23 @@ export default defineConfig({
 });
 ```
 
-## Example
+## Examples
 
-[`examples/react-app`](examples/react-app) is a small shop in English, German, a part-translated
-Turkish and the pseudo-locale.
+Each is a small shop in English, German and the pseudo-locale, and uses prosebook as an app would,
+from the package. CI generates, lints, typechecks and builds each one, then checks what its build
+serves.
+
+| Example                                              |                                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [`examples/vite`](examples/vite)                     | React with Vite, and a part-translated Turkish. The inspector is on.                       |
+| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.      |
+| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.       |
+| [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page and a route that answers in the request's locale.            |
+| [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript. |
 
 ```bash
-bun run example
+bun run build                      # the examples import prosebook from dist
+bun run --cwd examples/next dev
 ```
 
 ## Further

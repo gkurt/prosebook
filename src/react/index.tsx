@@ -14,23 +14,23 @@ type M = RegisteredMessages;
 type L = RegisteredLocale;
 
 /** `Copy`, with `rich` returning a `ReactNode`. */
-export interface ReactCopy extends Omit<Copy<M, L>, 'rich'> {
+export interface ReactCopy extends Omit<Copy, 'rich'> {
   rich<K extends RichKey<M>>(this: void, key: K, ...values: RichParam<M[K], ReactNode>): ReactNode;
 }
 
-const CopyContext = createContext<{ copy: Copy<M, L>; tags: Tags } | null>(null);
+const CopyContext = createContext<{ copy: Copy; tags: Tags } | null>(null);
 
 type Tags = { readonly [tag: string]: TagFn<ReactNode> };
 
 export interface CopyProviderProps {
-  copy: Copy<M, L> | Copy;
+  copy: Copy;
   /** Tag renderers every rich read under this provider gets, beside the copy's own. */
   tags?: Tags;
   children?: ReactNode;
 }
 
 export function CopyProvider({ copy, tags, children }: CopyProviderProps) {
-  const value = useMemo(() => ({ copy: copy as Copy<M, L>, tags: { ...(copy.tags as unknown as Tags), ...tags } }), [copy, tags]);
+  const value = useMemo(() => ({ copy: copy, tags: { ...(copy.tags as unknown as Tags), ...tags } }), [copy, tags]);
   return <CopyContext value={value}>{children}</CopyContext>;
 }
 
@@ -59,7 +59,7 @@ export function useLocale(): L {
 }
 
 // Takes the version only so the reader is rebuilt, and its identity changes, when what it reads does.
-function readerFor(copy: Copy<M, L>, tags: Tags, version: number): ReactCopy {
+function readerFor(copy: Copy, tags: Tags, version: number): ReactCopy {
   return {
     locale: copy.locale,
     version,
@@ -108,5 +108,5 @@ export type TextProps<K extends Extract<keyof M, string>> = { id: K } & ValuesPr
 export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>) {
   const copy = useCopy();
   const values = (props as { values?: object }).values;
-  return <>{copy.rich(props.id as RichKey<M>, values)}</>;
+  return <>{copy.rich(props.id, values as never)}</>;
 }

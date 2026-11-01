@@ -240,7 +240,7 @@ describe('writing MessageFormat 2', () => {
 });
 
 describe('prosebook migrate', () => {
-  const example = join(import.meta.dir, '..', 'examples', 'react-app');
+  const example = join(import.meta.dir, '..', 'examples', 'vite');
 
   test('the example catalog goes to MF2 and back, rendering the same throughout', () => {
     const root = fixture({}).root;

@@ -3,12 +3,13 @@
  * The `prosebook` command. Each subcommand is a function of the resolved config; `check` runs the
  * ones CI needs in one go.
  */
-import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { stringify } from 'yaml';
 
+import { watchCatalog } from './tools/bundle.ts';
 import { CatalogError, entryLocator, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { formatDiff, wordDiff } from './tools/diff.ts';
@@ -202,15 +203,7 @@ function watchMode(config: ResolvedConfig): Promise<number> {
     }
   };
   regenerate();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  for (const dir of [config.catalog, config.locales]) {
-    if (!existsSync(dir)) continue;
-    watch(dir, { recursive: true }, (_event, file) => {
-      if (file === null || !file.endsWith('.yaml')) return;
-      clearTimeout(timer);
-      timer = setTimeout(regenerate, 50);
-    });
-  }
+  watchCatalog(config, regenerate);
   out('prosebook: watching the catalog for changes');
   return new Promise(() => {});
 }

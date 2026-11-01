@@ -13,8 +13,36 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-      - run: bun i
+      - run: bun i --frozen-lockfile
+      # First: the examples import prosebook as an app does, from dist, and the type-aware lint reads them.
+      - run: bun run build
       - run: bun check
       - run: bun run test
       - run: bun typecheck
+
+  # Each example against the package as built, the way a user runs it: its catalog is generated and
+  # passes lint, it typechecks, its production build succeeds, and what it serves says what it should.
+  examples:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [vite, next, bun, tanstack-start, node]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # Next and the Node example run under Node, which strips the types from `.ts` files.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: bun i --frozen-lockfile
       - run: bun run build
+      # prosebook's bin exists only once built, so the examples are linked again to get it.
+      - run: rm -rf examples/*/node_modules && bun i --frozen-lockfile
+      - working-directory: examples/${{ matrix.example }}
+        run: bun run check
+      - working-directory: examples/${{ matrix.example }}
+        run: bun run typecheck
+      - working-directory: examples/${{ matrix.example }}
+        run: bun run --if-present build
+      - run: bun scripts/smoke.mts ${{ matrix.example }}

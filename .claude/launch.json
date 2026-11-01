@@ -8,6 +8,24 @@
       "port": 5173
     },
     {
+      "name": "example-bun",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/bun", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "example-next",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/next", "dev", "--port", "3001"],
+      "port": 3001
+    },
+    {
+      "name": "example-tanstack-start",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/tanstack-start", "dev", "--port", "3002"],
+      "port": 3002
+    },
+    {
       "name": "site",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["x", "vite", "preview", "--outDir", "_site", "--port", "4173", "--strictPort"],

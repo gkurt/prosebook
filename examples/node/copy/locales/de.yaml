@@ -1,0 +1,5 @@
+receipt.title: Eckladen
+receipt.items: '{count, plural, =0 {Nichts gekauft.} other {# Artikel gekauft.}}'
+receipt.total: 'Summe: {amount, number, ::currency/EUR}'
+receipt.printed: Gedruckt am {when, date, long} um {when, time, short}.
+receipt.thanks: Danke für deinen Einkauf.
