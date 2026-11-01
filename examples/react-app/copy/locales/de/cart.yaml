@@ -1,0 +1,9 @@
+cart.title: Warenkorb
+cart.items: '{count, plural, =0 {Dein Warenkorb ist leer.} one {# Artikel im Warenkorb.} other {# Artikel im Warenkorb.}}'
+cart.total: 'Summe: {amount, number, ::currency/EUR}'
+cart.add: In den Warenkorb
+cart.remove: Warenkorb leeren
+cart.checkout: Zur Kasse
+cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</link> zu.
+cart.place: 'Die {rank, number}. Bestellung heute!'
+cart.express: Expressversand

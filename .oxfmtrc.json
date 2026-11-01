@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 140,
+  "singleQuote": true,
+  "sortImports": {
+    "newlinesBetween": false,
+    "partitionByNewline": true
+  },
+  "ignorePatterns": ["**/.claude", "examples/react-app/src/copy/**", "**/catalog.schema.json", "**/copy/lock.json", "test/.tmp/**"]
+}

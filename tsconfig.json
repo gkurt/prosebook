@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
+    "module": "nodenext",
+    "moduleDetection": "force",
+
+    "types": ["bun", "vite/client"],
+    // Resolve copydeck's own entry points to source, as tests and the example run it.
+    "customConditions": ["copydeck@dev"],
+
+    "jsx": "react-jsx",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true
+  },
+  "include": ["src", "test", "examples/react-app/src", "examples/react-app/*.ts", "tsdown.config.ts"]
+}

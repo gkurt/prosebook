@@ -1,0 +1,10 @@
+node_modules
+dist
+*.tgz
+coverage
+*.log
+.cache
+*.tsbuildinfo
+.DS_Store
+.idea
+test/.tmp
