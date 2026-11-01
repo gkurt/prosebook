@@ -34,7 +34,8 @@ const { t } = useCopy();
   translation whose source has changed since is marked stale, automatically.
 - **Pruned.** A Vite build ships only the messages the code names.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
-  string, periods, sentence case, banned filler. Plugins add your own rules, scoped by kind and surface.
+  string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
+  own rules, scoped by kind and surface.
 
 ## Quick start
 
@@ -264,7 +265,16 @@ prosebook migrate  # rewrite the catalog in ICU MessageFormat (1) or MessageForm
 prosebook check    # generate --check, lint and status --strict, for CI
 ```
 
-**Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace.
+**Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace. It
+reads the message format too:
+
+| Rule                | Catches                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                         |
+| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                  |
+| `arm-endings`       | plural or select arms where some end with a stop and some don't                           |
+| `formatted-by-hand` | `${price}` or `{rate}%` typed around a placeholder, and digits grouped by hand (`10,000`) |
+
 `strict` adds sentence case, contractions, em-dashes, `…`, American spelling and a list of filler
 and marketing words. Add your own `banned`, `spelling` and `concepts` (one word per concept:
 `{ tablet: 'device' }`), and `properNouns` for sentence case. Where a rule is wrong about an

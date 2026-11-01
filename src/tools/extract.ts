@@ -16,6 +16,7 @@ import { stringify } from 'yaml';
 import { CatalogError, KEY_PATTERN, loadCatalog } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage } from './icu.ts';
+import { singularOf } from './lint.ts';
 import { looksLikeCode } from './scan.ts';
 import { writeMessage } from './syntax.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
@@ -155,35 +156,6 @@ export function slugOf(message: string): string {
     .filter(Boolean)
     .slice(0, 4);
   return words.length === 0 ? 'text' : words.join('-');
-}
-
-/** Words a count is followed by that are not plural nouns, though they end in s. */
-const NOT_PLURAL = new Set([
-  'is',
-  'was',
-  'has',
-  'does',
-  'this',
-  'its',
-  'plus',
-  'minus',
-  'less',
-  'yes',
-  'us',
-  'as',
-  'bus',
-  'gas',
-  'news',
-  'series',
-]);
-
-/** The singular of an English plural noun, or nothing where it doesn't look like one. */
-export function singularOf(word: string): string | undefined {
-  const lower = word.toLowerCase();
-  if (word.length < 3 || !lower.endsWith('s') || lower.endsWith('ss') || NOT_PLURAL.has(lower)) return undefined;
-  if (/[^aeiou]ies$/.test(lower)) return `${word.slice(0, -3)}y`;
-  if (/(?:s|x|z|ch|sh)es$/.test(lower)) return word.slice(0, -2);
-  return word.slice(0, -1);
 }
 
 /**

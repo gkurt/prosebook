@@ -307,6 +307,51 @@ describe('lint', () => {
     expect(await problem({ type: 'grammar' })).toContain('has type grammar: use existence');
     expect(await problem({ type: 'existence', words: ['x'], message: 'm', description: '' })).toContain('has no description');
   });
+
+  /** Entries with every placeholder documented, as `key: message` pairs. */
+  const entries = (messages: Record<string, string>) =>
+    Object.entries(messages)
+      .map(([key, text]) => {
+        const names = [...text.matchAll(/\{(?:\$(\w+)|([A-Za-z_]\w*)\s*[,}])/g)].map((m) => m[1] ?? m[2]);
+        const args = [...new Set(names)].map((a) => `\n    "${a}": A value.`).join('');
+        return `${key}:\n  context: A string.\n${args === '' ? '' : `  args:${args}\n`}  en: ${JSON.stringify(text)}`;
+      })
+      .join('\n');
+
+  test('format rules read the placeholders, plurals and selects', () => {
+    const yaml = entries({
+      'app.a': '{count} files selected',
+      'app.b': '{n, number} boxes',
+      'app.c': '{count, plural, one {# files} other {# files}}',
+      'app.d': '{count, plural, one {1 file.} other {# files.}}',
+      'app.e': '{count, plural, one {# file.} other {# files}}',
+      'app.f': 'Total: ${price, number}',
+      'app.g': '{rate, number}% off',
+      'app.h': 'Up to 10,000 files',
+      'app.i': '{count, plural, one {# file} other {# files}} selected, by {name}',
+      'app.j': '{name} files it, {gender, select, female {her own.} other {their own.}}',
+    });
+    expect(findings(yaml)).toEqual([
+      'app.a [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
+      'app.b [plural-count] n is followed by "boxes", which reads "1 boxes": make it a plural with a "# box" arm',
+      'app.c [plural-one] the one and other arms of count say the same: write the singular in one',
+      'app.d [plural-one] the one arm of count writes 1, which one is not in every language: write #, or make the arm =1',
+      'app.e [arm-endings] some arms of count end with a stop and some without: end them alike',
+      'app.f [formatted-by-hand] "$" is typed before price: format it as a currency, which puts the symbol where the locale does',
+      'app.g [formatted-by-hand] "%" is typed after rate: format it as a percent, which takes the fraction (0.5 for 50%)',
+      'app.h [formatted-by-hand] "10,000" groups its digits the English way: make it a placeholder formatted as a number',
+    ]);
+  });
+
+  test('format rules read MessageFormat 2 as they read MF1', () => {
+    const match = '.input {$count :number}\n.match $count\none {{{$count} file.}}\n* {{{$count} files}}';
+    const yaml = entries({ 'app.a': '{$count :number} files', 'app.b': match });
+    const config = fixture({ 'copy/catalog/app.yaml': yaml }, { messageFormat: 2 });
+    expect(lint(loadCatalog(config).messages, config).map((f) => `${f.key} [${f.rule}] ${f.message}`)).toEqual([
+      'app.a [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
+      'app.b [arm-endings] some arms of count end with a stop and some without: end them alike',
+    ]);
+  });
 });
 
 test('generate --check reports what is out of date without writing', () => {

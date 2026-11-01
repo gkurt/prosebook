@@ -9,7 +9,7 @@
  */
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { staticLiteral, TYPE, type MessageFormatElement } from './icu.ts';
+import { staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 import type { KindRule, Severity } from './presets.ts';
 
 /** What a rule is given about one source message. */
@@ -216,6 +216,35 @@ function capitalizedWord(text: string, proper: Set<string>): string | undefined 
   return undefined;
 }
 
+/** Words a count is followed by that are not plural nouns, though they end in s. */
+const NOT_PLURAL = new Set([
+  'is',
+  'was',
+  'has',
+  'does',
+  'this',
+  'its',
+  'plus',
+  'minus',
+  'less',
+  'yes',
+  'us',
+  'as',
+  'bus',
+  'gas',
+  'news',
+  'series',
+]);
+
+/** The singular of an English plural noun, or nothing where it doesn't look like one. */
+export function singularOf(word: string): string | undefined {
+  const lower = word.toLowerCase();
+  if (word.length < 3 || !lower.endsWith('s') || lower.endsWith('ss') || NOT_PLURAL.has(lower)) return undefined;
+  if (/[^aeiou]ies$/.test(lower)) return `${word.slice(0, -3)}y`;
+  if (/(?:s|x|z|ch|sh)es$/.test(lower)) return word.slice(0, -2);
+  return word.slice(0, -1);
+}
+
 const MINOR = new Set('a an the and but or nor for so yet as at by in of off on per to up via with'.split(' '));
 
 /** The first word out of `style` case, less those in `keep`. */
@@ -238,6 +267,35 @@ const CONTRACTIONS: [RegExp, string][] = [
   [/\bwill not\b/i, "won't"],
   [/\b(could|would|should|is|are|was|were|do|does|did|has|have|had|must|need) not\b/i, "n't"],
 ];
+
+/** Calls `visit` on every run of elements that sit side by side, with the arguments a plural around it counts. */
+function eachRun(
+  elements: MessageFormatElement[],
+  visit: (run: MessageFormatElement[], counted: ReadonlySet<string>) => void,
+  counted: ReadonlySet<string> = new Set(),
+): void {
+  visit(elements, counted);
+  for (const el of elements) {
+    if (el.type === TYPE.plural) for (const o of Object.values(el.options)) eachRun(o.value, visit, new Set([...counted, el.value]));
+    if (el.type === TYPE.select) for (const o of Object.values(el.options)) eachRun(o.value, visit, counted);
+    if (el.type === TYPE.tag) eachRun(el.children, visit, counted);
+  }
+}
+
+/** A plain placeholder named as a count. A number placeholder is one whatever its name. */
+const COUNT_NAME = /^(?:n|num|count|total|amount|quantity)$|(?:count|total)$/i;
+
+/**
+ * Whether an arm ends with a stop; nothing for an arm with no words. Which stop is the arm's own: a
+ * question in `one` and a second sentence after it in `other` both end well.
+ */
+function endsWithStop(arm: MessageFormatElement[]): boolean | undefined {
+  const text = prose(renderAs(arm, 'other')).trim();
+  if (text.replaceAll(HOLE, '').trim() === '') return undefined;
+  return /[.!?…:]["')”]*$/.test(text);
+}
+
+const CURRENCY_BEFORE = /[$€£¥₹]\s?$/;
 
 const OFF_SCREEN = new Set(['aria']);
 
@@ -342,6 +400,81 @@ export const CORE_RULES = {
   ellipsis: {
     description: 'An ellipsis is one character, `…`, not three periods.',
     check: ({ text }) => (text.variants.some((v) => v.includes('...')) ? ['an ellipsis is one character: …'] : []),
+  },
+  'plural-count': {
+    description: 'A count followed by a plural noun, `{count} files`, is a plural, or it reads "1 files". English.',
+    recommended: 'warn',
+    check: ({ message }) => {
+      const said: string[] = [];
+      eachRun(message.ast, (run, counted) =>
+        run.forEach((el, i) => {
+          if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
+          if (counted.has(el.value) || (el.type === TYPE.argument && !COUNT_NAME.test(el.value))) return;
+          const next = run[i + 1];
+          const word = next?.type === TYPE.literal ? /^\s+(\p{L}+)(?![\p{L}'])/u.exec(next.value)?.[1] : undefined;
+          const one = word === undefined ? undefined : singularOf(word);
+          if (one !== undefined)
+            said.push(`${el.value} is followed by "${word}", which reads "1 ${word}": make it a plural with a "# ${one}" arm`);
+        }),
+      );
+      return said;
+    },
+  },
+  'plural-one': {
+    description: "A plural's `one` arm says something other than `other`, and says `#` rather than `1`.",
+    recommended: 'warn',
+    check: ({ message }) => {
+      const said: string[] = [];
+      walk(message.ast, (el) => {
+        if (el.type !== TYPE.plural || el.pluralType !== 'cardinal') return;
+        const { one, other } = el.options;
+        if (one === undefined) return;
+        if (other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other'))
+          said.push(`the one and other arms of ${el.value} say the same: write the singular in one`);
+        let literalOne = false;
+        walk(one.value, (inner) => {
+          if (inner.type === TYPE.literal && /(?<![\d.,])1(?![\d.,])/.test(inner.value)) literalOne = true;
+        });
+        // Russian's `one` is also 21 and 31, so a translator copying a written 1 gets it wrong there.
+        if (literalOne) said.push(`the one arm of ${el.value} writes 1, which one is not in every language: write #, or make the arm =1`);
+      });
+      return said;
+    },
+  },
+  'arm-endings': {
+    description: 'The arms of a plural or select end alike: all with a stop, or all without one.',
+    recommended: 'warn',
+    check: ({ message }) => {
+      const said: string[] = [];
+      walk(message.ast, (el) => {
+        if (el.type !== TYPE.plural && el.type !== TYPE.select) return;
+        const endings = new Set(Object.values(el.options).flatMap((o) => endsWithStop(o.value) ?? []));
+        if (endings.size > 1) said.push(`some arms of ${el.value} end with a stop and some without: end them alike`);
+      });
+      return said;
+    },
+  },
+  'formatted-by-hand': {
+    description: 'A currency symbol or `%` typed beside a placeholder, or digits grouped by hand, which only suit one locale.',
+    recommended: 'warn',
+    check: ({ message, text }) => {
+      const said = new Set<string>();
+      eachRun(message.ast, (run) =>
+        run.forEach((el, i) => {
+          if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
+          const before = run[i - 1];
+          const after = run[i + 1];
+          const symbol = before?.type === TYPE.literal ? CURRENCY_BEFORE.exec(before.value)?.[0].trim() : undefined;
+          if (symbol !== undefined)
+            said.add(`"${symbol}" is typed before ${el.value}: format it as a currency, which puts the symbol where the locale does`);
+          if (after?.type === TYPE.literal && /^\s?%/.test(after.value))
+            said.add(`"%" is typed after ${el.value}: format it as a percent, which takes the fraction (0.5 for 50%)`);
+        }),
+      );
+      const grouped = text.variants.map((v) => /\d{1,3}(?:,\d{3})+(?!\d)/.exec(v)?.[0]).find((g) => g !== undefined);
+      if (grouped !== undefined) said.add(`"${grouped}" groups its digits the English way: make it a placeholder formatted as a number`);
+      return [...said];
+    },
   },
 } satisfies Record<string, CheckRule>;
 
