@@ -305,8 +305,46 @@ const house = definePlugin({
 export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-says-what-to-do': 'error' } } });
 ```
 
-`words`, `sentences` and `phrase` are the helpers the core rules count and match with. A name in
-`lint.rules` that no rule has, or a plugin added twice, fails when the config loads.
+`words`, `sentences` and `phrase` are the helpers the core rules count and match with.
+
+A rule can also be data, after [Vale](https://vale.sh)'s rule types, which a `prosebook.config.json`
+can carry. Words are matched whole and in any case; a pattern is a regular expression (`u` flag,
+`ignoreCase` to add `i`). Words and patterns are looked for in every plural and select arm; counts
+and case read the `other` arms. A message names what was found with `{match}`.
+
+| `type`           | Fields                                     | Fails when                                                       |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| `existence`      | `words`, `patterns`, `message`             | the string says one of them                                      |
+| `substitution`   | `swap: { word: use }`, `message` (`{use}`) | the string says a word the product writes another way            |
+| `occurrence`     | `count: words                              | sentences                                                        | characters`, `max`, `min` | the count is out of bounds (`{count}`); placeholders count as words, not characters |
+| `capitalization` | `case: sentence                            | title                                                            | lower                     | upper`, `exceptions`                                                                | a word is out of case; `lint.properNouns` keep theirs too |
+| `conditional`    | `when`, `require`, `message`               | the string matches `when` (or `when` is unset) but not `require` |
+
+```json
+{
+  "lint": {
+    "plugins": [
+      {
+        "name": "house",
+        "rules": {
+          "toast-budget": {
+            "type": "occurrence",
+            "description": "A toast is read in passing.",
+            "on": { "surface": ["toast"] },
+            "count": "characters",
+            "max": 40,
+            "recommended": "warn"
+          },
+          "sign-in": { "type": "substitution", "description": "One verb for signing in.", "swap": { "log in": "sign in" } }
+        }
+      }
+    ]
+  }
+}
+```
+
+Every rule is checked when the config loads: a name in `lint.rules` that no rule has, a plugin
+added twice, a pattern that is not a regular expression, or a rule missing what its type needs.
 
 **Scan** reports JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...)
 written as literals, and catalog keys no code names. Mark a deliberate literal with

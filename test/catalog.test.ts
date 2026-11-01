@@ -2,7 +2,19 @@ import { describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CatalogError, definePlugin, generate, lint, loadCatalog, phrase, resolveConfig, whereOf, words } from 'prosebook/tools';
+import {
+  CatalogError,
+  definePlugin,
+  generate,
+  lint,
+  loadCatalog,
+  loadConfig,
+  phrase,
+  resolveConfig,
+  whereOf,
+  words,
+  type Plugin,
+} from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -214,6 +226,86 @@ describe('lint', () => {
     expect(() => fixture({}, { lint: { rules: { 'house/no-we': 'warn' } } })).toThrow('lint.rules.house/no-we is not a rule');
     expect(() => fixture({}, { lint: { plugins: [house, house] } })).toThrow('"house" is added twice');
     expect(() => fixture({}, { lint: { plugins: [{ name: 'my/house', rules: {} }] } })).toThrow('is not a plugin name');
+  });
+
+  // As a JSON config would carry it: no code, so nothing type-checked.
+  const style = {
+    name: 'style',
+    rules: {
+      'no-click-here': {
+        type: 'existence',
+        description: 'A link says where it goes.',
+        words: ['click here'],
+        patterns: ['\\b[Hh]ere\\b(?=\\.?$)'],
+        message: '"{match}" hides where the link goes: name the destination',
+        strict: 'off',
+        recommended: 'warn',
+      },
+      'sign-in': { type: 'substitution', description: 'One verb for signing in.', swap: { 'log in': 'sign in' }, recommended: 'warn' },
+      'toast-budget': {
+        type: 'occurrence',
+        description: 'A toast is read in passing.',
+        on: { surface: ['toast'] },
+        count: 'characters',
+        max: 20,
+        recommended: 'warn',
+      },
+      'title-case': {
+        type: 'capitalization',
+        description: 'A title is in title case.',
+        on: { surface: ['title'] },
+        case: 'title',
+        recommended: 'warn',
+      },
+      'undo-on-delete': {
+        type: 'conditional',
+        description: 'A delete says whether it can be undone.',
+        when: '\\bdelete\\b',
+        require: 'undo|can.t be undone',
+        ignoreCase: true,
+        message: '"{match}" says whether it can be undone',
+        recommended: 'warn',
+      },
+    },
+  } as const satisfies Plugin;
+
+  test('rules written as data match words and patterns, count, read case and require', () => {
+    const yaml = [
+      'app.a:\n  kind: description\n  context: A link.\n  en: To read more, click here.',
+      'app.b:\n  kind: description\n  context: A link.\n  en: The policy is here.',
+      'app.c:\n  kind: action\n  context: A button.\n  en: Log in',
+      'app.d:\n  kind: state\n  surface: toast\n  context: After a save.\n  en: Your changes are saved.',
+      'app.e:\n  kind: name\n  surface: title\n  context: A page.\n  allow:\n    sentence-case: Titles here take title case, as the page head does.\n  en: Plans for the Team',
+      'app.f:\n  kind: name\n  surface: title\n  context: A page.\n  en: Plans for the team',
+      'app.g:\n  kind: description\n  context: A dialog.\n  args:\n    count: The files picked.\n  en: "{count, plural, one {Delete # file?} other {Delete # files? You can undo this.}}"',
+    ].join('\n');
+    expect(findings(yaml, { plugins: [style], rules: { 'sentence-case': 'warn' } })).toEqual([
+      'app.a [style/no-click-here] "click here" hides where the link goes: name the destination',
+      'app.a [style/no-click-here] "here" hides where the link goes: name the destination',
+      'app.b [style/no-click-here] "here" hides where the link goes: name the destination',
+      'app.c [style/sign-in] "log in" is written "sign in"',
+      'app.d [style/toast-budget] 20 characters at most, and this is 23',
+      'app.f [style/title-case] "team" is out of title case: change it, or add it to exceptions if it is a name',
+      'app.g [style/undo-on-delete] "Delete" says whether it can be undone',
+    ]);
+  });
+
+  test('a rule written as data is checked when the config loads', async () => {
+    const problem = (rule: object) => {
+      const plugin = { name: 'p', rules: { r: { description: 'A rule.', ...rule } } };
+      return loadConfig(fixture({ 'prosebook.config.json': JSON.stringify({ lint: { plugins: [plugin] } }) }).root).then(
+        () => 'loaded',
+        (e: unknown) => (e instanceof Error ? e.message : String(e)),
+      );
+    };
+    expect(await problem({ type: 'existence', message: 'm' })).toContain('lint rule p/r has no words or patterns');
+    expect(await problem({ type: 'existence', patterns: ['('], message: 'm' })).toContain('patterns[0] is not a regular expression');
+    expect(await problem({ type: 'existence', words: ['x'] })).toContain('lint rule p/r has no message');
+    expect(await problem({ type: 'occurrence', count: 'lines', max: 1 })).toContain('counts lines: count words, sentences or characters');
+    expect(await problem({ type: 'occurrence', count: 'words' })).toContain('has no max or min');
+    expect(await problem({ type: 'capitalization', case: 'camel' })).toContain('has case camel');
+    expect(await problem({ type: 'grammar' })).toContain('has type grammar: use existence');
+    expect(await problem({ type: 'existence', words: ['x'], message: 'm', description: '' })).toContain('has no description');
   });
 });
 

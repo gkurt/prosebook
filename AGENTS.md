@@ -56,9 +56,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed.
-- `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, Rule>` written as a plugin's
-  are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds more as
-  `<plugin>/<rule>`. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
+- `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, CheckRule>` written as a
+  plugin's are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds
+  more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, ...), which
+  `compileRule` turns into code and checks when the config loads. The core word and case rules use
+  the same matchers (`listed`, `outOfCase`) as the data rules. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its

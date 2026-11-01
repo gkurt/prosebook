@@ -6,11 +6,27 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { CORE_RULES, type CoreRule, type Plugin, type Rule } from './lint.ts';
+import { compileRule, CORE_RULES, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
 import { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 
 export type { KindRule, Severity };
-export { definePlugin, HOLE, phrase, sentences, words, type Plugin, type Readings, type Rule, type RuleContext } from './lint.ts';
+export {
+  definePlugin,
+  HOLE,
+  phrase,
+  sentences,
+  words,
+  type CapitalizationRule,
+  type CheckRule,
+  type ConditionalRule,
+  type ExistenceRule,
+  type OccurrenceRule,
+  type Plugin,
+  type Readings,
+  type Rule,
+  type RuleContext,
+  type SubstitutionRule,
+} from './lint.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */
@@ -89,7 +105,7 @@ export interface ResolvedConfig {
   require: ('context' | 'kind' | 'surface')[];
   kinds: Record<string, KindRule>;
   surfaces: Record<string, string>;
-  lint: { rules: Record<string, { rule: Rule; severity: Severity }> } & Required<WordLists>;
+  lint: { rules: Record<string, { rule: CheckRule; severity: Severity }> } & Required<WordLists>;
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
@@ -157,16 +173,19 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
 
 function lintRules(lint: LintConfig): ResolvedConfig['lint']['rules'] {
   const base = lint.extends ?? 'recommended';
-  const all: [string, Rule][] = Object.entries(CORE_RULES);
+  const all: [string, CheckRule][] = Object.entries(CORE_RULES);
   const seen = new Set<string>();
   for (const plugin of lint.plugins ?? []) {
     if (!/^[a-z][a-z0-9-]*$/i.test(plugin.name))
       throw new Error(`lint.plugins: "${plugin.name}" is not a plugin name: use letters, digits and dashes`);
     if (seen.has(plugin.name)) throw new Error(`lint.plugins: "${plugin.name}" is added twice: remove one`);
     seen.add(plugin.name);
-    for (const [name, rule] of Object.entries(plugin.rules)) all.push([`${plugin.name}/${name}`, rule]);
+    for (const [name, rule] of Object.entries(plugin.rules)) {
+      const full = `${plugin.name}/${name}`;
+      all.push([full, compileRule(full, rule)]);
+    }
   }
-  const preset = (rule: Rule): Severity =>
+  const preset = (rule: CheckRule): Severity =>
     base === 'none' ? 'off' : base === 'strict' ? (rule.strict ?? 'error') : (rule.recommended ?? 'off');
   const rules = Object.fromEntries(all.map(([name, rule]) => [name, { rule, severity: lint.rules?.[name] ?? preset(rule) }]));
   for (const name of Object.keys(lint.rules ?? {}))

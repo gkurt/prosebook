@@ -4,8 +4,8 @@
  * judgment stays with review. An entry a rule is wrong about says so under `allow`, with the reason,
  * and an exemption that no longer matches anything fails too, so none outlive the words they excused.
  *
- * The core rules are written as a plugin's are: a project adds its own through `lint.plugins`, and
- * they read the same readings of a message and are exempted the same way.
+ * The core rules are written as a plugin's are: a project adds its own through `lint.plugins`, as
+ * code or as data, and they read the same readings of a message and are exempted the same way.
  */
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
@@ -21,7 +21,7 @@ export interface RuleContext {
   config: ResolvedConfig;
 }
 
-export interface Rule {
+interface RuleBase {
   /** One sentence: what the rule holds a string to. */
   description: string;
   /** Its severity under `extends: 'recommended'`; off when unset. */
@@ -30,9 +30,73 @@ export interface Rule {
   strict?: Severity;
   /** Only entries of these kinds, or on these surfaces. An entry that says neither is skipped. */
   on?: { kind?: string[]; surface?: string[] };
+}
+
+/** A rule written as code. */
+export interface CheckRule extends RuleBase {
   /** What is wrong with the message, a sentence each that states the fix; none when it passes. */
   check(context: RuleContext): string[];
 }
+
+/*
+ * Rules written as data, after Vale's, so a JSON config can carry them. Words and patterns are looked
+ * for in every reading, so one in a `one` arm is found; counts and case read the `other` arms. A
+ * pattern is a regular expression with the `u` flag, and sees a placeholder as `HOLE`. A message
+ * names what was found with `{match}`, and the other fields its rule lists.
+ */
+
+/** Words or patterns a string never uses. */
+export interface ExistenceRule extends RuleBase {
+  type: 'existence';
+  /** Words or phrases, matched whole and in any case. `{match}` is the one listed. */
+  words?: string[];
+  /** `{match}` is the text matched. */
+  patterns?: string[];
+  ignoreCase?: boolean;
+  message: string;
+}
+
+/** A word or phrase the product writes another way. */
+export interface SubstitutionRule extends RuleBase {
+  type: 'substitution';
+  /** A word or phrase, matched whole and in any case, and the one written instead. */
+  swap: Record<string, string>;
+  /** `{match}` and `{use}`; `"{match}" is written "{use}"` when unset. */
+  message?: string;
+}
+
+/** A budget, beside the one a kind sets: per surface, say, or in characters. */
+export interface OccurrenceRule extends RuleBase {
+  type: 'occurrence';
+  /** Every word, placeholders included; sentences; or characters, placeholders not included. */
+  count: 'words' | 'sentences' | 'characters';
+  max?: number;
+  min?: number;
+  /** `{count}`, `{max}` and `{min}`. */
+  message?: string;
+}
+
+export interface CapitalizationRule extends RuleBase {
+  type: 'capitalization';
+  /** `sentence` capitalizes only the first word and proper nouns, `title` every word but short function words. */
+  case: 'sentence' | 'title' | 'lower' | 'upper';
+  /** Words that keep their case, beside `lint.properNouns`. */
+  exceptions?: string[];
+  /** `{match}` is the first word out of case. */
+  message?: string;
+}
+
+/** A string that matches `when` (every string, when unset) matches `require` too. */
+export interface ConditionalRule extends RuleBase {
+  type: 'conditional';
+  when?: string;
+  require: string;
+  ignoreCase?: boolean;
+  /** `{match}` is the text `when` matched. */
+  message: string;
+}
+
+export type Rule = CheckRule | ExistenceRule | SubstitutionRule | OccurrenceRule | CapitalizationRule | ConditionalRule;
 
 /** A set of rules, named `<name>/<rule>` in `lint.rules` and in an entry's `allow`. */
 export interface Plugin {
@@ -112,13 +176,11 @@ const prose = (text: string) => text.replace(new RegExp(`[\\s${HOLE}]+$`), '');
 
 const FREE = new Set('a an the this that these those it its them your and or to of for by in on at from with'.split(' '));
 
+const tokens = (text: string) => text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w) || w.includes(HOLE));
+
 /** The words a budget counts: articles, short prepositions and asides in parentheses are free. */
 export function words(text: string): string[] {
-  return text
-    .replace(/\s*\([^)]*\)/g, '')
-    .split(/\s+/)
-    .filter((w) => /[\p{L}\p{N}]/u.test(w) || w.includes(HOLE))
-    .filter((w) => !FREE.has(w.toLowerCase().replace(/[^\p{L}]/gu, '')));
+  return tokens(text.replace(/\s*\([^)]*\)/g, '')).filter((w) => !FREE.has(w.toLowerCase().replace(/[^\p{L}]/gu, '')));
 }
 
 const ABBREVIATIONS = /\b(?:e\.g|i\.e|vs|etc)\.$/i;
@@ -138,15 +200,36 @@ export function phrase(p: string): RegExp {
   return new RegExp(`(?<![\\p{L}\\p{N}'-])${escaped}(?![\\p{L}\\p{N}'-])`, 'iu');
 }
 
+/** The words and phrases of `list` that some reading carries. */
+const listed = (variants: string[], list: string[]) => list.filter((w) => variants.some((v) => phrase(w).test(v)));
+
+const unquoted = (token: string) => token.replace(/^[("'“‘]+|[)"'”’.,:;!?]+$/g, '');
+
 function capitalizedWord(text: string, proper: Set<string>): string | undefined {
-  const tokens = text.split(/\s+/).filter(Boolean);
-  for (let i = 1; i < tokens.length; i++) {
-    const word = tokens[i]!.replace(/^[("'“‘]+|[)"'”’.,:;!?]+$/g, '');
+  const parts = text.split(/\s+/).filter(Boolean);
+  for (let i = 1; i < parts.length; i++) {
+    const word = unquoted(parts[i]!);
     if (!/^\p{Lu}\p{Ll}/u.test(word) || proper.has(word)) continue;
-    if (/[.:?!]["')]*$/.test(tokens[i - 1]!)) continue;
+    if (/[.:?!]["')]*$/.test(parts[i - 1]!)) continue;
     return word;
   }
   return undefined;
+}
+
+const MINOR = new Set('a an the and but or nor for so yet as at by in of off on per to up via with'.split(' '));
+
+/** The first word out of `style` case, less those in `keep`. */
+function outOfCase(text: string, style: CapitalizationRule['case'], keep: Set<string>): string | undefined {
+  if (style === 'sentence') return capitalizedWord(text, keep);
+  const list = text
+    .split(/\s+/)
+    .map(unquoted)
+    .filter((w) => /\p{L}/u.test(w) && !keep.has(w));
+  return list.find((w, i) => {
+    if (style === 'lower') return /\p{Lu}/u.test(w);
+    if (style === 'upper') return /\p{Ll}/u.test(w);
+    return /^\p{Ll}/u.test(w) && (i === 0 || !MINOR.has(w));
+  });
 }
 
 const CONTRACTIONS: [RegExp, string][] = [
@@ -220,7 +303,7 @@ export const CORE_RULES = {
     description: 'A kind with `sentenceCase: true` capitalizes only its first word and proper nouns.',
     check: ({ message: m, kind, text, config }) => {
       if (kind?.sentenceCase !== true) return [];
-      const word = capitalizedWord(text.primary, new Set(config.lint.properNouns));
+      const word = outOfCase(text.primary, 'sentence', new Set(config.lint.properNouns));
       return word === undefined
         ? []
         : [`"${word}" is capitalized in a sentence-case ${m.kind}: add it to lint.properNouns if it is a name`];
@@ -230,25 +313,19 @@ export const CORE_RULES = {
     description: 'A word or phrase from the banned lists.',
     recommended: 'warn',
     check: ({ text, config }) =>
-      config.lint.banned.flatMap(({ words: list, why }) =>
-        list.filter((w) => text.variants.some((v) => phrase(w).test(v))).map((w) => `"${w}" ${why}`),
-      ),
+      config.lint.banned.flatMap(({ words: list, why }) => listed(text.variants, list).map((w) => `"${w}" ${why}`)),
   },
   spelling: {
     description: 'A spelling the product writes another way.',
     recommended: 'warn',
-    check: ({ text, config }) =>
-      Object.entries(config.lint.spelling)
-        .filter(([wrong]) => text.variants.some((v) => phrase(wrong).test(v)))
-        .map(([wrong, right]) => `"${wrong}" is spelled "${right}"`),
+    check: ({ text, config: { lint } }) =>
+      listed(text.variants, Object.keys(lint.spelling)).map((w) => `"${w}" is spelled "${lint.spelling[w]}"`),
   },
   'one-word': {
     description: 'A near-synonym for a concept the product has one word for.',
     recommended: 'warn',
-    check: ({ text, config }) =>
-      Object.entries(config.lint.concepts)
-        .filter(([word]) => text.variants.some((v) => phrase(word).test(v)))
-        .map(([word, use]) => `"${word}" is "${use}" everywhere in the product`),
+    check: ({ text, config: { lint } }) =>
+      listed(text.variants, Object.keys(lint.concepts)).map((w) => `"${w}" is "${lint.concepts[w]}" everywhere in the product`),
   },
   'no-em-dash': {
     description: 'No em-dashes, and no spaced hyphen standing in for one.',
@@ -266,9 +343,116 @@ export const CORE_RULES = {
     description: 'An ellipsis is one character, `…`, not three periods.',
     check: ({ text }) => (text.variants.some((v) => v.includes('...')) ? ['an ellipsis is one character: …'] : []),
   },
-} satisfies Record<string, Rule>;
+} satisfies Record<string, CheckRule>;
 
 export type CoreRule = keyof typeof CORE_RULES;
+
+const fill = (message: string, values: Record<string, string | number | undefined>) =>
+  message.replace(/\{(\w+)\}/g, (all, name: string) => (values[name] === undefined ? all : String(values[name])));
+
+const graphemes = new Intl.Segmenter();
+
+const COUNTERS: Record<OccurrenceRule['count'], (text: string) => number> = {
+  words: (text) => tokens(text).length,
+  sentences: (text) => sentences(prose(text)),
+  characters: (text) => [...graphemes.segment(text.replaceAll(HOLE, ''))].length,
+};
+
+/** A rule as code, checked once when the config loads: a JSON config is not type-checked. */
+export function compileRule(name: string, rule: Rule): CheckRule {
+  const fail = (problem: string): never => {
+    throw new Error(`lint rule ${name} ${problem}`);
+  };
+  const pattern = (source: unknown, field: string, ignoreCase: boolean | undefined) => {
+    if (typeof source !== 'string') return fail(`${field} is not a string: write the pattern as one`);
+    try {
+      return new RegExp(source, ignoreCase === true ? 'iu' : 'u');
+    } catch (e) {
+      return fail(`${field} is not a regular expression: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  const said = (message: unknown) =>
+    typeof message === 'string' && message !== '' ? message : fail('has no message: say what to write instead');
+  if (typeof rule.description !== 'string' || rule.description === '') fail('has no description: say what it holds a string to');
+  if ('check' in rule) return typeof rule.check === 'function' ? rule : fail('has a check that is not a function');
+  const { description, recommended, strict, on } = rule;
+  const base = { description, recommended, strict, on };
+  switch (rule.type) {
+    case 'existence': {
+      const list = rule.words ?? [];
+      const patterns = (rule.patterns ?? []).map((p, i) => pattern(p, `patterns[${i}]`, rule.ignoreCase));
+      if (list.length + patterns.length === 0) fail('has no words or patterns: list what a string never says');
+      const message = said(rule.message);
+      return {
+        ...base,
+        check: ({ text }) => {
+          const matched = patterns.flatMap((p) => text.variants.map((v) => p.exec(v)?.[0]).find((m) => m !== undefined) ?? []);
+          return [...new Set([...listed(text.variants, list), ...matched])].map((match) => fill(message, { match }));
+        },
+      };
+    }
+    case 'substitution': {
+      const swap = rule.swap ?? {};
+      if (Object.keys(swap).length === 0) fail('has nothing in swap: map a word to the one written instead');
+      const message = rule.message === undefined ? '"{match}" is written "{use}"' : said(rule.message);
+      return {
+        ...base,
+        check: ({ text }) => listed(text.variants, Object.keys(swap)).map((match) => fill(message, { match, use: swap[match] })),
+      };
+    }
+    case 'occurrence': {
+      const { count: unit, max, min } = rule;
+      const counter = Object.hasOwn(COUNTERS, unit) ? COUNTERS[unit] : fail(`counts ${unit}: count words, sentences or characters`);
+      if (max === undefined && min === undefined) fail('has no max or min: give it one');
+      if (rule.message !== undefined) said(rule.message);
+      return {
+        ...base,
+        check: ({ text }) => {
+          const count = counter(text.primary);
+          const over = max !== undefined && count > max;
+          if (!over && (min === undefined || count >= min)) return [];
+          const fallback = over ? `{max} ${unit} at most, and this is {count}` : `{min} ${unit} at least, and this is {count}`;
+          return [fill(rule.message ?? fallback, { count, max, min })];
+        },
+      };
+    }
+    case 'capitalization': {
+      const style = rule.case;
+      if (!['sentence', 'title', 'lower', 'upper'].includes(style)) fail(`has case ${style}: use sentence, title, lower or upper`);
+      const message =
+        rule.message === undefined
+          ? `"{match}" is out of ${style} case: change it, or add it to exceptions if it is a name`
+          : said(rule.message);
+      const exceptions = rule.exceptions ?? [];
+      return {
+        ...base,
+        check: ({ text, config }) => {
+          const match = outOfCase(text.primary, style, new Set([...config.lint.properNouns, ...exceptions]));
+          return match === undefined ? [] : [fill(message, { match })];
+        },
+      };
+    }
+    case 'conditional': {
+      const when = rule.when === undefined ? undefined : pattern(rule.when, 'when', rule.ignoreCase);
+      const required = pattern(rule.require, 'require', rule.ignoreCase);
+      const message = said(rule.message);
+      return {
+        ...base,
+        check: ({ text }) => {
+          for (const v of text.variants) {
+            const match = when === undefined ? '' : when.exec(v)?.[0];
+            if (match !== undefined && !required.test(v)) return [fill(message, { match })];
+          }
+          return [];
+        },
+      };
+    }
+    default:
+      return fail(
+        `has type ${String((rule as { type?: unknown }).type)}: use existence, substitution, occurrence, capitalization or conditional, or give it a check`,
+      );
+  }
+}
 
 /** A reason is a sentence a reviewer can check, not a shrug. */
 function reasonProblem(why: string): string | undefined {
@@ -278,7 +462,7 @@ function reasonProblem(why: string): string | undefined {
   return undefined;
 }
 
-function applies(rule: Rule, message: Message): boolean {
+function applies(rule: RuleBase, message: Message): boolean {
   if (rule.on === undefined) return true;
   const { kind, surface } = rule.on;
   return (

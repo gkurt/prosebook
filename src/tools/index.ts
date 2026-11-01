@@ -32,6 +32,7 @@ export { editEntry, readEntry, type EntryEdit, type EntryFields, type EntryView,
 export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export {
+  compileRule,
   CORE_RULES,
   definePlugin,
   HOLE,
@@ -39,12 +40,18 @@ export {
   phrase,
   sentences,
   words,
+  type CapitalizationRule,
+  type CheckRule,
+  type ConditionalRule,
   type CoreRule,
+  type ExistenceRule,
   type Finding,
+  type OccurrenceRule,
   type Plugin,
   type Readings,
   type Rule,
   type RuleContext,
+  type SubstitutionRule,
 } from './lint.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
 export { emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
