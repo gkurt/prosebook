@@ -47,7 +47,23 @@ interface RuleBase {
 /** A rule written as code. */
 export interface CheckRule extends RuleBase {
   /** What is wrong with the message, a sentence each that states the fix; none when it passes. */
-  check(context: RuleContext): string[];
+  check(context: RuleContext): (string | Report)[];
+}
+
+/** A finding that can say where it is, and what to write instead. */
+export interface Report {
+  message: string;
+  /** The words the finding is about, as a reading has them: found in the message's text, in any case. */
+  match?: string;
+  /** What `prosebook lint --fix` writes in place of `match`, wherever it stands; its case follows the text's. */
+  fix?: string;
+}
+
+/** A replacement in a message's text, by offset. */
+export interface Edit {
+  start: number;
+  end: number;
+  text: string;
 }
 
 /*
@@ -133,6 +149,10 @@ export interface Finding {
   rule: string;
   severity: Exclude<Severity, 'off'>;
   message: string;
+  /** Where in the locale's message text, when the rule named a match and it is written there as read. */
+  at?: { start: number; end: number };
+  /** The edits that fix it, at every place the match stands. */
+  fix?: Edit[];
 }
 
 /** Stands in for a placeholder in a reading, which no prose rule reads. */
@@ -325,8 +345,12 @@ export const CORE_RULES = {
     description: 'No leading, trailing or doubled spaces.',
     recommended: 'error',
     on: { locale: 'all' },
-    check: ({ text }) =>
-      text.variants.some((v) => /^\s|\s$| {2}/.test(v.replaceAll(HOLE, 'x'))) ? ['no leading, trailing or doubled spaces'] : [],
+    check: ({ text }) => {
+      const message = 'no leading, trailing or doubled spaces';
+      // As a match, two spaces stand for a run of any length.
+      if (text.variants.some((v) => v.includes('  '))) return [{ message, match: '  ', fix: ' ' }];
+      return text.variants.some((v) => /^\s|\s$/.test(v.replaceAll(HOLE, 'x'))) ? [message] : [];
+    },
   },
   'word-budget': {
     description: "A kind with `maxWords` stays within it. Articles, short prepositions and asides in parentheses don't count.",
@@ -382,51 +406,68 @@ export const CORE_RULES = {
     check: ({ message: m, kind, text, config }) => {
       if (kind?.sentenceCase !== true) return [];
       const word = outOfCase(text.primary, 'sentence', new Set(config.lint.properNouns));
-      return word === undefined
-        ? []
-        : [`"${word}" is capitalized in a sentence-case ${m.kind}: add it to lint.properNouns if it is a name`];
+      if (word === undefined) return [];
+      return [
+        { message: `"${word}" is capitalized in a sentence-case ${m.kind}: add it to lint.properNouns if it is a name`, match: word },
+      ];
     },
   },
   'banned-word': {
     description: 'A word or phrase from the banned lists.',
     recommended: 'warn',
     check: ({ text, config }) =>
-      config.lint.banned.flatMap(({ words: list, why }) => listed(text.variants, list).map((w) => `"${w}" ${why}`)),
+      config.lint.banned.flatMap(({ words: list, why }) =>
+        listed(text.variants, list).map((w) => ({ message: `"${w}" ${why}`, match: w })),
+      ),
   },
   spelling: {
     description: 'A spelling the product writes another way.',
     recommended: 'warn',
     check: ({ text, config: { lint } }) =>
-      listed(text.variants, Object.keys(lint.spelling)).map((w) => `"${w}" is spelled "${lint.spelling[w]}"`),
+      listed(text.variants, Object.keys(lint.spelling)).map((w) => ({
+        message: `"${w}" is spelled "${lint.spelling[w]}"`,
+        match: w,
+        fix: lint.spelling[w],
+      })),
   },
   'one-word': {
     description: 'A near-synonym for a concept the product has one word for.',
     recommended: 'warn',
     check: ({ text, config: { lint } }) =>
-      listed(text.variants, Object.keys(lint.concepts)).map((w) => `"${w}" is "${lint.concepts[w]}" everywhere in the product`),
+      listed(text.variants, Object.keys(lint.concepts)).map((w) => ({
+        message: `"${w}" is "${lint.concepts[w]}" everywhere in the product`,
+        match: w,
+        fix: lint.concepts[w],
+      })),
   },
   'no-em-dash': {
     description: 'No em-dashes, and no spaced hyphen standing in for one.',
-    check: ({ text }) => (text.variants.some((v) => /—|\s[–-]\s/.test(v)) ? ['no em-dash: a comma, a period or a colon does the job'] : []),
+    check: ({ text }) => {
+      const match = text.variants.map((v) => /—|\s[–-]\s/.exec(v)?.[0]).find((m) => m !== undefined);
+      return match === undefined ? [] : [{ message: 'no em-dash: a comma, a period or a colon does the job', match }];
+    },
   },
   contractions: {
     description: '`could not`, `is not` and `cannot` are written as contractions.',
     check: ({ text }) =>
       CONTRACTIONS.flatMap(([pattern, short]) => {
         const found = text.variants.map((v) => pattern.exec(v)).find((f) => f !== null);
-        return found === undefined || found === null ? [] : [`"${found[0]}" is written as a contraction (${short})`];
+        if (found === undefined || found === null) return [];
+        const fix = short === "n't" ? `${found[1]}n't` : short;
+        return [{ message: `"${found[0]}" is written as a contraction (${short})`, match: found[0], fix }];
       }),
   },
   ellipsis: {
     description: 'An ellipsis is one character, `…`, not three periods.',
     on: { locale: 'all' },
-    check: ({ text }) => (text.variants.some((v) => v.includes('...')) ? ['an ellipsis is one character: …'] : []),
+    check: ({ text }) =>
+      text.variants.some((v) => v.includes('...')) ? [{ message: 'an ellipsis is one character: …', match: '...', fix: '…' }] : [],
   },
   'plural-count': {
     description: 'A count followed by a plural noun, `{count} files`, is a plural, or it reads "1 files". English.',
     recommended: 'warn',
     check: ({ ast }) => {
-      const said: string[] = [];
+      const said: Report[] = [];
       eachRun(ast, (run, counted) =>
         run.forEach((el, i) => {
           if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
@@ -434,8 +475,12 @@ export const CORE_RULES = {
           const next = run[i + 1];
           const word = next?.type === TYPE.literal ? /^\s+(\p{L}+)(?![\p{L}'])/u.exec(next.value)?.[1] : undefined;
           const one = word === undefined ? undefined : singularOf(word);
-          if (one !== undefined)
-            said.push(`${el.value} is followed by "${word}", which reads "1 ${word}": make it a plural with a "# ${one}" arm`);
+          if (word !== undefined && one !== undefined) {
+            said.push({
+              message: `${el.value} is followed by "${word}", which reads "1 ${word}": make it a plural with a "# ${one}" arm`,
+              match: word,
+            });
+          }
         }),
       );
       return said;
@@ -446,20 +491,22 @@ export const CORE_RULES = {
     recommended: 'warn',
     on: { locale: 'all' },
     check: ({ ast, locale, config }) => {
-      const said: string[] = [];
+      const said: Report[] = [];
       walk(ast, (el) => {
         if (el.type !== TYPE.plural || el.pluralType !== 'cardinal') return;
         const { one, other } = el.options;
         if (one === undefined) return;
         // Turkish says "# dosya" for one and other alike, so only the source must tell them apart.
         if (locale === config.source && other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other'))
-          said.push(`the one and other arms of ${el.value} say the same: write the singular in one`);
+          said.push({ message: `the one and other arms of ${el.value} say the same: write the singular in one` });
         let literalOne = false;
         walk(one.value, (inner) => {
           if (inner.type === TYPE.literal && /(?<![\d.,])1(?![\d.,])/.test(inner.value)) literalOne = true;
         });
         // Russian's `one` is also 21 and 31, so a translator copying a written 1 gets it wrong there.
-        if (literalOne) said.push(`the one arm of ${el.value} writes 1, which one is not in every language: write #, or make the arm =1`);
+        if (!literalOne) return;
+        const message = `the one arm of ${el.value} writes 1, which one is not in every language: write #, or make the arm =1`;
+        said.push({ message, match: '1' });
       });
       return said;
     },
@@ -483,7 +530,8 @@ export const CORE_RULES = {
     recommended: 'warn',
     on: { locale: 'all' },
     check: ({ ast, text }) => {
-      const said = new Set<string>();
+      const said = new Map<string, Report>();
+      const say = (message: string, match: string) => said.set(message, { message, match });
       eachRun(ast, (run) =>
         run.forEach((el, i) => {
           if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
@@ -491,14 +539,15 @@ export const CORE_RULES = {
           const after = run[i + 1];
           const symbol = before?.type === TYPE.literal ? CURRENCY_BEFORE.exec(before.value)?.[0].trim() : undefined;
           if (symbol !== undefined)
-            said.add(`"${symbol}" is typed before ${el.value}: format it as a currency, which puts the symbol where the locale does`);
+            say(`"${symbol}" is typed before ${el.value}: format it as a currency, which puts the symbol where the locale does`, symbol);
           if (after?.type === TYPE.literal && /^\s?%/.test(after.value))
-            said.add(`"%" is typed after ${el.value}: format it as a percent, which takes the fraction (0.5 for 50%)`);
+            say(`"%" is typed after ${el.value}: format it as a percent, which takes the fraction (0.5 for 50%)`, '%');
         }),
       );
       const grouped = text.variants.map((v) => /\d{1,3}(?:,\d{3})+(?!\d)/.exec(v)?.[0]).find((g) => g !== undefined);
-      if (grouped !== undefined) said.add(`"${grouped}" groups its digits the English way: make it a placeholder formatted as a number`);
-      return [...said];
+      if (grouped !== undefined)
+        say(`"${grouped}" groups its digits the English way: make it a placeholder formatted as a number`, grouped);
+      return [...said.values()];
     },
   },
   'source-ending': {
@@ -559,7 +608,7 @@ export function compileRule(name: string, rule: Rule): CheckRule {
         ...base,
         check: ({ text }) => {
           const matched = patterns.flatMap((p) => text.variants.map((v) => p.exec(v)?.[0]).find((m) => m !== undefined) ?? []);
-          return [...new Set([...listed(text.variants, list), ...matched])].map((match) => fill(message, { match }));
+          return [...new Set([...listed(text.variants, list), ...matched])].map((match) => ({ message: fill(message, { match }), match }));
         },
       };
     }
@@ -569,7 +618,12 @@ export function compileRule(name: string, rule: Rule): CheckRule {
       const message = rule.message === undefined ? '"{match}" is written "{use}"' : said(rule.message);
       return {
         ...base,
-        check: ({ text }) => listed(text.variants, Object.keys(swap)).map((match) => fill(message, { match, use: swap[match] })),
+        check: ({ text }) =>
+          listed(text.variants, Object.keys(swap)).map((match) => ({
+            message: fill(message, { match, use: swap[match] }),
+            match,
+            fix: swap[match],
+          })),
       };
     }
     case 'occurrence': {
@@ -608,7 +662,7 @@ export function compileRule(name: string, rule: Rule): CheckRule {
         ...base,
         check: ({ text, config }) => {
           const match = outOfCase(text.primary, style, new Set([...config.lint.properNouns, ...exceptions]));
-          return match === undefined ? [] : [fill(message, { match })];
+          return match === undefined ? [] : [{ message: fill(message, { match }), match }];
         },
       };
     }
@@ -658,6 +712,62 @@ function applies(rule: RuleBase, message: Message, locale: string, sourceLocale:
   );
 }
 
+interface Literal {
+  start: number;
+  value: string;
+}
+
+/**
+ * Where the message's literals are written in its text, each looked for after the one before. A
+ * literal escaped in the text (`''`, `\{`) isn't written as read, so it has no place, and nor does a
+ * finding in it.
+ */
+function literalsIn(ast: MessageFormatElement[], text: string): Literal[] {
+  const found: Literal[] = [];
+  let from = 0;
+  walk(ast, (el) => {
+    if (el.type !== TYPE.literal || el.value === '') return;
+    // MF2's `.match` is read into arms in another order than they are written, so look from the top too.
+    const next = text.indexOf(el.value, from);
+    const start = next === -1 ? text.indexOf(el.value) : next;
+    if (start === -1) return;
+    found.push({ start, value: el.value });
+    from = start + el.value.length;
+  });
+  return found;
+}
+
+/** Every place `match` stands in the literals, in any case, whole where it starts or ends with a letter. */
+function placesOf(match: string, literals: Literal[]): { start: number; end: number }[] {
+  const body = match
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/ /g, '\\s+')
+    .replace(/'/g, "['’]");
+  const before = /^[\p{L}\p{N}]/u.test(match) ? '(?<![\\p{L}\\p{N}])' : '';
+  const after = /[\p{L}\p{N}]$/u.test(match) ? '(?![\\p{L}\\p{N}])' : '';
+  const pattern = new RegExp(`${before}${body}${after}`, 'giu');
+  const places = new Map<number, number>();
+  for (const { start, value } of literals)
+    for (const m of value.matchAll(pattern)) places.set(start + m.index, start + m.index + m[0].length);
+  return [...places].sort(([a], [b]) => a - b).map(([start, end]) => ({ start, end }));
+}
+
+/** A fix in the case of what it replaces: "Colour" becomes "Color". */
+const inCaseOf = (found: string, fix: string) =>
+  /^\p{Lu}/u.test(found) && /^\p{Ll}/u.test(fix) ? fix.charAt(0).toUpperCase() + fix.slice(1) : fix;
+
+/** `text` with the edits made, leaving out any that overlaps one before it. */
+export function applyEdits(text: string, edits: Edit[]): string {
+  let out = '';
+  let at = 0;
+  for (const edit of [...edits].sort((a, b) => a.start - b.start)) {
+    if (edit.start < at) continue;
+    out += text.slice(at, edit.start) + edit.text;
+    at = edit.end;
+  }
+  return out + text.slice(at);
+}
+
 export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
   const findings: Finding[] = [];
   const rules = Object.entries(config.lint.rules);
@@ -665,17 +775,18 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
     const kind = message.kind === undefined ? undefined : config.kinds[message.kind];
     const source = readings(message.ast);
     const locales = [
-      { locale: config.source, ast: message.ast, file: message.file },
-      ...[...message.translations].map(([locale, t]) => ({ locale, ast: t.ast, file: t.file })),
+      { locale: config.source, ast: message.ast, written: message.text, file: message.file },
+      ...[...message.translations].map(([locale, t]) => ({ locale, ast: t.ast, written: t.text, file: t.file })),
     ];
     // An exemption is the entry's, so it holds in every locale, and is still needed if any locale needs it.
     const fired = new Set<string>();
-    for (const { locale, ast, file } of locales) {
+    for (const { locale, ast, written, file } of locales) {
       const text = locale === config.source ? source : readings(ast);
       const context: RuleContext = { message, locale, ast, kind, text, source, config };
+      let literals: Literal[] | undefined;
       for (const [name, { rule, severity }] of rules) {
         if (severity === 'off' || !applies(rule, message, locale, config.source)) continue;
-        let said: string[];
+        let said: (string | Report)[];
         try {
           said = rule.check(context);
         } catch (cause) {
@@ -684,7 +795,18 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
         if (said.length === 0) continue;
         fired.add(name);
         if (message.allow.has(name)) continue;
-        for (const s of said) findings.push({ key: message.key, file, locale, rule: name, severity, message: s });
+        for (const s of said) {
+          const { message: text, match, fix } = typeof s === 'string' ? { message: s } : s;
+          const finding: Finding = { key: message.key, file, locale, rule: name, severity, message: text };
+          if (match !== undefined && match !== '') {
+            literals ??= literalsIn(ast, written);
+            const places = placesOf(match, literals);
+            if (places.length > 0) finding.at = places[0];
+            if (places.length > 0 && fix !== undefined)
+              finding.fix = places.map((p) => ({ ...p, text: inCaseOf(written.slice(p.start, p.end), fix) }));
+          }
+          findings.push(finding);
+        }
       }
     }
     for (const [name, why] of message.allow) {

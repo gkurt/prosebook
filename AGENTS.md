@@ -83,6 +83,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document
   so the rest of the file stays as it was. An empty translation removes the key from its locale.
+  `applyFixes` makes the edits lint findings carry, the same way. A finding's `match` is found in the
+  message's text through its literals (`literalsIn`), since the readings lose positions; a literal
+  escaped in the text has none, so neither has a finding in it.
 
 `site/index.html` is the homepage, deployed with the example by `.github/workflows/pages.yml` on every push
 to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so keep

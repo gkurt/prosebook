@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml } from 'yaml';
+import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
 
 import type { ResolvedConfig } from './config.ts';
 import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, type MessageFormatElement } from './icu.ts';
@@ -395,20 +395,34 @@ export function entryLocation(config: ResolvedConfig, message: Message, locale?:
  * Finds a key's line and column in a catalog or translation file, given relative to `root`. Each file
  * is read once, so a report that places many entries parses each file once. A key it can't find, or no
  * key, is the top of the file.
+ *
+ * Given an `offset` into the message (under `field`, in an entry that is a mapping), it is that
+ * character, when the value is written in the file as it reads up to there: plain, or quoted on one
+ * line with nothing escaped before it. Otherwise it is the key.
  */
-export function entryLocator(root: string): (file: string, key?: string) => Omit<EntryLocation, 'file'> {
-  const read = new Map<string, { doc: ReturnType<typeof parseDocument>; lines: LineCounter }>();
-  return (file, key) => {
+export function entryLocator(root: string): (file: string, key?: string, offset?: number, field?: string) => Omit<EntryLocation, 'file'> {
+  const read = new Map<string, { doc: ReturnType<typeof parseDocument>; lines: LineCounter; source: string }>();
+  return (file, key, offset, field) => {
     let parsed = read.get(file);
     if (parsed === undefined) {
       const path = join(root, file);
       const lines = new LineCounter();
-      parsed = { doc: parseDocument(existsSync(path) ? readFileSync(path, 'utf8') : '', { lineCounter: lines }), lines };
+      const source = existsSync(path) ? readFileSync(path, 'utf8') : '';
+      parsed = { doc: parseDocument(source, { lineCounter: lines }), lines, source };
       read.set(file, parsed);
     }
-    const { doc, lines } = parsed;
+    const { doc, lines, source } = parsed;
     const pair =
       key !== undefined && isMap(doc.contents) ? doc.contents.items.find((p) => isScalar(p.key) && p.key.value === key) : undefined;
+    const value = isMap(pair?.value) && field !== undefined ? pair.value.get(field, true) : pair?.value;
+    if (offset !== undefined && isScalar(value) && typeof value.value === 'string' && value.range) {
+      const quoted = value.type === Scalar.QUOTE_DOUBLE || value.type === Scalar.QUOTE_SINGLE;
+      const content = value.range[0] + (quoted ? 1 : 0);
+      if (source.slice(content, content + offset) === value.value.slice(0, offset)) {
+        const { line, col } = lines.linePos(content + offset);
+        return { line, column: col };
+      }
+    }
     const start = isScalar(pair?.key) ? pair.key.range?.[0] : undefined;
     if (start === undefined) return { line: 1, column: 1 };
     const { line, col } = lines.linePos(start);

@@ -258,7 +258,7 @@ brackets are a sentence spliced from fragments.
 ## Checks
 
 ```bash
-prosebook lint     # the words against the writing rules
+prosebook lint     # the words against the writing rules (--fix writes the fixes they offer)
 prosebook scan     # hardcoded text in JSX, and catalog keys no code reads
 prosebook extract  # move that text into the catalog (see below)
 prosebook migrate  # rewrite the catalog in ICU MessageFormat (1) or MessageFormat 2
@@ -280,6 +280,13 @@ Translations are linted too, by the rules that hold in any language: `whitespace
 `arm-endings`, `formatted-by-hand`, `source-ending`, and `plural-one`'s `#` (not its `one`
 and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
 finding names the translation's file.
+
+A finding points at the words it is about, `file:line:column`, when the message is written in the
+file as it reads (plain, or quoted on one line); otherwise at the entry's key. Spellings, the one word
+per concept, contractions, `…` and doubled spaces are marked `(fixable)`: `prosebook lint --fix`
+writes them, in the case of the words they replace, wherever in the message they stand. Every fix is
+checked as the whole catalog first, and nothing is written if any would break it. Only the message
+changes: a `key: message` entry stays one, and quoting and comments elsewhere stay as they were.
 
 `strict` adds sentence case, contractions, em-dashes, `…`, American spelling and a list of filler
 and marketing words. Add your own `banned`, `spelling` and `concepts` (one word per concept:
@@ -325,7 +332,10 @@ const house = definePlugin({
 export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-says-what-to-do': 'error' } } });
 ```
 
-`words`, `sentences` and `phrase` are the helpers the core rules count and match with.
+`words`, `sentences` and `phrase` are the helpers the core rules count and match with. A rule can
+return `{ message, match, fix }` instead of a string: `match` is the words as a reading has them,
+which the finding then points at, and `fix` what `--fix` writes in their place. Data rules do this
+themselves: `existence` and `capitalization` point at what they found, and `substitution` fixes it.
 
 A rule can also be data, after [Vale](https://vale.sh)'s rule types, which a `prosebook.config.json`
 can carry. Words are matched whole and in any case; a pattern is a regular expression (`u` flag,

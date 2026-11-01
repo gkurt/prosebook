@@ -23,6 +23,7 @@ export {
   type OccurrenceRule,
   type Plugin,
   type Readings,
+  type Report,
   type Rule,
   type RuleContext,
   type SubstitutionRule,

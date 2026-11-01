@@ -15,6 +15,7 @@ import { isMap, isScalar, parseDocument, Scalar, type Document, type YAMLMap } f
 
 import { CatalogError, loadCatalog, type Catalog, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
+import { applyEdits, type Edit, type Finding } from './lint.ts';
 
 export interface EntryFields {
   /** The source message. */
@@ -115,6 +116,45 @@ export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, 
     }
   }
   return { view: viewOf(config, catalog, key, unsaved), problems: [] };
+}
+
+/**
+ * Makes the edits that lint's findings carry, each message in its own file, and writes them only if
+ * the catalog they make loads clean: the problems come back instead, and nothing is written.
+ */
+export function applyFixes(config: ResolvedConfig, catalog: Catalog, findings: Finding[]): { fixed: number; problems: Problem[] } {
+  const unsaved = new Map<string, string>();
+  const entries = new Map<string, { file: string; key: string; locale: string; edits: Edit[]; count: number }>();
+  for (const f of findings) {
+    if (f.fix === undefined) continue;
+    const id = `${f.locale}\u0000${f.key}`;
+    const entry = entries.get(id) ?? { file: f.file, key: f.key, locale: f.locale, edits: [], count: 0 };
+    entry.edits.push(...f.fix);
+    entry.count += 1;
+    entries.set(id, entry);
+  }
+  let fixed = 0;
+  for (const { file, key, locale, edits, count } of entries.values()) {
+    const message = catalog.messages.find((m) => m.key === key);
+    const written = locale === config.source ? message?.text : message?.translations.get(locale)?.text;
+    if (written === undefined) continue;
+    const next = applyEdits(written, edits);
+    if (next === written) continue;
+    const content = contentOf(config, file, unsaved);
+    unsaved.set(
+      resolve(config.root, file),
+      locale === config.source ? withMessage(content, key, next, config.source) : withTranslation(content, key, next),
+    );
+    fixed += count;
+  }
+  try {
+    loadCatalog(config, unsaved);
+  } catch (e) {
+    if (!(e instanceof CatalogError)) throw e;
+    return { fixed: 0, problems: e.problems.filter((p) => p.severity === 'error') };
+  }
+  for (const [path, content] of unsaved) writeFileSync(path, content);
+  return { fixed, problems: [] };
 }
 
 /** A file as the edit has it, as it is on disk, or empty when it is still to be made. */
@@ -238,6 +278,15 @@ function withFields(file: string, key: string, fields: EntryFields, source: stri
     map.items.splice(at === -1 ? map.items.length : at, 0, doc.createPair(name, value));
   }
   setValue(doc, map, source, fields.message);
+  return print(doc);
+}
+
+/** The source message replaced, and nothing else: a `key: message` entry stays one. */
+function withMessage(file: string, key: string, message: string, source: string): string {
+  const doc = parse(file);
+  const entry = doc.get(key, true);
+  if (!isMap(entry)) return withTranslation(file, key, message);
+  setValue(doc, entry, source, message);
   return print(doc);
 }
 

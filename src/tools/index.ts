@@ -27,10 +27,11 @@ export {
   type FilePlan,
   type NewEntry,
 } from './extract.ts';
-export { editEntry, readEntry, type EntryEdit, type EntryFields, type EntryView, type EntryYaml } from './entry.ts';
+export { applyFixes, editEntry, readEntry, type EntryEdit, type EntryFields, type EntryView, type EntryYaml } from './entry.ts';
 export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export {
+  applyEdits,
   compileRule,
   CORE_RULES,
   definePlugin,
@@ -44,11 +45,13 @@ export {
   type CheckRule,
   type ConditionalRule,
   type CoreRule,
+  type Edit,
   type ExistenceRule,
   type Finding,
   type OccurrenceRule,
   type Plugin,
   type Readings,
+  type Report,
   type Rule,
   type RuleContext,
   type SubstitutionRule,

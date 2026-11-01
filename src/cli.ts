@@ -12,6 +12,7 @@ import { stringify } from 'yaml';
 import { CatalogError, entryLocator, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { formatDiff, wordDiff } from './tools/diff.ts';
+import { applyFixes } from './tools/entry.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint } from './tools/lint.ts';
@@ -29,6 +30,7 @@ Commands:
   init                    Create a config and a first catalog file
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
   lint                    Check the messages and their translations against the writing rules
+                          (--fix: write the fixes the rules know, such as spellings and …)
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
@@ -75,6 +77,7 @@ async function main(argv: string[]): Promise<number> {
       verbose: { type: 'boolean' },
       all: { type: 'boolean' },
       write: { type: 'boolean' },
+      fix: { type: 'boolean' },
       area: { type: 'string' },
       format: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -108,7 +111,7 @@ async function main(argv: string[]): Promise<number> {
         if (values.watch) return watchMode(config);
         return runGenerate(config, values.check === true);
       case 'lint':
-        code = runLint(config, report);
+        code = runLint(config, report, values.fix === true);
         break;
       case 'status':
         code = runStatus(config, values.strict === true, values.verbose === true, report);
@@ -212,31 +215,51 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   return new Promise(() => {});
 }
 
-function runLint(config: ResolvedConfig, report?: SarifReport): number {
-  const { catalog } = render(config);
-  const findings = lint(catalog.messages, config);
-  for (const f of findings) err(`${f.severity === 'error' ? 'error' : 'warn '} ${f.file} ${f.key}: [${f.rule}] ${f.message}`);
+function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): number {
+  let { catalog } = render(config);
+  let findings = lint(catalog.messages, config);
+  if (fix) {
+    const { fixed, problems } = applyFixes(config, catalog, findings);
+    if (problems.length > 0) {
+      reportProblems(config, problems, report);
+      err('The fixes would break the catalog, so nothing was written.');
+      return 1;
+    }
+    if (fixed > 0) {
+      out(`prosebook: fixed ${fixed} finding(s); run prosebook generate to compile them`);
+      ({ catalog } = render(config));
+      findings = lint(catalog.messages, config);
+    }
+  }
+  const locate = entryLocator(config.root);
+  const placed = findings.map((f) => ({ ...f, ...locate(f.file, f.key, f.at?.start, config.source) }));
+  for (const f of placed) {
+    const severity = f.severity === 'error' ? 'error' : 'warn ';
+    err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
+  }
   if (report !== undefined) {
-    const locate = entryLocator(config.root);
     for (const [name, { rule }] of Object.entries(config.lint.rules)) report.rule(name, rule.description);
     report.rule('allow', RULES.allow);
-    for (const f of findings) {
+    for (const f of placed) {
       report.add({
         rule: f.rule,
         level: f.severity === 'error' ? 'error' : 'warning',
         message: `${f.key}: ${f.message}`,
         file: f.file,
-        ...locate(f.file, f.key),
+        line: f.line,
+        column: f.column,
       });
     }
   }
   const errors = findings.filter((f) => f.severity === 'error').length;
+  const fixable = findings.filter((f) => f.fix !== undefined).length;
   if (findings.length === 0) {
     out(`prosebook: ${catalog.messages.length} messages pass the writing rules`);
   } else {
     err(
       `\n${errors} error(s), ${findings.length - errors} warning(s). Fix the string, or add \`allow: { <rule>: <why> }\` where the rule is wrong about it.`,
     );
+    if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
   return errors > 0 ? 1 : 0;
 }

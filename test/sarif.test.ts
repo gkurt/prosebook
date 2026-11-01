@@ -65,12 +65,13 @@ describe('--format sarif', () => {
     expect(log.runs[0]!.tool.driver.name).toBe('prosebook');
     expect(log.runs[0]!.originalUriBaseIds['%SRCROOT%']!.uri).toEndWith('/');
     expect(results(log)).toEqual([
-      'whitespace error copy/catalog/cart.yaml:6 cart.empty: no leading, trailing or doubled spaces',
+      // On the doubled space itself, not the key: the message is written there as it reads.
+      'whitespace error copy/catalog/cart.yaml:9 cart.empty: no leading, trailing or doubled spaces',
       'missing-translation error copy/catalog/cart.yaml:6 cart.empty has no de translation: `prosebook todo de` prints it ready to translate',
     ]);
     expect(log.runs[0]!.tool.driver.rules.find((r) => r.id === 'whitespace')?.shortDescription?.text).toBeString();
     // The text people read still goes out, on stderr.
-    expect(stderr).toContain('[whitespace]');
+    expect(stderr).toContain('copy/catalog/cart.yaml:9:15 cart.empty: [whitespace] no leading, trailing or doubled spaces (fixable)');
   });
 
   test('scan reports hardcoded text at its line and column, as warnings unless --strict', () => {

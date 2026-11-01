@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  applyFixes,
   CatalogError,
   definePlugin,
   generate,
@@ -407,6 +408,55 @@ describe('lint', () => {
       'de app.d [de/du] "Sie" addresses the reader formally: say du',
       "de app.e [fit/button] 16 characters at most (1.5 times the source's 11), and this is 22",
     ]);
+  });
+
+  test('a finding says where it stands in the text, and --fix writes what the rule offers', () => {
+    const catalog = [
+      'app.a: Colour could not load...',
+      "app.b: It''s gone...",
+      'app.c:\n  context: Kept as it was.\n  en: Pick a colour, any colour',
+      '',
+    ].join('\n');
+    const config = fixture(
+      { 'copy/catalog/app.yaml': catalog, 'copy/locales/de.yaml': 'app.a: "Farbe  nicht geladen."\n' },
+      { require: [], lint: { extends: 'strict' } },
+    );
+    const findings = lint(loadCatalog(config).messages, config);
+    const shown = findings.map(
+      (f) => `${f.locale} ${f.key} [${f.rule}] ${JSON.stringify(f.at)} ${JSON.stringify(f.fix?.map((e) => e.text))}`,
+    );
+    expect(shown).toEqual([
+      'en app.a [spelling] {"start":0,"end":6} ["Color"]',
+      'en app.a [contractions] {"start":7,"end":16} ["couldn\'t"]',
+      'en app.a [ellipsis] {"start":21,"end":24} ["…"]',
+      'de app.a [whitespace] {"start":5,"end":7} [" "]',
+      // The literal reads "It's", but the text writes "It''s": nowhere to put the fix.
+      'en app.b [ellipsis] undefined undefined',
+      'en app.c [spelling] {"start":7,"end":13} ["color","color"]',
+    ]);
+
+    expect(applyFixes(config, loadCatalog(config), findings)).toEqual({ fixed: 5, problems: [] });
+    expect(readFileSync(join(config.catalog, 'app.yaml'), 'utf8')).toBe(
+      ["app.a: Color couldn't load…", "app.b: It''s gone...", 'app.c:\n  context: Kept as it was.\n  en: Pick a color, any color', ''].join(
+        '\n',
+      ),
+    );
+    expect(readFileSync(join(config.locales, 'de.yaml'), 'utf8')).toBe('app.a: "Farbe nicht geladen."\n');
+  });
+
+  test('fixes land in MessageFormat 2 arms, which are read out of order', () => {
+    const match = '.input {$n :number}\n.match $n\none {{{$n} colour}}\n* {{{$n} colours}}';
+    const config = fixture(
+      { 'copy/catalog/app.yaml': `app.a:\n  args:\n    "n": Colours picked.\n  en: |-\n${match.replace(/^/gm, '    ')}\n` },
+      {
+        messageFormat: 2,
+        require: [],
+        lint: { extends: 'strict' },
+      },
+    );
+    const findings = lint(loadCatalog(config).messages, config);
+    expect(applyFixes(config, loadCatalog(config), findings).fixed).toBe(2);
+    expect(loadCatalog(config).messages[0]!.text).toBe(match.replace('colour}', 'color}').replace('colours}', 'colors}'));
   });
 });
 
