@@ -2,15 +2,16 @@
  * What kind of value an expression in JSX holds, so `extract` can write `{n, number}` for a number and
  * `{d, date, medium}` for a date instead of a bare `{x}`, which is text and prints a number unformatted.
  *
- * The project's own TypeScript (7 or later, through its `unstable/sync` API) answers where it can; the
+ * The project's own TypeScript (7 or later, through its `unstable/async` API) answers where it can; the
  * syntax of the expression answers where it can't: a JavaScript project, a file outside any tsconfig,
- * or no TypeScript installed.
+ * or no TypeScript installed. Not the `unstable/sync` API: on Linux and macOS it reads the compiler's
+ * pipes through a Node internal (`stdout._handle.fd`) that Bun doesn't have, so under Bun it throws.
  */
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import type * as TsSync from 'typescript/unstable/sync';
-import type { Checker, Type } from 'typescript/unstable/sync';
+import type * as TsAsync from 'typescript/unstable/async';
+import type { Checker, Type } from 'typescript/unstable/async';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- a loose ESTree node: the walk reads whichever fields each node type has
 type Node = { type: string; start: number; end: number; [field: string]: any };
@@ -29,8 +30,8 @@ export interface TypeOracle {
   /** Where the answers come from, for the report. */
   readonly source: string;
   /** The kind of each span's expression in `file`, or nothing where the oracle can't say. */
-  kinds(file: string, spans: readonly Span[]): (ValueKind | undefined)[];
-  close(): void;
+  kinds(file: string, spans: readonly Span[]): Promise<(ValueKind | undefined)[]>;
+  close(): Promise<void>;
 }
 
 /** The nearest `tsconfig.json` at or above the file's folder. */
@@ -56,42 +57,43 @@ const OBJECT = 1048576;
 export async function typescriptOracle(root: string, files: readonly string[]): Promise<TypeOracle | undefined> {
   const configs = [...new Set(files.map(tsconfigFor).filter((c) => c !== undefined))];
   if (configs.length === 0) return undefined;
-  let ts: typeof TsSync;
+  let ts: typeof TsAsync;
   try {
-    ts = await import('typescript/unstable/sync');
+    ts = await import('typescript/unstable/async');
   } catch {
     return undefined;
   }
   let api: InstanceType<typeof ts.API>;
-  let snapshot: ReturnType<InstanceType<typeof ts.API>['updateSnapshot']>;
+  let snapshot: Awaited<ReturnType<InstanceType<typeof ts.API>['updateSnapshot']>>;
   try {
     api = new ts.API({ cwd: root });
-    snapshot = api.updateSnapshot({ openProjects: configs });
+    snapshot = await api.updateSnapshot({ openProjects: configs });
   } catch {
     return undefined;
   }
 
-  const classify = (checker: Checker, type: Type | undefined): ValueKind | undefined => {
+  const classify = async (checker: Checker, type: Type | undefined): Promise<ValueKind | undefined> => {
     if (type === undefined) return undefined;
-    const t = checker.getNonNullableType(type) ?? type;
+    const t = (await checker.getNonNullableType(type)) ?? type;
     if ((t.flags & ANY_OR_UNKNOWN) !== 0) return 'unknown';
     if ((t.flags & UNION) !== 0) {
-      const kinds = new Set((t as Type & { getTypes(): readonly Type[] }).getTypes().map((m) => classify(checker, m)));
+      const members = (await (t as Type & { getTypes(): Promise<readonly Type[] | undefined> }).getTypes()) ?? [];
+      const kinds = new Set(await Promise.all(members.map((m) => classify(checker, m))));
       if (kinds.size === 1) return [...kinds][0];
       return kinds.has('node') ? 'node' : 'unknown';
     }
     if ((t.flags & NUMBER_LIKE) !== 0) return 'number';
     if ((t.flags & STRING_LIKE) !== 0) return 'string';
-    if (checker.typeToString(t) === 'Date') return 'date';
+    if ((await checker.typeToString(t)) === 'Date') return 'date';
     if ((t.flags & OBJECT) !== 0) return 'node';
     return 'unknown';
   };
 
   return {
     source: 'TypeScript',
-    kinds(file, spans) {
-      const project = snapshot.getDefaultProjectForFile(resolve(file));
-      const sourceFile = project?.program.getSourceFile(resolve(file));
+    async kinds(file, spans) {
+      const project = await snapshot.getDefaultProjectForFile(resolve(file));
+      const sourceFile = await project?.program.getSourceFile(resolve(file));
       if (project === undefined || sourceFile === undefined) return spans.map(() => undefined);
       // The smallest node covering each span is the expression itself.
       const nodes = spans.map(({ start, end }) => {
@@ -105,11 +107,11 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
           node = next;
         }
       });
-      const types = project.checker.getTypeAtLocation(nodes as never[]);
-      return types.map((type) => classify(project.checker, type));
+      const types = await project.checker.getTypeAtLocation(nodes as never[]);
+      return Promise.all(types.map((type) => classify(project.checker, type)));
     },
     close() {
-      api.close();
+      return api.close();
     },
   };
 }

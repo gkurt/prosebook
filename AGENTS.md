@@ -57,8 +57,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/lint.ts`: writing rules. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
   test renders a component before and after and compares the HTML; keep that passing.
-- `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/sync`
-  API (an optional peer) or, without it, from the expression's syntax.
+- `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/async`
+  API (an optional peer) or, without it, from the expression's syntax. Not `unstable/sync`: under Bun on
+  Linux and macOS it throws, and CI runs there.
 - `src/vite.ts`: regenerate on change, prune in builds. In dev it makes the generated modules accept
   their own updates (the index reloads only when the locales change), sets the dev hooks before the app
   runs, serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`, then

@@ -668,19 +668,21 @@ export async function planExtract(
   const entries: NewEntry[] = [];
   const oracle = options.types === false ? undefined : await typescriptOracle(config.root, paths);
   try {
-    const files = paths.map((path) => {
+    // One file at a time: each plan sees the entries the ones before it added.
+    const files: FilePlan[] = [];
+    for (const path of paths) {
       const kinds = new Map<string, ValueKind>();
       if (oracle) {
         const spans = jsxExpressions(path, readFileSync(path, 'utf8'));
-        oracle.kinds(path, spans).forEach((kind, i) => {
+        (await oracle.kinds(path, spans)).forEach((kind, i) => {
           if (kind !== undefined && kind !== 'unknown') kinds.set(`${spans[i]!.start}:${spans[i]!.end}`, kind);
         });
       }
-      return planFile(path, { config, area: options.area ?? areaOf(path), known, entries, kinds });
-    });
+      files.push(planFile(path, { config, area: options.area ?? areaOf(path), known, entries, kinds }));
+    }
     return { files, entries, types: oracle?.source ?? 'syntax' };
   } finally {
-    oracle?.close();
+    await oracle?.close();
   }
 }
 
