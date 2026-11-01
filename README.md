@@ -312,13 +312,13 @@ can carry. Words are matched whole and in any case; a pattern is a regular expre
 `ignoreCase` to add `i`). Words and patterns are looked for in every plural and select arm; counts
 and case read the `other` arms. A message names what was found with `{match}`.
 
-| `type`           | Fields                                     | Fails when                                                       |
-| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
-| `existence`      | `words`, `patterns`, `message`             | the string says one of them                                      |
-| `substitution`   | `swap: { word: use }`, `message` (`{use}`) | the string says a word the product writes another way            |
-| `occurrence`     | `count: words                              | sentences                                                        | characters`, `max`, `min` | the count is out of bounds (`{count}`); placeholders count as words, not characters |
-| `capitalization` | `case: sentence                            | title                                                            | lower                     | upper`, `exceptions`                                                                | a word is out of case; `lint.properNouns` keep theirs too |
-| `conditional`    | `when`, `require`, `message`               | the string matches `when` (or `when` is unset) but not `require` |
+| `type`           | Fields                                                       | Fails when                                                                          |
+| ---------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `existence`      | `words`, `patterns`, `message`                               | the string says one of them                                                         |
+| `substitution`   | `swap: { word: use }`, `message` (`{use}`)                   | the string says a word the product writes another way                               |
+| `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`   | the count is out of bounds (`{count}`); placeholders count as words, not characters |
+| `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions` | a word is out of case; `lint.properNouns` keep theirs too                           |
+| `conditional`    | `when`, `require`, `message`                                 | the string matches `when` (or `when` is unset) but not `require`                    |
 
 ```json
 {
