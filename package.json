@@ -95,7 +95,7 @@
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
     "example": "vite examples/react-app",
     "example:build": "vite build examples/react-app",
-    "site": "vite build examples/react-app --base ./ --outDir ../../_site/demo --emptyOutDir && cp -R site/* _site/",
+    "site": "rm -rf _site && mkdir -p _site && cp -R site/* _site/",
     "prepare": "husky"
   },
   "dependencies": {

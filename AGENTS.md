@@ -14,7 +14,7 @@ bun run checks     # check + typecheck + test
 bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/react-app`
 bun run example    # the example app in Vite
-bun run site       # the homepage (site/) and the built example under demo/, in _site/, as Pages deploys them
+bun run site       # the homepage (site/) in _site/, as Pages deploys it
 ```
 
 Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when a bare alias exists
@@ -89,9 +89,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
 
-`site/index.html` is the homepage, deployed with the example by `.github/workflows/pages.yml` on every push
-to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so keep
-it in step when the inspector or that catalog changes, and add new features to its list.
+`site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
+push to main. Its in-context demo recreates the inspector over a copy of the example's cart catalog, so
+keep it in step when the inspector or that catalog changes, and add new features to its list. The copy
+differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
 
 `examples/react-app/` uses prosebook from source through Vite aliases. `test/fixture.ts` builds
 projects on disk under `test/.tmp/` and evaluates compiled messages.

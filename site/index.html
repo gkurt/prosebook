@@ -438,6 +438,29 @@
         gap: 10px;
         flex-wrap: wrap;
       }
+      .lint-note {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 8px 12px;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+        color: var(--ink);
+      }
+      .lint-note::before {
+        content: '';
+        flex: none;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--tok-kw);
+      }
+      .lint-note.clean {
+        color: var(--ok);
+      }
+      .lint-note.clean::before {
+        background: var(--ok);
+      }
       .toggle {
         font: 500 13px/1 var(--sans);
         padding: 7px 12px;
@@ -772,7 +795,6 @@
         <a class="mark" href="./">prose<span>book</span></a>
         <nav>
           <a href="#in-context">In context</a>
-          <a href="./demo/">Demo</a>
           <a href="https://github.com/gkurt/prosebook">GitHub</a>
         </nav>
       </div>
@@ -784,7 +806,7 @@
           YAML with the context a translator needs, and the code holds only keys.
         </p>
         <div class="actions">
-          <a class="btn primary" href="./demo/">Try the demo</a>
+          <a class="btn primary" href="#in-context">Try it on the page</a>
           <a class="btn" href="https://github.com/gkurt/prosebook">Read the docs on GitHub</a>
         </div>
       </header>
@@ -906,6 +928,7 @@
               <span>Hold <kbd class="alt-key">Alt</kbd> and click a string, or right-click to edit it here. Or</span>
               <button type="button" class="toggle" id="inspect" aria-pressed="false">Inspect</button>
             </div>
+            <div class="lint-note" id="lint-note" aria-live="polite"></div>
           </div>
 
           <div class="window">
@@ -1056,7 +1079,7 @@ cart.checkout:
   kind: action
   surface: action
   context: The button that starts paying for the cart.
-  en: Check out
+  en: Check out...
 
 cart.terms:
   kind: description
@@ -1077,7 +1100,7 @@ cart.items: '{count, plural, =0 {Dein Warenkorb ist leer.} one {# Artikel im War
 cart.total: 'Summe: {amount, number, ::currency/EUR}'
 cart.add: In den Warenkorb
 cart.remove: Warenkorb leeren
-cart.checkout: Zur Kasse
+cart.checkout: Zur Kasse...
 cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</link> zu.`;
 
       const files = {
@@ -1203,6 +1226,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
       const editor = document.getElementById('editor');
       const fileLabel = document.getElementById('file');
       const status = document.getElementById('status');
+      const lintNote = document.getElementById('lint-note');
       const toggle = document.getElementById('inspect');
       const state = { locale: 'en', count: 3, inspecting: false, alt: false, open: undefined };
 
@@ -1226,6 +1250,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         }
         for (const b of document.querySelectorAll('[data-locale]'))
           b.setAttribute('aria-pressed', String(b.dataset.locale === state.locale));
+        noteFindings();
       }
 
       const inspecting = () => state.inspecting || state.alt;
@@ -1416,6 +1441,26 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
               : 'ends with a stop, and the source does not: drop it',
           });
         return found;
+      }
+
+      // Points at a string lint has something to say about, so its findings are a right-click away. The
+      // catalog above writes one on purpose: "Check out..." with three periods.
+      function noteFindings() {
+        const keys = [...new Set([...app.querySelectorAll('[data-key]')].map((el) => el.dataset.key))];
+        const flagged = keys
+          .flatMap((key) => {
+            const en = message('en', key) ?? '';
+            const de = message('de', key);
+            return [
+              ...(findingsOf(en).length > 0 ? [{ key, text: en }] : []),
+              ...(de !== undefined && findingsOf(de, en).length > 0 ? [{ key, text: de }] : []),
+            ];
+          })
+          .at(0);
+        lintNote.className = flagged ? 'lint-note' : 'lint-note clean';
+        lintNote.textContent = flagged
+          ? `Lint has a finding on “${flagged.text}” (${flagged.key}). Right-click that string with Alt held, or while inspecting, to see it and fix it.`
+          : 'Lint has nothing to say about these strings now.';
       }
 
       function openDialog(key, catalog, x, y) {

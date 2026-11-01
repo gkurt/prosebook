@@ -1,6 +1,6 @@
 name: Pages
 
-# The homepage (site/) at the root and the example app, built, under /demo/.
+# The homepage (site/), with its in-context demo.
 on:
   push:
     branches: [main]
@@ -21,7 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-      - run: bun i
       - run: bun run site
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
