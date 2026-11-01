@@ -68,6 +68,16 @@ export interface Hardcoded {
 
 type Node = { type: string; start: number; end: number; [field: string]: unknown };
 
+/**
+ * Text that reads as code rather than prose: one token holding a path, a call, an identifier with an
+ * underscore or a dotted name, as in `form.json()` or `src/index.ts`. Trailing punctuation doesn't
+ * count, so `Done.` is still prose.
+ */
+export function looksLikeCode(text: string): boolean {
+  const token = text.trim().replace(/[.!?:,…]+$/, '');
+  return token !== '' && !/\s/.test(token) && /[/()_=<>{}[\].]|::/.test(token);
+}
+
 const NON_PROSE_ELEMENTS = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path']);
 const LETTER = /\p{L}/u;
 
@@ -96,7 +106,7 @@ export function hardcodedText(file: string, code: string, attributes: string[]):
     (lines[line - 1] ?? '').includes('copydeck-ignore') || (lines[line - 2] ?? '').includes('copydeck-ignore');
   const report = (node: Node, text: string, where: string) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
-    if (!LETTER.test(trimmed)) return;
+    if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
     found.push({ file, ...at, text: trimmed, where });

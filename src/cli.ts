@@ -4,16 +4,17 @@
  * ones CI needs in one go.
  */
 import { existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { stringify } from 'yaml';
 
 import { CatalogError, type Catalog } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
+import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint } from './tools/lint.ts';
-import { isReferenced, scan } from './tools/scan.ts';
+import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
 
 const HELP = `copydeck: every string your app shows, in one typed catalog
 
@@ -27,6 +28,8 @@ Commands:
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
   scan                    Find hardcoded text in JSX and catalog keys no code reads  (--strict)
+  extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
+                          (dry run unless --write; --area <name> puts every entry in one area)
   check                   generate --check, lint and status --strict together, for CI
 
 Options:
@@ -48,6 +51,8 @@ async function main(argv: string[]): Promise<number> {
       strict: { type: 'boolean' },
       verbose: { type: 'boolean' },
       all: { type: 'boolean' },
+      write: { type: 'boolean' },
+      area: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -75,6 +80,8 @@ async function main(argv: string[]): Promise<number> {
         return runTodo(config, rest[0]);
       case 'scan':
         return runScan(config, values.strict === true);
+      case 'extract':
+        return runExtract(config, rest, values.write === true, values.area);
       case 'check': {
         const results = [runGenerate(config, true), runLint(config), runStatus(config, true, false)];
         return results.some((r) => r !== 0) ? 1 : 0;
@@ -247,9 +254,40 @@ function runScan(config: ResolvedConfig, strict: boolean): number {
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   out(
     `copydeck: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s)` +
-      (result.hardcoded.length > 0 ? '. Move the text into the catalog, or mark a line `copydeck-ignore`.' : ''),
+      (result.hardcoded.length > 0
+        ? '. `copydeck extract` moves the text into the catalog; mark a deliberate line `copydeck-ignore`.'
+        : ''),
   );
   return strict && result.hardcoded.length + unused.length > 0 ? 1 : 0;
+}
+
+function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): number {
+  const targets = paths.length > 0 ? paths.map((p) => resolve(config.root, p)) : config.scan.dirs;
+  const files = sourceFiles(targets, ['.tsx', '.jsx'], [config.out]).concat(targets.filter((t) => /\.[jt]sx$/.test(t) && existsSync(t)));
+  const plan = planExtract(config, [...new Set(files)], { area });
+  const extractions = plan.files.flatMap((f) => f.extractions);
+  for (const x of extractions) {
+    out(`${x.file}:${x.line}:${x.column}  ${x.where === 'text' ? '' : `${x.where}=`}"${x.message}"`);
+    out(`  → ${x.key}${x.reused ? ' (already in the catalog)' : ''}: ${x.replacement.trim()}`);
+  }
+  for (const f of plan.files) for (const w of f.warnings) err(`warn  ${w}`);
+  if (extractions.length === 0) {
+    out('copydeck: no hardcoded text to extract');
+    return 0;
+  }
+  const changedFiles = plan.files.filter((f) => f.edits.length > 0).length;
+  const areas = [...new Set(plan.entries.map((e) => e.area))].map((a) => `${a}.yaml`);
+  const summary = `${extractions.length} string(s) in ${changedFiles} file(s), ${plan.entries.length} new entr${plan.entries.length === 1 ? 'y' : 'ies'}${areas.length > 0 ? ` in ${areas.join(', ')}` : ''}`;
+  if (!write) {
+    out(`
+copydeck: would extract ${summary}. Run again with --write to apply.`);
+    return 0;
+  }
+  applyExtract(config, plan);
+  out(`
+copydeck: extracted ${summary}.`);
+  out('The new entries are marked `TODO(copydeck extract)`: check each key, kind, context and argument, then run `copydeck lint`.');
+  return runGenerate(config, false);
 }
 
 const SAMPLE_CONFIG = `import { defineConfig } from 'copydeck/config';

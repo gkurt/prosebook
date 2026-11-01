@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { hardcodedText, isReferenced, keyRefs } from 'copydeck/tools';
+import { hardcodedText, isReferenced, keyRefs, looksLikeCode } from 'copydeck/tools';
 
 describe('hardcoded text', () => {
   const ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
@@ -28,6 +28,11 @@ export function A({ n }) {
       '12:8 text Literal child',
     ]);
   });
+});
+
+test('code-like tokens are not prose', () => {
+  expect(['form.json()', 'src/index.ts', 'snake_case', 'a::b', 'x=1'].filter((t) => !looksLikeCode(t))).toEqual([]);
+  expect(['Done.', 'Hello world', 'e-mail', 'Save!', 'fieldspec'].filter(looksLikeCode)).toEqual([]);
 });
 
 describe('key references', () => {

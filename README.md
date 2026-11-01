@@ -194,6 +194,7 @@ brackets are a sentence spliced from fragments.
 ```bash
 copydeck lint     # the words against the writing rules
 copydeck scan     # hardcoded text in JSX, and catalog keys no code reads
+copydeck extract  # move that text into the catalog (see below)
 copydeck check    # generate --check, lint and status --strict, for CI
 ```
 
@@ -217,6 +218,61 @@ A reason that is a shrug (`Intentional.`) fails, and so does an exemption the en
 **Scan** reports JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...)
 written as literals, and catalog keys no code names. Mark a deliberate literal with
 `copydeck-ignore` on its line or the line above.
+
+## Extracting hardcoded text
+
+`copydeck extract` moves what `scan` finds into the catalog and rewrites the code to read it. It
+prints the plan by default and changes nothing until you pass `--write`:
+
+```bash
+copydeck extract                     # every .tsx/.jsx under scan.dirs
+copydeck extract src/Cart.tsx --write
+copydeck extract src/settings --area settings --write
+```
+
+It extracts whole sentences, not fragments. The text, simple expressions and inline elements
+(`a`, `b`, `strong`, `em`, `span`, `*Link`, ...) that sit together in one element become one
+message, so a translator can reorder all of it:
+
+```tsx
+// before
+<p>
+  Hi {user.name}, read the <a href="/terms">terms of <b>sale</b></a>.
+</p>
+<input placeholder="Search items" />
+
+// after
+<p>
+  <Text id="profile.hi-read-the-terms" values={{ name: user.name, a: (chunks) => <a href="/terms">{chunks}</a>, b: (chunks) => <b>{chunks}</b> }} />
+</p>
+<input placeholder={t("profile.search-items-placeholder")} />
+```
+
+```yaml
+# TODO(copydeck extract): check the key, kind and context.
+profile.hi-read-the-terms:
+  context: In Profile, the text of a <p>.
+  args:
+    name: 'TODO: what `user.name` holds'
+  en: Hi {name}, read the <a>terms of <b>sale</b></a>.
+```
+
+- Text becomes `<Text>`, which needs no hook, so it works in class components and in callbacks too.
+  A readable attribute becomes `t('…')`. extract adds `const { t } = useCopy()` to the component,
+  joins an existing `useCopy()` call, or uses `copy.t` where the component already binds a `t` of its
+  own. It adds the imports too.
+- The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`), or its folder's for an
+  `index`; `--area` overrides it. The key adds the message's first words, and a suffix for an
+  attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area
+  reuses that key.
+- `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
+  heading, `placeholder` → placeholder). `context` names the component and the element.
+- Whitespace renders exactly as before. Code-like tokens (`form.json()`, `src/index.ts`), text in
+  `<code>` and `<pre>`, and lines marked `copydeck-ignore` stay where they are.
+
+Every new entry is marked `TODO(copydeck extract)`. The key is a suggestion: rename it to say what
+the string is for, then fill in the context a translator needs. A placeholder is a string: where the
+value is a number, the type checker flags the call, and the message wants `{n, number}` or a plural.
 
 ## Pruning
 
@@ -276,23 +332,21 @@ pruning, and the YAML 1.1/1.2 divergence check. What changed:
 | A rich message needs `rich: true` and a `RichText` wrapper  | Tags are detected; React output is keyed; default tags in the provider      |
 | Pruning fails the build on a key it can't read              | Pruning reads string literals and prefixes, so keys in data still work      |
 | Bun scripts inside one repo                                 | A CLI, a Vite plugin and `copydeck/tools` for other bundlers                |
-| —                                                           | Hardcoded-text scan, pseudo-locale, translator `todo` output                |
+| —                                                           | Hardcoded-text `scan` and `extract`, pseudo-locale, translator `todo`       |
 
 ## Further
 
 Ideas not built yet, roughly in order of value:
 
-1. **`copydeck extract`**: turn what `scan` finds into catalog entries and `t()` calls, with a key
-   suggested from the component and surface.
-2. **Show what changed** for a stale translation: keep the old source text in the lock, so `todo`
+1. **Show what changed** for a stale translation: keep the old source text in the lock, so `todo`
    prints a diff rather than only the new English.
-3. **Draft translations with an LLM**: `copydeck translate de --draft`, prompted with `context`,
+2. **Draft translations with an LLM**: `copydeck translate de --draft`, prompted with `context`,
    `kind`, `surface` and `args`, written to a draft file a person reviews before it ships.
-4. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
-5. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-6. **In-context editing in dev**: alt-click a string to open its YAML entry, using a key attribute
+3. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
+4. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
+5. **In-context editing in dev**: alt-click a string to open its YAML entry, using a key attribute
    `<Text>` adds in dev builds.
-7. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
-8. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
+6. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
+7. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
    Rust for its tray and menus.
-9. **MessageFormat 2** once `Intl.MessageFormat` lands.
+8. **MessageFormat 2** once `Intl.MessageFormat` lands.

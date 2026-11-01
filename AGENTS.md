@@ -41,6 +41,8 @@ Tools (`copydeck/tools`, `copydeck/config`, `copydeck/vite`, the CLI):
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations.
 - `src/tools/lint.ts`: writing rules. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
+- `src/tools/extract.ts`: `copydeck extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
+  test renders a component before and after and compares the HTML; keep that passing.
 - `src/vite.ts`: regenerate on change, prune in builds. `src/cli.ts`: the `copydeck` command.
 
 `examples/react-app/` uses copydeck from source through Vite aliases. `test/fixture.ts` builds
