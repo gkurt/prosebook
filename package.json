@@ -1,6 +1,6 @@
 {
   "name": "prosebook",
-  "version": "0.3.0",
+  "version": "0.0.1",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
     "i18n",
@@ -96,7 +96,8 @@
     "example": "vite examples/react-app",
     "example:build": "vite build examples/react-app",
     "site": "rm -rf _site && mkdir -p _site && cp -R site/* _site/",
-    "prepare": "husky"
+    "prepare": "husky",
+    "tegami": "bun scripts/tegami.mts"
   },
   "dependencies": {
     "@formatjs/icu-messageformat-parser": "^3.5.22",
@@ -117,6 +118,7 @@
     "oxlint-tsgolint": "^7.0.2005",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "tegami": "^1.5.0",
     "tsdown": "^0.23.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"

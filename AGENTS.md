@@ -15,12 +15,17 @@ bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/react-app`
 bun run example    # the example app in Vite
 bun run site       # the homepage (site/) in _site/, as Pages deploys it
+bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
 
 Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when a bare alias exists
 (`bun check`, `bun typecheck`) — those are whitelisted for agent use. Before finishing, run `bun run fix`
 then `bun run checks` — the linter (type-aware, through `oxlint-tsgolint`), formatter and `tsc` own all
 mechanical style rules. Fix the code; don't disable rules. A pre-commit hook runs both on staged files.
+
+Releases are Tegami's: a change that ships gets a `.tegami/<slug>.md` entry (the `changelog` skill), and
+`release.yml` turns pending entries into a version PR, then publishes. Never edit `version` in
+`package.json` or put a version in a commit title; only that workflow bumps it.
 
 After changing the compiler or the generator, regenerate the example
 (`bun run cli generate --root examples/react-app`) and commit its `src/copy/`, so it shows the current output.
