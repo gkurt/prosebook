@@ -34,17 +34,17 @@ export function CopyProvider({ copy, tags, children }: CopyProviderProps) {
   return <CopyContext value={value}>{children}</CopyContext>;
 }
 
-/** The catalog, in the current locale. Re-renders the component when the locale changes. */
+/** The catalog, in the current locale. Re-renders the component when the locale changes, or in dev the catalog. */
 export function useCopy(): ReactCopy {
   const context = use(CopyContext);
   if (context === null) throw new Error('prosebook: useCopy() needs a <CopyProvider> above it');
   const { copy, tags } = context;
-  const locale = useSyncExternalStore(
+  const version = useSyncExternalStore(
     copy.subscribe,
-    () => copy.locale,
-    () => copy.locale,
+    () => copy.version,
+    () => copy.version,
   );
-  return useMemo(() => readerFor(copy, tags, locale), [copy, tags, locale]);
+  return useMemo(() => readerFor(copy, tags, version), [copy, tags, version]);
 }
 
 /** The current locale alone, for components that only format or switch. */
@@ -58,10 +58,11 @@ export function useLocale(): L {
   );
 }
 
-// Takes the locale only so the reader is rebuilt, and its identity changes, when the locale does.
-function readerFor(copy: Copy<M, L>, tags: Tags, _locale: string): ReactCopy {
+// Takes the version only so the reader is rebuilt, and its identity changes, when what it reads does.
+function readerFor(copy: Copy<M, L>, tags: Tags, version: number): ReactCopy {
   return {
     locale: copy.locale,
+    version,
     locales: copy.locales,
     source: copy.source,
     tags: copy.tags,

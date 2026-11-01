@@ -60,6 +60,22 @@ export type Arms = { [arm: string]: () => unknown };
 // oxlint-disable-next-line typescript/no-explicit-any
 export type Values = { readonly [name: string]: any };
 
+/**
+ * Told of every message read: its key, the text it came to and the locale it was found in, which is
+ * the fallback's when the current locale lacks it. The Vite plugin's dev inspector sets one on
+ * `globalThis` to map text on screen back to keys; nothing sets it in a build.
+ */
+export type ReadHook = (key: string, text: string, locale: string) => void;
+
+/** Hands a copy a locale's messages, regenerated after a catalog edit, in place of the ones it loaded. */
+export type HotHook = (locale: string, messages: CompiledMessages) => void;
+
+/**
+ * What the Vite plugin sets on `globalThis` in dev. `__PROSEBOOK_HOT__` is there before the app runs,
+ * so each copy adds itself, and the generated modules call every copy when they are updated.
+ */
+export type DevHooks = { __PROSEBOOK_READ__?: ReadHook; __PROSEBOOK_HOT__?: Set<HotHook> };
+
 /** One compiled message. */
 export type Compiled = string | ((values: Values, h: Helpers) => unknown);
 

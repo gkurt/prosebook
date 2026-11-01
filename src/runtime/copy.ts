@@ -7,6 +7,7 @@ import type {
   Compiled,
   CompiledMessages,
   Helpers,
+  DevHooks,
   MessageShapes,
   RichKey,
   RichParam,
@@ -61,7 +62,9 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   has(this: void, key: string): key is keyof M & string;
   /** Switches locale once its messages (and its fallbacks') are loaded. */
   setLocale(this: void, next: L | (string & {}) | readonly string[]): Promise<void>;
-  /** Called after each locale switch. Returns the unsubscribe. */
+  /** Counts changes to what messages read as: each locale switch, and each catalog edit in dev. */
+  readonly version: number;
+  /** Called after each locale switch, and in dev after each catalog edit. Returns the unsubscribe. */
   subscribe(this: void, listener: () => void): () => void;
   /** Formats a number in the current locale. */
   number(this: void, value: number | bigint, options?: Intl.NumberFormatOptions): string;
@@ -74,6 +77,13 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
 }
 
 type Layer = { messages: CompiledMessages; h: Helpers };
+
+/** A message as the text it puts on screen: rendered again with its tags left as their text. */
+function textOf(message: Compiled, values: Values, h: Helpers): string {
+  if (typeof message === 'string') return message;
+  const plain = Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v !== 'function'));
+  return flatten(message(plain, h)).join('');
+}
 
 /** A catalog reader with a current locale. Create one per app, or one per request on a server. */
 export function createCopy<M extends MessageShapes, L extends string>(catalog: Catalog<M, L>, options: CopyOptions<L> = {}): Copy<M, L> {
@@ -89,6 +99,20 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   let locale = catalog.source;
   let chain: Layer[] = layers(chainOf(locale, catalog.locales, catalog.source));
   let latest = 0;
+  let version = 0;
+
+  function changed() {
+    version++;
+    for (const listener of listeners) listener();
+  }
+
+  // A layer's messages are swapped in place, so the chain that holds it reads the new ones.
+  (globalThis as DevHooks).__PROSEBOOK_HOT__?.add((l, messages) => {
+    const layer = loaded.get(l as L);
+    if (layer === undefined) return;
+    layer.messages = messages;
+    changed();
+  });
 
   function layers(locales: L[]): Layer[] {
     return locales.flatMap((l) => loaded.get(l) ?? []);
@@ -124,7 +148,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     locale = target;
     chain = layers(locales);
     formatters.clear();
-    for (const listener of listeners) listener();
+    changed();
   }
 
   function find(key: string): [Compiled, Helpers] | undefined {
@@ -139,7 +163,10 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     const found = find(key);
     if (found === undefined) return options.onMissing ? options.onMissing(key, locale) : key;
     const [message, h] = found;
-    return typeof message === 'string' ? message : message(values, h);
+    const out = typeof message === 'string' ? message : message(values, h);
+    const read = (globalThis as DevHooks).__PROSEBOOK_READ__;
+    if (read !== undefined) read(key, typeof out === 'string' ? out : textOf(message, values, h), h.locale);
+    return out;
   }
 
   function formatter<F>(kind: string, options: object | undefined, make: () => F): F {
@@ -154,6 +181,9 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   return {
     get locale() {
       return locale;
+    },
+    get version() {
+      return version;
     },
     locales: catalog.locales,
     source: catalog.source,

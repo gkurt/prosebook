@@ -5,12 +5,20 @@
  * stale modules and a broken entry shows in the error overlay. A build ships only the messages the
  * code names: each locale module is swapped for its messages less the keys no module references
  * (see `tools/scan.ts` for how a reference is found, and why it errs towards keeping).
+ *
+ * In dev an edit doesn't reload the page: each generated locale module accepts its own update and
+ * hands the new messages to every copy (`HotHook`), which re-renders in the locale and state it was in.
+ * The index accepts its own too, since its doc comments change with the source text, and reloads the
+ * page only when a locale was added or removed. The page also gets the inspector (`inspector.ts`), and
+ * the server opens the entry it asks for through Vite's own `/__open-in-editor`, so the editor is
+ * whichever Vite already launches.
  */
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
 
-import { CatalogError } from './tools/catalog.ts';
+import { CatalogError, entryLocation } from './tools/catalog.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { generate, type Generated } from './tools/generate.ts';
@@ -23,16 +31,41 @@ export interface ProsebookPluginOptions {
   prune?: boolean;
   /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
   keep?: string[];
+  /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
+  inspect?: boolean;
 }
 
 const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
+const DEV_ID = '\0prosebook/dev';
+
+const hotLocale = (locale: string) => `
+if (import.meta.hot) {
+  import.meta.hot.accept((next) => {
+    const hot = globalThis.__PROSEBOOK_HOT__;
+    if (next === undefined || hot === undefined) return import.meta.hot.invalidate();
+    for (const update of hot) update(${JSON.stringify(locale)}, next.default);
+  });
+}
+`;
+
+const HOT_INDEX = `
+if (import.meta.hot) {
+  import.meta.hot.accept((next) => {
+    if (next === undefined || next.catalog.locales.join() !== catalog.locales.join()) import.meta.hot.invalidate();
+  });
+}
+`;
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
+
+// Beside this module: the source when run from source, the built file in dist.
+const inspectorPath = normalize(fileURLToPath(new URL(`./inspector${import.meta.url.endsWith('.ts') ? '.ts' : '.js'}`, import.meta.url)));
 
 export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
   let generated: Generated | undefined;
   let building = false;
+  let base = '/';
   let refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
   const placeholders: string[] = [];
   const shipped = { total: 0, kept: 0 };
@@ -47,6 +80,12 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     return generated?.entries.has(name) === true ? name : undefined;
   };
 
+  const isIndex = (id: string) => {
+    const path = normalize(id.split('?', 1)[0]!);
+    const out = normalize(config.out);
+    return path === `${out}/index.ts` || path === `${out}/index.js`;
+  };
+
   const kept = (key: string) =>
     isReferenced(key, refs) || (options.keep ?? []).some((k) => (k.endsWith('.*') ? key.startsWith(k.slice(0, -1)) : k === key));
 
@@ -55,7 +94,18 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
 
     async configResolved(resolved) {
       building = resolved.command === 'build';
+      base = resolved.base;
       config = await loadConfig(resolved.root, options.config);
+    },
+
+    // First in <head>, so the hot hooks are there before any copy is created.
+    transformIndexHtml() {
+      if (building) return [];
+      return [{ tag: 'script', attrs: { type: 'module', src: `${base}@id/__x00__prosebook/dev` }, injectTo: 'head-prepend' }];
+    },
+
+    resolveId(id) {
+      return id === DEV_ID ? id : null;
     },
 
     buildStart() {
@@ -86,9 +136,33 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       server.watcher.on('change', onChange);
       server.watcher.on('add', onChange);
       server.watcher.on('unlink', onChange);
+      if (options.inspect === false) return;
+
+      // `?key=cart.items&locale=de`: the translation's entry, or the catalog's with `catalog` or when
+      // the locale has none. Handed on to Vite's `/__open-in-editor`, which comes later in the stack.
+      server.middlewares.use((req, res, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname !== `${base}__prosebook/open`) return next();
+        const key = url.searchParams.get('key') ?? '';
+        const message = generated?.catalog.messages.find((m) => m.key === key);
+        if (message === undefined) {
+          res.statusCode = 404;
+          res.end(`no entry for "${key}" in the catalog: has it been renamed since the page loaded?`);
+          return;
+        }
+        const locale = url.searchParams.has('catalog') ? undefined : (url.searchParams.get('locale') ?? undefined);
+        const { file, line, column } = entryLocation(config, message, locale);
+        req.url = `${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`;
+        next();
+      });
     },
 
     load(id) {
+      if (id === DEV_ID) {
+        const hot = 'globalThis.__PROSEBOOK_HOT__ ??= new Set();\n';
+        if (options.inspect === false) return hot;
+        return `import { install } from ${JSON.stringify(inspectorPath)};\n${hot}install(${JSON.stringify({ base })});\n`;
+      }
       if (!building || options.prune === false || generated === undefined) return null;
       const locale = localeOf(id);
       if (locale === undefined) return null;
@@ -97,7 +171,12 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     },
 
     transform(code, id) {
-      if (!building || options.prune === false || id.includes('/node_modules/') || id.startsWith('\0')) return null;
+      if (!building) {
+        const locale = localeOf(id);
+        if (locale !== undefined) return { code: code + hotLocale(locale), map: null };
+        return isIndex(id) ? { code: code + HOT_INDEX, map: null } : null;
+      }
+      if (options.prune === false || id.includes('/node_modules/') || id.startsWith('\0')) return null;
       if (localeOf(id) !== undefined) return null;
       keyRefs(code, refs);
       return null;

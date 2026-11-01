@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import { parse as parseYaml } from 'yaml';
+import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml } from 'yaml';
 
 import type { ResolvedConfig } from './config.ts';
 import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, type MessageFormatElement } from './icu.ts';
@@ -343,6 +343,30 @@ function stringMap(entry: Record<string, unknown>, field: string, fail: (m: stri
     else out.set(name, said.trim());
   }
   return out;
+}
+
+export interface EntryLocation {
+  /** Absolute. */
+  file: string;
+  /** From 1. */
+  line: number;
+  /** From 1. */
+  column: number;
+}
+
+/**
+ * Where a message's entry is written: its translation in `locale` when there is one, else the catalog.
+ * Read from the file as it is now, so an entry moved since the catalog was loaded is still found.
+ */
+export function entryLocation(config: ResolvedConfig, message: Message, locale?: string): EntryLocation {
+  const file = join(config.root, (locale === undefined ? undefined : message.translations.get(locale)?.file) ?? message.file);
+  const lines = new LineCounter();
+  const doc = parseDocument(existsSync(file) ? readFileSync(file, 'utf8') : '', { lineCounter: lines });
+  const pair = isMap(doc.contents) ? doc.contents.items.find((p) => isScalar(p.key) && p.key.value === message.key) : undefined;
+  const start = isScalar(pair?.key) ? pair.key.range?.[0] : undefined;
+  if (start === undefined) return { file, line: 1, column: 1 };
+  const { line, col } = lines.linePos(start);
+  return { file, line, column: col };
 }
 
 /** The source message as a reader sees it with no placeholders filled: for docs and reports. */

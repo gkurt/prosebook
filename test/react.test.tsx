@@ -3,6 +3,7 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import type { DevHooks, HotHook } from 'prosebook';
 import { CopyProvider, Text, useCopy } from 'prosebook/react';
 
 import { copyOf } from './fixture.ts';
@@ -49,4 +50,27 @@ test('components re-render on a locale switch, and rich messages become keyed el
   console.error = original;
   // No missing-key warnings from React for the nested elements.
   expect(errors).toEqual([]);
+});
+
+test('in dev, a catalog edit re-renders what reads it, keeping the locale', async () => {
+  const hot = new Set<HotHook>();
+  (globalThis as DevHooks).__PROSEBOOK_HOT__ = hot;
+  const copy = copyOf({ en: { 'a.title': 'Cart' }, de: { 'a.title': 'Warenkorb' } });
+  delete (globalThis as DevHooks).__PROSEBOOK_HOT__;
+  await copy.setLocale('de');
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  await act(async () =>
+    root.render(
+      <CopyProvider copy={copy}>
+        <Text id={'a.title' as never} values={{} as never} />
+      </CopyProvider>,
+    ),
+  );
+  expect(host.innerHTML).toBe('Warenkorb');
+  await act(async () => {
+    for (const update of hot) update('de', { 'a.title': 'Dein Warenkorb' });
+  });
+  expect(host.innerHTML).toBe('Dein Warenkorb');
+  await act(async () => root.unmount());
 });

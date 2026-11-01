@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { chainOf, createCopy, defineCatalog, negotiate, type CompiledMessages } from 'prosebook';
+import { chainOf, createCopy, defineCatalog, negotiate, type CompiledMessages, type DevHooks, type HotHook } from 'prosebook';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { compiled, copyOf } from './fixture.ts';
@@ -52,6 +52,27 @@ describe('copy', () => {
     await switching;
     await copy.setLocale('de');
     expect([copy.locale, loads, seen]).toEqual(['de', 1, ['Hallo']]);
+  });
+
+  test('in dev, an edited locale swaps in place, and the copy notifies', async () => {
+    const hot = new Set<HotHook>();
+    (globalThis as DevHooks).__PROSEBOOK_HOT__ = hot;
+    try {
+      const copy = copyOf({ en: { 'a.b': 'Cart', 'a.c': 'Add' }, de: { 'a.b': 'Warenkorb' } });
+      await copy.setLocale('de');
+      const seen: string[] = [];
+      copy.subscribe(() => seen.push(copy.t('a.b' as never)));
+      const before = copy.version;
+      for (const update of hot) {
+        update('de', { 'a.b': 'Dein Warenkorb' });
+        update('en', { 'a.b': 'Cart', 'a.c': 'Add one' });
+        update('tr', { 'a.b': 'Sepet' });
+      }
+      expect(seen).toEqual(['Dein Warenkorb', 'Dein Warenkorb']);
+      expect([copy.locale, copy.version - before, copy.t('a.c' as never)]).toEqual(['de', 2, 'Add one']);
+    } finally {
+      delete (globalThis as DevHooks).__PROSEBOOK_HOT__;
+    }
   });
 
   test('a slow load does not undo a later switch', async () => {

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { build } from 'vite';
+import { build, createServer } from 'vite';
 
 import { prosebook } from '#src/vite.ts';
 import { fixture } from './fixture.ts';
@@ -43,4 +43,35 @@ test('a build ships only the messages the code names', async () => {
   expect(js).toContain('Status down');
   expect(js).not.toContain('Unused message');
   expect(js).not.toContain('Unbenutzte Nachricht');
+});
+
+test('in dev, the page gets the hot hooks and the inspector, and the generated modules accept their updates', async () => {
+  const config = fixture({ 'copy/catalog/app.yaml': 'app.used: Used message\n', 'index.html': '<html><head></head><body></body></html>' });
+  const server = await createServer({
+    root: config.root,
+    logLevel: 'silent',
+    configFile: false,
+    server: { port: 0 },
+    plugins: [prosebook({ config: { require: [] } })],
+  });
+  try {
+    await server.listen();
+    const html = await server.transformIndexHtml('/index.html', '<html><head></head><body></body></html>');
+    expect(html).toContain('<script type="module" src="/@id/__x00__prosebook/dev"></script>');
+    const origin = server.resolvedUrls!.local[0]!;
+    const inspector = await fetch(`${origin}@id/__x00__prosebook/dev`);
+    expect(inspector.status).toBe(200);
+    const entry = await inspector.text();
+    expect(entry).toContain('globalThis.__PROSEBOOK_HOT__ ??= new Set()');
+    expect(entry).toContain('install({"base":"/"})');
+    expect(await (await fetch(`${origin}src/copy/en.ts`)).text()).toContain('update("en", next.default)');
+    expect(await (await fetch(`${origin}src/copy/index.ts`)).text()).toContain('next.catalog.locales.join() !== catalog.locales.join()');
+    const client = await fetch(new URL(/from "([^"]+)"/.exec(entry)![1]!, origin));
+    expect(await client.text()).toContain('export function keyAt');
+    const missing = await fetch(`${origin}__prosebook/open?key=app.gone&locale=en`);
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).toContain('no entry for "app.gone"');
+  } finally {
+    await server.close();
+  }
 });

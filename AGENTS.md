@@ -31,7 +31,10 @@ must stay small and dependency-free, and the tools, which run at build time in N
 
 Runtime (`prosebook`, `prosebook/react`):
 
-- `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation.
+- `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation;
+  `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
+  for the inspector, and the `HotHook` set every copy adds itself to, so an edited locale's messages
+  are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`.
@@ -55,7 +58,14 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   test renders a component before and after and compares the HTML; keep that passing.
 - `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/sync`
   API (an optional peer) or, without it, from the expression's syntax.
-- `src/vite.ts`: regenerate on change, prune in builds. `src/cli.ts`: the `prosebook` command.
+- `src/vite.ts`: regenerate on change, prune in builds. In dev it makes the generated modules accept
+  their own updates (the index reloads only when the locales change), sets the dev hooks before the app
+  runs, serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`, then
+  Vite's `/__open-in-editor`). `src/cli.ts`: the
+  `prosebook` command.
+- `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
+  own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
+  keys. Its test drives `keyAt` over a DOM.
 
 `examples/react-app/` uses prosebook from source through Vite aliases. `test/fixture.ts` builds
 projects on disk under `test/.tmp/` and evaluates compiled messages.

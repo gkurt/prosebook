@@ -4,10 +4,12 @@
  */
 export {
   CatalogError,
+  entryLocation,
   KEY_PATTERN,
   loadCatalog,
   previewOf,
   type Catalog,
+  type EntryLocation,
   type Message,
   type Problem,
   type Translation,

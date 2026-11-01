@@ -53,7 +53,8 @@ bunx prosebook generate
 ```
 
 This writes `src/copy/`: one module per locale and an `index.ts` with the types. With Vite, add the
-plugin instead and generation happens on start and on every catalog edit:
+plugin instead and generation happens on start and on every catalog edit, and the page shows the new
+text without reloading, in the locale and state it was in:
 
 ```ts
 // vite.config.ts
@@ -99,7 +100,7 @@ import { catalog } from './copy/index.js';
 const copy = createCopy(catalog, { locale: navigator.languages });
 await copy.ready;
 document.title = copy.t('app.title');
-copy.subscribe(() => render());
+copy.subscribe(() => render()); // after a locale switch, and in dev after a catalog edit
 ```
 
 Set `language: 'js'` in the config to generate `.js` modules with a `.d.ts` beside the index. On a
@@ -359,6 +360,23 @@ references. A reference is any string literal equal to a key, so keys kept in ar
 ``t(`status.${state}`)`` and `t('status.' + state)` keep every key under `status.`. For keys built
 some other way, list them: `prosebook({ keep: ['plan.*'] })`.
 
+## Finding a string's entry
+
+In dev, hold Alt (Option on a Mac) and point at text on the page: the Vite plugin outlines the
+string and names its key and the locale it came from. Alt-click opens its entry in your editor: the
+translation for a translated string, the catalog entry for one that fell back. Alt-Shift-click opens
+the catalog entry either way. Save, and the string changes on the page, which keeps its locale and
+state. Only adding or removing a locale reloads it.
+
+Nothing is added to the page to make this work. In dev the runtime reports each string it hands out,
+and the inspector matches the text under the pointer back to it, so `t()`, `<Text>`, a sentence with
+a link inside it and readable attributes (`placeholder`, `title`, `aria-label`, `alt`) all work. Text
+the code changes after reading it (`t('…').toUpperCase()`) can't be traced. Where two keys read the
+same text, the label says so and the click opens the one read last.
+
+The editor is the one Vite's `/__open-in-editor` launches: one it finds running, or the command in
+`LAUNCH_EDITOR`. Turn the inspector off with `prosebook({ inspect: false })`.
+
 ## Config
 
 ```ts
@@ -412,6 +430,7 @@ pruning, and the YAML 1.1/1.2 divergence check. What changed:
 | Pruning fails the build on a key it can't read              | Pruning reads string literals and prefixes, so keys in data still work      |
 | Bun scripts inside one repo                                 | A CLI, a Vite plugin and `prosebook/tools` for other bundlers               |
 | —                                                           | Hardcoded-text `scan` and `extract`, pseudo-locale, translator `todo`       |
+| —                                                           | Alt-click a string in dev to open its entry                                 |
 
 ## Further
 
@@ -421,10 +440,8 @@ Ideas not built yet, roughly in order of value:
    `kind`, `surface` and `args`, written to a draft file a person reviews before it ships.
 2. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
 3. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-4. **In-context editing in dev**: alt-click a string to open its YAML entry, using a key attribute
-   `<Text>` adds in dev builds.
-5. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
-6. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
+4. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
+5. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
    Rust for its tray and menus.
-7. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
+6. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
    value.
