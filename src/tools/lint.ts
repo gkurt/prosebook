@@ -274,10 +274,14 @@ const NOT_PLURAL = new Set([
   'series',
 ]);
 
-/** The singular of an English plural noun, or nothing where it doesn't look like one. */
+/**
+ * The singular of an English plural noun, or nothing where it doesn't look like one. A word with no
+ * vowel is a unit or an abbreviation (`kbps`, `fps`, `hrs`), which reads the same after 1.
+ */
 export function singularOf(word: string): string | undefined {
   const lower = word.toLowerCase();
   if (word.length < 3 || !lower.endsWith('s') || lower.endsWith('ss') || NOT_PLURAL.has(lower)) return undefined;
+  if (!/[aeiouy]/.test(lower)) return undefined;
   if (/[^aeiou]ies$/.test(lower)) return `${word.slice(0, -3)}y`;
   if (/(?:s|x|z|ch|sh)es$/.test(lower)) return word.slice(0, -2);
   return word.slice(0, -1);
@@ -324,12 +328,14 @@ function eachRun(
 const COUNT_NAME = /^(?:n|num|count|total|amount|quantity)$|(?:count|total)$/i;
 
 /**
- * Whether an arm ends with a stop; nothing for an arm with no words. Which stop is the arm's own: a
- * question in `one` and a second sentence after it in `other` both end well.
+ * Whether an arm ends with a stop; nothing for an arm with no words, or one that trails off in an
+ * ellipsis (`Saving…`, `Save as…`), which is neither. Which stop is the arm's own: a question in
+ * `one` and a second sentence after it in `other` both end well.
  */
 function endsWithStop(arm: MessageFormatElement[]): boolean | undefined {
   const text = prose(renderAs(arm, 'other')).trim();
-  return text.replaceAll(HOLE, '').trim() === '' ? undefined : hasStop(text);
+  if (text.replaceAll(HOLE, '').trim() === '' || /(?:…|\.{3})["')”»」』]*$/u.test(text)) return undefined;
+  return hasStop(text);
 }
 
 /** Ends with a stop in any script (`。`, `؟`, `;` as Greek writes `?`), though not a comma. */
