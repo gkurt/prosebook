@@ -560,26 +560,6 @@ Turkish and the pseudo-locale.
 bun run example
 ```
 
-## Where it came from
-
-prosebook generalizes `@drasyn/text`, the catalog behind Drasyn's UI. It keeps that design: YAML
-entries with `kind`, `surface` and `context`, ICU checked at build time, generated types, tags for
-elements inside a sentence, a lint for the writing guide with reasoned exemptions, build-time
-pruning, and the YAML 1.1/1.2 divergence check. What changed:
-
-| Drasyn's text package                                       | prosebook                                                                   |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Parses ICU at runtime with `intl-messageformat`             | Compiles messages to functions; no parser ships                             |
-| One global language; components don't re-render on a switch | `createCopy` instances; `useCopy()` re-renders; one per request on a server |
-| Falls back to English only                                  | Negotiates the locale and falls back key by key through parents             |
-| No way to know a translation is out of date                 | The lock marks stale translations; `status`, `todo`, `accept`               |
-| Kinds, surfaces and word lists are Drasyn's                 | All configurable; `recommended` and `strict` presets                        |
-| A rich message needs `rich: true` and a `RichText` wrapper  | Tags are detected; React output is keyed; default tags in the provider      |
-| Pruning fails the build on a key it can't read              | Pruning reads string literals and prefixes, so keys in data still work      |
-| Bun scripts inside one repo                                 | A CLI, a Vite plugin and `prosebook/tools` for other bundlers               |
-| —                                                           | Hardcoded-text `scan` and `extract`, pseudo-locale, translator `todo`       |
-| —                                                           | Alt-click a string in dev to open its entry                                 |
-
 ## Further
 
 Ideas not built yet, roughly in order of value:
@@ -589,7 +569,7 @@ Ideas not built yet, roughly in order of value:
 2. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
 3. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
 4. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
-5. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
-   Rust for its tray and menus.
+5. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
+   outside the browser, such as a tray or native menus.
 6. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
    value.
