@@ -6,10 +6,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { LintRule } from './lint.ts';
-import { DEFAULT_KINDS, DEFAULT_SURFACES, RECOMMENDED_RULES, STRICT_LISTS, STRICT_RULES, type KindRule, type Severity } from './presets.ts';
+import { CORE_RULES, type CoreRule, type Plugin, type Rule } from './lint.ts';
+import { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 
 export type { KindRule, Severity };
+export { definePlugin, HOLE, phrase, sentences, words, type Plugin, type Readings, type Rule, type RuleContext } from './lint.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */
@@ -25,7 +26,9 @@ export interface WordLists {
 export interface LintConfig extends WordLists {
   /** `recommended` (the default) checks shape; `strict` adds the word lists and rules of a house style guide. */
   extends?: 'recommended' | 'strict' | 'none';
-  rules?: Partial<Record<LintRule, Severity>>;
+  /** Rules of your own, as `<plugin>/<rule>`. Each takes the severity it gives itself under `extends`. */
+  plugins?: Plugin[];
+  rules?: Partial<Record<CoreRule, Severity>> & Record<string, Severity>;
 }
 
 export interface ProsebookConfig {
@@ -86,7 +89,7 @@ export interface ResolvedConfig {
   require: ('context' | 'kind' | 'surface')[];
   kinds: Record<string, KindRule>;
   surfaces: Record<string, string>;
-  lint: { rules: Record<LintRule, Severity> } & Required<WordLists>;
+  lint: { rules: Record<string, { rule: Rule; severity: Severity }> } & Required<WordLists>;
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
@@ -121,11 +124,6 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
-  const rules = { ...(base === 'none' ? {} : strict ? STRICT_RULES : RECOMMENDED_RULES), ...lint.rules };
-  const allRules = Object.fromEntries(Object.keys(STRICT_RULES).map((r) => [r, rules[r as LintRule] ?? 'off'])) as Record<
-    LintRule,
-    Severity
-  >;
   return {
     root,
     catalog: at(config.catalog ?? 'copy/catalog'),
@@ -143,7 +141,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     kinds: config.kinds ?? DEFAULT_KINDS,
     surfaces: config.surfaces ?? DEFAULT_SURFACES,
     lint: {
-      rules: allRules,
+      rules: lintRules(lint),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...lint.spelling },
       concepts: { ...lint.concepts },
@@ -155,4 +153,23 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
     },
   };
+}
+
+function lintRules(lint: LintConfig): ResolvedConfig['lint']['rules'] {
+  const base = lint.extends ?? 'recommended';
+  const all: [string, Rule][] = Object.entries(CORE_RULES);
+  const seen = new Set<string>();
+  for (const plugin of lint.plugins ?? []) {
+    if (!/^[a-z][a-z0-9-]*$/i.test(plugin.name))
+      throw new Error(`lint.plugins: "${plugin.name}" is not a plugin name: use letters, digits and dashes`);
+    if (seen.has(plugin.name)) throw new Error(`lint.plugins: "${plugin.name}" is added twice: remove one`);
+    seen.add(plugin.name);
+    for (const [name, rule] of Object.entries(plugin.rules)) all.push([`${plugin.name}/${name}`, rule]);
+  }
+  const preset = (rule: Rule): Severity =>
+    base === 'none' ? 'off' : base === 'strict' ? (rule.strict ?? 'error') : (rule.recommended ?? 'off');
+  const rules = Object.fromEntries(all.map(([name, rule]) => [name, { rule, severity: lint.rules?.[name] ?? preset(rule) }]));
+  for (const name of Object.keys(lint.rules ?? {}))
+    if (!(name in rules)) throw new Error(`lint.rules.${name} is not a rule: name one of ${Object.keys(rules).join(', ')}`);
+  return rules;
 }

@@ -43,7 +43,8 @@ Runtime (`prosebook`, `prosebook/react`):
 
 Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 
-- `src/tools/config.ts`: the config, its defaults and loading. `presets.ts`: kinds, surfaces, lint presets.
+- `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
+  `presets.ts`: kinds, surfaces, the strict preset's word lists.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with where and a fix.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
@@ -54,7 +55,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed.
-- `src/tools/lint.ts`: writing rules. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
+- `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, Rule>` written as a plugin's
+  are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds more as
+  `<plugin>/<rule>`. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
   test renders a component before and after and compares the HTML; keep that passing.
 - `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/async`

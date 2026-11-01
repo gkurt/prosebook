@@ -1,12 +1,10 @@
 /**
- * The defaults: four kinds of string, the surfaces they sit on, and the lint presets.
+ * The defaults: four kinds of string, the surfaces they sit on, and the word lists of the strict lint preset.
  *
  * The kinds are the four any UI writing guide comes down to. A name identifies, an action says what
  * pressing it does, a description adds what the name cannot carry, a state reports what is true.
  * Each carries a budget and a grammar, which is what makes a mechanical check of the words possible.
  */
-import type { LintRule } from './lint.ts';
-
 export type Severity = 'error' | 'warn' | 'off';
 
 export interface KindRule {
@@ -67,34 +65,6 @@ export const DEFAULT_SURFACES: Record<string, string> = {
   title: 'The title of a page, window or document.',
   toast: 'A notification that comes and goes.',
   tooltip: 'Appears on hover.',
-};
-
-export const RECOMMENDED_RULES: Partial<Record<LintRule, Severity>> = {
-  whitespace: 'error',
-  'word-budget': 'warn',
-  'sentence-budget': 'warn',
-  period: 'warn',
-  'no-period': 'warn',
-  'bare-name': 'warn',
-  'banned-word': 'warn',
-  spelling: 'warn',
-  'one-word': 'warn',
-};
-
-export const STRICT_RULES: Record<LintRule, Severity> = {
-  whitespace: 'error',
-  'word-budget': 'error',
-  'sentence-budget': 'error',
-  period: 'error',
-  'no-period': 'error',
-  'bare-name': 'error',
-  'sentence-case': 'error',
-  'banned-word': 'error',
-  spelling: 'error',
-  'one-word': 'error',
-  'no-em-dash': 'error',
-  contractions: 'error',
-  ellipsis: 'error',
 };
 
 /** The word lists of the strict preset: filler, marketing and reassurance, and American spelling. */

@@ -34,7 +34,7 @@ const { t } = useCopy();
   translation whose source has changed since is marked stale, automatically.
 - **Pruned.** A Vite build ships only the messages the code names.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
-  string, periods, sentence case, banned filler.
+  string, periods, sentence case, banned filler. Plugins add your own rules, scoped by kind and surface.
 
 ## Quick start
 
@@ -281,6 +281,33 @@ legal.privacy:
 
 A reason that is a shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs.
 
+**Lint plugins.** A plugin's rules are named `<plugin>/<rule>` in `lint.rules` and `allow`. A rule
+is given the entry and its readings: `primary` takes every `other` arm, `variants` holds one reading
+per plural or select arm, and `skeleton` only the words every arm carries. Placeholders and verbatim
+tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds or surfaces; `recommended` is
+its severity under that preset (off when unset), `strict` under strict (`error` when unset).
+
+```ts
+import { defineConfig, definePlugin, words } from 'prosebook/config';
+
+const house = definePlugin({
+  name: 'house',
+  rules: {
+    'error-says-what-to-do': {
+      description: 'An error says what failed and what to do next.',
+      on: { surface: ['error'] },
+      recommended: 'warn',
+      check: ({ text }) => (words(text.primary).length < 4 ? ['say what to do next, not only what failed'] : []),
+    },
+  },
+});
+
+export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-says-what-to-do': 'error' } } });
+```
+
+`words`, `sentences` and `phrase` are the helpers the core rules count and match with. A name in
+`lint.rules` that no rule has, or a plugin added twice, fails when the config loads.
+
 **Scan** reports JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...)
 written as literals, and catalog keys no code names. Mark a deliberate literal with
 `prosebook-ignore` on its line or the line above.
@@ -409,7 +436,7 @@ export default defineConfig({
   require: ['context'],
   kinds: {/* name, action, description, state */},
   surfaces: {/* label, heading, tooltip, ... */},
-  lint: { extends: 'recommended', rules: {}, banned: [], spelling: {}, concepts: {}, properNouns: [] },
+  lint: { extends: 'recommended', plugins: [], rules: {}, banned: [], spelling: {}, concepts: {}, properNouns: [] },
   scan: { dirs: ['src'] },
 });
 ```

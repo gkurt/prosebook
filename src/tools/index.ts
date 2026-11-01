@@ -30,7 +30,21 @@ export {
 export { editEntry, readEntry, type EntryEdit, type EntryFields, type EntryView, type EntryYaml } from './entry.ts';
 export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
-export { lint, LINT_RULES, type Finding, type LintRule } from './lint.ts';
+export {
+  CORE_RULES,
+  definePlugin,
+  HOLE,
+  lint,
+  phrase,
+  sentences,
+  words,
+  type CoreRule,
+  type Finding,
+  type Plugin,
+  type Readings,
+  type Rule,
+  type RuleContext,
+} from './lint.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
 export { emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';

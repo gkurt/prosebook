@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CatalogError, generate, lint, loadCatalog, resolveConfig } from 'prosebook/tools';
+import { CatalogError, definePlugin, generate, lint, loadCatalog, phrase, resolveConfig, words } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -178,6 +178,42 @@ describe('lint', () => {
       'app.b [allow] allow.word-budget is four words at least: say why the rule is wrong here',
       'app.c [allow] allow.word-budget exempts the entry from a rule it passes: remove it',
     ]);
+  });
+
+  const house = definePlugin({
+    name: 'house',
+    rules: {
+      'no-we': {
+        description: 'The product speaks to the reader, not for itself.',
+        recommended: 'warn',
+        check: ({ text }) => (text.variants.some((v) => phrase('we').test(v)) ? ['"we": say what happens, not who does it'] : []),
+      },
+      'error-says-what-to-do': {
+        description: 'An error says what to do next.',
+        on: { surface: ['error'] },
+        check: ({ text }) => (words(text.primary).length < 4 ? ['an error says what to do next'] : []),
+      },
+    },
+  });
+
+  test('a plugin adds rules, named after it, scoped by kind and surface', () => {
+    const yaml = [
+      'app.a:\n  kind: state\n  surface: error\n  context: A failed save.\n  en: We failed.',
+      'app.b:\n  kind: state\n  surface: status\n  context: A badge.\n  en: Saved.',
+      'app.c:\n  kind: state\n  context: A badge.\n  allow:\n    house/no-we: Quotes the team signature, which is fixed.\n  en: Made by we.',
+    ].join('\n');
+    expect(findings(yaml, { plugins: [house] })).toEqual(['app.a [house/no-we] "we": say what happens, not who does it']);
+    expect(findings(yaml, { plugins: [house], extends: 'strict' })).toEqual([
+      'app.a [house/no-we] "we": say what happens, not who does it',
+      'app.a [house/error-says-what-to-do] an error says what to do next',
+    ]);
+    expect(findings(yaml, { plugins: [house], rules: { 'house/no-we': 'off' } })).toEqual([]);
+  });
+
+  test('a rule or plugin the config cannot place is an error', () => {
+    expect(() => fixture({}, { lint: { rules: { 'house/no-we': 'warn' } } })).toThrow('lint.rules.house/no-we is not a rule');
+    expect(() => fixture({}, { lint: { plugins: [house, house] } })).toThrow('"house" is added twice');
+    expect(() => fixture({}, { lint: { plugins: [{ name: 'my/house', rules: {} }] } })).toThrow('is not a plugin name');
   });
 });
 
