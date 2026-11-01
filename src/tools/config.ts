@@ -39,6 +39,11 @@ export interface ProsebookConfig {
   lock?: string;
   /** The locale the catalog is written in. Its code is also the field holding the message. */
   source?: string;
+  /**
+   * The syntax messages are written in: ICU MessageFormat (1) or Unicode MessageFormat 2. Source and
+   * translations alike; `prosebook migrate` rewrites a catalog from one to the other.
+   */
+  messageFormat?: 1 | 2;
   /** Locales that ship in the main bundle beside the source, rather than loading when first used. */
   bundled?: string[];
   /** A pseudo-locale generated from the source (accented and lengthened) to find layout bugs and hardcoded text. */
@@ -72,6 +77,7 @@ export interface ResolvedConfig {
   out: string;
   lock: string;
   source: string;
+  messageFormat: 1 | 2;
   bundled: string[];
   pseudo: string | false;
   stale: 'use' | 'fallback';
@@ -127,6 +133,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     out: at(config.out ?? 'src/copy'),
     lock: at(config.lock ?? 'copy/lock.json'),
     source: config.source ?? 'en',
+    messageFormat: config.messageFormat ?? 1,
     bundled: config.bundled ?? [],
     pseudo: config.pseudo ?? false,
     stale: config.stale ?? 'use',

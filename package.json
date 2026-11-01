@@ -1,6 +1,6 @@
 {
   "name": "prosebook",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
     "i18n",
@@ -9,6 +9,7 @@
     "l10n",
     "localization",
     "messageformat",
+    "messageformat2",
     "react",
     "translation",
     "typescript",
@@ -98,6 +99,7 @@
   },
   "dependencies": {
     "@formatjs/icu-messageformat-parser": "^3.5.22",
+    "messageformat": "^4.1.0",
     "oxc-parser": "^0.156.0",
     "yaml": "^2.9.1"
   },

@@ -5,6 +5,7 @@ import { createCopy, defineCatalog, type CompiledMessages, type CopyOptions } fr
 import { compileLocale, localeExpression, resolveConfig, type ProsebookConfig, type Entry, type ResolvedConfig } from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
+import { parseMf2 } from '#src/tools/mf2.ts';
 
 const TMP = join(import.meta.dir, '.tmp');
 let counter = 0;
@@ -27,10 +28,13 @@ export function compiled(entries: Iterable<Entry>): CompiledMessages {
   return new Function(`return ${localeExpression(compileLocale(entries))};`)() as CompiledMessages;
 }
 
-/** A copy over messages written inline, per locale, `en` first. */
-export function copyOf(locales: Record<string, Record<string, string>>, options: CopyOptions<string> = {}) {
+/** A copy over messages written inline, per locale, `en` first, in MF1 or MF2. */
+export function copyOf(locales: Record<string, Record<string, string>>, options: CopyOptions<string> = {}, version: 1 | 2 = 1) {
   const messages = Object.fromEntries(
-    Object.entries(locales).map(([locale, msgs]) => [locale, compiled(Object.entries(msgs).map(([k, v]): Entry => [k, parseMessage(v)]))]),
+    Object.entries(locales).map(([locale, msgs]) => [
+      locale,
+      compiled(Object.entries(msgs).map(([k, v]): Entry => [k, version === 2 ? parseMf2(v, locale) : parseMessage(v)])),
+    ]),
   );
   const [source] = Object.keys(locales);
   return createCopy(defineCatalog({ source: source!, locales: Object.keys(locales), messages, loaders: {} }), options);

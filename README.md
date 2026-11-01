@@ -25,8 +25,9 @@ const { t } = useCopy();
 
 - **Typed.** A missing key, a misspelled key or a missing argument is a type error. Completing a key
   shows its English text and context.
-- **Compiled.** `prosebook generate` turns each ICU message into a plain function. The browser parses
-  nothing: no ICU parser ships, no `eval`, and the runtime is about 2.5 KB gzipped.
+- **Compiled.** `prosebook generate` turns each message, in ICU MessageFormat or MessageFormat 2, into
+  a plain function. The browser parses nothing: no parser ships, no `eval`, and the runtime is about
+  2.5 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build. A
   translation whose source has changed since is marked stale, automatically.
 - **Pruned.** A Vite build ships only the messages the code names.
@@ -111,7 +112,7 @@ One file per area, `copy/catalog/<area>.yaml`. A key's first segment names its f
 
 | Field      |                                                                                                         |
 | ---------- | ------------------------------------------------------------------------------------------------------- |
-| `en`       | The message, in ICU MessageFormat. The field is named after `source` in the config.                     |
+| `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.  |
 | `context`  | One sentence telling a translator where the string appears. Required by default.                        |
 | `args`     | What each placeholder holds, one line each. Required for every placeholder when `context` is.           |
 | `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget. |
@@ -158,6 +159,51 @@ declare module 'prosebook' {
   }
 }
 ```
+
+### MessageFormat 2
+
+Set `messageFormat: 2` and the catalog and its translations are written in
+[Unicode MessageFormat 2](https://messageformat.unicode.org) instead. Everything past reading is the
+same: the types, the checks, the lint, the pseudo-locale and the compiled functions, so the runtime
+doesn't change and nothing extra ships.
+
+```yaml
+en: 'Hello, {$name}.' # name: string
+en: 'Total: {$total :currency currency=EUR}' # €9.00
+en: '{$size :unit unit=megabyte maximumFractionDigits=1}' # 1.4 MB
+en: '{$when :datetime dateLength=long}' # October 28, 2026 at 2:05 PM
+en: 'By checking out you agree to our {#link}terms{/link}.' # a tag
+en: |-
+  .input {$n :number}
+  .match $n
+  0 {{No files}}
+  one {{{$n} file}}
+  * {{{$n} files}}
+en: |-
+  .input {$mode :string}
+  .match $mode
+  dark {{Dark}}
+  * {{Light}}
+```
+
+A message with `.match` holds whole sentences per variant, so a translator never stitches a sentence
+from an arm and the text around it. Several selectors pick the variant MF2's rules pick: the best
+match on the first, then the next, an exact number beating its plural category. `:offset` covers
+MF1's plural offset.
+
+The functions are MF2's defaults: `:string`, `:number`, `:integer`, `:percent`, `:currency`, `:unit`,
+`:offset`, and the date and time functions `:date`, `:time` and `:datetime`, which are still a draft
+in the spec and follow it as the `messageformat` package does. Option values are literals, since
+formatting is settled at build time; `currency=$code` is refused with that reason. Placeholders
+aren't wrapped in bidi isolation marks.
+
+**Switching.** `prosebook migrate 2` rewrites the catalog and every translation in MF2, and
+`prosebook migrate 1` goes back. It's a dry run unless `--write`; then set `messageFormat` in the
+config. Before writing, it renders each message both ways over sample values and reports any that
+would come out different, such as German's medium date, numeric in MF1 and spelled out in MF2's
+nearest. A message the other syntax can't say (`::compact-short` has no MF2 word) stops the write
+and is named, so nothing changes until it's resolved. `prosebook extract` writes new entries in
+whichever syntax the catalog uses.
 
 ## Translations
 
@@ -211,6 +257,7 @@ brackets are a sentence spliced from fragments.
 prosebook lint     # the words against the writing rules
 prosebook scan     # hardcoded text in JSX, and catalog keys no code reads
 prosebook extract  # move that text into the catalog (see below)
+prosebook migrate  # rewrite the catalog in ICU MessageFormat (1) or MessageFormat 2
 prosebook check    # generate --check, lint and status --strict, for CI
 ```
 
@@ -324,6 +371,7 @@ export default defineConfig({
   out: 'src/copy', // generated modules
   lock: 'copy/lock.json',
   source: 'en',
+  messageFormat: 1, // or 2, for Unicode MessageFormat 2
   bundled: [], // locales shipped in the main bundle; the rest load on first use
   pseudo: false, // or 'en-XA'
   stale: 'use', // or 'fallback'
@@ -378,4 +426,5 @@ Ideas not built yet, roughly in order of value:
 5. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
 6. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, as Drasyn generates
    Rust for its tray and menus.
-7. **MessageFormat 2** once `Intl.MessageFormat` lands.
+7. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
+   value.

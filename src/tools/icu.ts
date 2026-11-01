@@ -162,14 +162,20 @@ export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
     const style = el.style;
     if (style === null || style === undefined) return;
     const kind = el.type === TYPE.number ? 'number' : el.type === TYPE.date ? 'date' : 'time';
-    const said =
-      typeof style === 'string'
-        ? style
-        : 'tokens' in style
-          ? `::${style.tokens.map((t) => [t.stem, ...t.options].join('/')).join(' ')}`
-          : `::${style.pattern}`;
+    let said: string;
+    if (typeof style === 'string') {
+      said = `${kind} \`${style}\``;
+    } else if ('mf2' in style) {
+      // Read from MF2: the function as written.
+      const { name, options } = (style as { mf2: { name: string; options: Record<string, string> } }).mf2;
+      said = `\`${[`:${name}`, ...Object.entries(options).map(([k, v]) => `${k}=${v}`)].join(' ')}\``;
+    } else if ('tokens' in style) {
+      said = `${kind} \`::${style.tokens.map((t) => [t.stem, ...t.options].join('/')).join(' ')}\``;
+    } else {
+      said = `${kind} \`::${style.pattern}\``;
+    }
     const list = formats.get(el.value) ?? [];
-    if (!list.includes(`${kind} \`${said}\``)) list.push(`${kind} \`${said}\``);
+    if (!list.includes(said)) list.push(said);
     formats.set(el.value, list);
   });
   return new Map([...formats].map(([name, list]) => [name, list.join(', ')]));

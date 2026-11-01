@@ -11,7 +11,8 @@ import { join, relative } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 import type { ResolvedConfig } from './config.ts';
-import { argsOf, formatProblems, formatsOf, parseMessage, staticLiteral, tagsOf, type MessageFormatElement } from './icu.ts';
+import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, type MessageFormatElement } from './icu.ts';
+import { readMessage } from './syntax.ts';
 
 export interface Translation {
   text: string;
@@ -153,9 +154,9 @@ function readEntry(
 
   let ast: MessageFormatElement[];
   try {
-    ast = parseMessage(text);
+    ast = readMessage(config.messageFormat, text, config.source);
   } catch (e) {
-    fail(icuError(text, e));
+    fail(syntaxError(config, text, e));
     return undefined;
   }
   for (const problem of formatProblems(ast)) fail(problem);
@@ -217,9 +218,9 @@ function readLocales(config: ResolvedConfig, byKey: Map<string, Message>, proble
         }
         let ast: MessageFormatElement[];
         try {
-          ast = parseMessage(value);
+          ast = readMessage(config.messageFormat, value, locale);
         } catch (e) {
-          error(where, icuError(value, e));
+          error(where, syntaxError(config, value, e));
           continue;
         }
         const drift = driftFrom(message, ast);
@@ -253,6 +254,12 @@ function driftFrom(message: Message, ast: MessageFormatElement[]): string | unde
       : `tags are <${tags.join('>, <') || 'none'}>, the source has <${message.tags.join('>, <') || 'none'}>`,
   ].filter(Boolean);
   return parts.length > 0 ? `differs from the source: ${parts.join('; ')}` : undefined;
+}
+
+function syntaxError(config: ResolvedConfig, text: string, e: unknown): string {
+  // MF2's reader words its own problems; see mf2.ts.
+  if (config.messageFormat === 2) return (e as Error).message;
+  return icuError(text, e);
 }
 
 function icuError(text: string, e: unknown): string {

@@ -15,7 +15,9 @@ import { stringify } from 'yaml';
 
 import { CatalogError, KEY_PATTERN, loadCatalog } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
+import { parseMessage } from './icu.ts';
 import { looksLikeCode } from './scan.ts';
+import { writeMessage } from './syntax.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- a loose ESTree node: the walk reads whichever fields each node type has
@@ -193,6 +195,11 @@ export function draftPlurals(message: string): string {
     const one = singularOf(word);
     return one === undefined ? whole : `{${name}, plural, one {# ${one}} other {# ${word}}}`;
   });
+}
+
+/** A message built as MF1, as the catalog writes messages: an MF2 catalog gets it in MF2. */
+function inSyntax(config: ResolvedConfig, mf1: string): string {
+  return config.messageFormat === 2 ? writeMessage(2, parseMessage(mf1), config.source) : mf1;
 }
 
 /** Text written literally inside an ICU message. */
@@ -469,6 +476,7 @@ function planFile(path: string, ctx: Context): FilePlan {
     const end = last.type === 'JSXText' ? last.end - (/\s*$/.exec(last.value as string)?.[0].length ?? 0) : last.end;
     if (ignored(start)) return;
 
+    message = inSyntax(ctx.config, message);
     const role = parentName !== undefined ? ROLES[parentName] : undefined;
     const { key, reused } = entryFor(message, argDocs, role ?? [undefined, undefined], where(parentName));
     const props = [...values].map(([name, source]) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: ${source}`);
@@ -511,10 +519,11 @@ function planFile(path: string, ctx: Context): FilePlan {
     const tag = elementName(element) ?? 'element';
     const component = components.at(-1)?.name;
     const context = `${component ? `In ${component}` : `In ${file}`}, the ${name} of a <${tag}>.`;
-    const { key, reused } = entryFor(escapeIcu(text), {}, [kind, surface], context, suffix);
+    const message = inSyntax(ctx.config, escapeIcu(text));
+    const { key, reused } = entryFor(message, {}, [kind, surface], context, suffix);
     const replacement = `{${call}(${JSON.stringify(key)})}`;
     plan.edits.push({ start: value.start, end: value.end, text: replacement });
-    plan.extractions.push({ file, ...at, key, message: escapeIcu(text), reused, where: name, replacement });
+    plan.extractions.push({ file, ...at, key, message, reused, where: name, replacement });
   };
 
   /**

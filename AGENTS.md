@@ -42,6 +42,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/config.ts`: the config, its defaults and loading. `presets.ts`: kinds, surfaces, lint presets.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with where and a fix.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options.
+- `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
+  becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
+  `matchTree`'s ranking in step with the spec. `mf1.ts`: the tree written as MF1. `syntax.ts`: the one
+  switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
+  each message both ways before writing.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed.

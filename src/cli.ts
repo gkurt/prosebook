@@ -16,7 +16,9 @@ import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint } from './tools/lint.ts';
 import type { StaleTranslation } from './tools/lock.ts';
+import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
+import { SYNTAX_NAME } from './tools/syntax.ts';
 
 const HELP = `prosebook: every string your app shows, in one typed catalog
 
@@ -32,6 +34,8 @@ Commands:
   scan                    Find hardcoded text in JSX and catalog keys no code reads  (--strict)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
+  migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
+                          (dry run unless --write)
   check                   generate --check, lint and status --strict together, for CI
 
 Options:
@@ -84,6 +88,8 @@ async function main(argv: string[]): Promise<number> {
         return runScan(config, values.strict === true);
       case 'extract':
         return runExtract(config, rest, values.write === true, values.area);
+      case 'migrate':
+        return runMigrate(config, rest[0], values.write === true);
       case 'check': {
         const results = [runGenerate(config, true), runLint(config), runStatus(config, true, false)];
         return results.some((r) => r !== 0) ? 1 : 0;
@@ -302,6 +308,41 @@ prosebook: extracted ${summary}.`);
   return runGenerate(config, false);
 }
 
+function runMigrate(config: ResolvedConfig, target: string | undefined, write: boolean): number {
+  const to = target === '1' ? 1 : target === '2' ? 2 : undefined;
+  if (to === undefined) {
+    err('Usage: prosebook migrate <1|2> [--write]');
+    return 1;
+  }
+  if (config.messageFormat === to) {
+    out(`prosebook: the catalog is already in ${SYNTAX_NAME[to]}`);
+    return 0;
+  }
+  const plan = planMigrate(config, to);
+  const where = (x: { file: string; key: string; locale: string }) =>
+    `${x.file} ${x.key}${x.locale === config.source ? '' : ` (${x.locale})`}`;
+  for (const r of plan.rewrites) out(`${where(r)}\n  ${r.after.replaceAll('\n', '\n  ')}`);
+  for (const c of plan.changed) err(`warn  ${where(c)}: renders differently for ${c.values}: "${c.before}" becomes "${c.after}"`);
+  for (const b of plan.blocked) err(`error ${where(b)}: ${b.reason}`);
+  if (plan.blocked.length > 0) {
+    err(`
+prosebook: ${plan.blocked.length} message(s) have no ${SYNTAX_NAME[to]} equivalent. Change them, then migrate again; nothing was written.`);
+    return 1;
+  }
+  const files = new Set(plan.rewrites.map((r) => r.file)).size;
+  const summary = `${plan.rewrites.length} message(s) in ${files} file(s) in ${SYNTAX_NAME[to]}`;
+  if (!write) {
+    out(`
+prosebook: would rewrite ${summary}. Run again with --write to apply.`);
+    return 0;
+  }
+  applyMigrate(config, plan);
+  out(`
+prosebook: rewrote ${summary}.`);
+  out(`Now set \`messageFormat: ${to}\` in the config, then run \`prosebook generate\`.`);
+  return 0;
+}
+
 const SAMPLE_CONFIG = `import { defineConfig } from 'prosebook/config';
 
 export default defineConfig({
@@ -309,6 +350,8 @@ export default defineConfig({
   locales: 'copy/locales',
   out: 'src/copy',
   source: 'en',
+  // Write messages in Unicode MessageFormat 2 rather than ICU MessageFormat:
+  // messageFormat: 2,
 });
 `;
 

@@ -1,0 +1,752 @@
+/**
+ * Unicode MessageFormat 2, read into the element tree MF1 messages parse to, so the compiler, the
+ * types, the lint and the pseudo-locale treat both syntaxes alike; and written back from that tree,
+ * for `extract` and `migrate`.
+ *
+ * The tree holds what a message does, not how it was written. `.input {$n :number}` becomes a number
+ * element at each `{$n}`, and `.match` becomes plural and select elements, one level per selector,
+ * built so the runtime's ICU-style selection picks the variant MF2's would (see `matchTree`). Option
+ * values are literals, resolved here into `Intl` options, so the runtime is the same for both.
+ */
+import { SKELETON_TYPE, TYPE } from '@formatjs/icu-messageformat-parser';
+import type {
+  DateElement,
+  DateTimeSkeleton,
+  NumberElement,
+  NumberSkeleton,
+  PluralElement,
+  PluralOrSelectOption,
+  SelectElement,
+  TimeElement,
+} from '@formatjs/icu-messageformat-parser';
+import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
+
+import { walk, type MessageFormatElement } from './icu.ts';
+
+type Element = MessageFormatElement;
+
+/** A function as written: `:number minimumFractionDigits=2`. Kept on the styles it produces, to write back. */
+export interface Mf2Function {
+  name: string;
+  options: Record<string, string>;
+}
+
+type Value = { kind: 'literal'; value: string; fn?: Mf2Function } | { kind: 'variable'; name: string; fn?: Mf2Function; offset: number };
+
+type Scope = Map<string, Value>;
+
+interface Selector {
+  name: string;
+  kind: 'plural' | 'ordinal' | 'exact' | 'string';
+  offset: number;
+}
+
+export const NUMBER_LITERAL = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][-+]?\d+)?$/;
+const CATEGORIES = new Set(['zero', 'one', 'two', 'few', 'many', 'other']);
+const NAME = /^[\p{L}_][\p{L}\p{N}_.-]*$/u;
+
+const DIGITS = [
+  'minimumIntegerDigits',
+  'minimumFractionDigits',
+  'maximumFractionDigits',
+  'minimumSignificantDigits',
+  'maximumSignificantDigits',
+  'roundingIncrement',
+];
+const ROUNDING = ['trailingZeroDisplay', 'roundingPriority', 'roundingMode'];
+const SIGNIFICANT = ['minimumSignificantDigits', 'maximumSignificantDigits'];
+
+/** The options each default function takes, from the MF2 spec. */
+const OPTIONS: Record<string, readonly string[]> = {
+  string: [],
+  number: ['select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
+  integer: ['select', 'signDisplay', 'useGrouping', 'minimumIntegerDigits', 'maximumSignificantDigits'],
+  currency: [
+    'currency',
+    'currencySign',
+    'currencyDisplay',
+    'useGrouping',
+    'minimumIntegerDigits',
+    'fractionDigits',
+    ...SIGNIFICANT,
+    ...ROUNDING,
+    'roundingIncrement',
+  ],
+  percent: ['signDisplay', 'useGrouping', 'minimumFractionDigits', 'maximumFractionDigits', ...SIGNIFICANT, ...ROUNDING],
+  unit: ['unit', 'unitDisplay', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
+  offset: ['add', 'subtract'],
+  date: ['fields', 'length', 'calendar', 'timeZone'],
+  time: ['precision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
+  datetime: ['dateFields', 'dateLength', 'timePrecision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
+};
+
+/** Options whose values are a fixed set, checked here because MF2's names differ from `Intl`'s. */
+const DATE_FIELDS = ['weekday', 'day-weekday', 'month-day', 'month-day-weekday', 'year-month-day', 'year-month-day-weekday'];
+const ENUMS: Record<string, readonly string[]> = {
+  select: ['plural', 'ordinal', 'exact'],
+  useGrouping: ['auto', 'always', 'never', 'min2'],
+  currencyDisplay: ['narrowSymbol', 'symbol', 'name', 'code'],
+  fields: DATE_FIELDS,
+  dateFields: DATE_FIELDS,
+  length: ['long', 'medium', 'short'],
+  dateLength: ['long', 'medium', 'short'],
+  precision: ['hour', 'minute', 'second'],
+  timePrecision: ['hour', 'minute', 'second'],
+  timeZoneStyle: ['long', 'short'],
+  hour12: ['true', 'false'],
+};
+
+/** Options an operand's function doesn't pass on to these, per the spec. */
+const DISCARDED: Record<string, readonly string[]> = {
+  integer: ['minimumFractionDigits', 'maximumFractionDigits', 'minimumSignificantDigits'],
+  percent: ['minimumIntegerDigits', 'roundingIncrement', 'select'],
+};
+
+const NUMERIC = new Set(['number', 'integer', 'currency', 'percent', 'unit']);
+const TEMPORAL = new Set(['date', 'time', 'datetime']);
+
+const family = (name: string) => (NUMERIC.has(name) ? 'number' : TEMPORAL.has(name) ? 'date' : name);
+
+const HINTS: Record<string, string> = {
+  'missing-selector-annotation': 'a .match variable needs a function that selects, declared first: .input {$count :number}',
+  'missing-fallback': 'a .match needs a variant whose keys are all *',
+  'key-mismatch': 'each variant has one key per .match variable',
+  'duplicate-variant': 'two variants have the same keys',
+  'duplicate-declaration': 'a variable is declared twice, or declared after a use',
+  'duplicate-option-name': 'an option is given twice',
+  'duplicate-attribute': 'an attribute is given twice',
+  'bad-escape': 'only \\\\, \\{, \\} and \\| are escapes',
+  'bad-input-expression': '.input takes a variable: .input {$count :number}',
+  'extra-content': 'something follows the end of the message: a message with .match ends with its last variant',
+  'empty-token': 'a name or value is missing',
+};
+
+/** Thrown from `validate`'s callback, which reports a data-model error without throwing. */
+class ModelError extends Error {
+  readonly type: string;
+  constructor(type: string) {
+    super(type);
+    this.type = type;
+  }
+}
+
+function syntaxProblem(text: string, e: unknown): string {
+  const type = e instanceof MessageSyntaxError || e instanceof ModelError ? e.type : undefined;
+  const hint = type === undefined ? undefined : HINTS[type];
+  let where = '';
+  if (e instanceof MessageSyntaxError) {
+    const before = text.slice(0, e.start).split('\n');
+    const near = text.slice(e.start, e.start + 16).split('\n')[0];
+    where = ` at line ${before.length}, column ${before.at(-1)!.length + 1}${near ? ` (near "${near}")` : ''}`;
+  }
+  const reason = hint ?? (e instanceof Error ? e.message.replace(/ at \d+$/, '') : String(e));
+  return `is not valid MessageFormat 2${where}: ${reason}`;
+}
+
+/** An MF2 message as the element tree. Throws, with the fix, where it can't be read or compiled. */
+export function parseMf2(text: string, locale: string): Element[] {
+  let message: Model.Message;
+  try {
+    message = parseMessage(text);
+    validate(message, (type) => {
+      throw new ModelError(type);
+    });
+  } catch (e) {
+    throw new Error(syntaxProblem(text, e), { cause: e });
+  }
+  const scope: Scope = new Map();
+  for (const declaration of message.declarations)
+    // `.input` reads the argument itself; a `.local` can build on what is declared before it.
+    scope.set(declaration.name, resolve(declaration.value, declaration.type === 'input' ? new Map() : scope));
+
+  if (message.type === 'message') return pattern(message.pattern, scope, locale);
+  const selectors = message.selectors.map((s) => selectorOf(s.name, scope));
+  const candidates = message.variants.map((variant) => {
+    const keys = variant.keys.map((k) => (k.type === '*' ? null : k.value));
+    keys.forEach((key, i) => checkKey(selectors[i]!, key, message.selectors[i]!.name));
+    return { keys, prefs: [], value: pattern(variant.value, scope, locale) };
+  });
+  return matchTree(selectors, candidates, 0, locale);
+}
+
+function functionOf(ref: Model.FunctionRef): Mf2Function {
+  const allowed = OPTIONS[ref.name];
+  if (allowed === undefined) {
+    const known = Object.keys(OPTIONS).map((n) => `:${n}`);
+    throw new Error(`:${ref.name} is not a function prosebook knows: ${known.join(', ')}`);
+  }
+  const options: Record<string, string> = {};
+  for (const [key, value] of Object.entries(ref.options ?? {})) {
+    // `u:id` and `u:dir` say nothing about formatting here: there is no bidi isolation to steer.
+    if (key === 'u:id' || key === 'u:dir') continue;
+    if (value.type === 'variable')
+      throw new Error(`:${ref.name} ${key}=$${value.name}: option values are literals here, since formatting is fixed at build time`);
+    if (!allowed.includes(key))
+      throw new Error(`:${ref.name} has no option "${key}"${allowed.length > 0 ? `: ${allowed.join(', ')}` : ''}`);
+    const values = ENUMS[key];
+    if (values !== undefined && !values.includes(value.value))
+      throw new Error(`:${ref.name} ${key}=${value.value} is not a value it takes: ${values.join(', ')}`);
+    if (DIGITS.includes(key) && !/^\d+$/.test(value.value)) throw new Error(`:${ref.name} ${key}=${value.value} is not a whole number`);
+    options[key] = value.value;
+  }
+  if (ref.name === 'currency' && options.currency === undefined)
+    throw new Error(':currency needs its currency named: {$price :currency currency=EUR}');
+  if (ref.name === 'unit' && options.unit === undefined) throw new Error(':unit needs its unit named: {$distance :unit unit=kilometer}');
+  if (ref.name === 'unit' && ref.options?.usage !== undefined)
+    throw new Error(":unit usage converts between units, which `Intl` can't do: convert the value before passing it");
+  if (options.timeZone === 'input') throw new Error(`:${ref.name} timeZone=input needs a zoned value, which a JavaScript Date isn't`);
+  if (ref.name === 'offset') {
+    const given = ['add', 'subtract'].filter((k) => options[k] !== undefined);
+    if (given.length !== 1 || !/^\d+$/.test(options[given[0]!]!))
+      throw new Error(':offset takes one of add or subtract, as a whole number: {$count :offset subtract=1}');
+  }
+  return { name: ref.name, options };
+}
+
+function resolve(expr: Model.Expression, scope: Scope): Value {
+  const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef);
+  if (expr.arg === undefined) throw new Error(`{:${fn!.name}} has nothing to format: give it a value, {$value :${fn!.name}}`);
+  if (expr.arg.type === 'literal') return apply({ kind: 'literal', value: expr.arg.value }, fn);
+  return apply(scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 }, fn);
+}
+
+/** `fn` applied to a value that may already carry one: options carry over within a family, as the spec has it. */
+function apply(base: Value, fn: Mf2Function | undefined): Value {
+  if (fn === undefined) return base;
+  if (fn.name === 'offset') {
+    const by = Number(fn.options.subtract ?? 0) - Number(fn.options.add ?? 0);
+    const numeric = base.fn ?? { name: 'number', options: {} };
+    if (base.kind === 'literal') return { ...base, value: String(Number(literalNumber(base.value)) - by), fn: numeric };
+    return { ...base, offset: base.offset + by, fn: numeric };
+  }
+  if (base.fn === undefined || family(base.fn.name) !== family(fn.name)) return { ...base, fn };
+  const inherited = { ...base.fn.options };
+  for (const key of DISCARDED[fn.name] ?? []) delete inherited[key];
+  return { ...base, fn: { name: fn.name, options: { ...inherited, ...fn.options } } };
+}
+
+function literalNumber(value: string): string {
+  if (!NUMBER_LITERAL.test(value)) throw new Error(`|${value}| is not a number: write it as one, like 42 or 1.5`);
+  return value;
+}
+
+function selectorOf(name: string, scope: Scope): Selector {
+  const value = scope.get(name);
+  // `validate` has refused a selector declared without a function.
+  if (value === undefined || value.fn === undefined) throw new Error(`.match $${name} needs a function: .input {$${name} :number}`);
+  if (value.kind === 'literal')
+    throw new Error(`.match $${name} selects on a literal, which always picks the same variant: use that variant's text`);
+  const { fn } = value;
+  if (fn.name === 'string') return { name: value.name, kind: 'string', offset: 0 };
+  if (fn.name === 'number' || fn.name === 'integer') {
+    const kind = (fn.options.select ?? 'plural') as Selector['kind'];
+    return { name: value.name, kind, offset: value.offset };
+  }
+  throw new Error(`.match $${name} selects with :${fn.name}, which prosebook can't select on: use :number, :integer or :string`);
+}
+
+function checkKey(selector: Selector, key: string | null, name: string): void {
+  if (key === null) return;
+  if (selector.kind === 'string') {
+    // The runtime's select falls back to its `other` arm, so a key named `other` would catch everything.
+    if (key === 'other') throw new Error(`.match $${name} has a key "other", which can't be told from *: name it something else`);
+    return;
+  }
+  if (NUMBER_LITERAL.test(key)) {
+    if (String(Number(key)) !== key) throw new Error(`.match $${name} has the key ${key}: write it as ${Number(key)}, as values print`);
+    return;
+  }
+  if (selector.kind === 'exact') throw new Error(`.match $${name} selects exactly, so its keys are numbers, not "${key}"`);
+  if (!CATEGORIES.has(key))
+    throw new Error(`.match $${name} has the key "${key}": a number key is a number or one of ${[...CATEGORIES].join(', ')}`);
+}
+
+interface Candidate {
+  keys: (string | null)[];
+  /** How well each key so far matched: lower is better, as the spec ranks them. */
+  prefs: number[];
+  value: Element[];
+}
+
+/**
+ * `.match` as nested plural and select elements. MF2 picks, among the variants whose every key
+ * matches, the one whose keys match best, the first selector deciding first; an exact number beats
+ * a plural category, which beats `*`. The runtime picks an arm per selector instead, so each arm
+ * here holds every variant that can still match a value reaching it, and the leaf takes the best.
+ * An exact arm `=1` holds the variants keyed `one` as well, since 1 is also in that category: which
+ * category is the locale's, which is why this runs per locale.
+ */
+function matchTree(selectors: Selector[], candidates: Candidate[], i: number, locale: string): Element[] {
+  // Never empty: `validate` requires a variant whose keys are all `*`.
+  if (i === selectors.length) return candidates.reduce((a, b) => (compare(b.prefs, a.prefs) < 0 ? b : a)).value;
+  const s = selectors[i]!;
+  const keys = [...new Set(candidates.map((c) => c.keys[i]).filter((k): k is string => k !== null && k !== undefined))];
+  const options: Record<string, PluralOrSelectOption> = {};
+  const arm = (name: string, preference: (key: string | null) => number | undefined) => {
+    const next = candidates.flatMap((c) => {
+      const p = preference(c.keys[i]!);
+      return p === undefined ? [] : [{ ...c, prefs: [...c.prefs, p] }];
+    });
+    options[name] = { value: matchTree(selectors, next, i + 1, locale) };
+  };
+
+  if (s.kind === 'string') {
+    for (const k of keys) arm(k, (key) => (key === k ? 0 : key === null ? 1 : undefined));
+    arm('other', (key) => (key === null ? 1 : undefined));
+    return [{ type: TYPE.select, value: s.name, options }];
+  }
+  const rules = new Intl.PluralRules(locale, { type: s.kind === 'ordinal' ? 'ordinal' : 'cardinal' });
+  for (const k of keys.filter((key) => NUMBER_LITERAL.test(key))) {
+    const category = s.kind === 'exact' ? undefined : rules.select(Number(k));
+    // The runtime compares the value before its offset; the key is the value after it.
+    arm(`=${Number(k) + s.offset}`, (key) => (key === k ? 0 : key === category ? 1 : key === null ? 2 : undefined));
+  }
+  if (s.kind !== 'exact') {
+    // With a key named `other`, an arm for every category, so that the catch-all arm is reached only
+    // by values whose category is `other`.
+    const categories: string[] = keys.includes('other') ? rules.resolvedOptions().pluralCategories : keys.filter((k) => CATEGORIES.has(k));
+    for (const c of categories) arm(c, (key) => (key === c ? 1 : key === null ? 2 : undefined));
+  }
+  if (!('other' in options)) arm('other', (key) => (key === null ? 2 : undefined));
+  return [{ type: TYPE.plural, value: s.name, offset: s.offset, pluralType: s.kind === 'ordinal' ? 'ordinal' : 'cardinal', options }];
+}
+
+function compare(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
+  return 0;
+}
+
+function pattern(parts: Model.Pattern, scope: Scope, locale: string): Element[] {
+  const root: Element[] = [];
+  const open: { name: string; children: Element[] }[] = [];
+  const push = (el: Element) => {
+    const into = open.at(-1)?.children ?? root;
+    const last = into.at(-1);
+    if (el.type === TYPE.literal && last?.type === TYPE.literal) last.value += el.value;
+    else into.push(el);
+  };
+  for (const part of parts) {
+    if (typeof part === 'string') {
+      push({ type: TYPE.literal, value: part });
+    } else if (part.type === 'expression') {
+      push(element(resolve(part, scope), locale));
+    } else if (part.kind === 'close') {
+      const top = open.pop();
+      if (top?.name !== part.name) {
+        throw new Error(
+          top
+            ? `{/${part.name}} closes {#${top.name}}: close tags in the order they opened`
+            : `{/${part.name}} closes nothing: open it with {#${part.name}}`,
+        );
+      }
+      push({ type: TYPE.tag, value: top.name, children: top.children });
+    } else {
+      const options = Object.keys(part.options ?? {}).filter((k) => k !== 'u:id');
+      if (options.length > 0)
+        throw new Error(`{#${part.name}} has options (${options.join(', ')}): tags take none here, so give them to its function`);
+      if (part.kind === 'open') open.push({ name: part.name, children: [] });
+      else push({ type: TYPE.tag, value: part.name, children: [] });
+    }
+  }
+  if (open.length > 0) throw new Error(`{#${open.at(-1)!.name}} is never closed: end it with {/${open.at(-1)!.name}}`);
+  return root;
+}
+
+function element(value: Value, locale: string): Element {
+  if (value.kind === 'literal') return { type: TYPE.literal, value: formatLiteral(value, locale) };
+  const { name, fn, offset } = value;
+  // A value less its offset is what `#` prints inside a plural, so a plural with only `other` prints it.
+  if (offset !== 0)
+    return { type: TYPE.plural, value: name, offset, pluralType: 'cardinal', options: { other: { value: [{ type: TYPE.pound }] } } };
+  if (fn === undefined || fn.name === 'string') return { type: TYPE.argument, value: name };
+  if (NUMERIC.has(fn.name)) return { type: TYPE.number, value: name, style: numberStyle(fn) };
+  return { type: TYPE.date, value: name, style: dateStyle(fn) };
+}
+
+/** A literal with a function is the same in every render, so it is formatted now. */
+function formatLiteral(value: Extract<Value, { kind: 'literal' }>, locale: string): string {
+  const { fn } = value;
+  if (fn === undefined || fn.name === 'string') return value.value;
+  if (NUMERIC.has(fn.name)) return new Intl.NumberFormat(locale, intlNumber(fn)).format(Number(literalNumber(value.value)));
+  const date = new Date(value.value);
+  if (Number.isNaN(date.getTime())) throw new Error(`|${value.value}| is not a date: write it as an ISO 8601 date, like 2026-01-05`);
+  return new Intl.DateTimeFormat(locale, intlDate(fn)).format(date);
+}
+
+export type Mf2NumberSkeleton = NumberSkeleton & { mf2: Mf2Function };
+export type Mf2DateSkeleton = DateTimeSkeleton & { mf2: Mf2Function };
+
+function numberStyle(fn: Mf2Function): Mf2NumberSkeleton {
+  return { type: SKELETON_TYPE.number, tokens: [], parsedOptions: intlNumber(fn) as NumberSkeleton['parsedOptions'], mf2: fn };
+}
+
+function dateStyle(fn: Mf2Function): Mf2DateSkeleton {
+  return { type: SKELETON_TYPE.dateTime, pattern: '', parsedOptions: intlDate(fn), mf2: fn };
+}
+
+/** The `Intl.NumberFormat` options a numeric function formats with. */
+export function intlNumber(fn: Mf2Function): Intl.NumberFormatOptions {
+  const allowed = OPTIONS[fn.name] ?? [];
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fn.options)) {
+    if (!allowed.includes(key) || key === 'select') continue;
+    if (key === 'useGrouping') {
+      out.useGrouping = value === 'never' ? false : value;
+    } else if (key === 'fractionDigits') {
+      if (value !== 'auto') out.minimumFractionDigits = out.maximumFractionDigits = Number(value);
+    } else if (DIGITS.includes(key)) {
+      out[key] = Number(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  if (fn.name === 'integer') out.maximumFractionDigits = 0;
+  if (fn.name === 'percent' || fn.name === 'currency' || fn.name === 'unit') out.style = fn.name;
+  return out;
+}
+
+/**
+ * The `Intl.DateTimeFormat` options a date or time function formats with. MF2's date and time
+ * functions are still a draft; this follows the spec's semantic options as the `messageformat`
+ * package does, so a message reads the same in both.
+ */
+export function intlDate(fn: Mf2Function): Intl.DateTimeFormatOptions {
+  const o = fn.options;
+  const out: Intl.DateTimeFormatOptions = {};
+  if (o.calendar !== undefined) out.calendar = o.calendar;
+  if (fn.name !== 'date' && o.hour12 !== undefined) out.hour12 = o.hour12 === 'true';
+  if (o.timeZone !== undefined) out.timeZone = o.timeZone;
+  if (fn.name !== 'time') {
+    const fields = new Set((o[fn.name === 'date' ? 'fields' : 'dateFields'] ?? 'year-month-day').split('-'));
+    const length = o[fn.name === 'date' ? 'length' : 'dateLength'];
+    if (fields.has('year')) out.year = 'numeric';
+    if (fields.has('month')) out.month = length === 'long' ? 'long' : length === 'short' ? 'numeric' : 'short';
+    if (fields.has('day')) out.day = 'numeric';
+    if (fields.has('weekday')) out.weekday = length === 'long' ? 'long' : 'short';
+  }
+  if (fn.name !== 'date') {
+    const precision = o[fn.name === 'time' ? 'precision' : 'timePrecision'];
+    out.hour = 'numeric';
+    if (precision !== 'hour') out.minute = 'numeric';
+    if (precision === 'second') out.second = 'numeric';
+    if (o.timeZoneStyle !== undefined) out.timeZoneName = o.timeZoneStyle as 'long' | 'short';
+  }
+  return out;
+}
+
+// Writing MF2 ////////////////////////////////////////////////////////////////////////////////////////
+
+interface Found {
+  /** The argument a plural or select reads. */
+  arg: string;
+  /** The variable `.match` names: the argument, or a local less the offset. */
+  variable: string;
+  kind: 'plural' | 'ordinal' | 'string';
+  offset: number;
+  /** MF2 keys, in order of appearance; `*` is implied. */
+  keys: string[];
+}
+
+/** A message tree as MF2 text. Throws, saying what has no MF2 equivalent, where it can't be written. */
+export function toMf2(ast: Element[], locale: string): string {
+  const found = selectorsOf(ast);
+  if (found.length === 0) {
+    const pattern = toPattern(ast, { choice: new Map(), variables: new Map(), numeric: new Set(), locale });
+    return stringifyMessage({ type: 'message', declarations: [], pattern });
+  }
+
+  const declarations: Model.Declaration[] = [];
+  for (const s of found) {
+    const fn: Model.FunctionRef =
+      s.kind === 'string' ? functionRef('string') : functionRef('number', s.kind === 'ordinal' ? { select: 'ordinal' } : {});
+    declarations.push({ type: 'input', name: s.arg, value: { type: 'expression', arg: variable(s.arg), functionRef: fn } });
+    if (s.offset !== 0) {
+      declarations.push({
+        type: 'local',
+        name: s.variable,
+        value: { type: 'expression', arg: variable(s.arg), functionRef: functionRef('offset', { subtract: String(s.offset) }) },
+      });
+    }
+  }
+
+  // Every combination of keys, `*` last, rendered by picking each plural's and select's arm.
+  let combos: (string | null)[][] = [[]];
+  for (const s of found) combos = combos.flatMap((c) => [...s.keys, null].map((k) => [...c, k]));
+  const variables = new Map(found.map((s) => [s.arg, s.variable]));
+  const numeric = new Set(found.filter((s) => s.kind !== 'string').map((s) => s.arg));
+  const render = (keys: (string | null)[]) =>
+    toPattern(ast, { choice: new Map(found.map((s, i) => [s.arg, keys[i]!])), variables, numeric, locale });
+  const variants = combos.map((keys) => ({ keys, pattern: render(keys), text: '' }));
+  for (const v of variants) v.text = JSON.stringify(v.pattern);
+  const kept = prune(variants, found, locale);
+
+  return stringifyMessage({
+    type: 'select',
+    declarations,
+    selectors: found.map((s) => variable(s.variable)),
+    variants: kept.map((v) => ({
+      keys: v.keys.map((k): Model.Literal | Model.CatchallKey => (k === null ? { type: '*' } : { type: 'literal', value: k })),
+      value: v.pattern,
+    })),
+  });
+}
+
+function selectorsOf(ast: Element[]): Found[] {
+  const found = new Map<string, Found>();
+  const names = new Set<string>();
+  walk(ast, (el) => {
+    if ('value' in el && typeof el.value === 'string' && el.type !== TYPE.literal) names.add(el.value);
+  });
+  walk(ast, (el) => {
+    if (el.type !== TYPE.plural && el.type !== TYPE.select) return;
+    const kind = el.type === TYPE.select ? 'string' : el.pluralType === 'ordinal' ? 'ordinal' : 'plural';
+    const offset = el.type === TYPE.plural ? el.offset : 0;
+    let s = found.get(el.value);
+    if (s === undefined) {
+      checkName(el.value);
+      let local = `${el.value}_minus_${offset}`;
+      while (names.has(local)) local += '_';
+      s = { arg: el.value, variable: offset === 0 ? el.value : local, kind, offset, keys: [] };
+      found.set(el.value, s);
+    } else if (s.kind !== kind || s.offset !== offset) {
+      throw new Error(
+        `{${el.value}} is selected on in two ways (${s.kind}, ${kind}${offset !== s.offset ? ', with different offsets' : ''}), which one .match can't say: make them the same`,
+      );
+    }
+    for (const arm of Object.keys(el.options)) {
+      if (arm === 'other') continue;
+      const key = el.type === TYPE.plural && arm.startsWith('=') ? String(Number(arm.slice(1)) - offset) : arm;
+      if (!s.keys.includes(key)) s.keys.push(key);
+    }
+  });
+  return [...found.values()];
+}
+
+/**
+ * The variants a reader needs: one that renders like the variant it would fall back to is dropped,
+ * as long as every combination of values still lands on a variant rendering what it should.
+ */
+function prune<V extends { keys: (string | null)[]; text: string }>(variants: V[], found: Found[], locale: string): V[] {
+  const rules = found.map((s) =>
+    s.kind === 'string' ? undefined : new Intl.PluralRules(locale, { type: s.kind === 'ordinal' ? 'ordinal' : 'cardinal' }),
+  );
+  const preference = (i: number, key: string | null, value: string | null): number | undefined => {
+    if (key === null) return 2;
+    if (value === null) return undefined;
+    if (key === value) return NUMBER_LITERAL.test(key) || rules[i] === undefined ? 0 : 1;
+    if (rules[i] !== undefined && NUMBER_LITERAL.test(value) && rules[i].select(Number(value)) === key) return 1;
+    return undefined;
+  };
+  const pick = (kept: V[], values: (string | null)[]) => {
+    let best: { v: V; prefs: number[] } | undefined;
+    for (const v of kept) {
+      const prefs = values.map((value, i) => preference(i, v.keys[i]!, value));
+      if (prefs.some((p) => p === undefined)) continue;
+      if (best === undefined || compare(prefs as number[], best.prefs) < 0) best = { v, prefs: prefs as number[] };
+    }
+    return best?.v;
+  };
+  let kept = [...variants];
+  const specificFirst = [...variants].sort((a, b) => b.keys.filter((k) => k !== null).length - a.keys.filter((k) => k !== null).length);
+  for (const candidate of specificFirst) {
+    if (candidate.keys.every((k) => k === null)) continue;
+    const without = kept.filter((v) => v !== candidate);
+    if (variants.every((v) => pick(without, v.keys)?.text === v.text)) kept = without;
+  }
+  return kept;
+}
+
+interface Writing {
+  /** The key each selected argument takes in the variant being written. */
+  choice: Map<string, string | null>;
+  /** The variable `.match` names for each selected argument. */
+  variables: Map<string, string>;
+  /** Arguments declared `.input {$n :number}`, whose plain `{$n}` already formats as a number. */
+  numeric: Set<string>;
+  locale: string;
+}
+
+function toPattern(elements: Element[], w: Writing, pound?: string): Model.Pattern {
+  const out: Model.Pattern = [];
+  const text = (value: string) => {
+    const last = out.at(-1);
+    if (typeof last === 'string') out[out.length - 1] = last + value;
+    else if (value !== '') out.push(value);
+  };
+  for (const el of elements) {
+    switch (el.type) {
+      case TYPE.literal:
+        text(el.value);
+        break;
+      case TYPE.argument:
+        checkName(el.value);
+        out.push({ type: 'expression', arg: variable(el.value) });
+        break;
+      case TYPE.number: {
+        checkName(el.value);
+        const fn = numberFunction(el);
+        const declared = w.numeric.has(el.value) && fn.name === 'number' && fn.options === undefined;
+        out.push(
+          declared ? { type: 'expression', arg: variable(el.value) } : { type: 'expression', arg: variable(el.value), functionRef: fn },
+        );
+        break;
+      }
+      case TYPE.date:
+      case TYPE.time:
+        checkName(el.value);
+        out.push({ type: 'expression', arg: variable(el.value), functionRef: dateFunction(el) });
+        break;
+      case TYPE.pound:
+        out.push({ type: 'expression', arg: variable(pound ?? '') });
+        break;
+      case TYPE.plural:
+      case TYPE.select: {
+        const arm = armFor(el, w.choice.get(el.value) ?? null, w.locale);
+        const own = w.variables.get(el.value) ?? el.value;
+        for (const part of toPattern(arm, w, el.type === TYPE.plural ? own : pound)) {
+          if (typeof part === 'string') text(part);
+          else out.push(part);
+        }
+        break;
+      }
+      case TYPE.tag:
+        checkName(el.value);
+        out.push({ type: 'markup', kind: 'open', name: el.value });
+        for (const part of toPattern(el.children, w, pound)) {
+          if (typeof part === 'string') text(part);
+          else out.push(part);
+        }
+        out.push({ type: 'markup', kind: 'close', name: el.value });
+        break;
+    }
+  }
+  return out;
+}
+
+function armFor(el: PluralElement | SelectElement, key: string | null, locale: string): Element[] {
+  const other = el.options.other!.value;
+  if (key === null) return other;
+  if (el.type === TYPE.plural && NUMBER_LITERAL.test(key)) {
+    const exact = el.options[`=${Number(key) + el.offset}`];
+    if (exact !== undefined) return exact.value;
+    const category = new Intl.PluralRules(locale, { type: el.pluralType }).select(Number(key));
+    return el.options[category]?.value ?? other;
+  }
+  return el.options[key]?.value ?? other;
+}
+
+function checkName(name: string): void {
+  if (!NAME.test(name)) throw new Error(`"${name}" can't be a MessageFormat 2 name: start it with a letter`);
+}
+
+function variable(name: string): Model.VariableRef {
+  return { type: 'variable', name };
+}
+
+function functionRef(name: string, options: Record<string, string> = {}): Model.FunctionRef {
+  const entries = Object.entries(options);
+  if (entries.length === 0) return { type: 'function', name };
+  return { type: 'function', name, options: Object.fromEntries(entries.map(([k, v]) => [k, { type: 'literal', value: v }])) };
+}
+
+function numberFunction(el: NumberElement): Model.FunctionRef {
+  const style = el.style;
+  if (style === null || style === undefined) return functionRef('number');
+  if (typeof style === 'string') {
+    if (style === 'integer' || style === 'percent') return functionRef(style);
+    throw new Error(`{${el.value}, number, ${style}} has no MessageFormat 2 equivalent`);
+  }
+  if ('mf2' in style) return functionRef((style as Mf2NumberSkeleton).mf2.name, (style as Mf2NumberSkeleton).mf2.options);
+  const {
+    style: kind,
+    currency,
+    currencyDisplay,
+    currencySign,
+    unit,
+    unitDisplay,
+    ...rest
+  } = style.parsedOptions as Record<string, string | number | boolean | undefined>;
+  const name = kind === 'percent' || kind === 'currency' || kind === 'unit' ? kind : 'number';
+  const options: Record<string, string> = {};
+  const own = name === 'currency' ? { currency, currencyDisplay, currencySign } : name === 'unit' ? { unit, unitDisplay } : {};
+  for (const [key, value] of Object.entries(own)) if (value !== undefined) options[key] = String(value);
+  if (name === 'currency' && rest.minimumFractionDigits !== undefined && rest.minimumFractionDigits === rest.maximumFractionDigits) {
+    options.fractionDigits = String(rest.minimumFractionDigits);
+    delete rest.minimumFractionDigits;
+    delete rest.maximumFractionDigits;
+  }
+  for (const [key, value] of Object.entries(rest)) {
+    if (value === undefined) continue;
+    if (key === 'useGrouping') options.useGrouping = value === false ? 'never' : String(value);
+    else if (OPTIONS[name]!.includes(key) && key !== 'select') options[key] = String(value);
+    else throw new Error(`{${el.value}}'s ${key}: ${String(value)} has no MessageFormat 2 equivalent`);
+  }
+  return functionRef(name, options);
+}
+
+/**
+ * The MF2 function for a date or time element. MF1's named styles have no exact counterpart, so they
+ * map to the nearest; `migrate` renders both and reports any that come out different.
+ */
+function dateFunction(el: DateElement | TimeElement): Model.FunctionRef {
+  const style = el.style;
+  if (typeof style === 'object' && style !== null && 'mf2' in style)
+    return functionRef((style as Mf2DateSkeleton).mf2.name, (style as Mf2DateSkeleton).mf2.options);
+  if (el.type === TYPE.time && (style === null || style === undefined || typeof style === 'string')) {
+    const time: Record<string, Record<string, string>> = {
+      short: {},
+      medium: { precision: 'second' },
+      long: { precision: 'second', timeZoneStyle: 'short' },
+      full: { precision: 'second', timeZoneStyle: 'long' },
+    };
+    return functionRef('time', time[style ?? 'short'] ?? {});
+  }
+  if (style === null || style === undefined || typeof style === 'string') {
+    const date: Record<string, Record<string, string>> = {
+      // MF1's default is `Intl`'s: numeric year, month and day.
+      default: { length: 'short' },
+      short: { length: 'short' },
+      medium: {},
+      long: { length: 'long' },
+      full: { fields: 'year-month-day-weekday', length: 'long' },
+    };
+    return functionRef('date', date[style ?? 'default'] ?? {});
+  }
+  const { calendar, timeZone, hour12, ...fields } = style.parsedOptions;
+  const overrides: Record<string, string> = {};
+  if (calendar !== undefined) overrides.calendar = calendar;
+  if (timeZone !== undefined) overrides.timeZone = timeZone;
+  if (hour12 !== undefined) overrides.hour12 = String(hour12);
+  const wanted = JSON.stringify(sorted(fields));
+  for (const candidate of dateCandidates()) {
+    const { calendar: _c, timeZone: _t, hour12: _h, ...got } = intlDate(candidate);
+    if (JSON.stringify(sorted(got)) === wanted) return functionRef(candidate.name, { ...candidate.options, ...overrides });
+  }
+  throw new Error(`{${el.value}}'s date skeleton "${style.pattern}" has no MessageFormat 2 equivalent: use a named style`);
+}
+
+function sorted(o: object): [string, unknown][] {
+  return Object.entries(o)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b));
+}
+
+function* dateCandidates(): Generator<Mf2Function> {
+  const lengths = [undefined, 'long', 'short'];
+  const precisions = [undefined, 'hour', 'second'];
+  const zones = [undefined, 'long', 'short'];
+  const defined = (o: Record<string, string | undefined>) =>
+    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Record<string, string>;
+  // Defaults first, so the shortest spelling wins.
+  const fieldsList = [undefined, ...DATE_FIELDS.filter((f) => f !== 'year-month-day')];
+  const dates = fieldsList.flatMap((fields) => lengths.map((length) => ({ fields, length })));
+  const times = precisions.flatMap((precision) => zones.map((timeZoneStyle) => ({ precision, timeZoneStyle })));
+  for (const d of dates) yield { name: 'date', options: defined(d) };
+  for (const t of times) yield { name: 'time', options: defined(t) };
+  for (const d of dates) {
+    for (const t of times) {
+      const options = { dateFields: d.fields, dateLength: d.length, timePrecision: t.precision, timeZoneStyle: t.timeZoneStyle };
+      yield { name: 'datetime', options: defined(options) };
+    }
+  }
+}

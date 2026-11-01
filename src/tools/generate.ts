@@ -13,6 +13,7 @@ import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { pseudoAst } from './pseudo.ts';
+import { SYNTAX_NAME } from './syntax.ts';
 
 const quote = (s: string) => JSON.stringify(s);
 const prop = (name: string) => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : quote(name));
@@ -85,7 +86,8 @@ function shapeOf(m: Message): string {
 
 function typesBlock(catalog: Catalog, locales: string[]): string {
   const rows = catalog.messages.map((m) => {
-    const lines = [m.text.length > 200 ? `${m.text.slice(0, 197)}...` : m.text];
+    // An MF2 message with variants spans lines; each is a line of the doc comment.
+    const lines = (m.text.length > 400 ? `${m.text.slice(0, 397)}...` : m.text).split('\n');
     if (m.context) lines.push('', m.context);
     return `${doc(lines, '  ')}  ${quote(m.key)}: ${shapeOf(m)};`;
   });
@@ -131,13 +133,13 @@ export function catalogSchema(config: ResolvedConfig): object {
     propertyNames: { pattern: '^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\\.[a-z0-9]+(?:[-_][a-z0-9]+)*)+$' },
     additionalProperties: {
       oneOf: [
-        { type: 'string', description: 'The message, in ICU MessageFormat, with nothing said about it.' },
+        { type: 'string', description: `The message, in ${SYNTAX_NAME[config.messageFormat]}, with nothing said about it.` },
         {
           type: 'object',
           required: [config.source, ...config.require],
           additionalProperties: false,
           properties: {
-            [config.source]: { type: 'string', description: 'The message, in ICU MessageFormat.' },
+            [config.source]: { type: 'string', description: `The message, in ${SYNTAX_NAME[config.messageFormat]}.` },
             kind: {
               description: 'What sort of string it is.',
               oneOf: Object.entries(config.kinds).map(([k, r]) => ({ const: k, description: r.doc })),

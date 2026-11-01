@@ -18,7 +18,8 @@ class Hoisted {
 
   /** `, oN` naming the hoisted options, or nothing when there are none. */
   arg(options: object | undefined): string {
-    if (options === undefined) return '';
+    // `{}` (a bare `:number`) formats as no options do, so it needs no constant.
+    if (options === undefined || Object.keys(options).length === 0) return '';
     const json = JSON.stringify(options);
     let name = this.byJson.get(json);
     if (name === undefined) this.byJson.set(json, (name = `o${this.byJson.size}`));
