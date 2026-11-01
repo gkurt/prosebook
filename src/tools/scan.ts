@@ -81,10 +81,8 @@ export function looksLikeCode(text: string): boolean {
 const NON_PROSE_ELEMENTS = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path']);
 const LETTER = /\p{L}/u;
 
-/** Literal text in JSX that a person reads, where it should be a catalog entry. */
-export function hardcodedText(file: string, code: string, attributes: string[]): Hardcoded[] {
-  const { program } = parseSync(file, code);
-  const found: Hardcoded[] = [];
+/** Offsets in `code` as lines and columns, and whether a line is marked `prosebook-ignore`, on it or the line above. */
+function lineIndex(code: string) {
   const lines = code.split('\n');
   const lineStarts: number[] = [];
   let offset = 0;
@@ -104,6 +102,14 @@ export function hardcodedText(file: string, code: string, attributes: string[]):
   };
   const ignored = (line: number) =>
     (lines[line - 1] ?? '').includes('prosebook-ignore') || (lines[line - 2] ?? '').includes('prosebook-ignore');
+  return { position, ignored };
+}
+
+/** Literal text in JSX that a person reads, where it should be a catalog entry. */
+export function hardcodedText(file: string, code: string, attributes: string[]): Hardcoded[] {
+  const { program } = parseSync(file, code);
+  const found: Hardcoded[] = [];
+  const { position, ignored } = lineIndex(code);
   const report = (node: Node, text: string, where: string) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
@@ -170,4 +176,128 @@ export function scan(dirs: string[], extensions: string[], attributes: string[],
     if (/\.[jt]sx$/.test(path)) hardcoded.push(...hardcodedText(relative(root, path).replaceAll('\\', '/'), code, attributes));
   }
   return { hardcoded, refs, files: files.length };
+}
+
+/** A copy's methods that take a key first. */
+export const READERS = new Set(['t', 'rich']);
+
+export interface UnseenRead {
+  file: string;
+  line: number;
+  column: number;
+  /** The read as written, on one line. */
+  code: string;
+  /** What it calls: a reader, the name it was imported by, or `Text`. */
+  name: string;
+}
+
+export interface Reads {
+  /** Reads whose key a build can't see, in calls that may be to a copy's `t` or `rich`. */
+  unseen: UnseenRead[];
+  /** Names a copy's readers are bound to here, as in `const { rich: tRich } = copy`. */
+  aliases: Set<string>;
+}
+
+const PREFIX = /^[a-z0-9][\w-]*(?:\.[\w-]+)*\.$/;
+const WRAPPERS = new Set(['ParenthesizedExpression', 'TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'TSTypeAssertion']);
+
+/** Whether `keyRefs` finds every key an expression can be: a literal, or a template or sum after a key prefix. */
+function keySeen(node: Node | undefined): boolean {
+  if (node === undefined) return false;
+  if (WRAPPERS.has(node.type)) return keySeen(node.expression as Node);
+  switch (node.type) {
+    case 'Literal':
+      return typeof node.value === 'string';
+    case 'TemplateLiteral': {
+      const [head] = node.quasis as { value: { cooked: string | null } }[];
+      return (node.expressions as Node[]).length === 0 || PREFIX.test(head?.value.cooked ?? '');
+    }
+    case 'BinaryExpression': {
+      const left = node.left as Node;
+      return node.operator === '+' && left.type === 'Literal' && typeof left.value === 'string' && PREFIX.test(left.value);
+    }
+    case 'ConditionalExpression':
+      return keySeen(node.consequent as Node) && keySeen(node.alternate as Node);
+    case 'LogicalExpression':
+      return keySeen(node.left as Node) && keySeen(node.right as Node);
+    default:
+      return false;
+  }
+}
+
+const nameOf = (node: Node | undefined): string | undefined =>
+  node?.type === 'Identifier' || node?.type === 'JSXIdentifier'
+    ? (node.name as string)
+    : node?.type === 'Literal'
+      ? String(node.value)
+      : undefined;
+
+/**
+ * The reads in a module whose key a pruned build can't see, as in `t(item.key)` or `<Text id={id} />`:
+ * the build would leave the message out, and the key would show in its place. A build has no types,
+ * so readers are known by name: `t` and `rich` called alone or as methods, and any name imported here,
+ * which may be bound to one elsewhere (`aliases`); the caller keeps those whose name turns out to be a
+ * reader. `<Text>` counts where it is imported from `prosebook/react`. Lines marked `prosebook-ignore`
+ * are skipped.
+ */
+export function unseenReads(file: string, code: string): Reads {
+  const { program } = parseSync(file, code);
+  const { position, ignored } = lineIndex(code);
+  const unseen: UnseenRead[] = [];
+  const aliases = new Set<string>();
+  /** Local name to the name it was imported by. */
+  const imported = new Map<string, string>();
+  const texts = new Set<string>();
+  for (const statement of (program as unknown as Node).body as Node[]) {
+    if (statement.type !== 'ImportDeclaration') continue;
+    for (const s of statement.specifiers as Node[]) {
+      const name = s.type === 'ImportSpecifier' ? nameOf(s.imported as Node) : undefined;
+      const local = nameOf(s.local as Node);
+      if (name === undefined || local === undefined) continue;
+      if (name === 'Text' && (statement.source as Node).value === 'prosebook/react') texts.add(local);
+      else imported.set(local, name);
+    }
+  }
+  const report = (node: Node, name: string) => {
+    const at = position(node.start);
+    if (ignored(at.line)) return;
+    const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
+    unseen.push({ file, ...at, name, code: text.length > 80 ? `${text.slice(0, 77)}...` : text });
+  };
+  // Calls by a plain name, kept until every alias in the module is known.
+  const calls: [Node, string][] = [];
+  const visit = (node: Node) => {
+    if (node.type === 'ObjectPattern') {
+      for (const p of node.properties as Node[]) {
+        if (p.type === 'Property' && READERS.has(nameOf(p.key as Node) ?? '') && (p.value as Node).type === 'Identifier')
+          aliases.add(nameOf(p.value as Node)!);
+      }
+    }
+    if (node.type === 'CallExpression' && !keySeen((node.arguments as Node[])[0])) {
+      const callee = node.callee as Node;
+      if (callee.type === 'Identifier') calls.push([node, callee.name as string]);
+      else if (callee.type === 'MemberExpression' && !callee.computed && READERS.has(nameOf(callee.property as Node) ?? ''))
+        report(node, nameOf(callee.property as Node)!);
+    }
+    if (node.type === 'JSXOpeningElement' && texts.has(nameOf(node.name as Node) ?? '')) {
+      const id = (node.attributes as Node[]).find((a) => a.type === 'JSXAttribute' && nameOf(a.name as Node) === 'id');
+      const value = id?.value as Node | null | undefined;
+      if (value !== null && value !== undefined && !keySeen(value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value))
+        report(node, 'Text');
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const child of value) if (isNode(child)) visit(child);
+      } else if (isNode(value)) {
+        visit(value);
+      }
+    }
+  };
+  visit(program as unknown as Node);
+  for (const [node, local] of calls) {
+    if (READERS.has(local) || aliases.has(local)) report(node, local);
+    else if (imported.has(local)) report(node, imported.get(local)!);
+  }
+  unseen.sort((a, b) => (a.line === b.line ? a.column - b.column : a.line - b.line));
+  return { unseen, aliases };
 }

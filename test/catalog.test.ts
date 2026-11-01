@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   applyFixes,
   CatalogError,
+  catalogSchema,
   definePlugin,
   generate,
   lint,
@@ -92,6 +93,9 @@ describe('catalog checks', () => {
     expect(problems[1]).toContain('skeleton stems the formatter drops without a word: compact-shortt');
     expect(problems[2]).toContain('needs its currency named');
     expect(problems[3]).toContain('not valid ICU');
+    expect(problemsOf({ 'copy/catalog/app.yaml': 'app.a: "{d, date, ::yMMMdJmm}"' }, { require: [] })[0]).toContain(
+      'date fields the formatter drops without a word: J',
+    );
   });
 
   test('a value YAML 1.1 reads differently must be quoted', () => {
@@ -236,6 +240,53 @@ describe('lint', () => {
       'app.a [house/error-says-what-to-do] an error says what to do next',
     ]);
     expect(findings(yaml, { plugins: [house], rules: { 'house/no-we': 'off' } })).toEqual([]);
+  });
+
+  test('a rule is scoped by area, and an area sets its own severities', () => {
+    const titled = definePlugin({
+      name: 'menus',
+      rules: {
+        'title-case': { type: 'capitalization', description: 'A menu item is in title case.', on: { area: ['native'] }, case: 'title' },
+      },
+    });
+    const config = fixture(
+      {
+        'copy/catalog/app.yaml': 'app.a:\n  kind: action\n  context: A button.\n  en: Save Draft',
+        'copy/catalog/native.yaml': [
+          'native.a:\n  kind: action\n  context: A menu item.\n  en: Save Draft',
+          'native.b:\n  kind: action\n  context: A menu item.\n  en: Save draft',
+        ].join('\n'),
+      },
+      { lint: { extends: 'strict', plugins: [titled], areas: { native: { 'sentence-case': 'off' } } } },
+    );
+    expect(lint(loadCatalog(config).messages, config).map((f) => `${f.key} [${f.rule}] ${f.message}`)).toEqual([
+      'app.a [sentence-case] "Draft" is capitalized in a sentence-case action: add it to lint.properNouns if it is a name',
+      'native.b [menus/title-case] "draft" is out of title case: change it, or add it to exceptions if it is a name',
+    ]);
+    expect(() => fixture({}, { lint: { areas: { native: { 'sentence-cases': 'off' } } } })).toThrow(
+      'lint.areas.native.sentence-cases is not a rule',
+    );
+  });
+
+  test('a path is written with the separator the config names, and --fix writes it', () => {
+    const yaml = [
+      'app.a:\n  kind: description\n  context: A hint.\n  en: Open Settings > General.',
+      'app.b:\n  kind: description\n  context: A hint.\n  en: Open Settings->General.',
+      'app.c:\n  kind: description\n  context: A hint.\n  en: Open Settings › General.',
+      'app.d:\n  kind: description\n  context: A hint.\n  en: Read and / or write 2 > 1.',
+    ].join('\n');
+    expect(findings(yaml, { extends: 'none', rules: { path: 'error' }, pathSeparator: '>' })).toEqual([
+      'app.b [path] a path is written with a spaced >',
+      'app.c [path] a path is written with a spaced >',
+    ]);
+    const config = fixture({ 'copy/catalog/app.yaml': yaml }, { lint: { extends: 'none', rules: { path: 'error' } } });
+    const found = lint(loadCatalog(config).messages, config);
+    expect(found.map((f) => `${f.key} ${f.message}`)).toEqual([
+      'app.a a path is written with a spaced ›',
+      'app.b a path is written with a spaced ›',
+    ]);
+    expect(applyFixes(config, loadCatalog(config), found)).toEqual({ fixed: 2, problems: [] });
+    expect(readFileSync(join(config.catalog, 'app.yaml'), 'utf8').match(/Open Settings › General\./g)).toHaveLength(3);
   });
 
   test('a rule or plugin the config cannot place is an error', () => {
@@ -480,4 +531,12 @@ test('generate --check reports what is out of date without writing', () => {
   expect(generate(config, { check: true }).changed.length).toBeGreaterThan(0);
   generate(config);
   expect(generate(resolveConfig(config.root, { require: [] }), { check: true }).changed).toEqual([]);
+});
+
+test('the schema offers the key: message shorthand only where no field is required', () => {
+  const shorthand = (require: ('context' | 'kind')[]) =>
+    JSON.stringify(catalogSchema(fixture({}, { require }))).includes('with nothing said about it');
+  expect(shorthand([])).toBe(true);
+  expect(shorthand(['context'])).toBe(false);
+  expect(shorthand(['context', 'kind'])).toBe(false);
 });

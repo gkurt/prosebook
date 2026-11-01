@@ -52,13 +52,16 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   `presets.ts`: kinds, surfaces, the strict preset's word lists.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `entryLocator` finds an entry's line, reading each file once.
-- `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options.
+- `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
+  locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
   becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
   `matchTree`'s ranking in step with the spec. `mf1.ts`: the tree written as MF1. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
-- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
+- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`. A
+  message that calls no helper takes no `h`, so the generated TypeScript passes `noUnusedParameters`,
+  which the repo's tsconfig turns on over the example's output.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed.
 - `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, CheckRule>` written as a
@@ -67,7 +70,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
   `compileRule` turns into code and checks when the config loads. The core word and case rules use
   the same matchers (`listed`, `outOfCase`) as the data rules; the format rules (`plural-count`,
   `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
-  by the rules whose `on.locale` reads it; unset is the source only, since most rules are English. `scan.ts`: hardcoded JSX text and key references. `pseudo.ts`.
+  by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
+  `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
+  `scan.ts`: hardcoded JSX text, key references, and `unseenReads`: reads whose key a pruned build
+  can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>`). `pseudo.ts`.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
@@ -75,7 +81,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/async`
   API (an optional peer) or, without it, from the expression's syntax. Not `unstable/sync`: under Bun on
   Linux and macOS it throws, and CI runs there.
-- `src/vite.ts`: regenerate on change, prune in builds. In dev it makes the generated modules accept
+- `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
+  are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
+  default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
+  apps that share a catalog. In dev it makes the generated modules accept
   their own updates (the index reloads only when the locales change), sets the dev hooks before the app
   runs, serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`, then
   Vite's `/__open-in-editor`). `src/cli.ts`: the

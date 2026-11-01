@@ -37,11 +37,12 @@ interface RuleBase {
   /** Its severity under `extends: 'strict'`; `error` when unset. */
   strict?: Severity;
   /**
-   * Only entries of these kinds, or on these surfaces; an entry that says neither is skipped. Only
-   * the source unless `locale` says otherwise, since most writing rules are written for one language:
-   * `all` reads every locale, and a list those languages and their regions (`de` covers `de-CH`).
+   * Only entries of these kinds, on these surfaces, or in these areas (a key's first segment); an
+   * entry that says no kind or surface is skipped by a rule that names some. Only the source unless
+   * `locale` says otherwise, since most writing rules are written for one language: `all` reads
+   * every locale, and a list those languages and their regions (`de` covers `de-CH`).
    */
-  on?: { kind?: string[]; surface?: string[]; locale?: 'all' | string[] };
+  on?: { kind?: string[]; surface?: string[]; area?: string[]; locale?: 'all' | string[] };
 }
 
 /** A rule written as code. */
@@ -336,6 +337,17 @@ const hasStop = (text: string) => /(?![,，、،])[\p{Terminal_Punctuation}…][
 
 const CURRENCY_BEFORE = /[$€£¥₹]\s?$/;
 
+/**
+ * The ways a path through menus is written, the separator in a group: an arrow or `›` however
+ * spaced, and `>` or `/` only spaced between words or placeholders, with a capital after a slash,
+ * since "2 > 1" and "and / or" are no paths. The match takes the spaces around, so the fix spaces
+ * the separator.
+ */
+const PATH_SEPARATORS = new RegExp(
+  String.raw`\s*(→|->|›)\s*|(?<=[\p{L}${HOLE}])\s+(>)\s+(?=[\p{L}${HOLE}])|(?<=\p{L})\s+(\/)\s+(?=\p{Lu})`,
+  'gu',
+);
+
 const OFF_SCREEN = new Set(['aria']);
 
 const an = (word = 'string') => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
@@ -445,6 +457,19 @@ export const CORE_RULES = {
     check: ({ text }) => {
       const match = text.variants.map((v) => /—|\s[–-]\s/.exec(v)?.[0]).find((m) => m !== undefined);
       return match === undefined ? [] : [{ message: 'no em-dash: a comma, a period or a colon does the job', match }];
+    },
+  },
+  path: {
+    description: 'A path through menus or settings is written with `lint.pathSeparator`, spaced: Settings › General.',
+    check: ({ text, config }) => {
+      const use = config.lint.pathSeparator;
+      for (const v of text.variants) {
+        for (const m of v.matchAll(PATH_SEPARATORS)) {
+          if ((m[1] ?? m[2] ?? m[3]) === use) continue;
+          return [{ message: `a path is written with a spaced ${use}`, match: m[0], fix: ` ${use} ` }];
+        }
+      }
+      return [];
     },
   },
   contractions: {
@@ -704,13 +729,18 @@ const readsLocale = (locales: 'all' | string[] | undefined, locale: string, sour
       locales.some((l) => locale.toLowerCase() === l.toLowerCase() || locale.toLowerCase().startsWith(`${l.toLowerCase()}-`));
 
 function applies(rule: RuleBase, message: Message, locale: string, sourceLocale: string): boolean {
-  const { kind, surface, locale: locales } = rule.on ?? {};
+  const { kind, surface, area, locale: locales } = rule.on ?? {};
   return (
     readsLocale(locales, locale, sourceLocale) &&
     (kind === undefined || (message.kind !== undefined && kind.includes(message.kind))) &&
-    (surface === undefined || (message.surface !== undefined && surface.includes(message.surface)))
+    (surface === undefined || (message.surface !== undefined && surface.includes(message.surface))) &&
+    (area === undefined || area.includes(message.area))
   );
 }
+
+/** A rule's severity for an entry: its area's, where `lint.areas` sets one. */
+export const severityOf = (config: ResolvedConfig, name: string, message: Message): Severity | undefined =>
+  config.lint.areas[message.area]?.[name] ?? config.lint.rules[name]?.severity;
 
 interface Literal {
   start: number;
@@ -784,7 +814,8 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
       const text = locale === config.source ? source : readings(ast);
       const context: RuleContext = { message, locale, ast, kind, text, source, config };
       let literals: Literal[] | undefined;
-      for (const [name, { rule, severity }] of rules) {
+      for (const [name, { rule }] of rules) {
+        const severity = severityOf(config, name, message)!;
         if (severity === 'off' || !applies(rule, message, locale, config.source)) continue;
         let said: (string | Report)[];
         try {
@@ -814,7 +845,7 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
       const rule = config.lint.rules[name];
       if (rule === undefined) {
         findings.push({ ...at, message: `allow.${name} is not a rule: ${rules.map(([n]) => n).join(', ')}` });
-      } else if (rule.severity === 'off') {
+      } else if (severityOf(config, name, message) === 'off') {
         continue;
       } else if (!fired.has(name)) {
         findings.push({ ...at, message: `allow.${name} exempts the entry from a rule it passes: remove it` });

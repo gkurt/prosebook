@@ -32,14 +32,13 @@ const { t } = useCopy();
   2.5 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build. A
   translation whose source has changed since is marked stale, automatically.
-- **Pruned.** A Vite build ships only the messages the code names.
+- **Pruned.** A Vite build ships only the messages the code names, and fails on a read whose key
+  it can't see rather than show a key where a message was.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
 
 ## Quick start
-
-Not on npm yet: build it here (`bun run build`) and add it by path.
 
 ```bash
 bun add prosebook
@@ -65,6 +64,9 @@ import { prosebook } from 'prosebook/vite';
 
 export default defineConfig({ plugins: [react(), prosebook()] });
 ```
+
+Several apps that share one catalog each point the plugin at it: `prosebook({ root: '../../packages/copy' })`
+reads the config there and resolves its paths from there, so every app generates the same files.
 
 ### In React
 
@@ -126,7 +128,8 @@ One file per area, `copy/catalog/<area>.yaml`. A key's first segment names its f
 | `comment`  | A change asked of whoever edits the entry next. A warning until it is made and the comment deleted.      |
 | `remove`   | `true` asks for the entry to go, with its translations and the code that reads it. A warning until then. |
 
-`key: message` is the shorthand for an entry with nothing to say about itself (set `require: []`).
+`key: message` is the shorthand for an entry with nothing to say about itself (set `require: []`;
+the schema offers it only then).
 Kinds and surfaces are configurable; `prosebook generate` writes `catalog.schema.json` beside the
 catalog, so an editor with the YAML language server completes and explains every field:
 
@@ -146,12 +149,14 @@ en: '{mode, select, dark {Dark} other {Light}}' # mode: 'dark' | (string & {})
 en: '{size, number, ::.0 unit/megabyte}' # 1.4 MB
 en: '{total, number, ::currency/EUR}' # €9.00
 en: '{when, date, medium} at {when, time, short}' # Oct 28, 2026 at 2:05 PM
+en: '{when, date, ::yMMMdjmm}' # Oct 28, 2026, 2:05 PM; 28. Okt. 2026, 14:05 in German
 en: 'By checking out you agree to our <link>terms</link>.' # a tag: an element inside the sentence
 ```
 
 A placeholder holds a number, a name or something a person typed, never a translated fragment: a
-word that changes with the sentence belongs in a `plural` or `select` arm. A skeleton the formatter
-would silently drop (`::compact-shortt`) fails the build instead of reaching the screen unformatted.
+word that changes with the sentence belongs in a `plural` or `select` arm. A skeleton's `j` is the
+hour as each locale writes it, 12 or 24. A skeleton the formatter would silently drop
+(`::compact-shortt`, a date's `J`) fails the build instead of reaching the screen unformatted.
 
 **Tags** keep a sentence with a link or bold run inside it as one entry, so a translator can move the
 element. `t()` renders a tag as its text; `rich()` and `<Text>` render it through a function. Tags
@@ -290,8 +295,9 @@ writes them, in the case of the words they replace, wherever in the message they
 checked as the whole catalog first, and nothing is written if any would break it. Only the message
 changes: a `key: message` entry stays one, and quoting and comments elsewhere stay as they were.
 
-`strict` adds sentence case, contractions, em-dashes, `…`, American spelling and a list of filler
-and marketing words. Add your own `banned`, `spelling` and `concepts` (one word per concept:
+`strict` adds sentence case, contractions, em-dashes, `…`, American spelling, paths written with one
+separator (`Settings › General`, not `→` or `>`; set `pathSeparator`) and a list of filler and
+marketing words. Add your own `banned`, `spelling` and `concepts` (one word per concept:
 `{ tablet: 'device' }`), and `properNouns` for sentence case. Where a rule is wrong about an
 entry, say why:
 
@@ -307,10 +313,16 @@ legal.privacy:
 A reason that is a shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs.
 An exemption covers the entry in every locale, and is needed while any of them needs it.
 
+Where a rule is wrong about a whole area, set its severity there. A key's first segment is its area:
+
+```ts
+lint: { areas: { native: { 'sentence-case': 'off' } } }, // menu bars and trays write Title Case
+```
+
 **Lint plugins.** A plugin's rules are named `<plugin>/<rule>` in `lint.rules` and `allow`. A rule
 is given the entry and its readings: `primary` takes every `other` arm, `variants` holds one reading
 per plural or select arm, and `skeleton` only the words every arm carries. Placeholders and verbatim
-tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds or surfaces, and says which
+tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds, surfaces or areas, and says which
 locales it reads: the source when unset, `'all'`, or a list of languages (`['de']` covers `de-CH`).
 A rule is then given the `locale`, that locale's `ast` and `text`, and the `source` readings to
 compare with. `recommended` is its severity under that preset (off when unset), `strict` under
@@ -488,6 +500,13 @@ references. A reference is any string literal equal to a key, so keys kept in ar
 ``t(`status.${state}`)`` and `t('status.' + state)` keep every key under `status.`. For keys built
 some other way, list them: `prosebook({ keep: ['plan.*'] })`.
 
+A message the build leaves out shows as its key, so by default a build fails on any read whose key
+it can't see: `t(item.key)`, ``rich(`${area}.title`)``, `<Text id={id} />`. Write the key at the read,
+or, where every key it reads is written elsewhere (in an array, say) or listed in `keep`, mark the
+line with `prosebook-ignore`. Reads are known by name: `t` and `rich` alone or as methods, the names
+they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Text>` from
+`prosebook/react`. `prune: 'loose'` prunes without the check, and `prune: false` ships everything.
+
 ## Finding a string's entry
 
 In dev, hold Alt (Option on a Mac) and point at text on the page: the Vite plugin outlines the
@@ -546,7 +565,17 @@ export default defineConfig({
   require: ['context'],
   kinds: {/* name, action, description, state */},
   surfaces: {/* label, heading, tooltip, ... */},
-  lint: { extends: 'recommended', plugins: [], rules: {}, banned: [], spelling: {}, concepts: {}, properNouns: [] },
+  lint: {
+    extends: 'recommended',
+    plugins: [],
+    rules: {},
+    areas: {}, // severities per area: { native: { 'sentence-case': 'off' } }
+    banned: [],
+    spelling: {},
+    concepts: {},
+    properNouns: [],
+    pathSeparator: '›',
+  },
   scan: { dirs: ['src'] },
 });
 ```

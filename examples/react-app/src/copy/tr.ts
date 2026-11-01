@@ -2,7 +2,7 @@
 import type { CompiledMessages } from 'prosebook';
 
 export default {
-  "app.greeting": (a, h) => ["Tekrar hoş geldin, ", a.name, "."],
+  "app.greeting": (a) => ["Tekrar hoş geldin, ", a.name, "."],
   "app.language": "Dil",
   "app.title": "Köşe Dükkan",
   "cart.add": "Sepete ekle",

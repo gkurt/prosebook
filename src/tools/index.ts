@@ -75,4 +75,17 @@ export { applyMigrate, planMigrate, type MigratePlan } from './migrate.ts';
 export { readMessage, SYNTAX_NAME, writeMessage, type MessageFormatVersion } from './syntax.ts';
 export { syntaxKind, typescriptOracle, type Span, type TypeOracle, type ValueKind } from './types.ts';
 export { SarifReport, type SarifResult, type SarifTool } from './sarif.ts';
-export { hardcodedText, isReferenced, keyRefs, looksLikeCode, scan, sourceFiles, type Hardcoded, type KeyRefs } from './scan.ts';
+export {
+  hardcodedText,
+  isReferenced,
+  keyRefs,
+  looksLikeCode,
+  READERS,
+  scan,
+  sourceFiles,
+  unseenReads,
+  type Hardcoded,
+  type KeyRefs,
+  type Reads,
+  type UnseenRead,
+} from './scan.ts';

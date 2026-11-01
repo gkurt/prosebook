@@ -67,6 +67,26 @@ describe('compiled messages', () => {
     expect(say('{d, date, ::yMMMMd}', { d: when })).toBe('October 28, 2026');
   });
 
+  test("a skeleton's j is the hour as each locale writes it", () => {
+    const when = new Date(2026, 9, 28, 14, 5);
+    expect(say('{d, date, ::yMMMdjmm}', { d: when })).toBe('Oct 28, 2026, 2:05 PM');
+    expect(say('{d, date, ::yMMMdjmm}', { d: when }, 'de')).toBe('28. Okt. 2026, 14:05');
+    expect(say('{d, time, ::jjmm}', { d: when }, 'de')).toBe('14:05');
+  });
+
+  test('a message that calls no helper takes no helpers, so strict TypeScript has no unused parameter', () => {
+    const { rows } = compileLocale([
+      ['a.a', parseMessage('Hello, {name}.')],
+      ['a.b', parseMessage('Read the <link>terms</link>.')],
+      ['a.c', parseMessage('{n, number} items')],
+    ]);
+    expect(rows).toEqual([
+      '  "a.a": (a) => ["Hello, ", a.name, "."],',
+      '  "a.b": (a, h) => ["Read the ", h.t(a, "link", "terms"), "."],',
+      '  "a.c": (a, h) => [h.n(a.n), " items"],',
+    ]);
+  });
+
   test('tags render as their text in a plain read and through functions in a rich one', () => {
     const copy = copyOf({ en: { 'a.b': 'Read the <link>terms of <b>sale</b></link>.' } });
     expect(copy.t('a.b')).toBe('Read the terms of sale.');

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { hardcodedText, isReferenced, keyRefs, looksLikeCode } from 'prosebook/tools';
+import { hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads } from 'prosebook/tools';
 
 describe('hardcoded text', () => {
   const ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
@@ -48,5 +48,44 @@ describe('key references', () => {
     expect([...refs.prefixes].sort()).toEqual(['errors.', 'status.']);
     expect(isReferenced('status.offline', refs)).toBe(true);
     expect(isReferenced('cart.empty', refs)).toBe(false);
+  });
+});
+
+describe('reads a pruned build cannot see', () => {
+  const unseen = (code: string) => unseenReads('A.tsx', code).unseen.map((u) => `${u.line}:${u.column} ${u.name} ${u.code}`);
+
+  test('a key the scan finds is seen: a literal, a choice of literals, a template or sum after a prefix', () => {
+    const code = `copy.t('a.one'); t(on ? 'a.on' : 'a.off'); rich(\`a.\${id}\`, {}); t('a.' + id); t('a.b' as const);`;
+    expect(unseen(code)).toEqual([]);
+  });
+
+  test("a key in a variable, after no prefix, or in a Text's id is not", () => {
+    const code = [
+      "import { Text } from 'prosebook/react';",
+      'copy.t(item.key);',
+      't(`${area}.title`);',
+      'const { rich: say } = useCopy();',
+      'say(on ? "a.b" : key);',
+      '<Text id={id} />;',
+      '// prosebook-ignore: every key is in the tabs array',
+      't(tab.key);',
+    ].join('\n');
+    expect(unseen(code)).toEqual([
+      '2:1 t copy.t(item.key)',
+      '3:1 t t(`${area}.title`)',
+      '5:1 say say(on ? "a.b" : key)',
+      '6:1 Text <Text id={id} />',
+    ]);
+  });
+
+  test('a name imported here is kept for the build to match against aliases bound elsewhere', () => {
+    const reads = unseenReads('A.ts', "import { tRich as say, other } from '@app/text';\nsay(key);\nother(1);\nclock.tick(n);");
+    expect(reads.unseen.map((u) => u.name)).toEqual(['tRich', 'other']);
+    expect([...unseenReads('B.ts', 'export const { t, rich: tRich } = copy;').aliases]).toEqual(['t', 'tRich']);
+  });
+
+  test('a Text from elsewhere, and a local that only shares a name as a property, are not reads', () => {
+    const code = "import { Text } from '@ui/kit';\n<Text id={id} />;\ntracks.forEach((t) => t.stop());\n({ t: key });";
+    expect(unseen(code)).toEqual([]);
   });
 });

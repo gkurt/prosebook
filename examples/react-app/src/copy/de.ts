@@ -6,7 +6,7 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "app.greeting": (a, h) => ["Willkommen zurück, ", a.name, "."],
+  "app.greeting": (a) => ["Willkommen zurück, ", a.name, "."],
   "app.language": "Sprache",
   "app.last-visit": (a, h) => ["Dein letzter Besuch war am ", h.d(a.when, o0), " um ", h.d(a.when, o1), "."],
   "app.title": "Eckladen",

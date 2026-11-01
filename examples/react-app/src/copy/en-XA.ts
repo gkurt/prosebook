@@ -6,7 +6,7 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "app.greeting": (a, h) => ["⟦Ŵééļçóóɱéé ƀááçķ, ", a.name, ".⟧"],
+  "app.greeting": (a) => ["⟦Ŵééļçóóɱéé ƀááçķ, ", a.name, ".⟧"],
   "app.language": "⟦Ļááñĝúúááĝéé⟧",
   "app.last-visit": (a, h) => ["⟦Ýóóúúŕ ļáášţ ṽííšííţ ŵááš ", h.d(a.when, o0), " ááţ ", h.d(a.when, o1), ".⟧"],
   "app.title": "⟦Çóóŕñééŕ Šĥóóþ⟧",

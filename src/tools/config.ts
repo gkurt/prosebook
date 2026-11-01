@@ -38,14 +38,20 @@ export interface WordLists {
   concepts?: Record<string, string>;
   /** Words that keep their capital inside a sentence-case string: product names, platforms. */
   properNouns?: string[];
+  /** What a path through menus or settings is written with, spaced: `›` by default, as in Settings › General. */
+  pathSeparator?: string;
 }
+
+type RuleSeverities = Partial<Record<CoreRule, Severity>> & Record<string, Severity>;
 
 export interface LintConfig extends WordLists {
   /** `recommended` (the default) checks shape; `strict` adds the word lists and rules of a house style guide. */
   extends?: 'recommended' | 'strict' | 'none';
   /** Rules of your own, as `<plugin>/<rule>`. Each takes the severity it gives itself under `extends`. */
   plugins?: Plugin[];
-  rules?: Partial<Record<CoreRule, Severity>> & Record<string, Severity>;
+  rules?: RuleSeverities;
+  /** Severities for one area's entries (a key's first segment) over `rules`: `{ native: { 'sentence-case': 'off' } }`. */
+  areas?: Record<string, RuleSeverities>;
 }
 
 export interface ProsebookConfig {
@@ -106,7 +112,10 @@ export interface ResolvedConfig {
   require: ('context' | 'kind' | 'surface')[];
   kinds: Record<string, KindRule>;
   surfaces: Record<string, string>;
-  lint: { rules: Record<string, { rule: CheckRule; severity: Severity }> } & Required<WordLists>;
+  lint: {
+    rules: Record<string, { rule: CheckRule; severity: Severity }>;
+    areas: Record<string, Record<string, Severity>>;
+  } & Required<WordLists>;
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
@@ -141,6 +150,11 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
+  const rules = lintRules(lint);
+  for (const [area, severities] of Object.entries(lint.areas ?? {})) {
+    for (const name of Object.keys(severities))
+      if (!(name in rules)) throw new Error(`lint.areas.${area}.${name} is not a rule: name one of ${Object.keys(rules).join(', ')}`);
+  }
   return {
     root,
     catalog: at(config.catalog ?? 'copy/catalog'),
@@ -158,11 +172,13 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     kinds: config.kinds ?? DEFAULT_KINDS,
     surfaces: config.surfaces ?? DEFAULT_SURFACES,
     lint: {
-      rules: lintRules(lint),
+      rules,
+      areas: lint.areas ?? {},
       banned: [...(strict ? STRICT_LISTS.banned : []), ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...lint.spelling },
       concepts: { ...lint.concepts },
       properNouns: lint.properNouns ?? [],
+      pathSeparator: lint.pathSeparator ?? '›',
     },
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),

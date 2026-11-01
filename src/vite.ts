@@ -13,7 +13,7 @@
  * the server opens the entry it asks for through Vite's own `/__open-in-editor`, so the editor is
  * whichever Vite already launches.
  */
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
@@ -23,13 +23,22 @@ import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { editEntry, readEntry, type EntryEdit } from './tools/entry.ts';
 import { generate, type Generated } from './tools/generate.ts';
-import { isReferenced, keyRefs, type KeyRefs } from './tools/scan.ts';
+import { isReferenced, keyRefs, READERS, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
 export interface ProsebookPluginOptions {
-  /** The config, inline. Without it, `prosebook.config.*` at the Vite root is read. */
+  /** The config, inline. Without it, `prosebook.config.*` at `root` is read. */
   config?: ProsebookConfig;
-  /** Ship only the messages the code names. On by default. */
-  prune?: boolean;
+  /**
+   * The folder the config's paths resolve from, and where its file is found: the Vite root when
+   * unset. Apps that share one catalog name its folder, so each build generates the same files.
+   */
+  root?: string;
+  /**
+   * Ship only the messages the code names. `strict`, the default, also fails the build on a read
+   * whose key it can't see, such as `t(item.key)`, which would show the key where its message was
+   * pruned. `loose` prunes without that check; `false` ships every message.
+   */
+  prune?: 'strict' | 'loose' | false;
   /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
   keep?: string[];
   /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
@@ -37,6 +46,7 @@ export interface ProsebookPluginOptions {
 }
 
 const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
+const SCRIPT = /\.[cm]?[jt]sx?$/;
 const DEV_ID = '\0prosebook/dev';
 
 const hotLocale = (locale: string) => `
@@ -61,13 +71,18 @@ const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
 
 // Beside this module: the source when run from source, the built file in dist.
 const inspectorPath = normalize(fileURLToPath(new URL(`./inspector${import.meta.url.endsWith('.ts') ? '.ts' : '.js'}`, import.meta.url)));
+// prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
+const ownDir = normalize(fileURLToPath(new URL('.', import.meta.url)));
 
 export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   let config: ResolvedConfig;
   let generated: Generated | undefined;
   let building = false;
   let base = '/';
+  let viteRoot = '';
   let refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
+  const reads = new Map<string, Reads>();
+  const prune = options.prune ?? 'strict';
   const placeholders: string[] = [];
   const shipped = { total: 0, kept: 0 };
 
@@ -96,7 +111,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     async configResolved(resolved) {
       building = resolved.command === 'build';
       base = resolved.base;
-      config = await loadConfig(resolved.root, options.config);
+      viteRoot = resolved.root;
+      config = await loadConfig(options.root === undefined ? resolved.root : resolve(resolved.root, options.root), options.config);
     },
 
     // First in <head>, so the hot hooks are there before any copy is created.
@@ -116,6 +132,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         this.error(describe(e));
       }
       refs = { exact: new Set(), prefixes: new Set() };
+      reads.clear();
       placeholders.length = 0;
       shipped.total = shipped.kept = 0;
     },
@@ -128,7 +145,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
         try {
           generated = generate(config);
-          server.config.logger.info(`prosebook: regenerated from ${path.slice(normalize(config.root).length + 1)}`, { timestamp: true });
+          server.config.logger.info(`prosebook: regenerated from ${relative(config.root, path).replaceAll('\\', '/')}`, {
+            timestamp: true,
+          });
         } catch (e) {
           server.config.logger.error(describe(e), { timestamp: true });
           server.ws.send({ type: 'error', err: { message: describe(e), stack: '', plugin: 'prosebook' } });
@@ -207,23 +226,48 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         if (options.inspect === false) return hot;
         return `import { install } from ${JSON.stringify(inspectorPath)};\n${hot}install(${JSON.stringify({ base })});\n`;
       }
-      if (!building || options.prune === false || generated === undefined) return null;
+      if (!building || prune === false || generated === undefined) return null;
       const locale = localeOf(id);
       if (locale === undefined) return null;
       placeholders.push(locale);
       return `export default __PROSEBOOK_LOCALE_${placeholders.length - 1}__;\n`;
     },
 
-    transform(code, id) {
-      if (!building) {
-        const locale = localeOf(id);
-        if (locale !== undefined) return { code: code + hotLocale(locale), map: null };
-        return isIndex(id) ? { code: code + HOT_INDEX, map: null } : null;
-      }
-      if (options.prune === false || id.includes('/node_modules/') || id.startsWith('\0')) return null;
-      if (localeOf(id) !== undefined) return null;
-      keyRefs(code, refs);
-      return null;
+    // Before other plugins, so a read is found in the source as written: `<Text id>` still JSX, and
+    // the line it is reported at, and its `prosebook-ignore`, where the author wrote them.
+    transform: {
+      order: 'pre',
+      handler(code, id) {
+        if (!building) {
+          const locale = localeOf(id);
+          if (locale !== undefined) return { code: code + hotLocale(locale), map: null };
+          return isIndex(id) ? { code: code + HOT_INDEX, map: null } : null;
+        }
+        if (prune === false || id.includes('/node_modules/') || id.startsWith('\0')) return null;
+        // The index's `Messages` type names every key, and is read here before its types are stripped.
+        if (localeOf(id) !== undefined || isIndex(id)) return null;
+        keyRefs(code, refs);
+        const path = id.split('?', 1)[0]!;
+        if (prune === 'strict' && SCRIPT.test(path) && !normalize(path).startsWith(`${ownDir}/`)) reads.set(id, unseenReads(path, code));
+        return null;
+      },
+    },
+
+    buildEnd(error) {
+      if (error !== undefined || prune !== 'strict') return;
+      const live = new Set(this.getModuleIds());
+      const all = [...reads].filter(([id]) => live.has(id)).map(([, r]) => r);
+      const readers = new Set([...READERS, ...all.flatMap((r) => [...r.aliases])]);
+      const unseen = all.flatMap((r) => r.unseen).filter((u) => u.name === 'Text' || readers.has(u.name));
+      if (unseen.length === 0) return;
+      const at = (file: string) => relative(viteRoot, file).replaceAll('\\', '/');
+      this.error(
+        [
+          `${unseen.length} read(s) whose key the build can't see, so their messages would be pruned and the key shown instead:`,
+          ...unseen.map((u) => `  ${at(u.file)}:${u.line}:${u.column}  ${u.code}`),
+          'Write each key at the read, as a literal or `area.${id}`; or, where every key it reads is written elsewhere or listed in `keep`, mark the line `prosebook-ignore`. `prune: "loose"` turns this check off.',
+        ].join('\n'),
+      );
     },
 
     renderChunk(code) {

@@ -9,7 +9,33 @@ export type { MessageFormatElement };
 export { TYPE };
 
 export function parseMessage(text: string): MessageFormatElement[] {
-  return parse(text, { shouldParseSkeletons: true, requiresOtherClause: true });
+  const ast = parse(text, { shouldParseSkeletons: true, requiresOtherClause: true });
+  walk(ast, (el) => {
+    if ((isDateElement(el) || isTimeElement(el)) && typeof el.style === 'object' && el.style !== null && el.style.pattern.includes('j'))
+      el.style.parsedOptions = localHour(el.style.pattern);
+  });
+  return ast;
+}
+
+/**
+ * A skeleton's `j` is the hour as the locale writes it, 12 or 24. The parser resolves it only when
+ * given a locale and drops it otherwise, so `::yMMMdjmm` showed the minute alone. Read here as an
+ * hour with no cycle, which `Intl` gives the cycle of whatever locale formats it: "2:05 PM", "14:05".
+ */
+function localHour(pattern: string): Intl.DateTimeFormatOptions {
+  const run = /j+/.exec(pattern)![0];
+  const rest = pattern.replaceAll('j', '');
+  return { ...(rest === '' ? {} : dateFields(rest)), hour: run.length % 2 === 0 ? '2-digit' : 'numeric' };
+}
+
+/** What the parser reads from a date skeleton on its own; nothing where it can't parse it. */
+function dateFields(skeleton: string): Intl.DateTimeFormatOptions {
+  try {
+    const el = parse(`{d, date, ::${skeleton}}`, { shouldParseSkeletons: true })[0];
+    return el !== undefined && isDateElement(el) && typeof el.style === 'object' && el.style !== null ? el.style.parsedOptions : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -115,6 +141,9 @@ export function dateOptions(el: DateElement | TimeElement): Intl.DateTimeFormatO
     }
     return { [field]: style };
   }
+  // Every field the parser understands sets an option, and one it doesn't is dropped without a word.
+  const dropped = (style.pattern.match(/([A-Za-z])*/g) ?? []).filter((f) => !f.startsWith('j') && Object.keys(dateFields(f)).length === 0);
+  if (dropped.length > 0) throw new Error(`{${el.value}} has date fields the formatter drops without a word: ${dropped.join(', ')}`);
   if (Object.keys(style.parsedOptions).length === 0)
     throw new Error(`{${el.value}} has a date skeleton the formatter reads nothing from: "${style.pattern}"`);
   try {

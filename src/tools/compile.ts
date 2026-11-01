@@ -3,12 +3,13 @@
  *
  * A message with no placeholders becomes its string. Any other becomes `(a, h) => …`, where `a` holds
  * the arguments and `h` the locale's helpers (see `runtime/helpers.ts`): a plural is a call picking an
- * arm, a number is a call to a cached `Intl.NumberFormat`. Formatting options are resolved here and
+ * arm, a number is a call to a cached `Intl.NumberFormat`. One that calls no helper is `(a) => …`, so
+ * the generated TypeScript passes `noUnusedParameters`. Formatting options are resolved here and
  * hoisted to module constants, so a skeleton costs nothing at runtime and its formatter is built once.
  */
 import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
 
-import { dateOptions, numberOptions, staticLiteral, TYPE, type MessageFormatElement } from './icu.ts';
+import { dateOptions, numberOptions, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 
 export type Entry = readonly [key: string, ast: MessageFormatElement[]];
 
@@ -71,9 +72,19 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null):
   }
 }
 
+/** Whether the message calls a helper: everything but literals and plain placeholders does. */
+function usesHelpers(ast: MessageFormatElement[]): boolean {
+  let uses = false;
+  walk(ast, (el) => {
+    if (el.type !== TYPE.literal && el.type !== TYPE.argument) uses = true;
+  });
+  return uses;
+}
+
 function message(ast: MessageFormatElement[], hoisted: Hoisted): string {
   const literal = staticLiteral(ast);
-  return literal === undefined ? `(a, h) => ${nodes(ast, hoisted, null)}` : JSON.stringify(literal);
+  if (literal !== undefined) return JSON.stringify(literal);
+  return `(${usesHelpers(ast) ? 'a, h' : 'a'}) => ${nodes(ast, hoisted, null)}`;
 }
 
 export interface CompiledLocale {
