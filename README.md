@@ -503,6 +503,11 @@ catalog with the edit first, so a broken message or a missing argument doc shows
 nothing is written; a clean edit is written into the file, which keeps its comments and layout, and
 the page updates in place. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> closes.
 
+As you type, the dialog has the edit checked unsaved and shows what lint says of each locale under
+its text, with every rule the config has, plugins included. Clicking a finding selects its words;
+Fix makes the fix `prosebook lint --fix` would. Findings don't stop a save: they are the writing
+guide's, not the catalog's.
+
 Nothing is added to the page to make this work. In dev the runtime reports each string it hands out,
 and the inspector matches the text under the pointer back to it, so `t()`, `<Text>`, a sentence with
 a link inside it and readable attributes (`placeholder`, `title`, `aria-label`, `alt`) all work. Text

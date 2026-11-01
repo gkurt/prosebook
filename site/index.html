@@ -638,6 +638,51 @@
       .dlg .problems:empty {
         display: none;
       }
+      .dlg .findings {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 3px;
+        font-weight: 400;
+        color: var(--ink);
+      }
+      .dlg .findings:empty {
+        display: none;
+      }
+      .dlg .findings li {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+      }
+      .dlg .findings li::before {
+        content: '';
+        flex: none;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--tok-kw);
+      }
+      .dlg .findings .say {
+        flex: 1;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        color: inherit;
+      }
+      .dlg .findings button.say:hover {
+        text-decoration: underline;
+      }
+      .dlg .findings .rule {
+        font: 11px/1.4 var(--mono);
+        color: var(--muted);
+      }
+      .dlg .findings button.fix {
+        padding: 2px 8px;
+        font-size: 12px;
+      }
       .facts {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -893,7 +938,8 @@
             <h3>Your editor, or none</h3>
             <p>
               Alt-click opens the entry through Vite's own <code>/__open-in-editor</code>. Alt-right-click edits it in a dialog on the page,
-              as fields or as YAML, checked before it's written.
+              as fields or as YAML, checked before it's written. Lint's findings show under each text as you type, with a fix where there is
+              one.
             </p>
           </div>
         </div>
@@ -1354,6 +1400,24 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         return problems;
       }
 
+      // What lint says under each text in the dialog, cut down to three of its rules: in an app, the
+      // plugin checks the edit unsaved on the server and runs them all.
+      const ends = (text) => /[.!?…:]["')”]*$/.test(text.trim());
+      function findingsOf(text, source) {
+        const found = [];
+        if (/ {2,}/.test(text))
+          found.push({ rule: 'whitespace', message: 'no leading, trailing or doubled spaces', match: / {2,}/g, fix: ' ' });
+        if (text.includes('...')) found.push({ rule: 'ellipsis', message: 'an ellipsis is one character: …', match: /\.{3}/g, fix: '…' });
+        if (source !== undefined && text.trim() !== '' && ends(text) !== ends(source))
+          found.push({
+            rule: 'source-ending',
+            message: ends(source)
+              ? 'the source ends with a stop, and this does not: end it as the source does'
+              : 'ends with a stop, and the source does not: drop it',
+          });
+        return found;
+      }
+
       function openDialog(key, catalog, x, y) {
         dialog?.remove();
         const translated = !catalog && source(key) === 'de';
@@ -1400,6 +1464,43 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
         };
         const value = (name) => body.querySelector(`[name="${name}"]`)?.value;
 
+        /** A text field with what lint says of it underneath. */
+        const withFindings = (label) => {
+          label.append(make('ul', { className: 'findings' }));
+          return label;
+        };
+        const lintNow = () => {
+          for (const list of body.querySelectorAll('.findings')) {
+            const field = list.parentElement.querySelector('textarea');
+            const source = field.name === 'translation' ? (value('message') ?? fieldsFrom(catalogLines).message) : undefined;
+            list.replaceChildren(
+              ...findingsOf(field.value, source).map((f) => {
+                const say =
+                  f.match === undefined
+                    ? make('span', { className: 'say', textContent: f.message })
+                    : make('button', { type: 'button', className: 'say', textContent: f.message });
+                say.addEventListener('click', () => {
+                  const at = f.match && new RegExp(f.match.source).exec(field.value);
+                  if (!at) return;
+                  field.focus();
+                  field.setSelectionRange(at.index, at.index + at[0].length);
+                });
+                const item = make('li', {}, say, make('span', { className: 'rule', textContent: f.rule }));
+                if (f.fix !== undefined) {
+                  const fix = make('button', { type: 'button', className: 'fix', textContent: 'Fix' });
+                  fix.addEventListener('click', () => {
+                    field.value = field.value.replace(f.match, f.fix);
+                    lintNow();
+                  });
+                  item.append(fix);
+                }
+                return item;
+              }),
+            );
+          }
+        };
+        body.addEventListener('input', lintNow);
+
         const render = () => {
           tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
           tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
@@ -1411,14 +1512,16 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
             return;
           }
           const f = fieldsFrom(catalogLines);
-          const german = hint(
-            area('translation', `Translation · de${translation === '' ? ' · none yet' : ''}`, translation, true),
-            'No translation: the en text shows',
+          const german = withFindings(
+            hint(
+              area('translation', `Translation · de${translation === '' ? ' · none yet' : ''}`, translation, true),
+              'No translation: the en text shows',
+            ),
           );
           // The locale the string was read in comes first, as in the dev dialog.
           body.replaceChildren(
             ...(translated ? [german] : []),
-            area('message', `${translated ? 'Source' : 'Message'} · en`, f.message ?? '', true),
+            withFindings(area('message', `${translated ? 'Source' : 'Message'} · en`, f.message ?? '', true)),
             ...(translated ? [] : [german]),
             area('context', 'Context', f.context, true),
             make(
@@ -1431,6 +1534,7 @@ cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</lin
               make('label', {}, `What {${n}} holds`, make('input', { name: `arg.${n}`, value: v })),
             ),
           );
+          lintNow();
         };
 
         /** The edit on screen, as catalog lines and a translation. */

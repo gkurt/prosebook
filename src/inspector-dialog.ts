@@ -2,11 +2,13 @@
  * The inspector's dialog: Alt-right-click a string to edit its entry on the page, in every locale, as
  * fields or as the YAML written in its files. The server checks each edit as the whole catalog before
  * writing it (`tools/entry.ts`); once written, the page updates in place like after any catalog edit.
+ * While typing, it asks the server to check the edit unsaved, and shows what lint says of each locale
+ * under its text: a finding selects its words, and one that has a fix makes it.
  *
  * It renders in a shadow root, so the app's styles don't reach it and its own don't leak out.
  */
 import type { Problem } from '#src/tools/catalog.ts';
-import type { EntryEdit, EntryFields, EntryView } from '#src/tools/entry.ts';
+import type { EntryEdit, EntryFields, EntryFinding, EntryView } from '#src/tools/entry.ts';
 
 export interface DialogOptions {
   base: string;
@@ -25,7 +27,7 @@ type Reply = { view?: EntryView; problems?: Problem[] };
 const STYLE = `
 :host { all: initial; }
 .panel {
-  --bg: #fff; --fg: #1d1b17; --muted: #6b665c; --line: #e2ded4; --field: #faf9f6; --err: #b91c1c; --ok: #15803d;
+  --bg: #fff; --fg: #1d1b17; --muted: #6b665c; --line: #e2ded4; --field: #faf9f6; --err: #b91c1c; --warn: #b45309; --ok: #15803d;
   position: fixed; z-index: 2147483647; display: flex; flex-direction: column;
   width: min(460px, calc(100vw - 24px)); max-height: min(80vh, 680px);
   background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
@@ -33,7 +35,7 @@ const STYLE = `
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  .panel { --bg: #1d1c17; --fg: #ece8dd; --muted: #a29c8d; --line: #34322a; --field: #15140f; --err: #f87171; --ok: #4ade80; color-scheme: dark; }
+  .panel { --bg: #1d1c17; --fg: #ece8dd; --muted: #a29c8d; --line: #34322a; --field: #15140f; --err: #f87171; --warn: #fbbf24; --ok: #4ade80; color-scheme: dark; }
 }
 header, footer { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
 header { border-bottom: 1px solid var(--line); }
@@ -62,6 +64,16 @@ legend { font-size: 12px; font-weight: 500; color: var(--muted); padding: 0 0 4p
 .problems { margin: 0; padding: 0 12px 0 28px; color: var(--err); }
 .problems:empty { display: none; }
 .problems li { margin: 2px 0; }
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-weight: 400; color: var(--fg); }
+.findings:empty { display: none; }
+.findings.all { padding: 0 12px 8px; }
+.findings li { display: flex; align-items: baseline; gap: 6px; }
+.findings li::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.findings li.error::before { background: var(--err); }
+.findings .say { flex: 1; border: 0; padding: 0; background: transparent; font: inherit; text-align: left; color: inherit; }
+.findings button.say:hover { text-decoration: underline; }
+.findings .rule { font: 11px/1.4 ui-monospace, monospace; color: var(--muted); }
+.findings button.fix { padding: 2px 8px; font-size: 12px; }
 .status { color: var(--muted); }
 .status.ok { color: var(--ok); }
 button {
@@ -99,6 +111,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   root.append(el('style', { textContent: STYLE }), panel);
 
   const close = () => {
+    clearTimeout(timer);
     host.remove();
     if (closeOpen === close) closeOpen = undefined;
   };
@@ -113,6 +126,14 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   };
   let tab: 'fields' | 'yaml' = 'fields';
   let view: EntryView | undefined;
+  // What lint said, and each locale's text it said it of: a finding's place and fix are in that text.
+  let findings: EntryFinding[] = [];
+  let checked = new Map<string, string>();
+  const heard = (next: EntryView) => {
+    findings = next.findings;
+    checked = new Map([[next.source, next.fields.message], ...Object.entries(next.fields.translations)]);
+  };
+  const all = el('ul', { className: 'findings all' });
 
   const showProblems = (list: readonly Problem[]) =>
     problems.replaceChildren(
@@ -145,6 +166,58 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     return label;
   };
 
+  const fieldOf = (locale: string) =>
+    root.querySelector<HTMLTextAreaElement>(`[name="${locale === view?.source ? 'message' : `translation.${locale}`}"]`);
+
+  const item = (f: EntryFinding, prefix: string) => {
+    const field = fieldOf(f.locale);
+    // Typed over since the check: the next one is on its way, so the old place and fix are left alone.
+    const current = () => (tab === 'fields' && field !== null && field.value === checked.get(f.locale) ? field : undefined);
+    const text = `${prefix}${f.message}`;
+    const at = tab === 'fields' ? f.at : undefined;
+    const say =
+      at === undefined
+        ? el('span', { className: 'say', textContent: text })
+        : el('button', { type: 'button', className: 'say', textContent: text });
+    say.addEventListener('click', () => {
+      const target = current();
+      if (at === undefined || target === undefined) return;
+      target.focus();
+      target.setSelectionRange(at.start, at.end);
+    });
+    const li = el('li', { className: f.severity }, say, el('span', { className: 'rule', textContent: f.rule }));
+    const fixed = f.fixed;
+    if (fixed !== undefined && tab === 'fields') {
+      const fix = el('button', { type: 'button', className: 'fix', textContent: 'Fix' });
+      fix.addEventListener('click', () => {
+        const target = current();
+        if (target === undefined) return;
+        target.value = fixed;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      li.append(fix);
+    }
+    return li;
+  };
+
+  const showFindings = () => {
+    if (tab === 'yaml') {
+      all.replaceChildren(...findings.map((f) => item(f, `${f.locale}: `)));
+      return;
+    }
+    all.replaceChildren();
+    for (const list of root.querySelectorAll<HTMLUListElement>('.body .findings'))
+      list.replaceChildren(...findings.filter((f) => f.locale === list.dataset['locale']).map((f) => item(f, '')));
+  };
+
+  /** A text field with what lint says of its locale under it. */
+  const withFindings = (label: HTMLLabelElement, locale: string) => {
+    const list = el('ul', { className: 'findings' });
+    list.dataset['locale'] = locale;
+    label.append(list);
+    return label;
+  };
+
   const render = () => {
     if (view === undefined) return;
     tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
@@ -157,14 +230,18 @@ export async function openDialog(options: DialogOptions): Promise<void> {
           placeholder(area(`yaml.${l}`, v.files.translations[l]!, v.yaml.translations[l] ?? '', false, 1), `${v.key}: …`),
         ),
       );
+      showFindings();
       return;
     }
     const f = view.fields;
     const fallsBack = `No translation: the ${view.source} text shows`;
     const translation = (l: string) =>
-      placeholder(
-        area(`translation.${l}`, `Translation · ${l}${f.translations[l] === '' ? ' · none yet' : ''}`, f.translations[l] ?? '', true),
-        fallsBack,
+      withFindings(
+        placeholder(
+          area(`translation.${l}`, `Translation · ${l}${f.translations[l] === '' ? ' · none yet' : ''}`, f.translations[l] ?? '', true),
+          fallsBack,
+        ),
+        l,
       );
     const others = ordered().filter((l) => l !== focus());
     const select = (name: string, value: string, choices: string[]) =>
@@ -177,7 +254,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     const argNames = [...new Set([...view.argNames, ...Object.keys(f.args)])];
     body.replaceChildren(
       ...(focus() === undefined ? [] : [translation(focus()!)]),
-      area('message', `${focus() === undefined ? 'Message' : 'Source'} · ${view.source}`, f.message, true),
+      withFindings(area('message', `${focus() === undefined ? 'Message' : 'Source'} · ${view.source}`, f.message, true), view.source),
       ...(others.length === 0
         ? []
         : [
@@ -209,6 +286,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
             ),
           ]),
     );
+    showFindings();
   };
 
   const value = (name: string) => root.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[name="${name}"]`)?.value;
@@ -241,6 +319,24 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     return reply.view;
   };
 
+  // Checked a moment after typing stops; a reply to an older check than the last is dropped.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let asked = 0;
+  const check = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const mine = ++asked;
+      void send(false).then((checkedView) => {
+        if (mine !== asked) return;
+        if (checkedView === undefined) findings = [];
+        else heard(checkedView);
+        showFindings();
+      });
+    }, 350);
+  };
+  body.addEventListener('input', check);
+  body.addEventListener('change', check);
+
   const save = async () => {
     status.className = 'status';
     status.textContent = 'Checking…';
@@ -258,6 +354,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     const converted = await send(false);
     if (converted === undefined) return;
     view = converted;
+    heard(converted);
     tab = next;
     render();
   };
@@ -288,6 +385,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
       closeButton,
     ),
     body,
+    all,
     problems,
     el('footer', {}, openFile, el('span', { className: 'grow' }), status, cancel, saveButton),
   );
@@ -301,8 +399,12 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   document.body.append(host);
   const res = await fetch(`${options.base}__prosebook/entry?${query}`);
   const reply = (await res.json()) as EntryView | { problems: Problem[] };
-  if ('problems' in reply) showProblems(reply.problems);
-  else view = reply;
+  if ('problems' in reply) {
+    showProblems(reply.problems);
+  } else {
+    view = reply;
+    heard(reply);
+  }
   render();
 
   // Beside the pointer, inside the window.

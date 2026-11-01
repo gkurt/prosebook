@@ -82,6 +82,12 @@ test('in dev, the page gets the hot hooks and the inspector, the generated modul
         headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(body),
       });
+    expect(read.findings).toEqual([]);
+    // Checked unsaved, as the dialog does while typing: lint's findings come back, with each fix made.
+    const typed = await post({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Used  message' } } });
+    const { view } = (await typed.json()) as { view: EntryView };
+    expect(view.findings.map((f) => [f.rule, f.at, f.fixed])).toEqual([['whitespace', { start: 4, end: 6 }, 'Used message']]);
+    expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe('app.used: Used message\n');
     const edit = { key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true };
     expect((await post(edit, { Origin: 'https://elsewhere.example' })).status).toBe(403);
     expect((await post({ ...edit, edit: { yaml: { catalog: 'app.used: Broken {' } } })).status).toBe(422);

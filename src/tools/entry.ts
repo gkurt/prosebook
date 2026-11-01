@@ -15,7 +15,7 @@ import { isMap, isScalar, parseDocument, Scalar, type Document, type YAMLMap } f
 
 import { CatalogError, loadCatalog, type Catalog, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { applyEdits, type Edit, type Finding } from './lint.ts';
+import { applyEdits, lint, type Edit, type Finding } from './lint.ts';
 
 export interface EntryFields {
   /** The source message. */
@@ -52,6 +52,13 @@ export interface EntryView {
   argNames: string[];
   kinds: string[];
   surfaces: string[];
+  /** What lint says of the entry as it stands, in every locale. */
+  findings: EntryFinding[];
+}
+
+export interface EntryFinding extends Finding {
+  /** The locale's text with this finding fixed, so the page can make the fix without lint's code. */
+  fixed?: string;
 }
 
 export type EntryEdit = { fields: EntryFields } | { yaml: EntryYaml };
@@ -197,6 +204,10 @@ function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: 
     argNames: [...message.args.keys()],
     kinds: Object.keys(config.kinds),
     surfaces: Object.keys(config.surfaces),
+    findings: lint([message], config).map((f) => {
+      const written = f.locale === config.source ? message.text : message.translations.get(f.locale)?.text;
+      return f.fix === undefined || written === undefined ? f : { ...f, fixed: applyEdits(written, f.fix) };
+    }),
   };
 }
 

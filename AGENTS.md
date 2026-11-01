@@ -78,7 +78,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, the CLI):
 - `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
   own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
-  shadow root, which edits an entry through the plugin's `/__prosebook/entry`.
+  shadow root, which edits an entry through the plugin's `/__prosebook/entry`. While typing it posts
+  the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships
+  to the browser.
 - `src/tools/entry.ts`: an entry in every locale, as fields and as the YAML written for it, and edits
   to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document

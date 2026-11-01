@@ -27,7 +27,16 @@ export {
   type FilePlan,
   type NewEntry,
 } from './extract.ts';
-export { applyFixes, editEntry, readEntry, type EntryEdit, type EntryFields, type EntryView, type EntryYaml } from './entry.ts';
+export {
+  applyFixes,
+  editEntry,
+  readEntry,
+  type EntryEdit,
+  type EntryFields,
+  type EntryFinding,
+  type EntryView,
+  type EntryYaml,
+} from './entry.ts';
 export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export {
