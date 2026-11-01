@@ -10,9 +10,14 @@ const requested = (req: Request) =>
     .map((part) => part.split(';', 1)[0]!.trim())
     .filter((tag) => tag !== '');
 
+const dev = process.env.NODE_ENV !== 'production';
+
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3000),
   routes: {
+    // In dev, the inspector's endpoints: Alt-click a string on the page to open its entry in the
+    // editor, Alt-right-click to edit it there. Imported only then, so a build leaves them out.
+    ...(dev ? (await import('prosebook/bun')).inspector() : {}),
     '/': index,
     // Read on the server: one copy per request, in the locale the request asks for.
     '/api/cart': async (req) => {
@@ -22,7 +27,7 @@ const server = Bun.serve({
       return new Response(copy.t('cart.items', { count }), { headers: { 'Content-Language': copy.locale } });
     },
   },
-  development: process.env.NODE_ENV !== 'production' && { hmr: true, console: true },
+  development: dev && { hmr: true, console: true },
 });
 
 console.log(`Listening on ${server.url}`);

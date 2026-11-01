@@ -1,10 +1,12 @@
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { OnLoadCallback, PluginBuilder } from 'bun';
 
-import { prosebook } from '#src/bun.ts';
+import type { EntryView } from 'prosebook/tools';
+
+import { inspector, prosebook } from '#src/bun.ts';
 import { fixture } from './fixture.ts';
 
 const files = {
@@ -54,18 +56,17 @@ test('a strict build fails on a read whose key it cannot see', async () => {
   expect((await build(unseen, 'loose')).js).toContain('Used message');
 });
 
-test("under Bun's dev server, the index sets up the hot hooks and each locale accepts its own update", async () => {
+/** The plugin's `onLoad` as Bun's dev server sets it up, which names no entry points, under `NODE_ENV`. */
+async function devServer(env: string) {
   const config = fixture(files);
   const loads: [RegExp, OnLoadCallback][] = [];
-  // The dev server's bundler names no entry points.
   const builder = { config: { target: 'browser' }, onLoad: (o: { filter: RegExp }, cb: OnLoadCallback) => loads.push([o.filter, cb]) };
-  const env = process.env.NODE_ENV;
-  // As in production, so no catalog watcher outlives the test.
-  process.env.NODE_ENV = 'production';
+  const was = process.env.NODE_ENV;
+  process.env.NODE_ENV = env;
   try {
     await prosebook({ root: config.root, config: { require: [] } }).setup(builder as unknown as PluginBuilder);
   } finally {
-    process.env.NODE_ENV = env;
+    process.env.NODE_ENV = was;
   }
   const [filter, onLoad] = loads[0]!;
   const load = async (file: string) => {
@@ -73,7 +74,44 @@ test("under Bun's dev server, the index sets up the hot hooks and each locale ac
     expect(filter.test(path)).toBe(true);
     return (await onLoad({ path, namespace: 'file', loader: 'ts', defer: () => Promise.resolve() })) as { contents: string } | undefined;
   };
-  expect((await load('index.ts'))?.contents).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
+  return { config, filter, load };
+}
+
+test("under Bun's dev server, the index sets up the hot hooks and the inspector, and each locale accepts its own update", async () => {
+  const { config, filter, load } = await devServer('development');
+  const index = (await load('index.ts'))!.contents;
+  expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
+  expect(index).toContain('installInspector({"base":"/"})');
+  expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('export function keyAt');
   expect((await load('de.ts'))?.contents).toContain('update("de", next.default)');
   expect(filter.test(join(config.root, 'src', 'main.ts'))).toBe(false);
+  // Served in production, the page has no inspector.
+  expect((await (await devServer('production')).load('index.ts'))!.contents).not.toContain('installInspector');
+});
+
+test("the inspector's routes read and edit entries from the page only, and open them with Bun.openInEditor", async () => {
+  const config = fixture(files);
+  const routes = inspector({ root: config.root, config: { require: [] } });
+  const opened = spyOn(Bun, 'openInEditor').mockImplementation(() => {});
+  try {
+    const open = await routes['/__prosebook/open']!(new Request('http://localhost:3000/__prosebook/open?key=app.used&locale=de'));
+    expect(open.status).toBe(204);
+    expect(opened).toHaveBeenCalledWith(join(config.root, 'copy/locales/de.yaml'), { line: 1, column: 1 });
+  } finally {
+    opened.mockRestore();
+  }
+  const entry = routes['/__prosebook/entry']!;
+  const read = (await (await entry(new Request('http://localhost:3000/__prosebook/entry?key=app.used'))).json()) as EntryView;
+  expect(read.yaml.catalog).toBe('app.used: Used message');
+  const post = (origin: string) =>
+    entry(
+      new Request('http://localhost:3000/__prosebook/entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: origin },
+        body: JSON.stringify({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true }),
+      }),
+    );
+  expect((await post('https://elsewhere.example')).status).toBe(403);
+  expect((await post('http://localhost:3000')).status).toBe(200);
+  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe('app.used: Still used\napp.unused: Unused message\n');
 });

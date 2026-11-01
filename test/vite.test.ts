@@ -131,7 +131,7 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     expect(inspector.status).toBe(200);
     const entry = await inspector.text();
     expect(entry).toContain('globalThis.__PROSEBOOK_HOT__ ??= new Set()');
-    expect(entry).toContain('install({"base":"/"})');
+    expect(entry).toContain('installInspector({"base":"/"})');
     expect(await (await fetch(`${origin}src/copy/en.ts`)).text()).toContain('update("en", next.default)');
     expect(await (await fetch(`${origin}src/copy/index.ts`)).text()).toContain('next.catalog.locales.join() !== catalog.locales.join()');
     const client = await fetch(new URL(/from "([^"]+)"/.exec(entry)![1]!, origin));
@@ -139,6 +139,10 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     const missing = await fetch(`${origin}__prosebook/open?key=app.gone&locale=en`);
     expect(missing.status).toBe(404);
     expect(await missing.text()).toContain('no entry for "app.gone"');
+    // Handed on to Vite's own launcher, which the browser follows to.
+    const open = await fetch(`${origin}__prosebook/open?key=app.used&locale=en`, { redirect: 'manual' });
+    expect(open.status).toBe(307);
+    expect(decodeURIComponent(open.headers.get('location')!)).toMatch(/^\/__open-in-editor\?file=.*copy[\\/]catalog[\\/]app\.yaml:1:1$/);
 
     const read = (await (await fetch(`${origin}__prosebook/entry?key=app.used`)).json()) as EntryView;
     expect(read.yaml.catalog).toBe('app.used: Used message');

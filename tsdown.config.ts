@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown';
 
-// One entry per export in package.json, plus the CLI, the dev inspector the Vite plugin serves from
+// One entry per export in package.json, plus the CLI, the dev inspector each integration loads from
 // beside itself and the Turbopack loader the Next config names by path. React, Vite, Bun and Node
 // built-ins stay external.
 export default defineConfig({

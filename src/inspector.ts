@@ -1,5 +1,5 @@
 /**
- * The dev inspector the Vite plugin loads into the page: hold Alt and point at a string to see its
+ * The dev inspector each integration loads into the page: hold Alt and point at a string to see its
  * key, Alt-click to open the entry it came from, Alt-Shift-click to open the catalog entry instead of
  * the translation. Alt-right-click edits the entry on the page instead (`inspector-dialog.ts`).
  *
@@ -113,10 +113,15 @@ export interface InspectorOptions {
   base: string;
 }
 
-/** Starts listening for reads and for Alt on the page. Called by the module the Vite plugin serves. */
+/**
+ * Starts listening for reads and for Alt on the page, once: Bun and Next call it from the generated
+ * index, which runs again whenever it changes.
+ */
 export function install({ base }: InspectorOptions): void {
+  const hooks = globalThis as DevHooks;
+  if (hooks.__PROSEBOOK_READ__ !== undefined) return;
   const reads: Reads = new Map();
-  (globalThis as DevHooks).__PROSEBOOK_READ__ = (key, text, locale) => record(reads, key, text, locale);
+  hooks.__PROSEBOOK_READ__ = (key, text, locale) => record(reads, key, text, locale);
 
   const box = document.createElement('div');
   const label = document.createElement('div');

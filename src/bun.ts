@@ -8,7 +8,9 @@
  *
  * Named in bunfig.toml's `[serve.static] plugins`, it serves `Bun.serve`'s bundler instead, which
  * names no entry points: it regenerates whenever a catalog or translation file changes, and each
- * locale module accepts its own update and hands the new messages to every copy, as under Vite.
+ * locale module accepts its own update and hands the new messages to every copy, as under Vite. The
+ * index starts the inspector on the page too, whose endpoints are `inspector()`'s routes, spread into
+ * `Bun.serve`'s; an entry opens in the editor `Bun.openInEditor` finds.
  */
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -16,9 +18,11 @@ import { basename, resolve } from 'node:path';
 import type { BunPlugin } from 'bun';
 
 import {
+  beside,
   HOT_INDEX,
   HOT_SET,
   hotLocale,
+  installInspector,
   keeper,
   prunedModule,
   scanSources,
@@ -28,6 +32,7 @@ import {
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { loadConfig, type ProsebookConfig } from './tools/config.ts';
+import { inspectorEndpoints } from './tools/endpoints.ts';
 import { generate } from './tools/generate.ts';
 
 export interface ProsebookBunOptions {
@@ -43,7 +48,11 @@ export interface ProsebookBunOptions {
   prune?: Prune;
   /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
   keep?: string[];
+  /** Under the dev server, Alt-click a string on the page to open its entry in the editor. On by default. */
+  inspect?: boolean;
 }
+
+const inspectorPath = beside(import.meta.url, 'inspector');
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -72,7 +81,9 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         return;
       }
 
-      if (process.env.NODE_ENV !== 'production') {
+      const dev = process.env.NODE_ENV !== 'production';
+      const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
+      if (dev) {
         watchCatalog(config, () => {
           try {
             generated = generate(config);
@@ -85,10 +96,36 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         const name = nameOf(path);
         const loader = path.endsWith('.ts') ? 'ts' : 'js';
         if (generated.entries.has(name)) return { contents: readFileSync(path, 'utf8') + hotLocale(name), loader };
-        return name === 'index' ? { contents: HOT_SET + readFileSync(path, 'utf8') + HOT_INDEX, loader } : undefined;
+        return name === 'index' ? { contents: HOT_SET + inspector + readFileSync(path, 'utf8') + HOT_INDEX, loader } : undefined;
       });
     },
   };
+}
+
+export interface InspectorRoutesOptions {
+  /** The config, inline. Without it, `prosebook.config.*` at `root` is read. */
+  config?: ProsebookConfig;
+  /** The folder the config's paths resolve from, and where its file is found: the working directory when unset. */
+  root?: string;
+}
+
+/**
+ * The inspector's endpoints as `Bun.serve` routes: `routes: { ...inspector(), '/': index }`. For dev
+ * only: they read and write the catalog.
+ */
+export function inspector(options: InspectorRoutesOptions = {}): Record<string, (req: Request) => Promise<Response>> {
+  const handle = inspectorEndpoints(loadConfig(resolve(options.root ?? process.cwd()), options.config), {
+    open: ({ file, line, column }) => {
+      try {
+        Bun.openInEditor(file, { line, column });
+        return new Response(null, { status: 204 });
+      } catch (e) {
+        return new Response(`${e instanceof Error ? e.message : String(e)}: set VISUAL or EDITOR to the editor's command`, { status: 500 });
+      }
+    },
+  });
+  const route = async (req: Request) => (await handle(req)) ?? new Response(null, { status: 404 });
+  return { '/__prosebook/open': route, '/__prosebook/entry': route };
 }
 
 // bunfig.toml names the module, and Bun takes its default export as the plugin.

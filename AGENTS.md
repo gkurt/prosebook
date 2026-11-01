@@ -86,28 +86,37 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 - `src/tools/bundle.ts`: what the bundler integrations share: `keeper`, the unseen reads that are a
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
   the code reading it, the pruned locale module, the catalog watcher, and the dev code appended to the
-  generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`).
+  generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
+  `endpoints.ts`: the inspector's `/__prosebook/open` and `/__prosebook/entry` over `Request` and
+  `Response`, with each dev server's editor launcher handed in as `open`; `nodeMiddleware` mounts them
+  on Vite's server and Next's.
 - `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
   are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
   apps that share a catalog. In dev it makes the generated modules accept their own updates (the index
   reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
   first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
-  HTML too. It serves the inspector and opens the entry it asks for (`entryLocation` in `catalog.ts`,
-  then Vite's `/__open-in-editor`). `src/cli.ts`: the `prosebook` command.
+  HTML too. It serves the inspector's endpoints and opens an entry by redirecting to Vite's
+  `/__open-in-editor`. `src/cli.ts`: the `prosebook` command.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
   watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
   path's end (Turbopack's root may be the monorepo's). `next-loader.ts` is the loader those rules name
   by path (a tsdown entry of its own): in a build each locale's pruned module travels to it as its
   options, so no config is loaded in Turbopack's workers; in dev, in the browser, the index sets the
-  hot set and each locale, run again by Fast Refresh, updates the copies. Turbopack only: Next 16 fails
+  hot set and starts the inspector (imported by a relative path), and each locale, run again by Fast
+  Refresh, updates the copies. An app route needs a file in the app, so in dev the inspector's
+  endpoints run on a local port of their own, once per process, and a `beforeFiles` rewrite of
+  `/__prosebook/*` proxies to it; Next forwards the page's host, which the same-origin check reads, and
+  an entry opens by redirect to `/__nextjs_launch-editor`. Turbopack only: Next 16 fails
   a Turbopack build whose config has a `webpack` key. Its export has a `default` condition, since Next
   `require`s the config.
 - `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so it prunes there; the dev server
   (bunfig.toml's `[serve.static]`) names none, so there it watches and appends the Vite plugin's hot
-  code, which Bun's `import.meta.hot` runs as Vite's does.
-- `src/inspector.ts`: browser code, loaded by the Vite plugin from beside itself (a tsdown entry of its
-  own). Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
+  code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from the index
+  unless `NODE_ENV` is `production`. `inspector()` is its endpoints as `Bun.serve` routes, opening
+  entries with `Bun.openInEditor`; the example imports it only in dev and its build marks it external.
+- `src/inspector.ts`: browser code, loaded from beside each integration (a tsdown entry of its own).
+  `install` runs once per page, since Bun and Next run the index again on every change. Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
   shadow root, which edits an entry through the plugin's `/__prosebook/entry`. While typing it posts
   the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "build": "bun build.ts",
-    "start": "cd dist && bun server.js",
+    "start": "cd dist && NODE_ENV=production bun server.js",
     "typecheck": "tsc",
     "check": "prosebook generate --check && prosebook lint",
     "generate": "prosebook generate"

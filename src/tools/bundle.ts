@@ -8,6 +8,7 @@
  */
 import { existsSync, readFileSync, watch } from 'node:fs';
 import { relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
@@ -117,3 +118,14 @@ globalThis.__PROSEBOOK_HOT__?.forEach((update) => update(${JSON.stringify(locale
 
 /** Prepended to the index in dev, so the set every copy adds itself to exists before any copy does. */
 export const HOT_SET = 'globalThis.__PROSEBOOK_HOT__ ??= new Set();\n';
+
+/**
+ * A module of prosebook's own beside the one at `url`, which passes its `import.meta.url`: the source
+ * when run from source, the built file in dist.
+ */
+export const beside = (url: string, name: string) =>
+  fileURLToPath(new URL(`./${name}${url.endsWith('.ts') ? '.ts' : '.js'}`, url)).replaceAll('\\', '/');
+
+/** Code that starts the inspector (`inspector.ts`, imported from `path`) on the page, its endpoints under `base`. */
+export const installInspector = (path: string, base: string) =>
+  `import { install as installInspector } from ${JSON.stringify(path)};\ninstallInspector(${JSON.stringify({ base })});\n`;

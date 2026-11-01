@@ -20,11 +20,11 @@ import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
 
-import { HOT_INDEX, HOT_SET, hotLocale, keeper, unseenMessage, unseenOf, type Prune } from './tools/bundle.ts';
-import { CatalogError, entryLocation } from './tools/catalog.ts';
+import { beside, HOT_INDEX, HOT_SET, hotLocale, installInspector, keeper, unseenMessage, unseenOf, type Prune } from './tools/bundle.ts';
+import { CatalogError, type EntryLocation } from './tools/catalog.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
-import { editEntry, readEntry, type EntryEdit } from './tools/entry.ts';
+import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
 import { generate, type Generated } from './tools/generate.ts';
 import { keyRefs, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
@@ -55,8 +55,7 @@ const DEV_ID = '\0prosebook/dev';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
 
-// Beside this module: the source when run from source, the built file in dist.
-const inspectorPath = normalize(fileURLToPath(new URL(`./inspector${import.meta.url.endsWith('.ts') ? '.ts' : '.js'}`, import.meta.url)));
+const inspectorPath = beside(import.meta.url, 'inspector');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
 const ownDir = normalize(fileURLToPath(new URL('.', import.meta.url)));
 
@@ -137,72 +136,16 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       server.watcher.on('unlink', onChange);
       if (options.inspect === false) return;
 
-      // `?key=cart.items&locale=de`: the translation's entry, or the catalog's with `catalog` or when
-      // the locale has none. Handed on to Vite's `/__open-in-editor`, which comes later in the stack.
-      server.middlewares.use((req, res, next) => {
-        const url = new URL(req.url ?? '/', 'http://localhost');
-        if (url.pathname !== `${base}__prosebook/open`) return next();
-        const key = url.searchParams.get('key') ?? '';
-        const message = generated?.catalog.messages.find((m) => m.key === key);
-        if (message === undefined) {
-          res.statusCode = 404;
-          res.end(`no entry for "${key}" in the catalog: has it been renamed since the page loaded?`);
-          return;
-        }
-        const locale = url.searchParams.has('catalog') ? undefined : (url.searchParams.get('locale') ?? undefined);
-        const { file, line, column } = entryLocation(config, message, locale);
-        req.url = `${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`;
-        next();
-      });
-
-      // The inspector's dialog: GET `?key=…` reads an entry in every locale, POST `{ key, edit, write }`
-      // applies an edit (`tools/entry.ts`). A POST writes files, so only the page itself may send one:
-      // same origin, and JSON, which a form on another site can't send without asking first.
-      server.middlewares.use((req, res, next) => {
-        const url = new URL(req.url ?? '/', 'http://localhost');
-        if (url.pathname !== `${base}__prosebook/entry`) return next();
-        const reply = (status: number, body: unknown) => {
-          res.statusCode = status;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(body));
-        };
-        const fail = (e: unknown) =>
-          reply(e instanceof CatalogError ? 409 : 400, {
-            problems: e instanceof CatalogError ? e.problems : [{ severity: 'error', message: e instanceof Error ? e.message : String(e) }],
-          });
-        if (req.method === 'GET') {
-          try {
-            reply(200, readEntry(config, url.searchParams.get('key') ?? ''));
-          } catch (e) {
-            fail(e);
-          }
-          return;
-        }
-        const origin = req.headers.origin;
-        const sameOrigin = origin === undefined || new URL(origin).host === req.headers.host;
-        if (req.method !== 'POST' || !sameOrigin || req.headers['content-type']?.startsWith('application/json') !== true) {
-          reply(403, { problems: [{ severity: 'error', message: 'edits come from the page, as JSON' }] });
-          return;
-        }
-        let body = '';
-        req.setEncoding('utf8');
-        req.on('data', (chunk: string) => (body += chunk));
-        req.on('end', () => {
-          try {
-            const { key, edit, write } = JSON.parse(body) as { key: string; edit: EntryEdit; write?: boolean };
-            const result = editEntry(config, key, edit, write === true);
-            reply(result.problems.length > 0 ? 422 : 200, result);
-          } catch (e) {
-            fail(e);
-          }
-        });
-      });
+      // Each entry opens through Vite's own `/__open-in-editor`, so the editor is whichever Vite launches.
+      const editor = ({ file, line, column }: EntryLocation) =>
+        redirect(`${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`);
+      server.middlewares.use(nodeMiddleware(inspectorEndpoints(config, { base, open: editor })));
     },
 
     load(id) {
       if (id === DEV_ID) {
         if (options.inspect === false) return HOT_SET;
-        return `import { install } from ${JSON.stringify(inspectorPath)};\n${HOT_SET}install(${JSON.stringify({ base })});\n`;
+        return HOT_SET + installInspector(inspectorPath, base);
       }
       if (!building || prune === false || generated === undefined) return null;
       const locale = localeOf(id);

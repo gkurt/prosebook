@@ -4,13 +4,14 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type { CompiledMessages, DevHooks, HotHook } from 'prosebook';
+import type { EntryView } from 'prosebook/tools';
 
 import loader, { type LoaderOptions } from '#src/next-loader.ts';
 import { withProsebook, type ProsebookNextOptions } from '#src/next.ts';
 import { fixture } from './fixture.ts';
 
 type Rule = { condition: unknown; loaders: { loader: string; options: LoaderOptions }[] };
-type Config = { reactStrictMode?: boolean; turbopack?: { rules?: Record<string, Rule> } };
+type Config = { reactStrictMode?: boolean; turbopack?: { rules?: Record<string, Rule> }; rewrites?: () => Promise<unknown> };
 
 const files = {
   'copy/catalog/app.yaml': 'app.used: Used message\napp.unused: Unused message\n',
@@ -60,7 +61,12 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   const { config, next } = await load('phase-development-server');
   const rules = next.turbopack!.rules!;
   expect(rules['index.ts']!.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
-  expect(run(rules['index.ts']!, '// index\n')).toBe('globalThis.__PROSEBOOK_HOT__ ??= new Set();\n// index\n');
+  const index = run(rules['index.ts']!, '// index\n');
+  expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();\n');
+  expect(index).toEndWith('installInspector({"base":"/"});\n// index\n');
+  // Imported from beside the index, as Turbopack resolves the app's own imports.
+  const inspector = /from "(\.[^"]+)"/.exec(index)![1]!;
+  expect(readFileSync(join(config.root, 'src/copy', inspector), 'utf8')).toContain('export function keyAt');
 
   const path = join(config.root, 'src/copy/de.ts');
   writeFileSync(path, run(rules['de.ts']!, readFileSync(path, 'utf8')));
@@ -74,6 +80,50 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   } finally {
     delete hooks.__PROSEBOOK_HOT__;
   }
+});
+
+test("in dev, a rewrite sends the inspector's requests to a server that edits from the page only and opens through Next's launcher", async () => {
+  const { config, next } = await load('phase-development-server');
+  const { beforeFiles } = (await next.rewrites!()) as { beforeFiles: { source: string; destination: string }[] };
+  expect(beforeFiles[0]!.source).toBe('/__prosebook/:path*');
+  const target = beforeFiles[0]!.destination.replace(':path*', '');
+  // As Next's rewrite sends it: the page's host forwarded.
+  const page = { 'X-Forwarded-Host': 'localhost:3000' };
+
+  const open = await fetch(`${target}open?key=app.used&locale=de`, { headers: page, redirect: 'manual' });
+  expect(open.status).toBe(307);
+  const launch = new URL(open.headers.get('location')!, 'http://localhost:3000');
+  expect(launch.pathname).toBe('/__nextjs_launch-editor');
+  expect(launch.searchParams.get('file')).toBe(join(config.root, 'copy/locales/de.yaml'));
+  expect(launch.searchParams.get('line1')).toBe('1');
+
+  const read = (await (await fetch(`${target}entry?key=app.used`, { headers: page })).json()) as EntryView;
+  expect(read.yaml.catalog).toBe('app.used: Used message');
+  const post = (origin: string) =>
+    fetch(`${target}entry`, {
+      method: 'POST',
+      headers: { ...page, 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true }),
+    });
+  expect((await post('https://elsewhere.example')).status).toBe(403);
+  expect((await post('http://localhost:3000')).status).toBe(200);
+  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toStartWith('app.used: Still used\n');
+  expect((await fetch(`${target}nothing`)).status).toBe(404);
+});
+
+test('the app keeps its own rewrites, after the inspector', async () => {
+  const theirs = [{ source: '/old', destination: '/new' }];
+  const config = fixture(files);
+  const next = await withProsebook<Config>(
+    { rewrites: () => Promise.resolve(theirs) },
+    { config: { require: [], importExtension: '' }, root: config.root },
+  )('phase-development-server', { defaultConfig: {} });
+  expect(await next.rewrites!()).toEqual({ beforeFiles: [expect.objectContaining({ source: '/__prosebook/:path*' })], afterFiles: theirs });
+  const off = await withProsebook<Config>({}, { config: { require: [], importExtension: '' }, root: config.root, inspect: false })(
+    'phase-development-server',
+    { defaultConfig: {} },
+  );
+  expect(off.rewrites).toBeUndefined();
 });
 
 test('other phases get the config as it was, and a generated `./en.js`, which Turbopack cannot resolve, is refused', async () => {

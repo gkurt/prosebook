@@ -7,6 +7,9 @@ const result = await Bun.build({
   target: 'bun',
   outdir: './dist',
   minify: true,
+  // The server imports the inspector's routes only in dev, so the build leaves them, and the tools
+  // they need, out of the bundle.
+  external: ['prosebook/bun'],
   plugins: [prosebook()],
 });
 

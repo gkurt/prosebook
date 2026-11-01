@@ -10,15 +10,31 @@
  * seen the code that reads it, so the keys come from the source under `scan.dirs` (`tools/bundle.ts`),
  * read here once, and each pruned module travels to the loader as its options.
  *
+ * In dev the browser's index also starts the inspector (`inspector.ts`). Its endpoints can't be a
+ * route of the app without a file in it, so a server of their own answers them on a local port, and a
+ * rewrite sends `/__prosebook/*` there; an entry opens through Next's own `/__nextjs_launch-editor`.
+ *
  * Turbopack only: Next 16 fails a Turbopack build whose config has a `webpack` key, so none is added.
  */
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { LoaderOptions } from './next-loader.ts';
-import { keeper, prunedModule, scanSources, unseenMessage, watchCatalog, type Prune } from './tools/bundle.ts';
+import {
+  beside,
+  HOT_SET,
+  installInspector,
+  keeper,
+  prunedModule,
+  scanSources,
+  unseenMessage,
+  watchCatalog,
+  type Prune,
+} from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
+import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
 import { generate, type Generated } from './tools/generate.ts';
 
 export interface ProsebookNextOptions {
@@ -34,19 +50,25 @@ export interface ProsebookNextOptions {
   prune?: Prune;
   /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
   keep?: string[];
+  /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
+  inspect?: boolean;
 }
 
 type Rules = { [glob: string]: unknown };
+type Rewrite = { source: string; destination: string };
+type Rewrites = Rewrite[] | { beforeFiles?: Rewrite[]; afterFiles?: Rewrite[]; fallback?: Rewrite[] };
 type ConfigFunction<C> = (phase: string, context: { defaultConfig: C }) => C | Promise<C>;
 
 const DEV = 'phase-development-server';
 const BUILD = 'phase-production-build';
 
-// Beside this module: the source when run from source, the built file in dist.
-const loaderPath = fileURLToPath(new URL(`./next-loader${import.meta.url.endsWith('.ts') ? '.ts' : '.js'}`, import.meta.url));
+const loaderPath = beside(import.meta.url, 'next-loader');
+const inspectorPath = beside(import.meta.url, 'inspector');
 
-// Next loads its config more than once in a process; one watcher per catalog is enough.
+// Next loads its config more than once in a process; one watcher and one inspector server per catalog
+// is enough.
 const watching = new Set<string>();
+const serving = new Map<string, Promise<number>>();
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -68,7 +90,12 @@ export function withProsebook<C extends object>(
     const generated = generate(config);
     if (phase === DEV) {
       watch(config);
-      return withRules(resolved, hotRules(config, generated));
+      if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET));
+      const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
+      // A relative import, which Turbopack resolves as it would the app's own.
+      const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
+      const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base);
+      return withRewrite(withRules(resolved, hotRules(config, generated, prepend)), await serveInspector(config, base));
     }
     const prune = options.prune ?? 'strict';
     if (prune === false) return resolved;
@@ -79,6 +106,44 @@ export function withProsebook<C extends object>(
 function withRules<C extends object>(resolved: C, rules: Rules): C {
   const turbopack = (resolved as { turbopack?: { rules?: Rules } }).turbopack;
   return { ...resolved, turbopack: { ...turbopack, rules: { ...turbopack?.rules, ...rules } } };
+}
+
+/** Sends `/__prosebook/*` to the inspector's server, before any of the app's own rewrites. */
+function withRewrite<C extends object>(resolved: C, port: number): C {
+  const theirs = (resolved as { rewrites?: () => Promise<Rewrites> }).rewrites;
+  const ours = [{ source: '/__prosebook/:path*', destination: `http://127.0.0.1:${port}/__prosebook/:path*` }];
+  const rewrites = async (): Promise<Rewrites> => {
+    const r = (await theirs?.()) ?? [];
+    return Array.isArray(r) ? { beforeFiles: ours, afterFiles: r } : { ...r, beforeFiles: [...ours, ...(r.beforeFiles ?? [])] };
+  };
+  return { ...resolved, rewrites };
+}
+
+/**
+ * Serves the inspector's endpoints on a free local port, for as long as the process lives. Next's
+ * rewrite forwards the page's host, so an edit is still checked against the page's origin.
+ */
+function serveInspector(config: ResolvedConfig, base: string): Promise<number> {
+  let port = serving.get(config.catalog);
+  if (port !== undefined) return port;
+  const handle = inspectorEndpoints(config, {
+    open: ({ file, line, column }) =>
+      redirect(`${base}__nextjs_launch-editor?${new URLSearchParams({ file, line1: String(line), column1: String(column) })}`),
+  });
+  const middleware = nodeMiddleware(handle);
+  const server = createServer((req, res) =>
+    middleware(req, res, () => {
+      res.statusCode = 404;
+      res.end();
+    }),
+  );
+  port = new Promise<number>((done, fail) => {
+    server.once('error', fail);
+    server.listen(0, '127.0.0.1', () => done((server.address() as AddressInfo).port));
+  });
+  server.unref();
+  serving.set(config.catalog, port);
+  return port;
 }
 
 function watch(config: ResolvedConfig): void {
@@ -104,10 +169,13 @@ function rule(config: ResolvedConfig, name: string, options: LoaderOptions, brow
   return [file, { condition: browser ? { all: ['browser', path] } : path, loaders: [{ loader: loaderPath, options }] }];
 }
 
-/** In the browser: the index sets up the hot hooks before any copy exists, and each locale updates them. */
-function hotRules(config: ResolvedConfig, generated: Generated): Rules {
+/**
+ * In the browser: the index starts with `prepend`, the hot hooks and the inspector, there before any
+ * copy exists, and each locale updates the copies.
+ */
+function hotRules(config: ResolvedConfig, generated: Generated, prepend: string): Rules {
   const locales = [...generated.entries.keys()].map((locale) => rule(config, locale, { locale }, true));
-  return Object.fromEntries([rule(config, 'index', { index: true }, true), ...locales]);
+  return Object.fromEntries([rule(config, 'index', { prepend }, true), ...locales]);
 }
 
 function prunedRules(config: ResolvedConfig, generated: Generated, prune: 'strict' | 'loose', keep?: string[]): Rules {

@@ -81,7 +81,7 @@ export default withProsebook({/* the rest of your Next config */});
 components read the new text on their next render, and in the browser the messages change in
 place. A build ships only the messages the code names. It works with Turbopack, Next's default
 bundler, which doesn't resolve `./en.js` to `en.ts`, so set `importExtension: ''` in the prosebook
-config.
+config. In dev the [inspector](#finding-a-strings-entry) comes with it, with nothing to add to the app.
 
 ### With Bun
 
@@ -94,13 +94,33 @@ swaps the messages in place with this one:
 plugins = ["prosebook/bun"]
 ```
 
-The `bun build` command reads no plugins, so a build that prunes calls `Bun.build`:
+In dev the page gets the [inspector](#finding-a-strings-entry) too. Its endpoints are routes for
+`Bun.serve` to spread into its own, imported only in dev:
+
+```ts
+// src/server.ts
+const dev = process.env.NODE_ENV !== 'production';
+
+Bun.serve({
+  routes: { ...(dev ? (await import('prosebook/bun')).inspector() : {}), '/': index },
+  development: dev && { hmr: true },
+});
+```
+
+The `bun build` command reads no plugins, so a build that prunes calls `Bun.build`, with
+`prosebook/bun` left `external` so the dev-only routes stay out of the bundle:
 
 ```ts
 // build.ts
 import { prosebook } from 'prosebook/bun';
 
-await Bun.build({ entrypoints: ['./src/server.ts'], target: 'bun', outdir: './dist', plugins: [prosebook()] });
+await Bun.build({
+  entrypoints: ['./src/server.ts'],
+  target: 'bun',
+  outdir: './dist',
+  external: ['prosebook/bun'],
+  plugins: [prosebook()],
+});
 ```
 
 TanStack Start, React Router and other frameworks built on Vite take the Vite plugin as it is.
@@ -577,7 +597,7 @@ they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Te
 
 ## Finding a string's entry
 
-In dev, hold Alt (Option on a Mac) and point at text on the page: the Vite plugin outlines the
+In dev, hold Alt (Option on a Mac) and point at text on the page: the inspector outlines the
 string and names its key and the locale it came from. Alt-click opens its entry in your editor: the
 translation for a translated string, the catalog entry for one that fell back. Alt-Shift-click opens
 the catalog entry either way. Save, and the string changes on the page, which keeps its locale and
@@ -607,12 +627,17 @@ Nothing is added to the page to make this work. In dev the runtime reports each 
 and the inspector matches the text under the pointer back to it, so `t()`, `<Text>`, a sentence with
 a link inside it and readable attributes (`placeholder`, `title`, `aria-label`, `alt`) all work. Text
 the code changes after reading it (`t('…').toUpperCase()`) can't be traced. Where two keys read the
-same text, the label says so and the click opens the one read last.
+same text, the label says so and the click opens the one read last. Under Next.js, only text read in
+the browser is found: a server component's reads happen where the inspector can't see them.
 
-The editor is the one Vite's `/__open-in-editor` launches: one it finds running, or the command in
-`LAUNCH_EDITOR`. Turn the inspector off with `prosebook({ inspect: false })`. The inspector comes
-with the Vite plugin, so it works in any framework built on Vite, TanStack Start among them, but not
-yet under Next.js or Bun.
+The inspector comes with each integration, in dev only, and opens the editor its dev server already
+launches. Under Vite, and so in any framework built on it, TanStack Start among them, that is the one
+`/__open-in-editor` launches: one it finds running, or the command in `LAUNCH_EDITOR`. Under Next.js
+it is the one `/__nextjs_launch-editor` launches, from `REACT_EDITOR` or one it finds running; the
+endpoints are served on a local port of their own, which a rewrite of `/__prosebook/*` sends to.
+Under Bun it is the one `Bun.openInEditor` finds, from `VISUAL`, `EDITOR` or bunfig.toml's
+`[debug] editor`, and the endpoints are the `inspector()` routes [above](#with-bun). Turn it off with
+`inspect: false` in the options of the Vite plugin, `withProsebook` or the Bun plugin.
 
 ## Config
 
@@ -656,13 +681,13 @@ Each is a small shop in English, German and the pseudo-locale, and uses proseboo
 from the package. CI generates, lints, typechecks and builds each one, then checks what its build
 serves.
 
-| Example                                              |                                                                                            |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [`examples/vite`](examples/vite)                     | React with Vite, and a part-translated Turkish. The inspector is on.                       |
-| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.      |
-| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.       |
-| [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page and a route that answers in the request's locale.            |
-| [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript. |
+| Example                                              |                                                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [`examples/vite`](examples/vite)                     | React with Vite, and a part-translated Turkish. The inspector is on.                        |
+| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.       |
+| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.        |
+| [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector. |
+| [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript.  |
 
 ```bash
 bun run build                      # the examples import prosebook from dist
