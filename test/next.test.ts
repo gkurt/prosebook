@@ -8,13 +8,14 @@ import type { EntryView } from 'prosebook/tools';
 
 import loader, { type LoaderOptions } from '#src/next-loader.ts';
 import { withProsebook, type ProsebookNextOptions } from '#src/next.ts';
+import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { fixture } from './fixture.ts';
 
 type Rule = { condition: unknown; loaders: { loader: string; options: LoaderOptions }[] };
 type Config = { reactStrictMode?: boolean; turbopack?: { rules?: Record<string, Rule> }; rewrites?: () => Promise<unknown> };
 
 const files = {
-  'copy/catalog/app.yaml': 'app.used: Used message\napp.unused: Unused message\n',
+  'copy/catalog/app.yaml': `${SCHEMA_LINE}\napp.used: Used message\napp.unused: Unused message\n`,
   'copy/locales/de.yaml': 'app.used: Benutzte Nachricht\napp.unused: Unbenutzte Nachricht\n',
   'src/page.tsx':
     "import { createCopy } from 'prosebook';\nimport { catalog } from './copy';\nexport const title = createCopy(catalog).t('app.used');\n",
@@ -107,7 +108,7 @@ test("in dev, a rewrite sends the inspector's requests to a server that edits fr
     });
   expect((await post('https://elsewhere.example')).status).toBe(403);
   expect((await post('http://localhost:3000')).status).toBe(200);
-  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toStartWith('app.used: Still used\n');
+  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toStartWith(`${SCHEMA_LINE}\napp.used: Still used\n`);
   expect((await fetch(`${target}nothing`)).status).toBe(404);
 });
 

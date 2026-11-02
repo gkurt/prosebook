@@ -18,6 +18,7 @@ import {
   type Plugin,
 } from 'prosebook/tools';
 
+import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { fixture } from './fixture.ts';
 
 const problemsOf = (files: Record<string, string>, config = {}) => {
@@ -534,6 +535,20 @@ test('generate --check reports what is out of date without writing', () => {
   expect(generate(config, { check: true }).changed.length).toBeGreaterThan(0);
   generate(config);
   expect(generate(resolveConfig(config.root, { require: [] }), { check: true }).changed).toEqual([]);
+});
+
+test('generate starts each catalog file with the schema line, and --check fails on one without it', () => {
+  const own = '# yaml-language-server: $schema=../schemas/catalog.json\napp.b: B\n';
+  const config = fixture({ 'copy/catalog/app.yaml': 'app.a: A\n', 'copy/catalog/web.yaml': 'web.a: A\r\n' }, { require: [] });
+  writeFileSync(join(config.root, 'copy/catalog/own.yaml'), own.replace('app.b', 'own.b'));
+  generate(config);
+  const read = (file: string) => readFileSync(join(config.root, 'copy/catalog', file), 'utf8');
+  expect(read('app.yaml')).toBe(`${SCHEMA_LINE}\napp.a: A\n`);
+  expect(read('web.yaml')).toBe(`${SCHEMA_LINE}\r\nweb.a: A\r\n`);
+  // A schema line of the file's own is left as it is.
+  expect(read('own.yaml')).toBe(own.replace('app.b', 'own.b'));
+  writeFileSync(join(config.root, 'copy/catalog/app.yaml'), 'app.a: A\n');
+  expect(generate(config, { check: true }).changed).toEqual([join(config.catalog, 'app.yaml')]);
 });
 
 test('the schema offers the key: message shorthand only where no field is required', () => {

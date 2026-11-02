@@ -392,6 +392,10 @@ catalog, so an editor with the YAML language server completes and explains every
 # yaml-language-server: $schema=./catalog.schema.json
 ```
 
+That line is how the editor finds the schema, so `generate` starts each catalog file with it, and
+`generate --check` (and `check`) fails on a file without it. A file that names a schema of its own on
+its first line keeps it.
+
 ### Messages
 
 ICU MessageFormat, checked at build time:

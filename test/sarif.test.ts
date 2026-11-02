@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { fixture } from './fixture.ts';
 
 const CLI = join(import.meta.dir, '..', 'src', 'cli.ts');
@@ -43,6 +45,7 @@ function results(log: Log): string[] {
 }
 
 const CATALOG = [
+  SCHEMA_LINE,
   'cart.title:',
   '  kind: name',
   '  context: The heading of the cart page.',
@@ -55,6 +58,22 @@ const CATALOG = [
   '',
 ].join('\n');
 
+test('check names a catalog file without its schema line, and why', () => {
+  const config = fixture({
+    'copy/catalog/cart.yaml': CATALOG.replace('Nothing  here', 'Nothing here'),
+    'copy/locales/de.yaml': 'cart.title: Ihr Warenkorb\ncart.empty: Noch nichts.\n',
+  });
+  cli(config.root, 'generate');
+  expect(cli(config.root, 'check').code).toBe(0);
+  writeFileSync(
+    join(config.root, 'copy/catalog/cart.yaml'),
+    CATALOG.replace(`${SCHEMA_LINE}\n`, '').replace('Nothing  here', 'Nothing here'),
+  );
+  const { code, stderr } = cli(config.root, 'check');
+  expect(code).toBe(1);
+  expect(stderr).toContain(`copy/catalog/cart.yaml: its first line isn't \`${SCHEMA_LINE}\`, so editors can't find the schema`);
+});
+
 describe('--format sarif', () => {
   test('check reports lint findings and missing translations at their entries, and fails', () => {
     const config = fixture({ 'copy/catalog/cart.yaml': CATALOG, 'copy/locales/de.yaml': 'cart.title: Ihr Warenkorb\n' });
@@ -66,12 +85,12 @@ describe('--format sarif', () => {
     expect(log.runs[0]!.originalUriBaseIds['%SRCROOT%']!.uri).toEndWith('/');
     expect(results(log)).toEqual([
       // On the doubled space itself, not the key: the message is written there as it reads.
-      'whitespace error copy/catalog/cart.yaml:9 cart.empty: no leading, trailing or doubled spaces',
-      'missing-translation error copy/catalog/cart.yaml:6 cart.empty has no de translation: `prosebook todo de` prints it ready to translate',
+      'whitespace error copy/catalog/cart.yaml:10 cart.empty: no leading, trailing or doubled spaces',
+      'missing-translation error copy/catalog/cart.yaml:7 cart.empty has no de translation: `prosebook todo de` prints it ready to translate',
     ]);
     expect(log.runs[0]!.tool.driver.rules.find((r) => r.id === 'whitespace')?.shortDescription?.text).toBeString();
     // The text people read still goes out, on stderr.
-    expect(stderr).toContain('copy/catalog/cart.yaml:9:15 cart.empty: [whitespace] no leading, trailing or doubled spaces (fixable)');
+    expect(stderr).toContain('copy/catalog/cart.yaml:10:15 cart.empty: [whitespace] no leading, trailing or doubled spaces (fixable)');
   });
 
   test('scan reports hardcoded text at its line and column, as warnings unless --strict', () => {

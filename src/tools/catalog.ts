@@ -312,7 +312,16 @@ function icuError(text: string, e: unknown): string {
   return `is not valid ICU MessageFormat: ${reason}`;
 }
 
-function yamlFiles(dir: string): string[] {
+/** The first line of a catalog file: the YAML language server finds the schema `generate` writes only through it. */
+export const SCHEMA_LINE = '# yaml-language-server: $schema=./catalog.schema.json';
+
+/** `text` opening with the schema line, unless it opens with a schema line of its own already. */
+export function withSchemaLine(text: string): string {
+  if (text.startsWith('# yaml-language-server:')) return text;
+  return `${SCHEMA_LINE}${text.includes('\r\n') ? '\r\n' : '\n'}${text}`;
+}
+
+export function yamlFiles(dir: string): string[] {
   return readdirSync(dir)
     .filter((f) => f.endsWith('.yaml'))
     .sort();

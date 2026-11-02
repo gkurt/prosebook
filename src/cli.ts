@@ -4,11 +4,11 @@
  * ones CI needs in one go.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { watchCatalog } from './tools/bundle.ts';
-import { CatalogError, entryLocator, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
+import { CatalogError, entryLocator, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
@@ -187,10 +187,17 @@ function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifRepor
       out(`prosebook: generated files are up to date (${summary})`);
       return 0;
     }
-    err(`prosebook: out of date, run \`prosebook generate\`:\n  ${changed.map((p) => rel(config, p)).join('\n  ')}`);
+    // A catalog file is listed for its schema line, which generate adds.
+    const why = (p: string) =>
+      dirname(p) === config.catalog && p.endsWith('.yaml')
+        ? `its first line isn't \`${SCHEMA_LINE}\`, so editors can't find the schema`
+        : 'out of date';
+    err(
+      `prosebook: out of date, run \`prosebook generate\`:\n  ${changed.map((p) => `${rel(config, p)}${why(p) === 'out of date' ? '' : `: ${why(p)}`}`).join('\n  ')}`,
+    );
     report?.rule('out-of-date', RULES['out-of-date']);
     for (const p of changed)
-      report?.add({ rule: 'out-of-date', level: 'error', message: 'out of date: run `prosebook generate`', file: rel(config, p) });
+      report?.add({ rule: 'out-of-date', level: 'error', message: `${why(p)}: run \`prosebook generate\``, file: rel(config, p) });
     return 1;
   }
   out(`prosebook: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
@@ -488,7 +495,7 @@ export default defineConfig({
 });
 `;
 
-const SAMPLE_CATALOG = `# yaml-language-server: $schema=./catalog.schema.json
+const SAMPLE_CATALOG = `${SCHEMA_LINE}
 app.title:
   kind: name
   surface: title

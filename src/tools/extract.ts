@@ -13,7 +13,7 @@ import { basename, dirname, extname, join, relative } from 'node:path';
 import { parseSync } from 'oxc-parser';
 import { stringify } from 'yaml';
 
-import { CatalogError, KEY_PATTERN, loadCatalog } from './catalog.ts';
+import { CatalogError, KEY_PATTERN, loadCatalog, SCHEMA_LINE } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage } from './icu.ts';
 import { singularOf } from './lint.ts';
@@ -686,7 +686,7 @@ export function applyExtract(config: ResolvedConfig, plan: ExtractPlan): string[
       return `# TODO(prosebook extract): check the key, kind and context.\n${stringify({ [e.key]: body }, { lineWidth: 0, version: '1.1' })}`;
     });
     mkdirSync(config.catalog, { recursive: true });
-    const current = existsSync(path) ? readFileSync(path, 'utf8') : '# yaml-language-server: $schema=./catalog.schema.json\n';
+    const current = existsSync(path) ? readFileSync(path, 'utf8') : `${SCHEMA_LINE}\n`;
     writeFileSync(path, `${current.replace(/\n*$/, '\n')}\n${blocks.join('\n')}`);
     written.push(path);
   }

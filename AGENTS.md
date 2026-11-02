@@ -94,7 +94,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
   example's output, which keeps that so.
-- `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
+- `src/tools/generate.ts`: the files `generate` writes, the catalog's own included where one lacks its
+  first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and
   `import` (`importTranslations` in `entry.ts`) checks the reply.

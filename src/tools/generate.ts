@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
-import { loadCatalog, type Catalog, type Message } from './catalog.ts';
+import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
@@ -232,6 +232,12 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
 
   for (const [path, content] of nativeFiles(config, catalog, locales, entries, head)) files.set(path, content);
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
+  // Without its schema line a catalog file has no completion, so generate adds it and --check fails there.
+  for (const file of yamlFiles(config.catalog)) {
+    const path = join(config.catalog, file);
+    const text = readFileSync(path, 'utf8');
+    if (withSchemaLine(text) !== text) files.set(path, withSchemaLine(text));
+  }
   if (Object.keys(lock.translations).length > 0 || existsSync(config.lock)) files.set(config.lock, serializeLock(lock));
   return { catalog, files, lock, stale, entries };
 }
