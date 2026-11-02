@@ -57,12 +57,15 @@ export interface LintConfig extends WordLists {
 
 /**
  * Native code generated from the catalog, for the parts of an app outside the browser: a tray, a
- * menu bar, a CLI. One file, holding every locale, with a typed function per message; for Android,
- * string resources, a file per locale.
+ * menu bar, a CLI. One file, holding every locale, with a typed function per message; for Android and
+ * Apple, string resources, a file per locale.
  */
 export interface NativeTarget {
-  language: 'rust' | 'swift' | 'kotlin' | 'android';
-  /** The file written; for Android, the `res` folder its `values*` folders go in. */
+  language: 'rust' | 'swift' | 'kotlin' | 'android' | 'apple';
+  /**
+   * The file written; for Android, the `res` folder its `values*` folders go in, and for Apple, the
+   * folder its `.lproj` folders go in.
+   */
   out: string;
   /**
    * Key prefixes the file holds: `['native']` takes every `native.*` key, which it names without the
@@ -71,11 +74,18 @@ export interface NativeTarget {
   keys?: string[];
   /**
    * The type holding the locales and messages: `Locale` in Rust, `Copy` in Swift and Kotlin. For
-   * Android, the resource file's name: `strings`, for `values/strings.xml`.
+   * Android, the resource file's name: `strings`, for `values/strings.xml`. For Apple, the table's:
+   * `Localizable`, or `InfoPlist` with `plist`.
    */
   name?: string;
   /** Kotlin's package. */
   package?: string;
+  /**
+   * For Apple, the Info.plist the table translates: each key names one of its strings, spelled in
+   * words (`ns-camera-usage-description` is `NSCameraUsageDescription`), and the source must say
+   * what the plist says.
+   */
+  plist?: string;
 }
 
 export interface ProsebookConfig {
@@ -154,7 +164,7 @@ export interface ResolvedConfig {
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
-const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings' };
+const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings', apple: 'Localizable' };
 
 /** Typed config, for `prosebook.config.ts`. */
 export function defineConfig(config: ProsebookConfig): ProsebookConfig {
@@ -221,7 +231,11 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     native: (config.native ?? []).map((target, i) => {
       if (!(target.language in NATIVE_NAMES))
         throw new Error(`native[${i}].language is "${target.language}": name one of ${Object.keys(NATIVE_NAMES).join(', ')}`);
-      return { ...target, out: at(target.out), name: target.name ?? NATIVE_NAMES[target.language] };
+      if (target.plist !== undefined && target.language !== 'apple')
+        throw new Error(`native[${i}].plist names an Info.plist, which only the apple target reads: remove it, or set language to 'apple'`);
+      const plist = target.plist === undefined ? {} : { plist: at(target.plist) };
+      const name = target.name ?? (target.plist === undefined ? NATIVE_NAMES[target.language] : 'InfoPlist');
+      return { ...target, out: at(target.out), name, ...plist };
     }),
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),

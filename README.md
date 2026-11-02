@@ -38,7 +38,7 @@ const { t } = useCopy();
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
-  with plurals and number formats that say what the browser says, and an Android app's string resources.
+  with plurals and number formats that say what the browser says, and the string resources Android and Apple read.
 
 ## Quick start
 
@@ -238,7 +238,7 @@ function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
 }
 ```
 
-### Outside the browser: Rust, Swift, Kotlin and Android
+### Outside the browser: Rust, Swift, Kotlin, Android and Apple
 
 The parts of an app the browser doesn't draw, a tray, a menu bar, a CLI, an Android shell, can read
 the same catalog. `generate` writes one file per target in `native`, holding every locale:
@@ -335,6 +335,36 @@ language's rules. Escaping is done for you: quotes, apostrophes, `\`, `&`, `<`, 
 What a resource can't hold fails `generate`, with the fix: a select, a date, a formatted number, a
 second plural, an ordinal, an offset, an exact arm such as `=0` (Android's `zero` is a category, which
 English never picks), a selector other than a bare `:number` or `:integer`, and a tag.
+
+#### Apple string tables
+
+An Apple app has the same gap: macOS and iOS read the permission prompts, the app's name and other
+Info.plist strings from the bundle, never from Swift. The `apple` target writes `.strings` tables, a
+`<locale>.lproj/<name>.strings` per locale under `out`, each holding what that locale shows. They are
+plain `.strings` files, not a String Catalog, which only Xcode compiles: an app bundled by Tauri or a
+script copies the `.lproj` folders into `Contents/Resources` as they are.
+
+With `plist`, the table is `InfoPlist` and translates that Info.plist. A catalog key can't be written
+`NSCameraUsageDescription`, so its words spell the plist key: `macos.ns-camera-usage-description` is
+`NSCameraUsageDescription`. The key must be in the plist, since the system reads only the keys there,
+and the plist's own text must be the source's, since it shows where no `.lproj` matches. Either way
+round, `generate` fails with the fix:
+
+```ts
+native: [{ language: 'apple', out: 'src-tauri/Resources', keys: ['macos'], plist: 'src-tauri/Info.plist' }],
+```
+
+```c
+/* Asks for the camera. */
+"NSCameraUsageDescription" = "Corner Shop scans a product's barcode with the camera.";
+```
+
+Without `plist`, the table is `Localizable`, for what the system looks up by key, such as a push
+notification's `loc-key`. An entry is named for its key less the prefix, as written (`tray.quit` is
+`"quit"` under `['tray']`), and placeholders are written `%1$@` by their place in the source, filled
+in by `String(format:)`, not `Intl`. A table holds text and plain `{name}` placeholders; a plural (it
+would take a `.stringsdict`), a select, a date, a formatted number and a tag fail `generate`, and an
+Info.plist string takes no placeholders at all. Show those from the Swift target.
 
 ## The catalog
 
@@ -856,7 +886,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
-  native: [], // Rust, Swift or Kotlin files, or Android's res: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
+  native: [], // Rust, Swift or Kotlin files, Android's res or Apple's .lproj: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
   scan: { dirs: ['src'] },
 });
 ```

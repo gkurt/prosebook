@@ -10,14 +10,13 @@
  */
 import { join } from 'node:path';
 
-import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
-
 import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
-import { numberOptions, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
-import { checkNames, docText, leading, snake } from './emit.ts';
+import { selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import { checkNames, leading, snake } from './emit.ts';
 import { fileOf, foundIn, LEAVE_OUT, wordsFor } from './model.ts';
+import { formatString, noteOf, type Printf } from './printf.ts';
 
 const KEYWORDS = new Set(
   'abstract assert boolean break byte case catch char class const continue default do double else enum extends false final finally float for goto if implements import instanceof int interface long native new null package private protected public return short static strictfp super switch synchronized this throw throws transient true try void volatile while'.split(
@@ -75,70 +74,15 @@ function value(written: string): string {
   return LOOSE.test(out) ? `"${out}"` : out;
 }
 
-/** What a plural's arms may hold as its count: `#`, or the count as a plain `:number` or `:integer`. */
-function isCount(el: MessageFormatElement, count: string): boolean {
-  if (el.type === TYPE.pound) return true;
-  if (!isNumberElement(el) || el.value !== count) return false;
-  const options = Object.entries(numberOptions(el) ?? {});
-  return options.length === 0 || (options.length === 1 && options[0]![0] === 'maximumFractionDigits' && options[0]![1] === 0);
-}
-
-/**
- * Text and plain placeholders, as `%N$s` with N the argument's place in the message's arguments, so a
- * translation can put them in another order. Inside a plural, its count is `%N$d`.
- */
-function text(elements: MessageFormatElement[], args: string[], count?: string): string {
-  const formatted = args.length > 0;
-  const place = (el: MessageFormatElement, name: string, conversion: 's' | 'd') => {
-    const at = args.indexOf(name);
-    if (at < 0) throw new Error(`{${name}} is not an argument of this message: say it in the source text too`);
-    const { isolate } = placeholderOf(el, name);
-    const spec = `%${at + 1}$${conversion}`;
-    return isolate === undefined ? spec : `${escape(isolate[0], formatted)}${spec}${escape(isolate[1], formatted)}`;
-  };
-  let out = '';
-  for (const el of elements) {
-    if (count !== undefined && isCount(el, count)) {
-      out += place(el, count, 'd');
-      continue;
-    }
-    if (isDateElement(el) || isTimeElement(el)) {
-      throw new Error(
-        `{${el.value}} is a date, which Android resources don't format: pass it formatted, as a plain {${el.value}}, ${LEAVE_OUT}`,
-      );
-    }
-    if (isNumberElement(el)) {
-      throw new Error(
-        `{${el.value}} is a formatted number, and Android fills values in with String.format, not Intl: pass it formatted, as a plain {${el.value}}, ${LEAVE_OUT}`,
-      );
-    }
-    switch (el.type) {
-      case TYPE.literal:
-        out += escape(el.value, formatted);
-        break;
-      case TYPE.argument:
-        out += place(el, el.value, 's');
-        break;
-      case TYPE.pound:
-        // Outside a plural, `#` is text.
-        out += '#';
-        break;
-      case TYPE.select:
-        throw new Error(
-          `{${el.value}} is a select, which Android resources can't hold: write a key per case and pick one in code, ${LEAVE_OUT}`,
-        );
-      case TYPE.plural:
-        throw new Error(
-          `{${el.value}} is a second plural in the message, and Android's <plurals> picks on one count: split it into a key per count, ${LEAVE_OUT}`,
-        );
-      case TYPE.tag:
-        throw new Error(`<${el.value}> is a tag, and Android resources here hold plain text: say it without the tag, ${LEAVE_OUT}`);
-      default:
-        throw new Error(`prosebook: no Android writer for ICU element type ${(el as MessageFormatElement).type}`);
-    }
-  }
-  return out;
-}
+const PRINTF: Printf = {
+  platform: 'Android',
+  formatter: 'String.format',
+  holder: 'Android resources',
+  string: 's',
+  escape,
+  plural: (name) =>
+    `{${name}} is a second plural in the message, and Android's <plurals> picks on one count: split it into a key per count, ${LEAVE_OUT}`,
+};
 
 /**
  * A message as `<string>`, or `<plurals>` when it holds a plural. Android's picks between whole
@@ -149,7 +93,7 @@ function resource(name: string, ast: MessageFormatElement[], args: string[]): st
   const at = ast.findIndex((el) => el.type === TYPE.plural);
   const plural = ast[at];
   if (plural?.type !== TYPE.plural) {
-    const written = text(ast, args);
+    const written = formatString(ast, args, PRINTF);
     // Unformatted, `%` is written as it is, which aapt2 refuses where it reads as two placeholders.
     const raw = args.length === 0 && written.includes('%') ? ' formatted="false"' : '';
     return `    <string name="${name}"${raw}>${value(written)}</string>`;
@@ -180,20 +124,16 @@ function resource(name: string, ast: MessageFormatElement[], args: string[]): st
   }
   const items = Object.entries(plural.options).map(
     ([category, option]) =>
-      `        <item quantity="${category}">${value(text([...before, ...option.value, ...after], args, plural.value))}</item>`,
+      `        <item quantity="${category}">${value(formatString([...before, ...option.value, ...after], args, PRINTF, plural.value))}</item>`,
   );
   return `    <plurals name="${name}">\n${items.join('\n')}\n    </plurals>`;
 }
 
 /** The context and what each argument holds, as the comment above an entry. */
 function comment(m: Message): string {
-  const lines = [
-    m.context,
-    ...[...m.args.keys()].map((a) => (m.argDocs.has(a) ? `${a}: ${m.argDocs.get(a)!.replace(/\.$/, '')}.` : undefined)),
-  ];
-  const said = lines.filter((l) => l !== undefined && l !== '').join(' ');
+  const said = noteOf(m);
   // `--` ends a comment early, so XML refuses it inside one.
-  return said === '' ? '' : `    <!-- ${docText(said).replace(/-{2,}/g, '-')} -->\n`;
+  return said === '' ? '' : `    <!-- ${said.replace(/-{2,}/g, '-')} -->\n`;
 }
 
 /** The files `target` writes, by path, or a problem for every message it can't hold. */

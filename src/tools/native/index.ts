@@ -1,12 +1,13 @@
 /**
  * The native files `generate` writes beside the TypeScript, one per target in the config's `native`
- * (Android's resources, a file per locale). A message a target can't render fails the build with the
- * reason, as a translation that drifted does.
+ * (Android's and Apple's string resources, a file per locale). A message a target can't render
+ * fails the build with the reason, as a translation that drifted does.
  */
 import { CatalogError, type Catalog, type Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { ResolvedConfig } from '#src/tools/config.ts';
 import { androidResources } from './android.ts';
+import { appleStrings } from './apple.ts';
 import { kotlinFile } from './kotlin.ts';
 import { nativeModel } from './model.ts';
 import { rustModule } from './rust.ts';
@@ -25,8 +26,11 @@ export function nativeFiles(
   const problems: Problem[] = [];
   for (const target of config.native) {
     try {
-      if (target.language === 'android') {
-        const { files: written, problems: found } = androidResources(target, catalog, locales, entries, banner);
+      if (target.language === 'android' || target.language === 'apple') {
+        const { files: written, problems: found } =
+          target.language === 'android'
+            ? androidResources(target, catalog, locales, entries, banner)
+            : appleStrings(target, config.root, catalog, locales, entries, banner);
         problems.push(...found);
         for (const [path, content] of written) files.set(path, content);
         continue;

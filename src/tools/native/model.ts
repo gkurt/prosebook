@@ -64,12 +64,16 @@ export interface NativeModel {
  * is quit, app under `['tray']`. Nothing when the target doesn't take the key.
  */
 export function wordsFor(target: NativeTarget, key: string): string[] | undefined {
+  return restOf(target, key)
+    ?.split(/[.\-_]/)
+    .filter(Boolean);
+}
+
+/** `key` less the prefix that took it in, as written: `tray.quit-app` is `quit-app` under `['tray']`. */
+export function restOf(target: NativeTarget, key: string): string | undefined {
   const prefix = target.keys === undefined ? '' : [...target.keys].sort((a, b) => b.length - a.length).find((p) => key.startsWith(`${p}.`));
   if (prefix === undefined) return undefined;
-  return key
-    .slice(prefix === '' ? 0 : prefix.length + 1)
-    .split(/[.\-_]/)
-    .filter(Boolean);
+  return key.slice(prefix === '' ? 0 : prefix.length + 1);
 }
 
 /** The locale whose text `locale` shows for `key`: its own, else the first down its fallback chain that has it. */

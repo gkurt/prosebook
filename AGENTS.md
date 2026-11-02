@@ -83,9 +83,13 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   in step. `android.ts` writes Android's string resources, a `values*/<name>.xml` per locale under
   the `res` folder `out` names, straight from the ICU tree (with `wordsFor` and `foundIn` from the
   model): Android formats with `String.format` and selects plurals itself, so it takes text, `{name}`
-  as `%N$s`, and one cardinal plural as `<plurals>`, and refuses the rest. `test/native.test.ts`
-  compiles each target with any toolchain on the PATH (aapt2 from `ANDROID_HOME` too) and compares
-  its output with the runtime's.
+  as `%N$s`, and one cardinal plural as `<plurals>`, and refuses the rest. `apple.ts` writes
+  `.strings` tables, a `<locale>.lproj/<name>.strings` per locale (plain `.strings`, since only
+  Xcode compiles a String Catalog), with `%N$@` and no plurals; with `plist` it is `InfoPlist`, its
+  keys spelling the plist's case-insensitively and its source checked against the plist's text.
+  Both write through `printf.ts`, the format-string walk they share. `test/native.test.ts` compiles
+  each target with any toolchain on the PATH (aapt2 from `ANDROID_HOME` too) and compares its output
+  with the runtime's; nothing here runs the `.strings` files on a Mac.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
   Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
