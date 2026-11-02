@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 
 import type { Catalog } from './catalog.ts';
+import { formatDiff, wordDiff } from './diff.ts';
 
 export interface Lock {
   version: 2;
@@ -57,6 +58,12 @@ export interface StaleTranslation {
   now: string;
   /** The translation, made from `was`. */
   translation: string;
+}
+
+/** What changed in the source of a stale translation, as a word diff, or why that isn't known. */
+export function changeOf(stale: StaleTranslation): string {
+  if (stale.was === undefined) return "the earlier text isn't recorded (the lock predates prosebook 0.2)";
+  return formatDiff(wordDiff(stale.was, stale.now)).replaceAll('\n', ' ');
 }
 
 export interface Reconciled {

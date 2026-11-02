@@ -30,7 +30,9 @@ export {
 export {
   applyFixes,
   editEntry,
+  importTranslations,
   readEntry,
+  type Imported,
   type EntryEdit,
   type EntryFields,
   type EntryFinding,
@@ -66,7 +68,7 @@ export {
   type SubstitutionRule,
 } from './lint.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
-export { emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
+export { changeOf, emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 export { pseudoAst, pseudoText } from './pseudo.ts';
 export { intlDate, intlNumber, parseMf2, toMf2, type Mf2Function } from './mf2.ts';
@@ -74,6 +76,7 @@ export { toMf1 } from './mf1.ts';
 export { applyMigrate, planMigrate, type MigratePlan } from './migrate.ts';
 export { readMessage, SYNTAX_NAME, writeMessage, type MessageFormatVersion } from './syntax.ts';
 export { syntaxKind, typescriptOracle, type Span, type TypeOracle, type ValueKind } from './types.ts';
+export { todoOf, type Todo } from './todo.ts';
 export { SarifReport, type SarifResult, type SarifTool } from './sarif.ts';
 export {
   hardcodedText,

@@ -65,7 +65,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   message that calls no helper takes no `h`, so the generated TypeScript passes `noUnusedParameters`,
   which the repo's tsconfig turns on over the example's output.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
-  they were made from; `diff.ts`: the word diff that shows what changed.
+  they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
+  and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and
+  `import` (`importTranslations` in `entry.ts`) checks the reply.
 - `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, CheckRule>` written as a
   plugin's are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds
   more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, ...), which
@@ -126,7 +128,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document
   so the rest of the file stays as it was. An empty translation removes the key from its locale.
-  `applyFixes` makes the edits lint findings carry, the same way. A finding's `match` is found in the
+  `applyFixes` makes the edits lint findings carry, the same way, and `importTranslations` a locale's
+  translations from `todo`'s YAML filled in, leaving out each entry its own file reports. A finding's `match` is found in the
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
 

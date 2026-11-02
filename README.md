@@ -326,7 +326,8 @@ still hold:
 
 ```bash
 prosebook status            # coverage and stale counts per locale
-prosebook todo de           # missing and stale entries, with context, ready to translate
+prosebook todo de > de.yaml # missing and stale entries, with context, ready to translate
+prosebook import de de.yaml # each filled-in entry into its file, checked first
 prosebook accept de cart.items
 ```
 
@@ -341,12 +342,30 @@ de           13/14  92%        1      2
 
 $ prosebook todo de
 # The button on a product that adds one to the cart.
+# kind: action, surface: action
 # en: Add one to cart
 # stale, the source changed: Add {+one +}to cart
 cart.add: In den Warenkorb
 ```
 
 Stale translations still show by default; `stale: 'fallback'` shows the source instead.
+
+**Translating with a model.** prosebook calls no model itself. `prosebook todo de --prompt` prints
+the same entries as a prompt for whichever model you use: how to reply, the plural forms German
+takes, what each kind of string and surface asks for, and how to treat a stale entry. Hand it to the
+model and give its reply to `import`, as a file or on stdin:
+
+```bash
+prosebook todo de --prompt | pbcopy  # paste into a chat, or hand it to an agent
+prosebook import de reply.md         # the YAML block is read out of the reply
+```
+
+`import` checks every entry as the whole catalog before writing it. One whose placeholders, tags
+or syntax don't hold is left out with its fix, which you can give back to the model, and the rest
+are written. A stale translation given back unchanged is accepted as still right. The imported
+translations are then linted, as a person's would be. An agent working in the repository needs none
+of this: it can read `prosebook todo de`, write the translation files itself, and run
+`prosebook check`.
 
 **Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ⟧` from the source. Switch to it and
 any plain text on screen is hardcoded, a missing bracket is clipped text, and brackets inside
@@ -702,12 +721,11 @@ bun run --cwd examples/next dev
 
 Ideas not built yet, roughly in order of value:
 
-1. **Draft translations with an LLM**: `prosebook translate de --draft`, prompted with `context`,
-   `kind`, `surface` and `args`, written to a draft file a person reviews before it ships.
-2. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
-3. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-4. **Server rendering helpers**: `Accept-Language` negotiation and a React Server Components reader.
-5. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
+1. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
+2. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
+3. **A React Server Components reader**: the copy per request that the Next.js example builds with
+   `cache()`, as a helper.
+4. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
    outside the browser, such as a tray or native menus.
-6. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
+5. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
    value.

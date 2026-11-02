@@ -7,21 +7,19 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { stringify } from 'yaml';
-
 import { watchCatalog } from './tools/bundle.ts';
 import { CatalogError, entryLocator, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
-import { formatDiff, wordDiff } from './tools/diff.ts';
-import { applyFixes } from './tools/entry.ts';
+import { applyFixes, importTranslations } from './tools/entry.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
-import { lint } from './tools/lint.ts';
-import type { StaleTranslation } from './tools/lock.ts';
+import { lint, type Finding } from './tools/lint.ts';
+import { changeOf, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { SarifReport } from './tools/sarif.ts';
 import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
+import { todoOf } from './tools/todo.ts';
 
 const HELP = `prosebook: every string your app shows, in one typed catalog
 
@@ -35,6 +33,9 @@ Commands:
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
+                          (--prompt: as a prompt for a model, saying how to reply)
+  import <locale> [file]  Write translations from todo's YAML filled in, or a model's reply to --prompt
+                          (stdin without a file); each is checked first, and one that fails is left out
   scan                    Find hardcoded text in JSX and catalog keys no code reads  (--strict)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
@@ -79,6 +80,7 @@ async function main(argv: string[]): Promise<number> {
       all: { type: 'boolean' },
       write: { type: 'boolean' },
       fix: { type: 'boolean' },
+      prompt: { type: 'boolean' },
       area: { type: 'string' },
       format: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -120,7 +122,9 @@ async function main(argv: string[]): Promise<number> {
       case 'accept':
         return runAccept(config, rest, values.all === true);
       case 'todo':
-        return runTodo(config, rest[0]);
+        return runTodo(config, rest[0], values.prompt === true);
+      case 'import':
+        return runImport(config, rest[0], rest[1]);
       case 'scan':
         code = runScan(config, values.strict === true, report);
         break;
@@ -224,12 +228,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
       findings = lint(catalog.messages, config);
     }
   }
-  const locate = entryLocator(config.root);
-  const placed = findings.map((f) => ({ ...f, ...locate(f.file, f.key, f.at?.start, config.source) }));
-  for (const f of placed) {
-    const severity = f.severity === 'error' ? 'error' : 'warn ';
-    err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
-  }
+  const placed = printFindings(config, findings);
   if (report !== undefined) {
     for (const [name, { rule }] of Object.entries(config.lint.rules)) report.rule(name, rule.description);
     report.rule('allow', RULES.allow);
@@ -255,6 +254,17 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
   return errors > 0 ? 1 : 0;
+}
+
+/** Each finding on its line, placed at its entry's words. */
+function printFindings(config: ResolvedConfig, findings: Finding[]) {
+  const locate = entryLocator(config.root);
+  const placed = findings.map((f) => ({ ...f, ...locate(f.file, f.key, f.at?.start, config.source) }));
+  for (const f of placed) {
+    const severity = f.severity === 'error' ? 'error' : 'warn ';
+    err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
+  }
+  return placed;
 }
 
 function missingKeys(catalog: Catalog, locale: string): string[] {
@@ -330,47 +340,46 @@ function runAccept(config: ResolvedConfig, args: string[], all: boolean): number
   return 0;
 }
 
-/** What changed in the source of a stale translation, as a word diff, or why that isn't known. */
-function changeOf(stale: StaleTranslation): string {
-  if (stale.was === undefined) return "the earlier text isn't recorded (the lock predates prosebook 0.2)";
-  return formatDiff(wordDiff(stale.was, stale.now)).replaceAll('\n', ' ');
-}
-
-function runTodo(config: ResolvedConfig, locale: string | undefined): number {
+function runTodo(config: ResolvedConfig, locale: string | undefined, prompt: boolean): number {
   if (locale === undefined) {
-    err('Usage: prosebook todo <locale>');
+    err('Usage: prosebook todo <locale> [--prompt]');
     return 1;
   }
   const { catalog, stale } = render(config);
-  const staleKeys = stale.get(locale) ?? new Map<string, StaleTranslation>();
-  const byArea = new Map<string, string[]>();
-  let count = 0;
-  for (const m of catalog.messages) {
-    const current = m.translations.get(locale);
-    if (current !== undefined && !staleKeys.has(m.key)) continue;
-    count += 1;
-    const lines = byArea.get(m.area) ?? [];
-    lines.push('');
-    if (m.context) lines.push(`# ${m.context}`);
-    for (const [arg, said] of m.argDocs) lines.push(`#   {${arg}}: ${said}`);
-    lines.push(`# ${config.source}: ${m.text.replaceAll('\n', ' ')}`);
-    const change = staleKeys.get(m.key);
-    if (change !== undefined) lines.push(`# stale, the source changed: ${changeOf(change)}`);
-    lines.push(stringify({ [m.key]: current?.text ?? '' }, { lineWidth: 0 }).trimEnd());
-    byArea.set(m.area, lines);
-  }
-  if (count === 0) {
-    out(`# ${locale} is complete`);
-    return 0;
-  }
-  out(
-    `# prosebook todo: ${count} entr${count === 1 ? 'y' : 'ies'} for ${locale}. Fill them in and paste each block into ${rel(config, config.locales)}/${locale}/<area>.yaml (or ${locale}.yaml).`,
-  );
-  for (const [area, lines] of byArea) {
-    out(`\n# ── ${area}.yaml ──`);
-    out(lines.join('\n'));
-  }
+  const todo = todoOf(config, catalog, stale.get(locale) ?? new Map(), locale, prompt);
+  out(todo.text);
+  if (prompt && todo.count > 0) err(`\nHand this to a model, save its reply, and \`prosebook import ${locale} <reply>\`.`);
   return 0;
+}
+
+function runImport(config: ResolvedConfig, locale: string | undefined, file: string | undefined): number {
+  if (locale === undefined || ((file === undefined || file === '-') && process.stdin.isTTY)) {
+    err('Usage: prosebook import <locale> <file>, or the reply on stdin');
+    return 1;
+  }
+  const reply = readFileSync(file === undefined || file === '-' ? 0 : resolve(file), 'utf8');
+  const { written, unchanged, problems } = importTranslations(config, locale, reply);
+  reportProblems(config, problems);
+  if (written.length + unchanged.length > 0) {
+    // A stale translation given back unchanged was looked at and still holds.
+    const stale = render(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
+    const kept = unchanged.filter((key) => stale.has(key));
+    const { catalog } = generate(config, { accept: new Map([[locale, new Set(kept)]]) });
+    out(
+      `prosebook: imported ${written.length} translation(s) into ${locale}${kept.length > 0 ? `, and accepted ${kept.length} stale one(s) as still right` : ''}`,
+    );
+    const imported = new Set(written);
+    printFindings(
+      config,
+      lint(
+        catalog.messages.filter((m) => imported.has(m.key)),
+        config,
+      ).filter((f) => f.locale === locale),
+    );
+  }
+  if (problems.length === 0) return 0;
+  err(`\n${problems.length} left out: fix them, or hand these lines back to the model, and import again.`);
+  return 1;
 }
 
 function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport): number {

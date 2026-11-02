@@ -168,6 +168,83 @@ export function applyFixes(config: ResolvedConfig, catalog: Catalog, findings: F
   return { fixed, problems: [] };
 }
 
+export interface Imported {
+  /** Keys whose translation was written. */
+  written: string[];
+  /** Keys given back as they were: each still holds, so a stale one can be accepted. */
+  unchanged: string[];
+  /** What was left out, and why. The rest was written regardless. */
+  problems: Problem[];
+}
+
+/**
+ * Translations into `locale` from `prosebook todo`'s YAML filled in, by a person or a model, each
+ * written to the file its locale and area put it in. Text around a fenced block is left aside, as a
+ * model's reply has it, and an empty value is one left for later. An entry that would break the
+ * catalog is left out with its problem, so a reply with one bad entry still lands the others.
+ */
+export function importTranslations(config: ResolvedConfig, locale: string, reply: string): Imported {
+  const failed = (message: string, key?: string): Problem => ({ severity: 'error', key, message });
+  if (locale === config.source)
+    return { written: [], unchanged: [], problems: [failed(`${locale} is the source: import takes translations`)] };
+  const fenced = [...reply.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]);
+  const doc = parseDocument(fenced.length > 0 ? fenced.join('\n') : reply);
+  if (doc.errors.length > 0 || !(isMap(doc.contents) || doc.contents === null)) {
+    const why = doc.errors[0]?.message.split('\n', 1)[0] ?? 'it is not a mapping';
+    return {
+      written: [],
+      unchanged: [],
+      problems: [failed(`the reply isn't YAML of \`key: translation\` (${why}): fix it, or ask for one YAML block`)],
+    };
+  }
+
+  const catalog = loadCatalog(config);
+  const problems: Problem[] = [];
+  const unchanged: string[] = [];
+  const pending = new Map<string, { file: string; text: string }>();
+  for (const pair of isMap(doc.contents) ? doc.contents.items : []) {
+    const key = isScalar(pair.key) ? String(pair.key.value) : String(pair.key);
+    const message = catalog.messages.find((m) => m.key === key);
+    if (message === undefined) {
+      problems.push(failed('no entry has this key: translate only the keys `prosebook todo` printed', key));
+      continue;
+    }
+    const value = isScalar(pair.value) ? pair.value.value : pair.value;
+    if (value === null || value === '') continue;
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      problems.push(failed('the translation is not text: give the message as one string', key));
+      continue;
+    }
+    const text = String(value);
+    if (text === message.translations.get(locale)?.text) unchanged.push(key);
+    else pending.set(key, { file: translationFile(config, message, locale), text });
+  }
+
+  // An entry whose own file reports it is left out, until what is left loads clean. A problem
+  // anywhere else means the catalog was broken before the reply, so nothing is written.
+  for (;;) {
+    const unsaved = new Map<string, string>();
+    for (const [key, { file, text }] of pending)
+      unsaved.set(resolve(config.root, file), withTranslation(contentOf(config, file, unsaved), key, text));
+    try {
+      loadCatalog(config, unsaved);
+    } catch (e) {
+      if (!(e instanceof CatalogError)) throw e;
+      const errors = e.problems.filter((p) => p.severity === 'error');
+      const own = errors.filter((p) => p.key !== undefined && pending.get(p.key)?.file === p.file);
+      if (own.length === 0) return { written: [], unchanged: [], problems: [...problems, ...errors] };
+      for (const p of own) if (p.key !== undefined) pending.delete(p.key);
+      problems.push(...own);
+      continue;
+    }
+    for (const [path, content] of unsaved) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, content);
+    }
+    return { written: [...pending.keys()], unchanged, problems };
+  }
+}
+
 /** A file as the edit has it, as it is on disk, or empty when it is still to be made. */
 function contentOf(config: ResolvedConfig, file: string, unsaved: Map<string, string>): string {
   const path = resolve(config.root, file);

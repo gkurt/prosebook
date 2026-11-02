@@ -999,6 +999,10 @@
                 <strong>Fallback, key by key.</strong> A missing key falls back through its parents (<code>pt-BR</code> → <code>pt</code>)
                 to the source.
               </li>
+              <li>
+                <strong>Any model, checked.</strong> <code>prosebook todo de --prompt</code> writes the prompt for the model you use, and
+                <code>prosebook import</code> checks its reply before a word is written.
+              </li>
             </ul>
           </div>
           <div class="code">
@@ -1010,6 +1014,7 @@ de           13/14  92%        1      2
 
 <span class="c">$</span> prosebook todo de
 <span class="c"># The button on a product that adds one to the cart.</span>
+<span class="c"># kind: action, surface: action</span>
 <span class="c"># en: Add one to cart</span>
 <span class="c"># stale, the source changed: Add {+one +}to cart</span>
 <span class="k">cart.add</span>: In den Warenkorb</pre>
