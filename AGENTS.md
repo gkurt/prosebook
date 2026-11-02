@@ -98,7 +98,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and
-  `import` (`importTranslations` in `entry.ts`) checks the reply.
+  `import` (`importTranslations` in `entry.ts`) checks the reply. `exchange.ts`: `prosebook export`,
+  the same entries as XLIFF 2.0 or JSON for translation tools, and `readReturned`, which reads every
+  format `import` takes (todo's YAML, JSON, XLIFF, through a small XML reader of its own). Messages
+  travel as their ICU or MF2 text, never as XLIFF inline codes; a unit's `state` says whether someone
+  looked at it, and its source must still be the catalog's.
 - `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, CheckRule>` written as a
   plugin's are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds
   more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, ...), which

@@ -15,6 +15,7 @@ import { isMap, isScalar, parseDocument, Scalar, type Document, type YAMLMap } f
 
 import { CatalogError, loadCatalog, type Catalog, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
+import { readReturned } from './exchange.ts';
 import { applyEdits, lint, type Edit, type Finding } from './lint.ts';
 
 export interface EntryFields {
@@ -178,46 +179,44 @@ export interface Imported {
 }
 
 /**
- * Translations into `locale` from `prosebook todo`'s YAML filled in, by a person or a model, each
- * written to the file its locale and area put it in. Text around a fenced block is left aside, as a
- * model's reply has it, and an empty value is one left for later. An entry that would break the
- * catalog is left out with its problem, so a reply with one bad entry still lands the others.
+ * Translations into `locale` from `prosebook todo`'s YAML filled in, by a person or a model, or from
+ * a translation tool's XLIFF or JSON (`readReturned`), each written to the file its locale and area
+ * put it in. An empty value is one left for later. An entry that would break the catalog is left out
+ * with its problem, so a reply with one bad entry still lands the others.
  */
 export function importTranslations(config: ResolvedConfig, locale: string, reply: string): Imported {
   const failed = (message: string, key?: string): Problem => ({ severity: 'error', key, message });
   if (locale === config.source)
     return { written: [], unchanged: [], problems: [failed(`${locale} is the source: import takes translations`)] };
-  const fenced = [...reply.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map((m) => m[1]);
-  const doc = parseDocument(fenced.length > 0 ? fenced.join('\n') : reply);
-  if (doc.errors.length > 0 || !(isMap(doc.contents) || doc.contents === null)) {
-    const why = doc.errors[0]?.message.split('\n', 1)[0] ?? 'it is not a mapping';
-    return {
-      written: [],
-      unchanged: [],
-      problems: [failed(`the reply isn't YAML of \`key: translation\` (${why}): fix it, or ask for one YAML block`)],
-    };
-  }
+  const read = readReturned(reply, locale, config.source);
+  if ('problem' in read) return { written: [], unchanged: [], problems: [failed(read.problem)] };
 
   const catalog = loadCatalog(config);
   const problems: Problem[] = [];
   const unchanged: string[] = [];
   const pending = new Map<string, { file: string; text: string }>();
-  for (const pair of isMap(doc.contents) ? doc.contents.items : []) {
-    const key = isScalar(pair.key) ? String(pair.key.value) : String(pair.key);
+  for (const { key, value, checked, source, problem } of read.returned) {
     const message = catalog.messages.find((m) => m.key === key);
     if (message === undefined) {
-      problems.push(failed('no entry has this key: translate only the keys `prosebook todo` printed', key));
+      problems.push(failed('no entry has this key: translate only the keys `prosebook todo` or `export` gave out', key));
       continue;
     }
-    const value = isScalar(pair.value) ? pair.value.value : pair.value;
+    if (problem !== undefined) {
+      problems.push(failed(problem, key));
+      continue;
+    }
     if (value === null || value === '') continue;
     if (typeof value !== 'string' && typeof value !== 'number') {
       problems.push(failed('the translation is not text: give the message as one string', key));
       continue;
     }
+    if (source !== undefined && source !== message.text) {
+      problems.push(failed(`the source has changed since it was exported, to "${message.text}": export it again`, key));
+      continue;
+    }
     const text = String(value);
-    if (text === message.translations.get(locale)?.text) unchanged.push(key);
-    else pending.set(key, { file: translationFile(config, message, locale), text });
+    if (text !== message.translations.get(locale)?.text) pending.set(key, { file: translationFile(config, message, locale), text });
+    else if (checked) unchanged.push(key);
   }
 
   // An entry whose own file reports it is left out, until what is left loads clean. A problem

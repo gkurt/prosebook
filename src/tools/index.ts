@@ -76,7 +76,8 @@ export { toMf1 } from './mf1.ts';
 export { applyMigrate, planMigrate, type MigratePlan } from './migrate.ts';
 export { readMessage, SYNTAX_NAME, writeMessage, type MessageFormatVersion } from './syntax.ts';
 export { syntaxKind, typescriptOracle, type Span, type TypeOracle, type ValueKind } from './types.ts';
-export { todoOf, type Todo } from './todo.ts';
+export { todoMessages, todoOf, type Todo } from './todo.ts';
+export { exportOf, readReturned, type ExchangeFormat, type Exported, type Returned } from './exchange.ts';
 export { SarifReport, type SarifResult, type SarifTool } from './sarif.ts';
 export {
   hardcodedText,

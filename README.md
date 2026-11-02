@@ -562,6 +562,26 @@ translations are then linted, as a person's would be. An agent working in the re
 of this: it can read `prosebook todo de`, write the translation files itself, and run
 `prosebook check`.
 
+**Translation tools.** `prosebook export` writes the same entries for a translation tool, as XLIFF
+2.0 or JSON by the file's extension (`--format xliff|json` on stdout), and `import` takes the tool's
+file back as it takes a reply:
+
+```bash
+prosebook export de de.xlf        # what todo lists; --all for every entry
+prosebook export en en.json       # the source, every entry, for a tool that translates JSON
+prosebook import de de.xlf        # or de.json, flat or nested by key
+```
+
+In XLIFF, each entry is a unit named for its key, in a file per area, with its context, kind, surface,
+what each placeholder holds and, for a stale one, the word diff as notes. A message travels as its
+ICU or MF2 text, which tools that take these formats read, not as XLIFF's inline codes: a target that
+comes back with a `<ph>` is left out with the fix. A missing translation goes out `initial`, a stale
+one `initial` with its translation, and a current one `translated`. A stale translation given back
+unchanged is accepted only once the tool has moved it on from `initial`, since only then has someone
+looked at it. Each unit carries its source as exported, so a translation of a source that has changed
+since is left out until it is exported again. JSON is `key: text` in the locale, empty where it has
+none, and carries no context: give the tool the XLIFF where it reads both.
+
 **Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ⟧` from the source. Switch to it and
 any plain text on screen is hardcoded, a missing bracket is clipped text, and brackets inside
 brackets are a sentence spliced from fragments.
@@ -918,7 +938,6 @@ bun run --cwd examples/next dev
 
 Ideas not built yet, roughly in order of value:
 
-1. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
-2. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-3. **Dates in native targets**: date and time formats taken apart from `Intl` as number formats are,
+1. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
+2. **Dates in native targets**: date and time formats taken apart from `Intl` as number formats are,
    so a Rust, Swift or Kotlin message can say when.

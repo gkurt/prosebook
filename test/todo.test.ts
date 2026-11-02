@@ -115,7 +115,7 @@ describe('prosebook import', () => {
       [undefined, 'cart.gone'],
       ['copy/locales/de/cart.yaml', 'cart.items'],
     ]);
-    expect(result.problems[0]!.message).toBe('no entry has this key: translate only the keys `prosebook todo` printed');
+    expect(result.problems[0]!.message).toBe('no entry has this key: translate only the keys `prosebook todo` or `export` gave out');
     expect(read(config, 'copy/locales/de/cart.yaml')).toBe('cart.add: In den Warenkorb\ncart.title: Warenkorb\n');
   });
 

@@ -27,7 +27,7 @@ export function todoOf(
   locale: string,
   prompt = false,
 ): Todo {
-  const wanted = catalog.messages.filter((m) => !m.translations.has(locale) || stale.has(m.key));
+  const wanted = todoMessages(catalog, stale, locale);
   if (wanted.length === 0) return { count: 0, text: `# ${locale} is complete` };
   const byArea = new Map<string, string[]>();
   for (const m of wanted) {
@@ -56,6 +56,11 @@ export function todoOf(
   }
   const head = `# prosebook todo: ${count} entr${count === 1 ? 'y' : 'ies'} for ${locale}. Fill them in, then \`prosebook import ${locale} <this file>\`.`;
   return { count, text: `${head}\n${entries}` };
+}
+
+/** The entries a locale wants a translation of: those it lacks, and those gone stale. */
+export function todoMessages(catalog: Catalog, stale: ReadonlyMap<string, StaleTranslation>, locale: string): Message[] {
+  return catalog.messages.filter((m) => !m.translations.has(locale) || stale.has(m.key));
 }
 
 function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, anyStale: boolean): string {

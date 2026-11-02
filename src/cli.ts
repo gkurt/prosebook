@@ -4,13 +4,14 @@
  * ones CI needs in one go.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, extname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { watchCatalog } from './tools/bundle.ts';
 import { CatalogError, entryLocator, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
+import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
@@ -34,8 +35,11 @@ Commands:
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
                           (--prompt: as a prompt for a model, saying how to reply)
-  import <locale> [file]  Write translations from todo's YAML filled in, or a model's reply to --prompt
-                          (stdin without a file); each is checked first, and one that fails is left out
+  export <locale> [file]  Write the entries todo lists as XLIFF 2.0 or JSON, for a translation tool
+                          (--all: every entry; the format from the file's extension, or --format)
+  import <locale> [file]  Write translations from todo's YAML filled in, a model's reply to --prompt,
+                          or a tool's XLIFF or JSON (stdin without a file); each is checked first,
+                          and one that fails is left out
   scan                    Find hardcoded text in JSX and catalog keys no code reads  (--strict)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
@@ -47,10 +51,12 @@ Options:
   --root <dir>            Project root (default: the current directory)
   --format <text|sarif>   With lint, scan, status and check: sarif writes a SARIF 2.1.0 log to stdout
                           for code scanning, and the usual text to stderr
+  --format <xliff|json>   With export: the file's format (XLIFF by default on stdout)
   -h, --help              Show this help
 `;
 
 const SARIF_COMMANDS = ['lint', 'scan', 'status', 'check'];
+const EXCHANGE_FORMATS: Record<string, ExchangeFormat> = { xliff: 'xliff', xlf: 'xliff', json: 'json' };
 
 /** What the checks that aren't lint rules hold the project to, for the rules in a SARIF log. */
 const RULES = {
@@ -91,7 +97,12 @@ async function main(argv: string[]): Promise<number> {
     out(HELP);
     return 0;
   }
-  if (values.format !== undefined && values.format !== 'text' && values.format !== 'sarif') {
+  if (command === 'export') {
+    if (values.format !== undefined && EXCHANGE_FORMATS[values.format] === undefined) {
+      err(`prosebook: export writes xliff or json, not "${values.format}"`);
+      return 1;
+    }
+  } else if (values.format !== undefined && values.format !== 'text' && values.format !== 'sarif') {
     err(`prosebook: --format is text or sarif, not "${values.format}"`);
     return 1;
   }
@@ -123,6 +134,8 @@ async function main(argv: string[]): Promise<number> {
         return runAccept(config, rest, values.all === true);
       case 'todo':
         return runTodo(config, rest[0], values.prompt === true);
+      case 'export':
+        return runExport(config, rest[0], rest[1], values.format, values.all === true);
       case 'import':
         return runImport(config, rest[0], rest[1]);
       case 'scan':
@@ -356,6 +369,40 @@ function runTodo(config: ResolvedConfig, locale: string | undefined, prompt: boo
   const todo = todoOf(config, catalog, stale.get(locale) ?? new Map(), locale, prompt);
   out(todo.text);
   if (prompt && todo.count > 0) err(`\nHand this to a model, save its reply, and \`prosebook import ${locale} <reply>\`.`);
+  return 0;
+}
+
+function runExport(
+  config: ResolvedConfig,
+  locale: string | undefined,
+  file: string | undefined,
+  named: string | undefined,
+  all: boolean,
+): number {
+  if (locale === undefined) {
+    err('Usage: prosebook export <locale> [file] [--all] [--format xliff|json]');
+    return 1;
+  }
+  const format = EXCHANGE_FORMATS[named ?? (file === undefined ? 'xliff' : extname(file).slice(1).toLowerCase())];
+  if (format === undefined) {
+    err(`prosebook: ${file} is neither .xlf nor .json: name the format with --format xliff or --format json`);
+    return 1;
+  }
+  const { catalog, stale } = render(config);
+  const exported = exportOf(config, catalog, stale.get(locale) ?? new Map(), locale, format, all);
+  if (exported.count === 0) {
+    err(`prosebook: ${locale} is complete; --all exports every entry`);
+    return 0;
+  }
+  if (file === undefined) {
+    process.stdout.write(exported.text);
+    return 0;
+  }
+  const path = resolve(file);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, exported.text);
+  out(`prosebook: exported ${exported.count} entr${exported.count === 1 ? 'y' : 'ies'} for ${locale} to ${file}`);
+  if (locale !== config.source) out(`Translate them, then \`prosebook import ${locale} ${file}\`.`);
   return 0;
 }
 
