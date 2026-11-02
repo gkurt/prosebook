@@ -13,10 +13,10 @@ import { join } from 'node:path';
 import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
-import { selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import { TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
 import { checkNames, leading, snake } from './emit.ts';
 import { fileOf, foundIn, LEAVE_OUT, wordsFor } from './model.ts';
-import { formatString, noteOf, type Printf } from './printf.ts';
+import { checkPlural, formatString, noteOf, type PluralHolder, type Printf } from './printf.ts';
 
 const KEYWORDS = new Set(
   'abstract assert boolean break byte case catch char class const continue default do double else enum extends false final finally float for goto if implements import instanceof int interface long native new null package private protected public return short static strictfp super switch synchronized this throw throws transient true try void volatile while'.split(
@@ -79,9 +79,16 @@ const PRINTF: Printf = {
   formatter: 'String.format',
   holder: 'Android resources',
   string: 's',
+  count: 'd',
   escape,
   plural: (name) =>
     `{${name}} is a second plural in the message, and Android's <plurals> picks on one count: split it into a key per count, ${LEAVE_OUT}`,
+};
+
+const PLURALS: PluralHolder = {
+  platform: 'Android',
+  plurals: "Android's <plurals>",
+  exact: ' (its zero is a category, which most languages never pick)',
 };
 
 /**
@@ -99,29 +106,7 @@ function resource(name: string, ast: MessageFormatElement[], args: string[]): st
     return `    <string name="${name}"${raw}>${value(written)}</string>`;
   }
   const [before, after] = [ast.slice(0, at), ast.slice(at + 1)];
-  const named = `{${plural.value}}`;
-  if (plural.pluralType === 'ordinal') {
-    throw new Error(
-      `${named} is an ordinal, and Android's <plurals> are cardinal only: write a key per case and pick one in code, ${LEAVE_OUT}`,
-    );
-  }
-  if (plural.offset !== 0) {
-    throw new Error(
-      `${named} has an offset, which Android's <plurals> don't: count without it, and say the rest in each arm, ${LEAVE_OUT}`,
-    );
-  }
-  const selection = selectionOf(plural);
-  if (selection !== undefined && (selection.fn.name !== 'integer' || Object.keys(selection.fn.options).length > 0)) {
-    throw new Error(
-      `${named} selects with :${selection.fn.name} and its options, and Android selects on the count as an integer: select with a bare :number or :integer, ${LEAVE_OUT}`,
-    );
-  }
-  const exact = Object.keys(plural.options).filter((k) => k.startsWith('='));
-  if (exact.length > 0) {
-    throw new Error(
-      `${named} has the arm ${exact.join(', ')}, and Android's <plurals> have none for one number (its zero is a category, which most languages never pick): say it in a category's arm, or write a key for it and pick that in code, ${LEAVE_OUT}`,
-    );
-  }
+  checkPlural(plural, PLURALS);
   const items = Object.entries(plural.options).map(
     ([category, option]) =>
       `        <item quantity="${category}">${value(formatString([...before, ...option.value, ...after], args, PRINTF, plural.value))}</item>`,

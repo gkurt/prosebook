@@ -3,6 +3,7 @@
  * a file-private object holding what formats them. For the JVM and Android.
  */
 import type { NativeTarget } from '#src/tools/config.ts';
+import { pieceExpr, type DateSpec } from './date.ts';
 import { camel, checkNames, conditionCode, float, leading, stringLiteral, upper, wordsOf } from './emit.ts';
 import type { NativeMessage, NativeModel, Part } from './model.ts';
 import type { NumberSpec } from './number.ts';
@@ -36,6 +37,7 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string, rt: string
     const of = part.offset === 0 ? argName(part.arg) : `${argName(part.arg)} - ${float(part.offset)}`;
     return `${rt}.number(${of}, ${rt}.F${part.format}, ${lit(part.fallback)})`;
   }
+  if (part.type === 'date') return `${rt}.d${part.format}(${argName(part.arg)})`;
   if (part.type === 'select') {
     const arms = part.arms.map((a) => `${inner}${lit(a.key)} -> ${expr(a.parts, inner, rt)}\n`).join('');
     return `when (${argName(part.arg)}) {\n${arms}${inner}else -> ${expr(part.other, inner, rt)}\n${indent}}`;
@@ -59,10 +61,17 @@ function member(m: NativeMessage, name: string, rt: string): string {
   const head = doc(argDocs.length > 0 ? [...m.doc, '', ...argDocs] : m.doc, '    ');
   const body = `when (this) {\n${branches}        }`;
   if (m.args.length === 0) return `${head}    val ${name}: String\n        get() = ${body}\n`;
-  const params = m.args.map((a) => `${argName(a.name)}: ${a.type === 'number' ? 'Number' : 'String'}`).join(', ');
+  const params = m.args
+    .map((a) => `${argName(a.name)}: ${a.type === 'number' ? 'Number' : a.type === 'date' ? 'java.time.Instant' : 'String'}`)
+    .join(', ');
   const numbers = m.args
-    .filter((a) => a.type === 'number')
-    .map((a) => `        val ${argName(a.name)} = ${argName(a.name)}.toDouble()\n`)
+    .map((a) =>
+      a.type === 'number'
+        ? `        val ${argName(a.name)} = ${argName(a.name)}.toDouble()\n`
+        : a.type === 'date'
+          ? `        val ${argName(a.name)} = ${argName(a.name)}.atZone(java.time.ZoneId.systemDefault())\n`
+          : '',
+    )
     .join('');
   return `${head}    fun ${name}(${params}): String {\n${numbers}        return ${body}\n    }\n`;
 }
@@ -89,6 +98,38 @@ function formatConst(spec: NumberSpec, i: number): string {
   ];
   return `    val F${i} = Format(\n${fields.map((f) => `        ${f}`).join(',\n')},\n    )\n`;
 }
+
+const FIELDS: Record<string, string> = {
+  year: 't.year',
+  month: 't.monthValue',
+  day: 't.dayOfMonth',
+  hour: 't.hour',
+  minute: 't.minute',
+  second: 't.second',
+  weekday: '(t.dayOfWeek.value % 7)',
+};
+
+/** A date format as a function of the date in the system's time zone. */
+function dateFn(spec: DateSpec, i: number): string {
+  const digits = spec.digits === undefined ? 'null' : `G${i}`;
+  const at = (field: string) => FIELDS[field]!;
+  const lines = spec.pieces.map((piece) => {
+    if (piece.type === 'text') return `append(${lit(piece.value)})`;
+    if (piece.type === 'name') return `append(arrayOf(${piece.names.map(lit).join(', ')})[${pieceExpr(piece, at)}])`;
+    return `append(pad(${pieceExpr(piece, at)}, ${piece.pad}, ${digits}))`;
+  });
+  const table = spec.digits === undefined ? '' : `    private val G${i} = arrayOf(${spec.digits.map(lit).join(', ')})\n`;
+  const body = lines.map((l) => `        ${l}\n`).join('');
+  return `${table}    fun d${i}(t: java.time.ZonedDateTime): String = buildString {\n${body}    }\n`;
+}
+
+const DATE = `
+    /** \`value\` written with at least \`width\` digits, in \`digits\` where the locale has its own. */
+    private fun pad(value: Int, width: Int, digits: Array<String>?): String {
+        val text = value.toString().padStart(width, '0')
+        return if (digits == null) text else text.map { if (it in '0'..'9') digits[it - '0'] else it.toString() }.joinToString("")
+    }
+`;
 
 const NUMBER = `
     /** A number format, taken apart when the file was generated. */
@@ -225,12 +266,12 @@ export function kotlinFile(model: NativeModel, target: NativeTarget & { name: st
     })
     .join('\n');
   const runtime =
-    model.formats.length + model.rules.length === 0
+    model.formats.length + model.rules.length + model.dates.length === 0
       ? ''
       : `
 /** What formats the messages, generated with them. */
-private object ${rt} {${NUMBER}${model.rules.length > 0 ? PLURAL : ''}
-${model.formats.map(formatConst).join('\n')}${rules === '' ? '' : `\n${rules}`}}
+private object ${rt} {${model.formats.length + model.rules.length > 0 ? NUMBER : ''}${model.rules.length > 0 ? PLURAL : ''}${model.dates.length > 0 ? DATE : ''}
+${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${rules === '' ? '' : `\n${rules}`}}
 `;
 
   return `${banner}

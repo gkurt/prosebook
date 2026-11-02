@@ -8,6 +8,7 @@ import type { NativeTarget } from 'prosebook/config';
 import { CatalogError, generate, render } from 'prosebook/tools';
 
 import { qualifierOf } from '#src/tools/native/android.ts';
+import { dateSpec, fieldsOf, formatDate } from '#src/tools/native/date.ts';
 import { camel, leading, pascal, snake, upper, wordsOf } from '#src/tools/native/emit.ts';
 import { formatNumber, numberSpec, roundingOf, roundDigits, shortestDigits } from '#src/tools/native/number.ts';
 import { categoryOf, operandsOf, pluralRules } from '#src/tools/native/plurals.ts';
@@ -53,6 +54,16 @@ app.offset:
   args:
     count: how many people liked it, you among them
   en: '{count, plural, offset:1 =0 {Nobody} =1 {You} one {You and # other} other {You and # others}}'
+app.printed:
+  context: When the receipt was printed.
+  args:
+    when: the time printed
+  en: 'Printed {when, date, medium} at {when, time, short}.'
+app.opens:
+  context: When the shop opens next.
+  args:
+    when: the opening time
+  en: 'Opens {when, date, ::EEEEjmm}.'
 app.literal:
   context: Shows every character a target escapes.
   en: "It''s '{'braces'}', \\"quotes\\", $dollar, a back\\\\slash and \\u2068isolated\\u2069."
@@ -63,6 +74,7 @@ const LOCALES = {
 app.items: '{count, plural, =0 {Nichts im Warenkorb.} one {# Artikel im Warenkorb.} other {# Artikel im Warenkorb.}}'
 app.total: 'Summe: {amount, number, ::currency/EUR}'
 app.share: '{done, number, percent} hochgeladen'
+app.printed: 'Gedruckt am {when, date, long} um {when, time, short}.'
 `,
   'copy/locales/de-AT.yaml': `app.title: Eckgeschäft
 `,
@@ -70,17 +82,29 @@ app.share: '{done, number, percent} hochgeladen'
 `,
   'copy/locales/ar-EG.yaml': `app.items: '{count, plural, zero {لا عناصر} one {عنصر واحد} two {عنصران} few {# عناصر} many {# عنصرًا} other {# عنصر}}'
 app.total: 'المجموع: {amount, number, ::currency/EUR}'
+app.printed: 'طُبع في {when, date, full}، {when, time, medium}.'
+`,
+  'copy/locales/zh-TW.yaml': `app.opens: '{when, date, ::EEEEjmm}開門。'
 `,
 };
 
+/** Seconds since the epoch: midnight, noon, past 23:00, a leap day, and two-digit hours on both sides of noon, in most zones. */
+const DATES = [0, 951_782_400, 1_000_000_000, 1_700_000_000, 1_735_689_599, 1_767_225_600 + 43_200];
+
 const COUNTS = [0, 1, 2, 3, 5, 11, 21, 22, 103, 1.5, 0.25, 1234.5, 1e6, -1];
 
+type Value = string | number | Date;
+
 /** Every call the native code is checked on: the locale, the key, and its arguments. */
-const CASES: [string, string, Record<string, string | number>][] = ['en', 'de', 'de-AT', 'pl', 'ar-EG', 'en-XA'].flatMap((locale) => [
+const CASES: [string, string, Record<string, Value>][] = ['en', 'de', 'de-AT', 'pl', 'ar-EG', 'zh-TW', 'en-XA'].flatMap((locale) => [
   [locale, 'app.title', {}],
   [locale, 'app.literal', {}],
   [locale, 'app.hello', { firstName: 'Ada' }],
-  ...COUNTS.flatMap((n): [string, string, Record<string, string | number>][] => [
+  ...DATES.flatMap((s): [string, string, Record<string, Value>][] => [
+    [locale, 'app.printed', { when: new Date(s * 1000) }],
+    [locale, 'app.opens', { when: new Date(s * 1000) }],
+  ]),
+  ...COUNTS.flatMap((n): [string, string, Record<string, Value>][] => [
     [locale, 'app.items', { count: n }],
     [locale, 'app.rank', { place: n }],
     [locale, 'app.who', { who: 'me', count: n }],
@@ -124,12 +148,18 @@ function run(cmd: string, args: string[], cwd: string): string {
 const linesOf = (output: string) => output.split(/\r?\n/).slice(0, -1);
 
 /** The argument values in a target's syntax, in the message's order, which each case keeps. */
-function callArgs(args: Record<string, string | number>, literal: (v: string | number) => string, label?: (name: string) => string) {
+function callArgs(args: Record<string, Value>, literal: (v: Value) => string, label?: (name: string) => string) {
   return Object.entries(args).map(([name, value]) => (label ? `${label(name)}: ` : '') + literal(value));
 }
 
 const EXE = process.platform === 'win32' ? 'main.exe' : 'main';
-const str = (v: string | number) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
+/** A string or a number as every target writes it, and a date as `date` does, in seconds. */
+const literal = (date: (seconds: number, at: Date) => string) => (v: Value) =>
+  v instanceof Date ? date(v.getTime() / 1000, v) : typeof v === 'string' ? JSON.stringify(v) : String(v);
+// Rust's DateTime is the clock's fields, so it takes the offset the runtime's local time has at that moment.
+const rustLiteral = literal((s, at) => `copy::DateTime::from_unix(${s}, ${-at.getTimezoneOffset() * 60})`);
+const swiftLiteral = literal((s) => `Date(timeIntervalSince1970: ${s})`);
+const kotlinLiteral = literal((s) => `java.time.Instant.ofEpochSecond(${s})`);
 
 describe('native targets', () => {
   test('number formats match Intl, or say why they cannot', () => {
@@ -151,6 +181,30 @@ describe('native targets', () => {
     expect(() => numberSpec('en', { style: 'unit', unit: 'kilometer', unitDisplay: 'long' })).toThrow(
       'which native code would write as "2 kilometer"',
     );
+  });
+
+  test('date formats match Intl, or say why they cannot', () => {
+    const styles: Intl.DateTimeFormatOptions[] = [
+      {},
+      { dateStyle: 'full' },
+      { dateStyle: 'medium', timeStyle: 'short' },
+      { year: '2-digit', month: '2-digit', day: '2-digit' },
+      { weekday: 'short', hour: 'numeric', minute: '2-digit' },
+      { hour: 'numeric', hourCycle: 'h11' },
+      { hour: 'numeric', hourCycle: 'h24' },
+      { hour: 'numeric', dayPeriod: 'long' },
+    ];
+    const dates = [Date.UTC(2026, 0, 4, 0, 5, 9), Date.UTC(1999, 11, 31, 12, 0, 0), Date.UTC(2024, 1, 29, 23, 59, 30)];
+    for (const locale of ['en', 'de', 'fr', 'ca', 'ru', 'pl', 'ar-EG', 'hi', 'mr', 'zh-TW', 'ko', 'ja', 'he']) {
+      for (const options of styles) {
+        const spec = dateSpec(locale, options);
+        const intl = new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' });
+        for (const d of dates) expect(formatDate(spec, fieldsOf(d))).toBe(intl.format(d));
+      }
+    }
+    expect(() => dateSpec('en', { timeStyle: 'full' })).toThrow("it writes the timeZoneName, which native code can't");
+    expect(() => dateSpec('th', { dateStyle: 'long' })).toThrow('it counts in the buddhist calendar');
+    expect(() => dateSpec('en', { timeZone: 'Asia/Tokyo' })).toThrow("it names the time zone Asia/Tokyo, which native code can't look up");
   });
 
   test('digits round as Intl rounds: the shortest decimal, half away from zero', () => {
@@ -194,7 +248,7 @@ describe('native targets', () => {
     const config = fixture(
       {
         'copy/catalog/app.yaml': [
-          'app.when:\n  context: When it was printed.\n  args:\n    when: the time printed\n  en: Printed {when, date, long}.',
+          'app.when:\n  context: When it was printed.\n  args:\n    when: the time printed\n  en: Printed {when, time, full}.',
           'app.link:\n  context: Points to help.\n  en: Read <a>the guide</a>.',
           'app.big:\n  context: A count.\n  args:\n    count: a count\n  en: "{count, number, ::compact-short}"',
         ].join('\n'),
@@ -211,7 +265,7 @@ describe('native targets', () => {
     expect((error as CatalogError).problems.map((p) => `${p.key}: ${p.message}`)).toEqual([
       "app.big: swift: native code can't format this number in en: compact notation reads the size of the number at runtime. Format it another way, or leave the key out of this target's `keys`",
       "app.link: swift: <a> is a tag, and native code writes plain text: say it without the tag, or leave the key out of this target's `keys`",
-      "app.when: swift: {when} is a date, which native code doesn't format: pass it formatted, as a plain {when}, or leave the key out of this target's `keys`",
+      "app.when: swift: native code can't format this date in en: it writes the timeZoneName, which native code can't. Format it another way, or leave the key out of this target's `keys`",
     ]);
   });
 
@@ -230,13 +284,35 @@ describe('native targets', () => {
       const dir = join(config.root, 'native');
       mkdirSync(dir, { recursive: true });
       const lines = CASES.map(([locale, key, args]) => {
-        const call = `${pascal(wordsOf(locale))}.${leading(snake(wordsOf(key)))}(${callArgs(args, str).join(', ')})`;
+        const call = `${pascal(wordsOf(locale))}.${leading(snake(wordsOf(key)))}(${callArgs(args, rustLiteral).join(', ')})`;
         return `    println!("{}", copy::Locale::${call});`;
       });
       writeFileSync(join(dir, 'main.rs'), `mod copy;\n\nfn main() {\n${lines.join('\n')}\n}\n`);
       for (const [path, content] of render(config).files) if (path.endsWith('.rs')) writeFileSync(path, content);
       run('rustc', ['--edition', '2021', '-D', 'warnings', 'main.rs', '-o', EXE], dir);
       expect(linesOf(run(join(dir, EXE), [], dir))).toEqual(await expected(config));
+    },
+    120_000,
+  );
+
+  test.skipIf(Bun.which('rustc') === null)(
+    "Rust's DateTime reads a moment's fields at any offset as JavaScript does",
+    () => {
+      const config = project([{ language: 'rust', out: 'native/copy.rs' }]);
+      const dir = join(config.root, 'native');
+      mkdirSync(dir, { recursive: true });
+      const moments = [-86_400 * 365 * 400 - 1, -1, 0, 951_868_799, 951_868_800, 1_000_000_000, 4_102_444_800, 253_402_300_799];
+      const offsets = [0, 19_800, -36_000, 50_400, -12_600];
+      const pairs = moments.flatMap((s) => offsets.map((o) => [s, o] as const));
+      const lines = pairs.map(
+        ([s, o]) =>
+          `    let t = copy::DateTime::from_unix(${s}, ${o});\n    println!("{} {} {} {} {} {} {}", t.year, t.month, t.day, t.hour, t.minute, t.second, t.weekday());`,
+      );
+      writeFileSync(join(dir, 'main.rs'), `mod copy;\n\nfn main() {\n${lines.join('\n')}\n}\n`);
+      for (const [path, content] of render(config).files) if (path.endsWith('.rs')) writeFileSync(path, content);
+      run('rustc', ['--edition', '2021', '-D', 'warnings', 'main.rs', '-o', EXE], dir);
+      const fields = pairs.map(([s, o]) => Object.values(fieldsOf((s + o) * 1000)).join(' '));
+      expect(linesOf(run(join(dir, EXE), [], dir))).toEqual(fields);
     },
     120_000,
   );
@@ -249,7 +325,8 @@ describe('native targets', () => {
       mkdirSync(dir, { recursive: true });
       const lines = CASES.map(([locale, key, args]) => {
         const member = leading(camel(wordsOf(key)));
-        const call = Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, str, (n) => camel(wordsOf(n))).join(', ')})`;
+        const call =
+          Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, swiftLiteral, (n) => camel(wordsOf(n))).join(', ')})`;
         return `print(Copy.${leading(camel(wordsOf(locale)))}.${call})`;
       });
       writeFileSync(join(dir, 'main.swift'), `${lines.join('\n')}\n`);
@@ -268,7 +345,7 @@ describe('native targets', () => {
       mkdirSync(dir, { recursive: true });
       const lines = CASES.map(([locale, key, args]) => {
         const member = leading(camel(wordsOf(key)));
-        const call = Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, str).join(', ')})`;
+        const call = Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, kotlinLiteral).join(', ')})`;
         return `    println(Copy.${upper(wordsOf(locale))}.${call})`;
       });
       writeFileSync(join(dir, 'Main.kt'), `import shop.copy.Copy\n\nfun main() {\n${lines.join('\n')}\n}\n`);
@@ -631,6 +708,61 @@ tray.literal:
     expect(at('pt-BR')).toContain('"quit" = "Sair";');
   });
 
+  test('a plural goes to the .stringsdict, a variable per plural, with its count as a 64-bit integer', () => {
+    const config = fixture(
+      {
+        'copy/catalog/tray.yaml': `
+tray.items:
+  context: Counts the cart -- and who owns it.
+  args:
+    count: how many items
+    name: whose cart
+  en: '{name} has {count, plural, one {# item} other {# items & {name}''s <3>}} in the cart.'
+tray.quit:
+  context: Quits the app.
+  en: Quit
+`,
+        'copy/locales/pl.yaml':
+          "tray.items: '{name}: {count, plural, one {# produkt} few {# produkty} many {# produktów} other {# produktu}}'\n",
+        'copy/locales/zh.yaml': "tray.items: '{name}有{count, plural, other {#件商品}}'\n",
+      },
+      { native: [{ language: 'apple', out: 'mac/Resources', keys: ['tray'] }] },
+    );
+    const files = render(config).files;
+    const at = (locale: string, ext: string) => files.get(join(config.root, 'mac', 'Resources', `${locale}.lproj`, `Localizable.${ext}`));
+    expect(at('en', 'stringsdict')).toBe(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Generated by prosebook from copy/catalog. Do not edit: change the catalog and run \`prosebook generate\`. -->
+<plist version="1.0">
+<dict>
+    <!-- Counts the cart - and who owns it. name: whose cart. count: how many items. -->
+    <key>items</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%1$@ has %2$#@count@ in the cart.</string>
+        <key>count</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%2$lld item</string>
+            <key>other</key>
+            <string>%2$lld items &amp; %1$@'s &lt;3&gt;</string>
+        </dict>
+    </dict>
+</dict>
+</plist>
+`);
+    expect(at('en', 'strings')).toContain('"quit" = "Quit";');
+    expect(at('en', 'strings')).not.toContain('items');
+    expect(at('pl', 'stringsdict')).toContain('<string>%1$@: %2$#@count@</string>');
+    expect(at('pl', 'stringsdict')).toContain('<key>few</key>\n            <string>%2$lld produkty</string>');
+    // Chinese counts with one form, which the system still picks.
+    expect(at('zh', 'stringsdict')).toContain('<key>other</key>\n            <string>%2$lld件商品</string>');
+  });
+
   test('InfoPlist: each key spells a string the plist has, which says what the source says', () => {
     const config = fixture(
       { 'mac/Info.plist': PLIST, 'copy/catalog/macos.yaml': MACOS, 'copy/locales/de.yaml': 'macos.cf-bundle-display-name: Eckladen\n' },
@@ -662,11 +794,11 @@ macos.ns-microphone-usage-description:
   en: '{app} listens for a spoken search.'
 `,
         'copy/catalog/tray.yaml': `
-tray.items:
-  context: Counts the cart.
+tray.place:
+  context: Ranks the order.
   args:
-    count: how many items
-  en: '{count, plural, one {# item} other {# items}}'
+    rank: the order's place today
+  en: '{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} order'
 tray.who:
   context: Who.
   args:
@@ -696,8 +828,8 @@ tray.link:
       'macos.ns-bluetooth-always-usage-description: apple: macos.ns-bluetooth-always-usage-description names no string in mac/Info.plist: spell one of its keys, as ns-camera-usage-description is NSCameraUsageDescription, or add it there',
       `macos.ns-camera-usage-description: apple: mac/Info.plist says "Corner Shop scans barcodes with the camera." for NSCameraUsageDescription: make it "Corner Shop scans a product's barcode with the camera.", as the catalog says`,
       'macos.ns-microphone-usage-description: apple: NSMicrophoneUsageDescription is shown as it is written, with nothing filled in: say it without {app}',
-      `tray.items: apple: {count} is a plural, which a .strings file can't hold (it takes a .stringsdict, which this target doesn't write): show it from the Swift target, ${leave}`,
       `tray.link: apple: <a> is a tag, and .strings files here hold plain text: say it without the tag, ${leave}`,
+      `tray.place: apple: {rank} is an ordinal, and a .stringsdict's plurals are cardinal only: write a key per case and pick one in code, ${leave}`,
       `tray.who: apple: {who} is a select, which .strings files can't hold: write a key per case and pick one in code, ${leave}`,
     ]);
   });

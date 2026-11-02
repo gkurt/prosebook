@@ -9,7 +9,8 @@ import { chainOf } from '#src/runtime/locale.ts';
 import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
-import { numberOptions, optionArgsOf, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import { dateOptions, numberOptions, optionArgsOf, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import { dateSpec, type DateSpec } from './date.ts';
 import { docText } from './emit.ts';
 import { numberSpec, roundingOf, type NumberSpec, type Rounding } from './number.ts';
 import { pluralRules, type PluralRules } from './plurals.ts';
@@ -19,6 +20,8 @@ export type Part =
   | { type: 'string'; arg: string }
   /** The argument less `offset`, in format `format`; `fallback` where it isn't a number. */
   | { type: 'number'; arg: string; offset: number; format: number; fallback: string }
+  /** The argument, a date, in date format `format`. */
+  | { type: 'date'; arg: string; format: number }
   | { type: 'select'; arg: string; arms: Arm[]; other: Part[] }
   | {
       type: 'plural';
@@ -45,7 +48,7 @@ export interface NativeMessage {
   words: string[];
   /** The source text, its context, and what's asked of it. */
   doc: string[];
-  args: { name: string; type: 'string' | 'number'; doc?: string }[];
+  args: { name: string; type: 'string' | 'number' | 'date'; doc?: string }[];
   /** A tree per locale that renders it its own way; every locale is in one. */
   bodies: { locales: string[]; parts: Part[] }[];
 }
@@ -56,6 +59,7 @@ export interface NativeModel {
   source: string;
   messages: NativeMessage[];
   formats: NumberSpec[];
+  dates: DateSpec[];
   rules: { name: string; rules: PluralRules }[];
 }
 
@@ -106,6 +110,7 @@ export function nativeModel(
   const source = locales[0]!;
   const asts = new Map([...entries].map(([locale, list]) => [locale, new Map(list)]));
   const formats = new Numbered<NumberSpec>();
+  const dates = new Numbered<DateSpec>();
   const rules = new Numbered<{ name: string; rules: PluralRules }>();
   const problems: Problem[] = [];
   const messages: NativeMessage[] = [];
@@ -124,7 +129,7 @@ export function nativeModel(
         continue;
       }
       try {
-        bodies.set(found, { locales: [locale], parts: parts(asts.get(found)!.get(m.key)!, found, formats, rules, null) });
+        bodies.set(found, { locales: [locale], parts: parts(asts.get(found)!.get(m.key)!, found, { formats, dates, rules }, null) });
       } catch (e) {
         failed = true;
         problems.push({
@@ -142,13 +147,13 @@ export function nativeModel(
       doc: docOf(m),
       args: [...m.args].map(([name, type]) => ({
         name,
-        type: type === 'number' ? 'number' : 'string',
+        type: type === 'number' ? 'number' : type === 'Date | number' ? 'date' : 'string',
         doc: m.argDocs.has(name) ? docText(m.argDocs.get(name)!) : undefined,
       })),
       bodies: [...bodies.values()],
     });
   }
-  return { model: { locales, source, messages, formats: formats.list, rules: rules.list }, problems };
+  return { model: { locales, source, messages, formats: formats.list, dates: dates.list, rules: rules.list }, problems };
 }
 
 export function fileOf(m: Message, locale: string, source: string): string {
@@ -167,6 +172,33 @@ export const LEAVE_OUT = "or leave the key out of this target's `keys`";
 
 /** Specs by locale and options, kept across runs: taking a format apart checks it against `Intl` dozens of times. */
 const SPECS = new Map<string, NumberSpec | Error>();
+
+/** What a file declares, numbered as the messages use it. */
+interface Declared {
+  formats: Numbered<NumberSpec>;
+  dates: Numbered<DateSpec>;
+  rules: Numbered<{ name: string; rules: PluralRules }>;
+}
+
+/** Date specs as `SPECS` keeps number specs. */
+const DATE_SPECS = new Map<string, DateSpec | Error>();
+
+function date(dates: Numbered<DateSpec>, locale: string, options: Intl.DateTimeFormatOptions | undefined): number {
+  const key = JSON.stringify([locale, options ?? {}]);
+  let spec = DATE_SPECS.get(key);
+  if (spec === undefined) {
+    try {
+      spec = dateSpec(locale, options);
+    } catch (e) {
+      spec = new Error(`native code can't format this date in ${locale}: ${(e as Error).message}. Format it another way, ${LEAVE_OUT}`, {
+        cause: e,
+      });
+    }
+    DATE_SPECS.set(key, spec);
+  }
+  if (spec instanceof Error) throw spec;
+  return dates.add(spec);
+}
 
 function format(formats: Numbered<NumberSpec>, locale: string, options: Intl.NumberFormatOptions | undefined): number {
   const key = JSON.stringify([locale, options ?? {}]);
@@ -187,13 +219,8 @@ function format(formats: Numbered<NumberSpec>, locale: string, options: Intl.Num
 
 type Pound = { arg: string; offset: number } | null;
 
-function parts(
-  elements: MessageFormatElement[],
-  locale: string,
-  formats: Numbered<NumberSpec>,
-  rules: Numbered<{ name: string; rules: PluralRules }>,
-  pound: Pound,
-): Part[] {
+function parts(elements: MessageFormatElement[], locale: string, declared: Declared, pound: Pound): Part[] {
+  const { formats, dates, rules } = declared;
   const out: Part[] = [];
   const text = (value: string) => {
     const last = out.at(-1);
@@ -207,7 +234,7 @@ function parts(
     if (isolate !== undefined) text(isolate[1]);
   };
   const arms = (options: Record<string, { value: MessageFormatElement[] }>, own: Pound) =>
-    Object.entries(options).map(([key, option]) => ({ key, parts: parts(option.value, locale, formats, rules, own) }));
+    Object.entries(options).map(([key, option]) => ({ key, parts: parts(option.value, locale, declared, own) }));
 
   for (const el of elements) {
     if (Object.keys(optionArgsOf(el) ?? {}).length > 0) {
@@ -216,9 +243,8 @@ function parts(
       );
     }
     if (isDateElement(el) || isTimeElement(el)) {
-      throw new Error(
-        `{${el.value}} is a date, which native code doesn't format: pass it formatted, as a plain {${el.value}}, ${LEAVE_OUT}`,
-      );
+      placed(el, el.value, { type: 'date', arg: el.value, format: date(dates, locale, dateOptions(el)) });
+      continue;
     }
     if (isNumberElement(el)) {
       const fallback = placeholderOf(el, el.value).fallback;

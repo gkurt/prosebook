@@ -3,6 +3,7 @@
  * message, and a file-private enum holding what formats them.
  */
 import type { NativeTarget } from '#src/tools/config.ts';
+import { pieceExpr, type DateSpec } from './date.ts';
 import { camel, checkNames, conditionCode, float, leading, stringLiteral, wordsOf } from './emit.ts';
 import type { NativeMessage, NativeModel, Part } from './model.ts';
 import type { NumberSpec } from './number.ts';
@@ -36,6 +37,7 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string, rt: string
     const of = part.offset === 0 ? argName(part.arg) : `${argName(part.arg)} - ${float(part.offset)}`;
     return `${rt}.number(${of}, ${rt}.f${part.format}, ${lit(part.fallback)})`;
   }
+  if (part.type === 'date') return `${rt}.d${part.format}(${argName(part.arg)})`;
   if (part.type === 'select') {
     const arms = part.arms.map((a) => `${inner}case ${lit(a.key)}: return ${expr(a.parts, inner, rt)}\n`).join('');
     return `{ () -> String in\n${inner}switch ${argName(part.arg)} {\n${arms}${inner}default: return ${expr(part.other, inner, rt)}\n${inner}}\n${indent}}()`;
@@ -66,10 +68,17 @@ function member(m: NativeMessage, name: string, rt: string, number: NumberProtoc
   const head = doc(argDocs.length > 0 ? [...m.doc, '', ...argDocs] : m.doc, '    ');
   const body = `        switch self {\n${cases((parts) => expr(parts, '        ', rt))}        }\n`;
   if (m.args.length === 0) return `${head}    public var ${name}: String {\n${body}    }\n`;
-  const params = m.args.map((a) => `${argName(a.name)}: ${a.type === 'number' ? `some ${number.type}` : 'String'}`).join(', ');
+  const params = m.args
+    .map((a) => `${argName(a.name)}: ${a.type === 'number' ? `some ${number.type}` : a.type === 'date' ? 'Date' : 'String'}`)
+    .join(', ');
   const numbers = m.args
-    .filter((a) => a.type === 'number')
-    .map((a) => `        let ${argName(a.name)} = ${argName(a.name)}.${number.value}\n`)
+    .map((a) =>
+      a.type === 'number'
+        ? `        let ${argName(a.name)} = ${argName(a.name)}.${number.value}\n`
+        : a.type === 'date'
+          ? `        let ${argName(a.name)} = ${rt}.clock(${argName(a.name)})\n`
+          : '',
+    )
     .join('');
   return `${head}    public func ${name}(${params}) -> String {\n${numbers}${body}    }\n`;
 }
@@ -96,6 +105,51 @@ function formatConst(spec: NumberSpec, i: number): string {
   ];
   return `    static let f${i} = Format(\n${fields.map((f) => `        ${f}`).join(',\n')}\n    )\n`;
 }
+
+/** A date format as a function of the clock's fields. */
+function dateFn(spec: DateSpec, i: number): string {
+  const digits = spec.digits === undefined ? 'nil' : `g${i}`;
+  const at = (field: string) => `t.${field}`;
+  const lines = spec.pieces.map((piece) => {
+    if (piece.type === 'text') return `s += ${lit(piece.value)}`;
+    if (piece.type === 'name') return `s += [${piece.names.map(lit).join(', ')}][${pieceExpr(piece, at)}]`;
+    return `s += pad(${pieceExpr(piece, at)}, ${piece.pad}, ${digits})`;
+  });
+  const table = spec.digits === undefined ? '' : `    static let g${i} = [${spec.digits.map(lit).join(', ')}]\n`;
+  const body = lines.map((l) => `        ${l}\n`).join('');
+  return `${table}    static func d${i}(_ t: Clock) -> String {\n        var s = ""\n${body}        return s\n    }\n`;
+}
+
+const DATE = `
+    /// A date as the clock shows it in the device's time zone; \`weekday\` is 0 for Sunday.
+    struct Clock {
+        let year: Int
+        let month: Int
+        let day: Int
+        let hour: Int
+        let minute: Int
+        let second: Int
+        let weekday: Int
+    }
+
+    static func clock(_ date: Date) -> Clock {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let c = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .weekday], from: date)
+        return Clock(
+            year: c.year ?? 0, month: c.month ?? 1, day: c.day ?? 1, hour: c.hour ?? 0, minute: c.minute ?? 0,
+            second: c.second ?? 0, weekday: (c.weekday ?? 1) - 1
+        )
+    }
+
+    /// \`value\` written with at least \`width\` digits, in \`digits\` where the locale has its own.
+    private static func pad(_ value: Int, _ width: Int, _ digits: [String]?) -> String {
+        var text = String(value)
+        while text.count < width { text = "0" + text }
+        guard let digits else { return text }
+        return text.map { c in c.wholeNumberValue.map { digits[$0] } ?? String(c) }.joined()
+    }
+`;
 
 const NUMBER = `
     /// A number format, taken apart when the file was generated.
@@ -265,6 +319,8 @@ export function swiftFile(model: NativeModel, target: NativeTarget & { name: str
   const number = { type: `${name}Number`, value: `${name.charAt(0).toLowerCase()}${name.slice(1)}Value` };
   const members = model.messages.map((m, i) => member(m, names[i]![1], rt, number)).join('\n');
   const usesNumbers = model.messages.some((m) => m.args.some((a) => a.type === 'number'));
+  const usesDates = model.dates.length > 0;
+  const usesFormats = model.formats.length + model.rules.length > 0;
   const numberProtocol = !usesNumbers
     ? ''
     : `
@@ -285,12 +341,12 @@ ${NUMBER_TYPES.map((t) => `extension ${t}: ${number.type} { public var ${number.
     })
     .join('\n');
   const runtime =
-    model.formats.length + model.rules.length === 0
+    !usesFormats && !usesDates
       ? ''
       : `
 /// What formats the messages, generated with them.
-private enum ${rt} {${NUMBER}${model.rules.length > 0 ? PLURAL : ''}
-${model.formats.map(formatConst).join('\n')}${rules === '' ? '' : `\n${rules}`}}
+private enum ${rt} {${usesFormats ? NUMBER : ''}${model.rules.length > 0 ? PLURAL : ''}${usesDates ? DATE : ''}
+${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${rules === '' ? '' : `\n${rules}`}}
 `;
 
   return `${banner}

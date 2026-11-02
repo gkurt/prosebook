@@ -1,13 +1,15 @@
 /**
  * Messages as printf-style format strings, for the targets whose platform fills values in itself:
- * Android's resources and Apple's `.strings` files. Text and plain `{name}` placeholders, as `%N$s`
+ * Android's resources and Apple's `.strings` and `.stringsdict` files. Text and plain `{name}` placeholders, as `%N$s`
  * with N the argument's place in the message's arguments, so a translation can put them in another
  * order; anything `Intl` would format fails with the fix.
  */
 import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
 
+import type { PluralElement } from '@formatjs/icu-messageformat-parser';
 import type { Message } from '#src/tools/catalog.ts';
-import { numberOptions, placeholderOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+
+import { numberOptions, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
 import { docText } from './emit.ts';
 import { LEAVE_OUT } from './model.ts';
 
@@ -19,6 +21,8 @@ export interface Printf {
   holder: string;
   /** A string argument's conversion: `s`, or `@` for Apple's objects. */
   string: string;
+  /** A count's conversion: `d`, or `lld` for Apple's 64-bit `Int`. */
+  count: string;
   /** Text as the file holds it; `formatted` when the string has arguments, so `%` must be doubled. */
   escape: (text: string, formatted: boolean) => string;
   /** The problem with a plural the target can't hold where it is. */
@@ -42,7 +46,45 @@ function isCount(el: MessageFormatElement, count: string): boolean {
   return options.length === 0 || (options.length === 1 && options[0]![0] === 'maximumFractionDigits' && options[0]![1] === 0);
 }
 
-/** `elements` as a format string over `args`; inside a plural, its `count` is `%N$d`. */
+/** What a platform's plurals are called in problems, and what they can't hold. */
+export interface PluralHolder {
+  /** `Android`, as in "Android selects on the count as an integer". */
+  platform: string;
+  /** `Android's <plurals>`. */
+  plurals: string;
+  /** Why an `=N` arm has no place, after "have none for one number". */
+  exact: string;
+}
+
+/**
+ * Throws, with the fix, where a plural asks for more than a platform's plurals pick on: one count,
+ * as an integer, by its cardinal category.
+ */
+export function checkPlural(plural: PluralElement, holder: PluralHolder): void {
+  const named = `{${plural.value}}`;
+  if (plural.pluralType === 'ordinal') {
+    throw new Error(
+      `${named} is an ordinal, and ${holder.plurals} are cardinal only: write a key per case and pick one in code, ${LEAVE_OUT}`,
+    );
+  }
+  if (plural.offset !== 0)
+    throw new Error(`${named} has an offset, which ${holder.plurals} don't: count without it, and say the rest in each arm, ${LEAVE_OUT}`);
+
+  const selection = selectionOf(plural);
+  if (selection !== undefined && (selection.fn.name !== 'integer' || Object.keys(selection.fn.options).length > 0)) {
+    throw new Error(
+      `${named} selects with :${selection.fn.name} and its options, and ${holder.platform} selects on the count as an integer: select with a bare :number or :integer, ${LEAVE_OUT}`,
+    );
+  }
+  const exact = Object.keys(plural.options).filter((k) => k.startsWith('='));
+  if (exact.length > 0) {
+    throw new Error(
+      `${named} has the arm ${exact.join(', ')}, and ${holder.plurals} have none for one number${holder.exact}: say it in a category's arm, or write a key for it and pick that in code, ${LEAVE_OUT}`,
+    );
+  }
+}
+
+/** `elements` as a format string over `args`; inside a plural, its `count` is `%N$d` (or `lld`). */
 export function formatString(elements: MessageFormatElement[], args: string[], printf: Printf, count?: string): string {
   const formatted = args.length > 0;
   const place = (el: MessageFormatElement, name: string, conversion: string) => {
@@ -55,7 +97,7 @@ export function formatString(elements: MessageFormatElement[], args: string[], p
   let out = '';
   for (const el of elements) {
     if (count !== undefined && isCount(el, count)) {
-      out += place(el, count, 'd');
+      out += place(el, count, printf.count);
       continue;
     }
     if (isDateElement(el) || isTimeElement(el)) {

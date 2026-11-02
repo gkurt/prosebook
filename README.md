@@ -38,7 +38,7 @@ const { t } = useCopy();
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
-  with plurals and number formats that say what the browser says, and the string resources Android and Apple read.
+  with plurals, numbers and dates that say what the browser says, and the string resources Android and Apple read.
 
 ## Quick start
 
@@ -283,17 +283,29 @@ A message with no placeholders is a `&'static str` in Rust and a property in Swi
 with placeholders is a function taking them in order, a string or a number of any integer or float type. Each member's doc comment
 is the source text, its context and what each argument holds.
 
-The files need nothing beside them: each brings the plural rules of its locales, compiled from CLDR's
-(the data `Intl.PluralRules` is built on), and its number formats, taken apart from `Intl` when it is
-generated: the digits, the separators, how integers group, the text around a currency or a percent.
-Each format is checked against `Intl` before any code is written, so native code writes what the
-browser does, Arabic digits and Indian grouping included. A key with no translation falls back
-through its parents to the source as the runtime's do, resolved when the file is written.
+A date is a `Date` in Swift and a `java.time.Instant` in Kotlin, shown in the device's time zone. Rust's
+standard library has no time zones, so its file brings a `DateTime` holding the clock's fields, made
+from a moment and the offset it is shown at:
 
-What can't be written that way fails `generate`, with the fix: a date (pass it formatted, as a plain
-`{when}`), a tag, compact notation, significant digits, a unit or currency name that changes with the
-count (`unitDisplay: 'long'`), and an MF2 option read from an argument. Leave such keys out of the
-target's `keys`.
+```rust
+let printed = copy::DateTime::from_unix(seconds, offset); // offset in seconds east of UTC
+copy.printed(printed); // "Printed Jan 5, 2026 at 2:05 PM."
+```
+
+The files need nothing beside them: each brings the plural rules of its locales, compiled from CLDR's
+(the data `Intl.PluralRules` is built on), and its number and date formats, taken apart from `Intl`
+when it is generated: the digits, the separators, how integers group, the text around a currency or a
+percent; the order of a date's fields, the month and weekday names, AM and PM or the locale's periods
+of the day, and its clock. Each format is checked against `Intl` before any code is written, so native
+code writes what the browser does, Arabic digits and Indian grouping included. A key with no
+translation falls back through its parents to the source as the runtime's do, resolved when the file
+is written.
+
+What can't be written that way fails `generate`, with the fix: a tag, compact notation, significant
+digits, a unit or currency name that changes with the count (`unitDisplay: 'long'`), a date with its
+time zone's name (`{when, time, full}`) or a time zone of its own, a locale that counts in another
+calendar than the Gregorian (Thai's Buddhist, Persian), and an MF2 option read from an argument. Leave
+such keys out of the target's `keys`.
 
 #### Android resources
 
@@ -362,9 +374,35 @@ native: [{ language: 'apple', out: 'src-tauri/Resources', keys: ['macos'], plist
 Without `plist`, the table is `Localizable`, for what the system looks up by key, such as a push
 notification's `loc-key`. An entry is named for its key less the prefix, as written (`tray.quit` is
 `"quit"` under `['tray']`), and placeholders are written `%1$@` by their place in the source, filled
-in by `String(format:)`, not `Intl`. A table holds text and plain `{name}` placeholders; a plural (it
-would take a `.stringsdict`), a select, a date, a formatted number and a tag fail `generate`, and an
-Info.plist string takes no placeholders at all. Show those from the Swift target.
+in by `String(format:)`, not `Intl`. A table holds text and plain `{name}` placeholders.
+
+A message with a plural goes into a `.stringsdict` of the same name beside the table, where the
+system looks first. Each plural is a variable in its format, so the text around it stays where it is
+and a message can hold two; its count is `%N$lld`, for an `Int`, and the system picks the arm by its
+own CLDR rules:
+
+```xml
+<key>items</key>
+<dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%1$@ has %2$#@count@ in the cart.</string>
+    <key>count</key>
+    <dict>
+        <key>NSStringFormatSpecTypeKey</key>
+        <string>NSStringPluralRuleType</string>
+        <key>NSStringFormatValueTypeKey</key>
+        <string>lld</string>
+        <key>one</key>
+        <string>%2$lld item</string>
+        <key>other</key>
+        <string>%2$lld items</string>
+    </dict>
+</dict>
+```
+
+A plural there is cardinal, on a bare count, with no offset and no exact arm such as `=0`, as on
+Android; a select, a date, a formatted number, a tag and a plural inside another fail `generate`, and
+an Info.plist string takes no placeholders at all. Show those from the Swift target.
 
 ## The catalog
 
@@ -939,5 +977,3 @@ bun run --cwd examples/next dev
 Ideas not built yet, roughly in order of value:
 
 1. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-2. **Dates in native targets**: date and time formats taken apart from `Intl` as number formats are,
-   so a Rust, Swift or Kotlin message can say when.

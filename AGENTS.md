@@ -80,14 +80,23 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   ICU in Node and Bun is built from, so they agree with `Intl.PluralRules`). `number.ts` takes an
   `Intl.NumberFormat` apart and checks the parts against it; `formatNumber` and `roundDigits` are
   the algorithm every target writes out, rounding the shortest decimal as `Intl` does, so keep them
-  in step. `android.ts` writes Android's string resources, a `values*/<name>.xml` per locale under
+  in step. `date.ts` takes an `Intl.DateTimeFormat` apart the same way, into text and fields (a
+  padded number, an hour on the locale's clock, or a name from a table, a day period per hour where
+  it isn't AM and PM), checked on dates covering every month, weekday and hour; `formatDate` is the
+  reference and `pieceExpr` the field arithmetic Rust, Swift and Kotlin share. A target reads the
+  date's fields in the device's time zone (Swift's `Calendar`, Kotlin's `ZoneId`), and Rust, whose
+  standard library has none, takes a `DateTime` of the clock's fields, made by `from_unix` with the
+  offset. A time zone name, a time zone of the message's own or a calendar other than the Gregorian
+  is refused. `android.ts` writes Android's string resources, a `values*/<name>.xml` per locale under
   the `res` folder `out` names, straight from the ICU tree (with `wordsFor` and `foundIn` from the
   model): Android formats with `String.format` and selects plurals itself, so it takes text, `{name}`
   as `%N$s`, and one cardinal plural as `<plurals>`, and refuses the rest. `apple.ts` writes
   `.strings` tables, a `<locale>.lproj/<name>.strings` per locale (plain `.strings`, since only
-  Xcode compiles a String Catalog), with `%N$@` and no plurals; with `plist` it is `InfoPlist`, its
-  keys spelling the plist's case-insensitively and its source checked against the plist's text.
-  Both write through `printf.ts`, the format-string walk they share. `test/native.test.ts` compiles
+  Xcode compiles a String Catalog), with `%N$@`, and a message with a plural in a `.stringsdict` of
+  the same name, each plural a variable of its format with its count `%N$lld`; with `plist` it is
+  `InfoPlist`, its keys spelling the plist's case-insensitively and its source checked against the
+  plist's text. Both write through `printf.ts`, the format-string walk they share, which also holds
+  `checkPlural`: what a platform's plurals pick on (one cardinal count, no offset, no `=N`). `test/native.test.ts` compiles
   each target with any toolchain on the PATH (aapt2 from `ANDROID_HOME` too) and compares its output
   with the runtime's; nothing here runs the `.strings` files on a Mac.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.

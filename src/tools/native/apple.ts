@@ -13,10 +13,10 @@ import { join, relative } from 'node:path';
 import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
-import { staticLiteral } from '#src/tools/icu.ts';
+import { staticLiteral, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
 import { checkNames } from './emit.ts';
 import { fileOf, foundIn, LEAVE_OUT, restOf, wordsFor } from './model.ts';
-import { formatString, noteOf, type Printf } from './printf.ts';
+import { checkPlural, formatString, noteOf, type PluralHolder, type Printf } from './printf.ts';
 
 /** Text inside a `.strings` file's quotes; `%` doubled where the string has arguments. */
 function escape(text: string, formatted: boolean): string {
@@ -29,10 +29,53 @@ const PRINTF: Printf = {
   formatter: 'String(format:)',
   holder: '.strings files',
   string: '@',
+  count: 'lld',
   escape,
-  plural: (name) =>
-    `{${name}} is a plural, which a .strings file can't hold (it takes a .stringsdict, which this target doesn't write): show it from the Swift target, ${LEAVE_OUT}`,
+  // A plural at the top goes to the .stringsdict; one under a select never gets here, as the select fails first.
+  plural: (name) => `{${name}} is a plural inside another, which a .strings file can't hold: say it without, ${LEAVE_OUT}`,
 };
+
+const xml = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+const DICT: Printf = {
+  ...PRINTF,
+  holder: '.stringsdict files',
+  escape: (text, formatted) => (formatted ? xml(text).replaceAll('%', '%%') : xml(text)),
+  plural: (name) =>
+    `{${name}} is a plural inside another plural's arm, which a .stringsdict here can't hold: write a key per case and pick one in code, ${LEAVE_OUT}`,
+};
+
+const PLURALS: PluralHolder = { platform: 'Apple', plurals: "a .stringsdict's plurals", exact: '' };
+
+/**
+ * A message holding plurals as a `.stringsdict` entry: its format, with each plural a variable
+ * (`%1$#@count@`) whose arms the system picks by the count's category, from its own CLDR rules.
+ */
+function dictEntry(name: string, ast: MessageFormatElement[], args: string[]): string {
+  const variables: string[] = [];
+  const taken = new Map<string, number>();
+  let format = '';
+  for (const el of ast) {
+    if (el.type !== TYPE.plural) {
+      format += formatString([el], args, DICT);
+      continue;
+    }
+    checkPlural(el, PLURALS);
+    const base = el.value.replace(/\W/g, '_');
+    const seen = (taken.get(base) ?? 0) + 1;
+    taken.set(base, seen);
+    const variable = seen === 1 ? base : `${base}${seen}`;
+    format += `%${args.indexOf(el.value) + 1}$#@${variable}@`;
+    const arms = Object.entries(el.options).map(
+      ([category, option]) =>
+        `            <key>${category}</key>\n            <string>${formatString(option.value, args, DICT, el.value)}</string>\n`,
+    );
+    variables.push(
+      `        <key>${variable}</key>\n        <dict>\n            <key>NSStringFormatSpecTypeKey</key>\n            <string>NSStringPluralRuleType</string>\n            <key>NSStringFormatValueTypeKey</key>\n            <string>${DICT.count}</string>\n${arms.join('')}        </dict>\n`,
+    );
+  }
+  return `    <key>${xml(name)}</key>\n    <dict>\n        <key>NSStringLocalizedFormatKey</key>\n        <string>${format}</string>\n${variables.join('')}    </dict>\n`;
+}
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
@@ -107,33 +150,52 @@ export function appleStrings(
   }
 
   const lines = new Map<string, string[]>(locales.map((l) => [l, []]));
+  const dicts = new Map<string, string[]>(locales.map((l) => [l, []]));
   const failed = new Set(problems.map((p) => p.key));
   for (const { m, name } of taken) {
     if (failed.has(m.key)) continue;
     const args = [...m.args.keys()];
     const note = noteOf(m);
     const head = note === '' ? '' : `/* ${note.replaceAll('*/', '* /')} */\n`;
-    const written = new Map<string, string>();
+    const comment = note === '' ? '' : `    <!-- ${note.replace(/-{2,}/g, '-')} -->\n`;
+    const written = new Map<string, { dict: boolean; entry: string }>();
     for (const locale of locales) {
       const found = foundIn(m.key, locale, locales, asts);
       if (found === undefined) continue;
       let entry = written.get(found);
       if (entry === undefined) {
+        const ast = asts.get(found)!.get(m.key)!;
+        const dict = ast.some((el) => el.type === TYPE.plural);
         try {
-          entry = `${head}"${escape(name, false)}" = "${formatString(asts.get(found)!.get(m.key)!, args, PRINTF)}";\n`;
+          entry = dict
+            ? { dict, entry: `${comment}${dictEntry(name, ast, args)}` }
+            : { dict, entry: `${head}"${escape(name, false)}" = "${formatString(ast, args, PRINTF)}";\n` };
         } catch (e) {
           error(m, (e as Error).message, fileOf(m, found, source));
           break;
         }
         written.set(found, entry);
       }
-      lines.get(locale)!.push(entry);
+      (entry.dict ? dicts : lines).get(locale)!.push(entry.entry);
     }
   }
 
-  const top = `/* ${banner.replace(/^\/\/ /, '')} */\n`;
+  const said = banner.replace(/^\/\/ /, '');
   const files = new Map(
-    locales.map((locale) => [join(target.out, `${locale}.lproj`, `${target.name}.strings`), [top, ...lines.get(locale)!].join('\n')]),
+    locales.map((locale) => [
+      join(target.out, `${locale}.lproj`, `${target.name}.strings`),
+      [`/* ${said} */\n`, ...lines.get(locale)!].join('\n'),
+    ]),
   );
+  // The system looks a key up in the .stringsdict of the table's name first, so a plural lands there.
+  if ([...dicts.values()].some((d) => d.length > 0)) {
+    for (const locale of locales) {
+      const body = dicts.get(locale)!.join('');
+      files.set(
+        join(target.out, `${locale}.lproj`, `${target.name}.stringsdict`),
+        `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<!-- ${said.replace(/-{2,}/g, '-')} -->\n<plist version="1.0">\n<dict>\n${body}</dict>\n</plist>\n`,
+      );
+    }
+  }
   return { files, problems };
 }

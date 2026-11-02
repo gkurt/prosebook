@@ -3,6 +3,7 @@
  * a private `rt` module, so no argument a message names can shadow it.
  */
 import type { NativeTarget } from '#src/tools/config.ts';
+import { pieceExpr, type DateSpec } from './date.ts';
 import { checkNames, conditionCode, float, leading, pascal, snake, stringLiteral, wordsOf } from './emit.ts';
 import type { NativeMessage, NativeModel, Part } from './model.ts';
 import type { NumberSpec } from './number.ts';
@@ -50,6 +51,7 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string): string {
     const of = part.offset === 0 ? argName(part.arg) : `${argName(part.arg)} - ${float(part.offset)}`;
     return `rt::number(${of}, &rt::F${part.format}, ${lit(part.fallback)})`;
   }
+  if (part.type === 'date') return `rt::D${part.format}(&${argName(part.arg)})`;
   if (part.type === 'select') {
     const arms = part.arms.map((a) => `${inner}${lit(a.key)} => ${expr(a.parts, inner)},\n`).join('');
     return `match ${argName(part.arg)} {\n${arms}${inner}_ => ${expr(part.other, inner)},\n${indent}}`;
@@ -74,7 +76,9 @@ function method(m: NativeMessage, name: string, enumName: string): string {
   const isStatic = m.bodies.every((b) => b.parts.every((p) => p.type === 'text'));
   if (isStatic && m.args.length === 0)
     return `${head}    pub fn ${name}(self) -> &'static str {\n        match self {\n${arms((parts) => lit(parts[0]?.type === 'text' ? parts[0].value : ''))}        }\n    }\n`;
-  const params = m.args.map((a) => `, ${argName(a.name)}: ${a.type === 'number' ? 'impl Number' : '&str'}`).join('');
+  const params = m.args
+    .map((a) => `, ${argName(a.name)}: ${a.type === 'number' ? 'impl Number' : a.type === 'date' ? 'DateTime' : '&str'}`)
+    .join('');
   const argDocs = m.args.filter((a) => a.doc !== undefined).map((a) => `* \`${argName(a.name)}\`: ${a.doc}`);
   const docs = argDocs.length > 0 ? `${head}    ///\n${doc(argDocs, '    ')}` : head;
   const numbers = m.args
@@ -106,6 +110,81 @@ function formatConst(spec: NumberSpec, i: number): string {
   ];
   return `    pub const F${i}: Format = Format {\n${fields.map((f) => `        ${f},\n`).join('')}    };\n`;
 }
+
+/** A date format as a function of the date. */
+function dateFn(spec: DateSpec, i: number): string {
+  const digits = spec.digits === undefined ? 'None' : `Some(G${i})`;
+  const at = (field: string) => (field === 'weekday' ? 't.weekday() as i64' : `t.${field} as i64`);
+  const lines = spec.pieces.map((piece) => {
+    if (piece.type === 'text') return `s += ${lit(piece.value)};`;
+    if (piece.type === 'name') return `s += [${piece.names.map(lit).join(', ')}][(${pieceExpr(piece, at)}) as usize];`;
+    return `s += &pad(${pieceExpr(piece, at)}, ${piece.pad}, ${digits});`;
+  });
+  const table = spec.digits === undefined ? '' : `    const G${i}: [&str; 10] = [${spec.digits.map(lit).join(', ')}];\n`;
+  const body = lines.map((l) => `        ${l}\n`).join('');
+  return `${table}    pub fn D${i}(t: &super::DateTime) -> String {\n        let mut s = String::new();\n${body}        s\n    }\n`;
+}
+
+const DATE = `
+    /// \`value\` written with at least \`width\` digits, in \`digits\` where the locale has its own.
+    fn pad(value: i64, width: usize, digits: Option<[&'static str; 10]>) -> String {
+        let text = format!("{:0width$}", value, width = width);
+        match digits {
+            Some(digits) => text.bytes().map(|b| if b.is_ascii_digit() { digits[(b - b'0') as usize] } else { "-" }).collect(),
+            None => text,
+        }
+    }
+`;
+
+const DATE_TIME = `
+/// A date and time as a clock shows it, in the time zone it is shown in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DateTime {
+    pub year: i32,
+    /// 1 to 12.
+    pub month: u8,
+    pub day: u8,
+    /// 0 to 23.
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+}
+
+impl DateTime {
+    /// The time \`seconds\` after the Unix epoch, on a clock \`offset\` seconds ahead of UTC: the
+    /// local time's offset where it is shown, which Rust's standard library can't look up.
+    pub fn from_unix(seconds: i64, offset: i32) -> DateTime {
+        let local = seconds + offset as i64;
+        let (days, time) = (local.div_euclid(86_400), local.rem_euclid(86_400));
+        // Howard Hinnant's civil_from_days: the Gregorian date \`days\` after 1970-01-01.
+        let z = days + 719_468;
+        let (era, doe) = (z.div_euclid(146_097), z.rem_euclid(146_097));
+        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let month = if mp < 10 { mp + 3 } else { mp - 9 };
+        DateTime {
+            year: (yoe + era * 400 + if month <= 2 { 1 } else { 0 }) as i32,
+            month: month as u8,
+            day: (doy - (153 * mp + 2) / 5 + 1) as u8,
+            hour: (time / 3600) as u8,
+            minute: (time / 60 % 60) as u8,
+            second: (time % 60) as u8,
+        }
+    }
+
+    /// The day of the week, 0 for Sunday.
+    pub fn weekday(self) -> u8 {
+        // days_from_civil, its inverse.
+        let m = self.month as i64;
+        let y = self.year as i64 - if m <= 2 { 1 } else { 0 };
+        let (era, yoe) = (y.div_euclid(400), y.rem_euclid(400));
+        let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + self.day as i64 - 1;
+        let days = era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468;
+        (days + 4).rem_euclid(7) as u8
+    }
+}
+`;
 
 const NUMBER = `
     /// A number format, taken apart when the file was generated.
@@ -300,6 +379,8 @@ export function rustModule(model: NativeModel, target: NativeTarget & { name: st
   const tags = model.locales.map((l) => `            ${name}::${variant(l)} => ${lit(l)},\n`).join('');
   const methods = model.messages.map((m, i) => method(m, names[i]![1], name)).join('\n');
   const usesNumbers = model.messages.some((m) => m.args.some((a) => a.type === 'number'));
+  const usesDates = model.dates.length > 0;
+  const usesFormats = model.formats.length + model.rules.length > 0;
   const rules = model.rules
     .map(({ name: rule, rules }, i) => {
       const checks = rules.map(
@@ -310,17 +391,17 @@ export function rustModule(model: NativeModel, target: NativeTarget & { name: st
     })
     .join('\n');
   const runtime =
-    model.formats.length + model.rules.length === 0
+    !usesFormats && !usesDates
       ? ''
       : `
 /// What formats the messages, generated with them.
-mod rt {${NUMBER}${model.rules.length > 0 ? PLURAL : ''}
-${model.formats.map(formatConst).join('\n')}${rules === '' ? '' : `\n${rules}`}}
+mod rt {${usesFormats ? NUMBER : ''}${model.rules.length > 0 ? PLURAL : ''}${usesDates ? DATE : ''}
+${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${rules === '' ? '' : `\n${rules}`}}
 `;
 
   return `${banner}
 #![allow(dead_code, non_snake_case, clippy::all)]
-${usesNumbers ? NUMBER_TRAIT : ''}
+${usesNumbers ? NUMBER_TRAIT : ''}${usesDates ? DATE_TIME : ''}
 /// A locale the catalog is written or translated in, and its messages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ${name} {
