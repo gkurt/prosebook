@@ -12,6 +12,8 @@
  * references pruning reads, so a read pruning can't see is one splitting can't place either. A lazy
  * locale's part is a file per group of areas the bundler will put in one chunk (`tools/chunks.ts`),
  * read from the source when the build starts, as an area loads before every module naming it has.
+ * The client build writes down the file each area loads from per lazy locale, and the server build
+ * after it gives its catalog that list (`areaFiles`), so a server render can link what it read.
  *
  * In dev an edit doesn't reload the page: each generated locale module accepts its own update and
  * hands the new messages to every copy (`HotHook`), which re-renders in the locale and state it was in.
@@ -22,7 +24,8 @@
  * inspector asks for through Vite's own `/__open-in-editor`, so the editor is whichever Vite already
  * launches.
  */
-import { relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
@@ -52,7 +55,7 @@ import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
-import { generate, type Generated } from './tools/generate.ts';
+import { generate, writeFiles, type Generated } from './tools/generate.ts';
 import { keyRefs, SFC, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
 export interface ProsebookPluginOptions {
@@ -77,7 +80,8 @@ export interface ProsebookPluginOptions {
   /**
    * Split each locale by area, so a lazy route loads only the messages it reads: a module that names
    * an area's keys imports that area, which the bundler places beside it, and a lazy locale loads
-   * each area as it is needed. In the browser only: a server render loads whole locales.
+   * each area as it is needed. In the browser only: a server render loads whole locales, and its
+   * catalog lists each area's files, which a copy's `preload` hands on as the render reads them.
    */
   split?: boolean;
   /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
@@ -91,6 +95,13 @@ const DEV_ID = '\0prosebook/dev';
 const AREA_ID = '\0prosebook/area/';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
+
+/** Where a split client build leaves its area files for the server build: apart from the source and the output. */
+const areaFilesPath = (root: string) => join(root, 'node_modules', '.prosebook', 'area-files.json');
+
+/** The index with `areaFiles` among its catalog's fields. */
+const withAreaFiles = (index: string, files: unknown) =>
+  index.replace(/defineCatalog(?:<[^>]*>)?\(\{/, (call) => `${call}\n  areaFiles: ${JSON.stringify(files)},`);
 
 const inspectorPath = beside(import.meta.url, 'inspector');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
@@ -201,6 +212,11 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         return areaModule(config, generated, area, building ? (l) => placeholder(l, [area]) : undefined, undefined, groups);
       }
       if (splitting(loadOptions?.ssr) && isIndex(id)) return splitIndex(config, generated!, options.keep);
+      if (building && options.split === true && loadOptions?.ssr === true && isIndex(id)) {
+        const path = areaFilesPath(viteRoot);
+        if (existsSync(path)) return withAreaFiles(readFileSync(id.split('?', 1)[0]!, 'utf8'), JSON.parse(readFileSync(path, 'utf8')));
+        this.warn('no split client build to link area files from: build the client before the server, or `preload` is handed nothing');
+      }
       if (!building || prune === false || generated === undefined) return null;
       const locale = localeOf(id);
       if (locale === undefined) return null;
@@ -262,7 +278,20 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       return { code: replaced, map: null };
     },
 
-    generateBundle() {
+    generateBundle(_output, bundle) {
+      if (building && options.split === true && this.environment.config.consumer === 'client') {
+        // Each lazy locale's part of a group, for the areas in it that locale translates.
+        const files: Record<string, Record<string, string>> = {};
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk' || chunk.facadeModuleId?.startsWith(AREA_ID) !== true) continue;
+          const [lead = '', locale] = chunk.facadeModuleId.slice(AREA_ID.length).split('/');
+          if (locale === undefined) continue;
+          const own = generated?.entries.get(locale) ?? [];
+          for (const area of membersOf(groups, lead))
+            if (inAreas(own, [area]).length > 0) (files[area] ??= {})[locale] = base + chunk.fileName;
+        }
+        writeFiles(new Map([[areaFilesPath(viteRoot), `${JSON.stringify(files, null, 2)}\n`]]));
+      }
       if (shipped.total === 0) return;
       const locales = new Set(placeholders.map((p) => p.locale)).size;
       const pruned = prune === false ? '' : `; pruned ${shipped.total - shipped.kept} no code names`;

@@ -36,6 +36,11 @@ export interface Catalog<M extends MessageShapes = MessageShapes, L extends stri
    * are empty, and each area adds its own (`addArea`) as the code reading it loads.
    */
   readonly split?: { readonly id: string; readonly areas: readonly string[] };
+  /**
+   * Set in a server build whose client is split (the Vite plugin's `split`): the file the browser
+   * loads each area's messages from, per lazy locale, which `CopyOptions.preload` is handed.
+   */
+  readonly areaFiles?: { readonly [area: string]: { readonly [locale in L]?: string } };
   /** Type-only: carries the message shapes from the generated module to `createCopy`. */
   readonly '~messages'?: M;
 }
@@ -89,6 +94,13 @@ export interface CopyOptions<L extends string> {
    * loaded. Defaults to `console.error`.
    */
   onError?: (error: Error, key: string, locale: L) => void;
+  /**
+   * On a server, handed each file the browser will load for the areas this copy reads, once each,
+   * so the page can link it and the browser fetch it beside the code reading it rather than after:
+   * `(href) => preloadModule(href, { as: 'script' })` under React. Only a catalog built for a split
+   * client has such files (`Catalog.areaFiles`), and only its lazy locales.
+   */
+  preload?: (href: string) => void;
 }
 
 /** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
@@ -153,6 +165,8 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   const split = catalog.split === undefined ? undefined : registry(catalog.split.id);
   // The key being rendered, which a helper's report names; none while the inspector renders it again.
   let reading: string | undefined;
+  // The files handed to `preload`, and each area and locale read, which hands on nothing new after.
+  const preloaded = new Set<string>();
   const report = (error: Error, key: string, l: L) => {
     if (options.onError) options.onError(error, key, l);
     else console.error(`prosebook: ${key} in ${l}: ${error.message}`);
@@ -261,7 +275,21 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     return undefined;
   }
 
+  function preload(area: string) {
+    const files = catalog.areaFiles?.[area];
+    const read = `${area}/${locale}`;
+    if (files === undefined || options.preload === undefined || preloaded.has(read)) return;
+    preloaded.add(read);
+    for (const l of chainOf(locale, catalog.locales, catalog.source)) {
+      const href = files[l];
+      if (href === undefined || preloaded.has(href)) continue;
+      preloaded.add(href);
+      options.preload(href);
+    }
+  }
+
   function render(key: string, values: Values): unknown {
+    preload(areaOf(key));
     const found = find(key);
     if (found === undefined) {
       const area = areaOf(key);

@@ -140,6 +140,47 @@ test("a split build loads a lazy locale's areas in one file per chunk", async ()
   expect(await main.account('de')).toBe('Kontoseite');
 });
 
+test('the server build after a split client lists its area files, which a copy hands on as it reads', async () => {
+  const config = fixture({
+    ...route,
+    'src/server.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      'export async function render(locale: string, keys: string[]) {',
+      '  const files: string[] = [];',
+      '  const copy = createCopy(catalog, { locale, preload: (href) => files.push(href) });',
+      '  await copy.ready;',
+      '  for (const key of keys) copy.t(key as never);',
+      '  return files;',
+      '}',
+    ].join('\n'),
+  });
+  const shared = {
+    root: config.root,
+    logLevel: 'silent' as const,
+    configFile: false as const,
+    // The server reads keys it is handed, which a pruned build would refuse.
+    plugins: [prosebook({ config: { require: [] }, split: true, prune: false })],
+    resolve: { alias: [{ find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
+  };
+  const client = join(config.root, 'dist', 'client');
+  await build({
+    ...shared,
+    build: { outDir: client, minify: false, lib: { entry: join(config.root, 'src', 'main.ts'), formats: ['es'], fileName: 'main' } },
+  });
+  const server = join(config.root, 'dist', 'server');
+  await build({ ...shared, build: { outDir: server, minify: false, ssr: join(config.root, 'src', 'server.ts') } });
+
+  const { render } = (await import(join(server, 'server.js'))) as { render: (locale: string, keys: string[]) => Promise<string[]> };
+  // The route's areas share a file, which the copy hands on once; the shell's is another.
+  const files = await render('de', ['cart.title', 'checkout.pay', 'app.title', 'shipping.title']);
+  expect(files).toHaveLength(2);
+  const text = (href: string) => readFileSync(join(client, href), 'utf8');
+  expect(['Warenkorbseite', 'Jetzt zahlen', 'Lieferung'].every((s) => text(files[0]!).includes(s))).toBe(true);
+  expect(text(files[1]!)).toContain('Ladenfront');
+  expect(await render('en', ['cart.title', 'app.title'])).toEqual([]);
+});
+
 test('in dev, a split catalog serves each area its generated locales whole, imported by the modules that name its keys', async () => {
   const config = fixture({
     'copy/catalog/app.yaml': 'app.title: Shop\n',

@@ -51,6 +51,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   A copy's layer per locale fills area by area: a catalog that isn't split is one area, `''`; a split
   one (`split`) starts empty and takes each area `addArea` registers, by `split.id` in a registry of
   the module's own, so an area loading after a dev edit ran the index again still reaches its copies.
+  A server build's catalog may list `areaFiles`, each area's file per lazy locale in the split client,
+  which a copy hands to `preload` as it reads each area, once per file, for the page to link.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
@@ -172,7 +174,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   (imports run first wherever they sit, so no line moves), and the area module awaits `addArea` with
   its messages: in a build placeholders filled per area in `renderChunk`, its lazy locales
   `virtual:prosebook/area/<group>/<locale>`, the group's part, groups read in `buildStart`; in dev the generated locale modules whole, so their hot
-  updates work unchanged and the copy keeps only the areas it holds. `src/cli.ts`: the `prosebook` command.
+  updates work unchanged and the copy keeps only the areas it holds. A split client build writes each
+  area's file per lazy locale to `node_modules/.prosebook/area-files.json` in `generateBundle`, and the
+  server build after it loads the index with them as its catalog's `areaFiles`.
+  `src/cli.ts`: the `prosebook` command.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
   watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
   path's end (Turbopack's root may be the monorepo's). `next-loader.ts` is the loader those rules name

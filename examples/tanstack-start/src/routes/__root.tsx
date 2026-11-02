@@ -2,6 +2,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { createCopy, type Copy } from 'prosebook';
 import { CopyProvider } from 'prosebook/react';
 import { Suspense, use, useState, type ReactNode } from 'react';
+import { preloadModule } from 'react-dom';
 
 import { catalog } from '#src/copy/index.ts';
 import { getLocale } from '#src/locale.ts';
@@ -28,8 +29,10 @@ export const Route = createRootRoute({
 function Root() {
   const locale = Route.useLoaderData();
   // One copy per render on the server, one for the page's life in the browser, both in the request's
-  // locale. Made above the boundary: a component that suspends before it mounts loses its state.
-  const [copy] = useState(() => createCopy(catalog, { locale }));
+  // locale. Made above the boundary: a component that suspends before it mounts loses its state. On the
+  // server, the files of the areas the page reads in a lazy locale are linked, so the browser fetches
+  // them beside the code reading them, not after it.
+  const [copy] = useState(() => createCopy(catalog, { locale, preload: (href) => preloadModule(href, { as: 'script' }) }));
   return (
     <html lang={locale}>
       <head>

@@ -25,6 +25,8 @@ interface Request {
   inScripts?: string[];
   /** Said by none of the scripts: another route's messages, say. */
   notInScripts?: string[];
+  /** Said by the module files the page links for preloading: a split page's areas in a lazy locale. */
+  preloaded?: string[];
 }
 
 type Example = { requests: Request[] } | { run: string[]; says: string[] };
@@ -61,7 +63,10 @@ const EXAMPLES: Record<string, Example> = {
       { path: '/cart', scripts: true, says: [], inScripts: ['Add to cart'] },
     ],
   },
-  'tanstack-start': { requests: SHOP },
+  'tanstack-start': {
+    // Split, the server links the German file of the areas the page reads.
+    requests: SHOP.map((r) => (r.language === 'de' ? { ...r, preloaded: ['Warenkorb leeren'] } : r)),
+  },
   node: { run: ['node', 'src/main.ts', 'de', '3'], says: ['Eckladen', '3 Artikel gekauft.', 'Summe: 13,50'] },
 };
 
@@ -99,6 +104,11 @@ if ('run' in example) {
       expect(what, page + loaded, request.says);
       expect(`${what}, in its scripts`, loaded, request.inScripts ?? []);
       for (const s of request.notInScripts ?? []) if (loaded.includes(s)) failures.push(`${what} says "${s}" in its scripts`);
+      if (request.preloaded !== undefined) {
+        const links = [...page.matchAll(/<link[^>]+rel="modulepreload"[^>]+href="([^"]+)"/g)].map(([, href]) => new URL(href, base));
+        const texts = await Promise.all(links.map(async (url) => (await fetch(url)).text()));
+        expect(`${what}, in the files it preloads`, texts.join('\n'), request.preloaded);
+      }
       if (request.lazy !== undefined) {
         for (const s of request.lazy) if (loaded.includes(s)) failures.push(`${what} says "${s}" in its scripts, not only lazily`);
         expect(`${what}, lazily`, await lazyChunksOf(scripts), request.lazy);

@@ -148,6 +148,27 @@ describe('copy', () => {
     }
   });
 
+  test('on a server, a copy hands on the file of each area it reads in a lazy locale, once', async () => {
+    const message = (key: string, text: string) => compiled([[key, parseMessage(text)]]);
+    const catalog = defineCatalog({
+      source: 'en',
+      locales: ['en', 'de', 'de-AT'],
+      messages: { en: { ...message('a.x', 'A'), ...message('b.y', 'B'), ...message('c.z', 'C') } },
+      loaders: { de: async () => ({ default: {} }), 'de-AT': async () => ({ default: {} }) },
+      // `a` and `b` share a chunk, so a file; `c` has nothing in German.
+      areaFiles: { a: { de: '/ab.de.js', 'de-AT': '/ab.de-AT.js' }, b: { de: '/ab.de.js' } },
+    });
+    const files: string[] = [];
+    const copy = createCopy(catalog, { locale: 'de-AT', preload: (href) => files.push(href) });
+    await copy.ready;
+    for (const key of ['a.x', 'b.y', 'c.z', 'a.x']) copy.t(key as never);
+    // Each locale the copy falls back through, its own first.
+    expect(files).toEqual(['/ab.de-AT.js', '/ab.de.js']);
+    const source: string[] = [];
+    createCopy(catalog, { preload: (href) => source.push(href) }).t('a.x' as never);
+    expect(source).toEqual([]);
+  });
+
   test('the starting locale is negotiated from what the reader prefers', async () => {
     const copy = copyOf({ en: { 'a.b': 'Hi' }, 'fr-CA': { 'a.b': 'Allo' } }, { locale: ['es', 'fr'] });
     await copy.ready;

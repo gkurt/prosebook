@@ -1052,6 +1052,22 @@ before it names one of the area's keys; one read before then shows its key and i
 only: a server render, and an app without a plugin, load whole locales. It needs a build target
 with top-level `await`, which Vite's, Bun's and Next's defaults have.
 
+A page rendered on a server in a lazy locale hydrates once its areas' files have loaded, and the
+browser asks for them only after the code reading them has. Under Vite, the server can link them
+first. A split client build writes down each area's file per lazy locale, the server build after
+it lists them in its catalog, and a copy hands each file it reads from to `preload`, once:
+
+```tsx
+import { preloadModule } from 'react-dom';
+
+const copy = createCopy(catalog, { locale, preload: (href) => preloadModule(href, { as: 'script' }) });
+```
+
+React puts a `<link rel="modulepreload">` in the page for each, so the browser fetches German
+beside the route's code. Without React, collect them and write the links yourself. Build the client
+before the server, as TanStack Start and other frameworks on Vite do; `vite build` warns where it
+built the server with no client to take the files from.
+
 ## Finding a string's entry
 
 In dev, hold Alt (Option on a Mac) and point at text on the page: the inspector outlines the
@@ -1148,7 +1164,7 @@ serves.
 | [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes: the copy set in the root, the link a snippet, typed by `svelte-check`.                                          |
 | [`examples/solid`](examples/solid)                   | Solid: reads update in place on a locale switch, and the components run once.                                                        |
 | [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's. The cart is a route of its own, split by area. |
-| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.                                                 |
+| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale, split, with the page's German files linked ahead.                    |
 | [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector. The cart is a lazy route, split by area. |
 | [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript.                                           |
 
@@ -1161,4 +1177,4 @@ bun run --cwd examples/next dev
 
 Ideas not built yet, roughly in order of value:
 
-1. **Preloading a split render's areas**: a server render records the areas it read and links their files in the request's locale.
+1. **Preloading a split render's areas under Bun and Next**: Bun's chunks and Turbopack's name no module, so neither says which file holds an area.
