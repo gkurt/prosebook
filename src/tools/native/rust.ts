@@ -58,18 +58,13 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string): string {
   if (part.arms.length + part.exact.length === 0) return expr(part.other, indent);
   const arg = argName(part.arg);
   const on = part.on === 'round' ? `rt::round(${arg})` : part.on === 'percent' ? `${arg} * 100.0` : arg;
-  const of = part.offset === 0 ? 'n' : `n - ${float(part.offset)}`;
   const { minFrac, maxFrac } = part.rounding;
-  let select = expr(part.other, `${inner}    `);
-  if (part.arms.length > 0) {
-    const arms = part.arms.map((a) => `${inner}    ${lit(a.key)} => ${expr(a.parts, `${inner}    `)},\n`).join('');
-    select = `match rt::category(rt::R${part.rules}, ${of}, ${minFrac}, ${maxFrac}) {\n${arms}${inner}    _ => ${select},\n${inner}}`;
-  }
-  const exact = part.exact
-    .map((e) => `if n == ${float(e.value)} {\n${inner}    ${expr(e.parts, `${inner}    `)}\n${inner}} else `)
+  const exact = part.exact.map((e) => `(${float(e.value)}, ${lit(`=${e.value}`)})`).join(', ');
+  const arms = [...part.exact.map((e) => ({ key: `=${e.value}`, parts: e.parts })), ...part.arms]
+    .map((a) => `${inner}${lit(a.key)} => ${expr(a.parts, inner)},\n`)
     .join('');
-  const body = exact === '' ? select : `${exact}{\n${inner}    ${select}\n${inner}}`;
-  return `{\n${inner}let n = ${on};\n${inner}${body}\n${indent}}`;
+  const pick = `rt::plural(${on}, ${float(part.offset)}, &[${exact}], rt::R${part.rules}, ${minFrac}, ${maxFrac})`;
+  return `match ${pick} {\n${arms}${inner}_ => ${expr(part.other, inner)},\n${indent}}`;
 }
 
 function method(m: NativeMessage, name: string, enumName: string): string {
@@ -230,8 +225,23 @@ const PLURAL = `
         pub e: f64,
     }
 
+    /// The arm a plural takes: the \`=N\` that \`value\` equals, else the category of \`value\` less \`offset\`.
+    pub fn plural(
+        value: f64,
+        offset: f64,
+        exact: &[(f64, &'static str)],
+        rules: fn(&Operands) -> &'static str,
+        min: usize,
+        max: usize,
+    ) -> &'static str {
+        match exact.iter().find(|(n, _)| *n == value) {
+            Some(&(_, arm)) => arm,
+            None => category(rules, value - offset, min, max),
+        }
+    }
+
     /// The category \`rules\` give \`value\`, rounded to between \`min\` and \`max\` fraction digits.
-    pub fn category(rules: fn(&Operands) -> &'static str, value: f64, min: usize, max: usize) -> &'static str {
+    fn category(rules: fn(&Operands) -> &'static str, value: f64, min: usize, max: usize) -> &'static str {
         if !value.is_finite() {
             return "other";
         }

@@ -129,7 +129,6 @@ function callArgs(args: Record<string, string | number>, literal: (v: string | n
 
 const EXE = process.platform === 'win32' ? 'main.exe' : 'main';
 const str = (v: string | number) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
-const dbl = (v: string | number) => (typeof v === 'string' ? JSON.stringify(v) : Number.isInteger(v) ? `${v}.0` : String(v));
 
 describe('native targets', () => {
   test('number formats match Intl, or say why they cannot', () => {
@@ -249,7 +248,7 @@ describe('native targets', () => {
       mkdirSync(dir, { recursive: true });
       const lines = CASES.map(([locale, key, args]) => {
         const member = leading(camel(wordsOf(key)));
-        const call = Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, dbl, (n) => camel(wordsOf(n))).join(', ')})`;
+        const call = Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, str, (n) => camel(wordsOf(n))).join(', ')})`;
         return `print(Copy.${leading(camel(wordsOf(locale)))}.${call})`;
       });
       writeFileSync(join(dir, 'main.swift'), `${lines.join('\n')}\n`);

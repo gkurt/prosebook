@@ -280,7 +280,7 @@ label.text = copy.trayRecordings(3)
 ```
 
 A message with no placeholders is a `&'static str` in Rust and a property in Swift and Kotlin; one
-with placeholders is a function taking them in order, a string or a number. Each member's doc comment
+with placeholders is a function taking them in order, a string or a number of any integer or float type. Each member's doc comment
 is the source text, its context and what each argument holds.
 
 The files need nothing beside them: each brings the plural rules of its locales, compiled from CLDR's

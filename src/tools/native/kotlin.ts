@@ -44,18 +44,13 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string, rt: string
   if (part.arms.length + part.exact.length === 0) return expr(part.other, indent, rt);
   const arg = argName(part.arg);
   const on = part.on === 'round' ? `${rt}.round(${arg})` : part.on === 'percent' ? `${arg} * 100.0` : arg;
-  const of = part.offset === 0 ? 'n' : `n - ${float(part.offset)}`;
   const { minFrac, maxFrac } = part.rounding;
-  const deeper = `${inner}    `;
-  const select =
-    part.arms.length === 0
-      ? expr(part.other, inner, rt)
-      : `when (${rt}.category(${rt}::r${part.rules}, ${of}, ${minFrac}, ${maxFrac})) {\n${part.arms
-          .map((a) => `${deeper}${lit(a.key)} -> ${expr(a.parts, deeper, rt)}\n`)
-          .join('')}${deeper}else -> ${expr(part.other, deeper, rt)}\n${inner}}`;
-  const branches = [...part.exact.map((e) => `n == ${float(e.value)} -> ${expr(e.parts, `${inner}    `, rt)}`), `else -> ${select}`];
-  const body = part.exact.length === 0 ? select : `when {\n${branches.map((b) => `${inner}    ${b}\n`).join('')}${inner}}`;
-  return `run {\n${inner}val n = ${on}\n${inner}${body}\n${indent}}`;
+  const exact = part.exact.map((e) => `${float(e.value)} to ${lit(`=${e.value}`)}`).join(', ');
+  const arms = [...part.exact.map((e) => ({ key: `=${e.value}`, parts: e.parts })), ...part.arms]
+    .map((a) => `${inner}${lit(a.key)} -> ${expr(a.parts, inner, rt)}\n`)
+    .join('');
+  const pick = `${rt}.plural(${on}, ${float(part.offset)}, listOf(${exact}), ${rt}::r${part.rules}, ${minFrac}, ${maxFrac})`;
+  return `when (${pick}) {\n${arms}${inner}else -> ${expr(part.other, inner, rt)}\n${indent}}`;
 }
 
 function member(m: NativeMessage, name: string, rt: string): string {
@@ -176,8 +171,12 @@ const PLURAL = `
     /** CLDR's plural operands of a number as written. */
     class Operands(val n: Double, val i: Double, val v: Double, val w: Double, val f: Double, val t: Double, val c: Double, val e: Double)
 
+    /** The arm a plural takes: the \`=N\` that \`value\` equals, else the category of \`value\` less \`offset\`. */
+    fun plural(value: Double, offset: Double, exact: List<Pair<Double, String>>, rules: (Operands) -> String, min: Int, max: Int): String =
+        exact.firstOrNull { it.first == value }?.second ?: category(rules, value - offset, min, max)
+
     /** The category \`rules\` give \`value\`, rounded to between \`min\` and \`max\` fraction digits. */
-    fun category(rules: (Operands) -> String, value: Double, min: Int, max: Int): String {
+    private fun category(rules: (Operands) -> String, value: Double, min: Int, max: Int): String {
         if (!value.isFinite()) return "other"
         val (written, frac) = digits(Math.abs(value), 0, min, max)
         val int = written.ifEmpty { "0" }

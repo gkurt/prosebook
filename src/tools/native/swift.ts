@@ -44,27 +44,34 @@ function value(part: Exclude<Part, { type: 'text' }>, indent: string, rt: string
   if (part.arms.length + part.exact.length === 0) return expr(part.other, indent, rt);
   const arg = argName(part.arg);
   const on = part.on === 'round' ? `${rt}.round(${arg})` : part.on === 'percent' ? `${arg} * 100.0` : arg;
-  const of = part.offset === 0 ? 'n' : `n - ${float(part.offset)}`;
-  const exact = part.exact.map((e) => `${inner}if n == ${float(e.value)} { return ${expr(e.parts, inner, rt)} }\n`).join('');
   const { minFrac, maxFrac } = part.rounding;
-  const select =
-    part.arms.length === 0
-      ? `${inner}return ${expr(part.other, inner, rt)}\n`
-      : `${inner}switch ${rt}.category(${rt}.r${part.rules}, ${of}, ${minFrac}, ${maxFrac}) {\n${part.arms
-          .map((a) => `${inner}case ${lit(a.key)}: return ${expr(a.parts, inner, rt)}\n`)
-          .join('')}${inner}default: return ${expr(part.other, inner, rt)}\n${inner}}\n`;
-  return `{ () -> String in\n${inner}let n = ${on}\n${exact}${select}${indent}}()`;
+  const exact = part.exact.map((e) => `(${float(e.value)}, ${lit(`=${e.value}`)})`).join(', ');
+  const arms = [...part.exact.map((e) => ({ key: `=${e.value}`, parts: e.parts })), ...part.arms]
+    .map((a) => `${inner}case ${lit(a.key)}: return ${expr(a.parts, inner, rt)}\n`)
+    .join('');
+  const pick = `${rt}.plural(${on}, ${float(part.offset)}, [${exact}], ${rt}.r${part.rules}, ${minFrac}, ${maxFrac})`;
+  return `{ () -> String in\n${inner}switch ${pick} {\n${arms}${inner}default: return ${expr(part.other, inner, rt)}\n${inner}}\n${indent}}()`;
 }
 
-function member(m: NativeMessage, name: string, rt: string): string {
+/** The protocol a number argument takes, and the property that reads it as a `Double`. */
+interface NumberProtocol {
+  type: string;
+  value: string;
+}
+
+function member(m: NativeMessage, name: string, rt: string, number: NumberProtocol): string {
   const cases = (render: (parts: Part[]) => string) =>
     m.bodies.map((b) => `        case ${b.locales.map((l) => `.${caseName(l)}`).join(', ')}: return ${render(b.parts)}\n`).join('');
   const argDocs = m.args.filter((a) => a.doc !== undefined).map((a) => `- ${argName(a.name)}: ${a.doc}`);
   const head = doc(argDocs.length > 0 ? [...m.doc, '', ...argDocs] : m.doc, '    ');
   const body = `        switch self {\n${cases((parts) => expr(parts, '        ', rt))}        }\n`;
   if (m.args.length === 0) return `${head}    public var ${name}: String {\n${body}    }\n`;
-  const params = m.args.map((a) => `${argName(a.name)}: ${a.type === 'number' ? 'Double' : 'String'}`).join(', ');
-  return `${head}    public func ${name}(${params}) -> String {\n${body}    }\n`;
+  const params = m.args.map((a) => `${argName(a.name)}: ${a.type === 'number' ? `some ${number.type}` : 'String'}`).join(', ');
+  const numbers = m.args
+    .filter((a) => a.type === 'number')
+    .map((a) => `        let ${argName(a.name)} = ${argName(a.name)}.${number.value}\n`)
+    .join('');
+  return `${head}    public func ${name}(${params}) -> String {\n${numbers}${body}    }\n`;
 }
 
 function formatConst(spec: NumberSpec, i: number): string {
@@ -191,8 +198,15 @@ const PLURAL = `
         let e: Double
     }
 
+    /// The arm a plural takes: the \`=N\` that \`value\` equals, else the category of \`value\` less \`offset\`.
+    static func plural(
+        _ value: Double, _ offset: Double, _ exact: [(Double, String)], _ rules: (Operands) -> String, _ min: Int, _ max: Int
+    ) -> String {
+        exact.first(where: { $0.0 == value })?.1 ?? category(rules, value - offset, min, max)
+    }
+
     /// The category \`rules\` give \`value\`, rounded to between \`min\` and \`max\` fraction digits.
-    static func category(_ rules: (Operands) -> String, _ value: Double, _ min: Int, _ max: Int) -> String {
+    private static func category(_ rules: (Operands) -> String, _ value: Double, _ min: Int, _ max: Int) -> String {
         guard value.isFinite else { return "other" }
         let (written, frac) = digits(abs(value), 0, min, max)
         let int = written.isEmpty ? "0" : written
@@ -223,6 +237,22 @@ const PLURAL = `
     }
 `;
 
+const NUMBER_TYPES = [
+  'Int',
+  'Int8',
+  'Int16',
+  'Int32',
+  'Int64',
+  'UInt',
+  'UInt8',
+  'UInt16',
+  'UInt32',
+  'UInt64',
+  'Double',
+  'Float',
+  'CGFloat',
+];
+
 export function swiftFile(model: NativeModel, target: NativeTarget & { name: string }, banner: string): string {
   const name = target.name;
   const rt = `${name}Runtime`;
@@ -231,7 +261,20 @@ export function swiftFile(model: NativeModel, target: NativeTarget & { name: str
   const cases = model.locales
     .map((l) => `    /// \`${l}\`${l === model.source ? ', the source' : ''}.\n    case ${caseName(l)} = ${lit(l)}\n`)
     .join('');
-  const members = model.messages.map((m, i) => member(m, names[i]![1], rt)).join('\n');
+  // Named after the type, so two generated files in one module don't both add a property to `Int`.
+  const number = { type: `${name}Number`, value: `${name.charAt(0).toLowerCase()}${name.slice(1)}Value` };
+  const members = model.messages.map((m, i) => member(m, names[i]![1], rt, number)).join('\n');
+  const usesNumbers = model.messages.some((m) => m.args.some((a) => a.type === 'number'));
+  const numberProtocol = !usesNumbers
+    ? ''
+    : `
+/// A number a message formats: any of Swift's integers or floats.
+public protocol ${number.type} {
+    var ${number.value}: Double { get }
+}
+
+${NUMBER_TYPES.map((t) => `extension ${t}: ${number.type} { public var ${number.value}: Double { Double(self) } }`).join('\n')}
+`;
   const rules = model.rules
     .map(({ name: rule, rules }, i) => {
       const checks = rules.map(
@@ -252,7 +295,7 @@ ${model.formats.map(formatConst).join('\n')}${rules === '' ? '' : `\n${rules}`}}
 
   return `${banner}
 import Foundation
-
+${numberProtocol}
 /// A locale the catalog is written or translated in, and its messages.
 public enum ${name}: String, CaseIterable, Sendable {
 ${cases}
