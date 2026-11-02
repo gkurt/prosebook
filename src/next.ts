@@ -14,6 +14,12 @@
  * route of the app without a file in it, so a server of their own answers them on a local port, and a
  * rewrite sends `/__prosebook/*` there; an entry opens through Next's own `/__nextjs_launch-editor`.
  *
+ * With `split`, client components get the catalog split by area, as under Vite (`tools/bundle.ts`).
+ * Turbopack has no virtual modules, so the areas are files, written under `node_modules/.prosebook`,
+ * where they are a dependency's code to Turbopack and not the app's; and it has no transform hook, so
+ * a loader rule over the app's own source in the browser appends the imports of the areas each file
+ * names. Server components and the server render read whole locales.
+ *
  * Turbopack only: Next 16 fails a Turbopack build whose config has a `webpack` key, so none is added.
  */
 import { createServer } from 'node:http';
@@ -22,20 +28,29 @@ import { join, relative, resolve } from 'node:path';
 
 import type { LoaderOptions } from './next-loader.ts';
 import {
+  areaFile,
+  areaModule,
+  areasOf,
   beside,
+  fileSpecifiers,
   HOT_SET,
+  inArea,
   installInspector,
   keeper,
+  lazyAreas,
   prunedModule,
   scanSources,
+  splitIndex,
   unseenMessage,
   watchCatalog,
   type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
+import { compileLocale, localeExpression } from './tools/compile.ts';
+import type { Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
-import { generate, type Generated } from './tools/generate.ts';
+import { generate, writeFiles, type Generated } from './tools/generate.ts';
 
 export interface ProsebookNextOptions {
   /** The config, inline. Without it, `prosebook.config.*` at `root` is read. */
@@ -48,8 +63,16 @@ export interface ProsebookNextOptions {
    * every message.
    */
   prune?: Prune;
-  /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
+  /**
+   * Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. With
+   * `split`, their areas load with the catalog.
+   */
   keep?: string[];
+  /**
+   * Split each locale by area in client components, as the Vite plugin's `split` does, so a route's
+   * client code brings only the messages it reads. Server components read whole locales.
+   */
+  split?: boolean;
   /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
   inspect?: boolean;
 }
@@ -89,23 +112,26 @@ export function withProsebook<C extends object>(
       throw new Error("prosebook: Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config");
     const generated = generate(config);
     if (phase === DEV) {
-      watch(config);
-      if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET));
+      watch(config, options);
+      if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET, options));
       const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
       // A relative import, which Turbopack resolves as it would the app's own.
       const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
       const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base);
-      return withRewrite(withRules(resolved, hotRules(config, generated, prepend)), await serveInspector(config, base));
+      return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
     }
     const prune = options.prune ?? 'strict';
-    if (prune === false) return resolved;
-    return withRules(resolved, prunedRules(config, generated, prune, options.keep));
+    if (prune === false && options.split !== true) return resolved;
+    return withRules(resolved, buildRules(config, generated, prune, options));
   };
 }
 
+/** The app's rules and ours: where both have one for a glob, theirs first, then ours, in a list. */
 function withRules<C extends object>(resolved: C, rules: Rules): C {
   const turbopack = (resolved as { turbopack?: { rules?: Rules } }).turbopack;
-  return { ...resolved, turbopack: { ...turbopack, rules: { ...turbopack?.rules, ...rules } } };
+  const all: Rules = { ...turbopack?.rules };
+  for (const [glob, rule] of Object.entries(rules)) all[glob] = glob in all ? [all[glob], rule].flat() : rule;
+  return { ...resolved, turbopack: { ...turbopack, rules: all } };
 }
 
 /** Sends `/__prosebook/*` to the inspector's server, before any of the app's own rewrites. */
@@ -146,12 +172,13 @@ function serveInspector(config: ResolvedConfig, base: string): Promise<number> {
   return port;
 }
 
-function watch(config: ResolvedConfig): void {
+function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
   if (watching.has(config.catalog)) return;
   watching.add(config.catalog);
   watchCatalog(config, () => {
     try {
-      generate(config);
+      const generated = generate(config);
+      if (options.split === true) writeAreas(config, generated);
       console.info(`prosebook: regenerated ${relative(config.root, config.out).replaceAll('\\', '/')}`);
     } catch (e) {
       console.error(describe(e));
@@ -173,16 +200,86 @@ function rule(config: ResolvedConfig, name: string, options: LoaderOptions, brow
  * In the browser: the index starts with `prepend`, the hot hooks and the inspector, there before any
  * copy exists, and each locale updates the copies.
  */
-function hotRules(config: ResolvedConfig, generated: Generated, prepend: string): Rules {
+function hotRules(config: ResolvedConfig, generated: Generated, prepend: string, options: ProsebookNextOptions): Rules {
   const locales = [...generated.entries.keys()].map((locale) => rule(config, locale, { locale }, true));
+  if (options.split === true) return Object.fromEntries([...locales, ...splitRules(config, generated, options, prepend)]);
   return Object.fromEntries([rule(config, 'index', { prepend }, true), ...locales]);
 }
 
-function prunedRules(config: ResolvedConfig, generated: Generated, prune: 'strict' | 'loose', keep?: string[]): Rules {
-  const { refs, unseen } = scanSources(config, prune === 'strict');
-  if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
-  const kept = keeper(refs, keep);
-  return Object.fromEntries([...generated.entries].map(([locale, entries]) => rule(config, locale, { code: prunedModule(entries, kept) })));
+function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, options: ProsebookNextOptions): Rules {
+  let kept: (key: string) => boolean = () => true;
+  if (prune !== false) {
+    const { refs, unseen } = scanSources(config, prune === 'strict');
+    if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
+    kept = keeper(refs, options.keep);
+  }
+  const locales =
+    prune === false ? [] : [...generated.entries].map(([locale, entries]) => rule(config, locale, { code: prunedModule(entries, kept) }));
+  return Object.fromEntries([...locales, ...(options.split === true ? splitRules(config, generated, options, '', kept) : [])]);
+}
+
+/** Where a split catalog's area files go: out of the app's source, where Turbopack takes them for a dependency's. */
+const areasDir = (config: ResolvedConfig) => join(config.root, 'node_modules', '.prosebook', 'areas');
+
+/**
+ * Writes each area's file, and in a build, with `kept`, each lazy locale's part of it, pruned; in
+ * dev an area holds its locales' generated modules whole, so their own updates reach the copies.
+ */
+function writeAreas(config: ResolvedConfig, generated: Generated, kept?: (key: string) => boolean): void {
+  const dir = areasDir(config);
+  const where = fileSpecifiers(dir, dir);
+  const inline = kept === undefined ? undefined : (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept));
+  const files = new Map<string, string>();
+  for (const area of areasOf(generated)) {
+    files.set(join(dir, areaFile(area)), areaModule(config, generated, area, inline, where));
+    if (kept === undefined) continue;
+    for (const [locale, entries] of generated.entries) {
+      const own = inArea(entries, area);
+      if (own.length > 0 && locale !== config.source && !config.bundled.includes(locale))
+        files.set(join(dir, areaFile(area, locale)), prunedModule(own, kept));
+    }
+  }
+  writeFiles(files);
+}
+
+/**
+ * In the browser: the index of a split catalog after `prepend`, and a rule per kind of source file
+ * under `scan.dirs` that names an area's keys, which appends its imports of those areas.
+ */
+function splitRules(
+  config: ResolvedConfig,
+  generated: Generated,
+  options: ProsebookNextOptions,
+  prepend: string,
+  kept?: (key: string) => boolean,
+) {
+  writeAreas(config, generated, kept);
+  const index = rule(
+    config,
+    'index',
+    { code: prepend + splitIndex(config, generated, options.keep, fileSpecifiers(config.out, areasDir(config))) },
+    true,
+  );
+  const areas = [...lazyAreas(generated, options.keep)];
+  if (areas.length === 0) return [index];
+  const under = (dir: string) => escape(relative(config.root, dir).replaceAll('\\', '/'));
+  const dirs = config.scan.dirs.map(under).filter((d) => d !== '');
+  const condition = {
+    all: [
+      'browser',
+      { not: 'foreign' },
+      ...(dirs.length > 0 && dirs.length === config.scan.dirs.length ? [{ path: new RegExp(`(?:^|/)(?:${dirs.join('|')})/`) }] : []),
+      { not: { path: new RegExp(`(?:^|/)${under(config.out)}/`) } },
+      // As `keyRefs` reads a key: a quote, then the area.
+      { content: new RegExp(`['"\`](?:${areas.map(escape).join('|')})\\.`) },
+    ],
+  };
+  const loaderOptions: LoaderOptions = { areas, dir: areasDir(config) };
+  const sources = ['*.ts', '*.tsx', '*.js', '*.jsx'].map((glob): [string, unknown] => [
+    glob,
+    { condition, loaders: [{ loader: loaderPath, options: loaderOptions }], as: glob },
+  ]);
+  return [index, ...sources];
 }
 
 export default withProsebook;

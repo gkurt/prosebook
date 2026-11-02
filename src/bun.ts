@@ -26,6 +26,7 @@ import {
   AREA,
   areaModule,
   areasNamed,
+  lazyAreas,
   beside,
   HOT_INDEX,
   HOT_SET,
@@ -136,17 +137,15 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
         const [area = '', locale] = path.split('/');
         if (locale !== undefined) return { contents: prunedModule(inArea(generated.entries.get(locale) ?? [], area), kept), loader: 'js' };
-        const parts = building
-          ? { inline: (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) }
-          : undefined;
-        return { contents: areaModule(config, generated, area, parts), loader: 'js' };
+        const inline = building ? (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) : undefined;
+        return { contents: areaModule(config, generated, area, inline), loader: 'js' };
       });
       const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
       const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);
       build.onLoad({ filter: new RegExp(`^(?:${dirs})[\\\\/].*\\.[cm]?[jt]sx?$`) }, (args) => {
         if (!client(args) || out.test(args.path) || /[\\/]node_modules[\\/]/.test(args.path)) return undefined;
         const code = readFileSync(args.path, 'utf8');
-        const areas = areasNamed(code, generated, options.keep);
+        const areas = areasNamed(code, lazyAreas(generated, options.keep));
         return areas.length === 0 ? undefined : { contents: importingAreas(code, args.path, areas), loader: args.loader };
       });
     },

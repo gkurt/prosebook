@@ -81,6 +81,36 @@ export function watchCatalog(config: ResolvedConfig, change: () => void): () => 
 /** `virtual:prosebook/area/cart`, and in a build `…/cart/de`, a lazy locale's part of it. */
 export const AREA = 'virtual:prosebook/area/';
 
+/**
+ * How a split catalog's modules are imported: an area (`cart`), a lazy locale's part of one (`cart`,
+ * `de`), and a generated module, from its path. Vite's and Bun's are virtual modules (`VIRTUAL`);
+ * Turbopack has none, so Next's are files.
+ */
+export interface Specifiers {
+  area: (area: string, locale?: string) => string;
+  generated: (path: string) => string;
+}
+
+export const VIRTUAL: Specifiers = {
+  area: (area, locale) => AREA + area + (locale === undefined ? '' : `/${locale}`),
+  generated: (path) => path,
+};
+
+/** `path` imported from a module in the folder `from`, as a relative specifier. */
+export function relativeImport(from: string, path: string): string {
+  const to = relative(from, path).replaceAll('\\', '/');
+  return to.startsWith('.') ? to : `./${to}`;
+}
+
+/** An area's file, or a lazy locale's part of it, where a bundler without virtual modules finds them. */
+export const areaFile = (area: string, locale?: string) => (locale === undefined ? `${area}.js` : `${area}.${locale}.js`);
+
+/** The specifiers of area files in `dir`, from a module in the folder `from`. */
+export const fileSpecifiers = (from: string, dir: string): Specifiers => ({
+  area: (area, locale) => relativeImport(from, join(dir, areaFile(area, locale))),
+  generated: (path) => relativeImport(from, path),
+});
+
 export const areaOf = (key: string) => key.slice(0, key.indexOf('.'));
 
 /** The entries of one area: its keys start with its name. */
@@ -94,20 +124,24 @@ export const eagerAreas = (generated: Generated, keep: string[] = []) => {
   return new Set(keep.map(areaOf).filter((a) => known.has(a)));
 };
 
-/** The areas whose keys `code` names, but for those that load with the index. */
-export function areasNamed(code: string, generated: Generated, keep?: string[]): string[] {
-  const named = keyRefs(code);
-  const known = areasOf(generated);
+/** The areas that load with the code naming their keys: all but those `keep` loads with the index. */
+export const lazyAreas = (generated: Generated, keep?: string[]) => {
   const eager = eagerAreas(generated, keep);
-  return [...new Set([...named.exact, ...named.prefixes].map(areaOf))].filter((a) => known.has(a) && !eager.has(a)).toSorted();
+  return new Set([...areasOf(generated)].filter((a) => !eager.has(a)));
+};
+
+/** Which of `areas` the keys `code` names are in. */
+export function areasNamed(code: string, areas: ReadonlySet<string>): string[] {
+  const named = keyRefs(code);
+  return [...new Set([...named.exact, ...named.prefixes].map(areaOf))].filter((a) => areas.has(a)).toSorted();
 }
 
 /**
  * `code` importing each of `areas`. At the end, as imports run first wherever they are, so no line
  * moves; in a component file, at the end of its first script.
  */
-export function importingAreas(code: string, path: string, areas: string[]): string {
-  const imports = areas.map((a) => `import ${JSON.stringify(AREA + a)};`).join('');
+export function importingAreas(code: string, path: string, areas: string[], specifier = VIRTUAL.area): string {
+  const imports = areas.map((a) => `import ${JSON.stringify(specifier(a))};`).join('');
   if (!SFC.test(path)) return `${code}\n${imports}\n`;
   const close = code.indexOf('</script>');
   return close === -1 ? `${code}\n<script>${imports}</script>\n` : `${code.slice(0, close)};${imports}${code.slice(close)}`;
@@ -116,51 +150,50 @@ export function importingAreas(code: string, path: string, areas: string[]): str
 /** What a split catalog's areas register under: the generated folder, from the config's. */
 const splitId = (config: ResolvedConfig) => relative(config.root, config.out).replaceAll('\\', '/');
 
-/** A generated module's path, with forward slashes, for an import written into generated code. */
+/** A generated module's path, with forward slashes. */
 const generatedPath = (config: ResolvedConfig, name: string) =>
   join(config.out, `${name}.${config.language === 'ts' ? 'ts' : 'js'}`).replaceAll('\\', '/');
 
 /** The index of a split catalog, in the browser: no messages of its own, only the areas `keep` names. */
-export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: string[]): string {
+export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: string[], where = VIRTUAL): string {
   const locales = [...generated.entries.keys()];
   const split = { id: splitId(config), areas: [...areasOf(generated)] };
   return [
     "import { defineCatalog } from 'prosebook';",
-    ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(AREA + a)};`),
+    ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),
     `export const catalog = defineCatalog(${JSON.stringify({ source: config.source, locales, messages: {}, loaders: {}, split })});`,
     '',
   ].join('\n');
 }
 
-/**
- * How an area's module holds its locales in a build: `inline` gives the expression for one that
- * ships with the area, its entries in hand; a lazy one loads from `AREA/<area>/<locale>`.
- */
-export type AreaParts = { inline: (locale: string, entries: Entry[]) => string };
+/** How an area's module holds a locale that ships with it in a build: as an expression, from its entries. */
+export type Inline = (locale: string, entries: Entry[]) => string;
 
 /**
  * An area's module: registers its messages in the locales that ship with it, and loaders for the
- * rest, and waits until every copy holds it. Without `parts`, in dev, each locale is its generated
- * module whole, so an edit updates it as it would without splitting.
+ * rest, and waits until every copy holds it. In a build, `inline` writes the first, and each of the
+ * rest loads its part of the area; in dev, without it, each locale is its generated module whole,
+ * so an edit updates it as it would without splitting.
  */
-export function areaModule(config: ResolvedConfig, generated: Generated, area: string, parts?: AreaParts): string {
+export function areaModule(config: ResolvedConfig, generated: Generated, area: string, inline?: Inline, where = VIRTUAL): string {
   const lines = ["import { addArea } from 'prosebook';"];
   const messages: string[] = [];
   const loaders: string[] = [];
   for (const [locale, entries] of generated.entries) {
     const name = JSON.stringify(locale);
     const own = inArea(entries, area);
+    const whole = JSON.stringify(where.generated(generatedPath(config, locale)));
     if (locale === config.source || config.bundled.includes(locale)) {
-      if (parts !== undefined) {
-        messages.push(`${name}: ${parts.inline(locale, own)}`);
+      if (inline !== undefined) {
+        messages.push(`${name}: ${inline(locale, own)}`);
       } else {
-        lines.push(`import m${messages.length} from ${JSON.stringify(generatedPath(config, locale))};`);
+        lines.push(`import m${messages.length} from ${whole};`);
         messages.push(`${name}: m${messages.length}`);
       }
-    } else if (parts === undefined) {
-      loaders.push(`${name}: () => import(${JSON.stringify(generatedPath(config, locale))})`);
+    } else if (inline === undefined) {
+      loaders.push(`${name}: () => import(${whole})`);
     } else if (own.length > 0) {
-      loaders.push(`${name}: () => import(${JSON.stringify(`${AREA}${area}/${locale}`)})`);
+      loaders.push(`${name}: () => import(${JSON.stringify(where.area(area, locale))})`);
     }
   }
   const args = [JSON.stringify(splitId(config)), JSON.stringify(area), `{ ${messages.join(', ')} }`, `{ ${loaders.join(', ')} }`];

@@ -29,6 +29,7 @@ import {
   AREA,
   areaModule,
   areasNamed,
+  lazyAreas,
   beside,
   HOT_INDEX,
   HOT_SET,
@@ -193,7 +194,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
           return `export default ${placeholder(locale, area)};
 `;
         }
-        return areaModule(config, generated, area, building ? { inline: (l) => placeholder(l, area) } : undefined);
+        return areaModule(config, generated, area, building ? (l) => placeholder(l, area) : undefined);
       }
       if (splitting(loadOptions?.ssr) && isIndex(id)) return splitIndex(config, generated!, options.keep);
       if (!building || prune === false || generated === undefined) return null;
@@ -230,7 +231,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
           if (prune === 'strict' && SCRIPT.test(path) && !part && !own) reads.set(id, unseenReads(path, code));
         }
         if (!splitting(ssr) || !SCRIPT.test(path) || part || own) return null;
-        const areas = areasNamed(code, generated!, options.keep);
+        const areas = areasNamed(code, lazyAreas(generated!, options.keep));
         return areas.length === 0 ? null : { code: importingAreas(code, path, areas), map: null };
       },
     },

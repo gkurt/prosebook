@@ -48,6 +48,65 @@ test('a build hands Turbopack each locale pruned to the messages the code names,
   expect(de).not.toContain('Unbenutzte Nachricht');
 });
 
+const shop = {
+  'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
+  'copy/catalog/promo.yaml': 'promo.banner: Promo banner\n',
+  'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
+  'src/cart.tsx': "'use client';\nexport const Cart = ({ copy }: { copy: { t(key: string): string } }) => copy.t('cart.title');\n",
+};
+
+test('a split build writes each area as files, and has the browser load the index split and each source file its areas', async () => {
+  const theirs = { condition: 'browser', loaders: ['svg-loader'] };
+  const config = fixture({ ...files, ...shop });
+  const next = await withProsebook<Config>(
+    { turbopack: { rules: { '*.tsx': theirs as never } } },
+    { config: { require: [], importExtension: '' }, root: config.root, split: true, keep: ['promo.*'] },
+  )('phase-production-build', { defaultConfig: {} });
+  const rules = next.turbopack!.rules! as Record<string, Rule & { as?: string }>;
+  const areas = join(config.root, 'node_modules', '.prosebook', 'areas');
+  // Pruned as the build is, and its lazy locales a file each, by area.
+  const cart = readFileSync(join(areas, 'cart.js'), 'utf8');
+  expect(cart).toContain('"cart.title": "Cart page"');
+  expect(cart).toContain('{ "de": () => import("./cart.de.js") }');
+  expect(readFileSync(join(areas, 'cart.de.js'), 'utf8')).toContain('"cart.title": "Warenkorbseite"');
+  expect(readFileSync(join(areas, 'app.js'), 'utf8')).not.toContain('Unused message');
+
+  expect(rules['index.ts']!.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
+  const index = run(rules['index.ts']!);
+  expect(index).toContain('import "../../node_modules/.prosebook/areas/promo.js";');
+  expect(index).toContain('"split":{"id":"src/copy","areas":["app","cart","promo"]}');
+
+  // The app's own rule for the glob stays, first.
+  const [own, source] = rules['*.tsx'] as unknown as [unknown, Rule & { as: string; condition: { all: unknown[] } }];
+  expect(own).toEqual(theirs);
+  expect(source.as).toBe('*.tsx');
+  const [browser, foreign, under, notOut, content] = source.condition.all as [
+    string,
+    unknown,
+    { path: RegExp },
+    unknown,
+    { content: RegExp },
+  ];
+  expect([browser, foreign]).toEqual(['browser', { not: 'foreign' }]);
+  expect(under.path.test('apps/web/src/app/cart.tsx')).toBe(true);
+  expect(notOut).toEqual({ not: { path: expect.any(RegExp) } });
+  expect([content.content.test("t('cart.title')"), content.content.test("t('promo.banner')")]).toEqual([true, false]);
+  const file = join(config.root, 'src', 'cart.tsx');
+  const code = readFileSync(file, 'utf8');
+  const appended = loader.call({ getOptions: () => source.loaders[0]!.options, resourcePath: file }, code);
+  expect(appended).toBe(`${code}\nimport "../node_modules/.prosebook/areas/cart.js";\n`);
+});
+
+test('in dev, a split catalog writes each area to hold its generated locales whole', async () => {
+  const { config, next } = await load('phase-development-server', shop, { split: true, inspect: false });
+  const index = run(next.turbopack!.rules!['index.ts']!);
+  expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();\n');
+  expect(index).toContain('"split":');
+  const cart = readFileSync(join(config.root, 'node_modules', '.prosebook', 'areas', 'cart.js'), 'utf8');
+  expect(cart).toContain('import m0 from "../../../src/copy/en.ts";');
+  expect(cart).toContain('{ "de": () => import("../../../src/copy/de.ts") }');
+});
+
 test('a strict build fails on a read whose key it cannot see', async () => {
   const unseen = {
     'src/menu.ts':

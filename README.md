@@ -1034,11 +1034,17 @@ await Bun.build({
 });
 ```
 
+Under Next, `withProsebook(config, { split: true })` splits what client components read. Next
+already splits client code by route, so each route's brings only its areas, and a server component
+reads whole locales, as the server render does. Turbopack has no virtual modules, so the areas are
+files `next dev` and `next build` write under `node_modules/.prosebook`, and a loader over the app's
+source under `scan.dirs` adds their imports in the browser.
+
 A read the build can't see, marked `prosebook-ignore`, finds its area only if some module loaded
 before it names one of the area's keys; one read before then shows its key and is reported through
 `onError`, with the fix. Areas `keep` names load with the catalog. Splitting runs in the browser
-only: a server render, and an app under Next or without a plugin, load whole locales. It needs a
-build target with top-level `await`, which Vite's and Bun's defaults have.
+only: a server render, and an app without a plugin, load whole locales. It needs a build target
+with top-level `await`, which Vite's, Bun's and Next's defaults have.
 
 ## Finding a string's entry
 
@@ -1135,7 +1141,7 @@ serves.
 | [`examples/vue`](examples/vue)                       | Vue single-file components: `<Text>` in templates, typed by `vue-tsc`.                                                               |
 | [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes: the copy set in the root, the link a snippet, typed by `svelte-check`.                                          |
 | [`examples/solid`](examples/solid)                   | Solid: reads update in place on a locale switch, and the components run once.                                                        |
-| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.                                                |
+| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's. The cart is a route of its own, split by area. |
 | [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.                                                 |
 | [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector. The cart is a lazy route, split by area. |
 | [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript.                                           |
@@ -1151,4 +1157,3 @@ Ideas not built yet, roughly in order of value:
 
 1. **A locale's areas in one file per chunk**: a route reading three areas loads German in one request, not three.
 2. **Preloading a split render's areas**: a server render records the areas it read and links their files in the request's locale.
-3. **Splitting under Next**: Turbopack has no virtual modules and no transform hook, so it needs areas written as files and a loader over the app's source.

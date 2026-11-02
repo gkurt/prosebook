@@ -21,6 +21,10 @@ interface Request {
   says: string[];
   /** Said only by the chunks those scripts import lazily, and not by the scripts themselves. */
   lazy?: string[];
+  /** Said by the scripts themselves, not only by the page. */
+  inScripts?: string[];
+  /** Said by none of the scripts: another route's messages, say. */
+  notInScripts?: string[];
 }
 
 type Example = { requests: Request[] } | { run: string[]; says: string[] };
@@ -45,7 +49,18 @@ const EXAMPLES: Record<string, Example> = {
       { path: '/api/cart?count=1', language: 'en', says: ['1 item in your cart.'] },
     ],
   },
-  next: { requests: SHOP },
+  next: {
+    requests: [
+      { path: '/', language: 'de', says: ['Eckladen', 'Willkommen zurück, Ada.'] },
+      { path: '/', language: 'en', says: ['Corner Shop', 'Welcome back, Ada.'] },
+      { path: '/', language: 'de;q=0.1, en;q=0.9', says: ['Corner Shop', 'Welcome back, Ada.'] },
+      { path: '/cart', language: 'de', says: ['Eckladen', 'Warenkorb leeren'] },
+      { path: '/cart', language: 'en', says: ['Corner Shop', 'Empty cart'] },
+      // Split by area: the cart's messages ship with the cart route's client code, not the home page's.
+      { path: '/', scripts: true, says: [], inScripts: ['Language'], notInScripts: ['Add to cart'] },
+      { path: '/cart', scripts: true, says: [], inScripts: ['Add to cart'] },
+    ],
+  },
   'tanstack-start': { requests: SHOP },
   node: { run: ['node', 'src/main.ts', 'de', '3'], says: ['Eckladen', '3 Artikel gekauft.', 'Summe: 13,50'] },
 };
@@ -82,6 +97,8 @@ if ('run' in example) {
       const loaded = [...scripts.values()].join('\n');
       const what = `${request.path} in ${request.language ?? 'the default locale'}`;
       expect(what, page + loaded, request.says);
+      expect(`${what}, in its scripts`, loaded, request.inScripts ?? []);
+      for (const s of request.notInScripts ?? []) if (loaded.includes(s)) failures.push(`${what} says "${s}" in its scripts`);
       if (request.lazy !== undefined) {
         for (const s of request.lazy) if (loaded.includes(s)) failures.push(`${what} says "${s}" in its scripts, not only lazily`);
         expect(`${what}, lazily`, await lazyChunksOf(scripts), request.lazy);
