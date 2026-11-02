@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 
-import { chainOf, createCopy, defineCatalog, negotiate, type CompiledMessages, type DevHooks, type HotHook } from 'prosebook';
+import {
+  acceptedLocales,
+  chainOf,
+  createCopy,
+  defineCatalog,
+  negotiate,
+  type CompiledMessages,
+  type DevHooks,
+  type HotHook,
+} from 'prosebook';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { compiled, copyOf } from './fixture.ts';
@@ -19,6 +28,22 @@ describe('locale negotiation', () => {
   test('the lookup chain runs through available parents to the source', () => {
     expect(chainOf('pt-BR', available, 'en')).toEqual(['pt-BR', 'pt', 'en']);
     expect(chainOf('en', available, 'en')).toEqual(['en']);
+  });
+
+  test('Accept-Language is read by weight, ties in the order asked', () => {
+    expect(acceptedLocales('de;q=0.1, en;q=0.9')).toEqual(['en', 'de']);
+    expect(negotiate(acceptedLocales('de;q=0.1, en;q=0.9'), available, 'pt')).toBe('en');
+    expect(acceptedLocales('fr-CH, fr;q=0.9, en;q=0.8, de;q=0.7, *;q=0.5')).toEqual(['fr-CH', 'fr', 'en', 'de']);
+    expect(acceptedLocales('pt-BR,de;q=0.5,pt;q=0.5')).toEqual(['pt-BR', 'de', 'pt']);
+    expect(acceptedLocales('de ; Q = 0.5 , en')).toEqual(['en', 'de']);
+  });
+
+  test('Accept-Language leaves out what no one asked for', () => {
+    expect(acceptedLocales('de;q=0, en')).toEqual(['en']);
+    expect(acceptedLocales('de;q=high, , *, en')).toEqual(['en']);
+    expect(acceptedLocales('')).toEqual([]);
+    expect(acceptedLocales(null)).toEqual([]);
+    expect(acceptedLocales(undefined)).toEqual([]);
   });
 });
 

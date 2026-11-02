@@ -6,7 +6,7 @@
  * functions: this runtime looks them up, picks the locale and falls back, and parses nothing.
  */
 export { createCopy, defineCatalog, type Catalog, type Copy, type CopyOptions } from './runtime/copy.ts';
-export { chainOf, negotiate, preferredLocales } from './runtime/locale.ts';
+export { acceptedLocales, chainOf, negotiate, preferredLocales } from './runtime/locale.ts';
 export { createHelpers, flatten } from './runtime/helpers.ts';
 export type {
   AnyTagFn,

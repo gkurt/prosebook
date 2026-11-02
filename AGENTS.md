@@ -45,7 +45,7 @@ Runtime (`prosebook`, `prosebook/react`):
   are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
-- `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`.
+- `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`.
 
 Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):

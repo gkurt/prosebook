@@ -170,10 +170,14 @@ Set `language: 'js'` in the config to generate `.js` modules with a `.d.ts` besi
 
 ### On a server
 
-Create one `copy` per request, in the locale it asks for, and wait for its messages:
+Create one `copy` per request, in the locale it asks for, and wait for its messages.
+`acceptedLocales` reads an `Accept-Language` header into the locales it asks for, by weight, so
+`de;q=0.1, en;q=0.9` asks for English first:
 
 ```ts
-const copy = createCopy(catalog, { locale: requestedLocales }); // from the cookie or Accept-Language
+import { acceptedLocales, createCopy } from 'prosebook';
+
+const copy = createCopy(catalog, { locale: acceptedLocales(request.headers.get('accept-language')) });
 await copy.ready;
 ```
 

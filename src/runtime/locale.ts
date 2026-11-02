@@ -44,6 +44,25 @@ export function preferredLocales(): string[] {
   return resolved ? [resolved] : [];
 }
 
+/**
+ * The locales an `Accept-Language` header asks for, most preferred first: ordered by `q`, ties in
+ * the header's order. `q=0` means "not this one", and `*` asks for nothing `negotiate`'s fallback
+ * doesn't already give, so both are left out, as is a part whose `q` isn't a number.
+ */
+export function acceptedLocales(header: string | null | undefined): string[] {
+  const weighed: { tag: string; q: number }[] = [];
+  for (const part of (header ?? '').split(',')) {
+    const [tag = '', ...params] = part.split(';').map((s) => s.trim());
+    if (tag === '' || tag === '*') continue;
+    const weight = params.find((p) => /^q\s*=/i.test(p));
+    const q = weight === undefined ? 1 : Number(weight.slice(weight.indexOf('=') + 1).trim());
+    if (Number.isNaN(q) || q <= 0) continue;
+    weighed.push({ tag, q });
+  }
+  // Array.prototype.sort is stable, so equal weights keep the header's order.
+  return weighed.sort((a, b) => b.q - a.q).map((w) => w.tag);
+}
+
 function languageOf(tag: string): string {
   return tag.split('-', 1)[0]!.toLowerCase();
 }
