@@ -34,10 +34,11 @@ import {
   beside,
   fileSpecifiers,
   HOT_SET,
-  inArea,
+  inAreas,
   installInspector,
   keeper,
   lazyAreas,
+  membersOf,
   prunedModule,
   scanSources,
   splitIndex,
@@ -46,6 +47,7 @@ import {
   type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
+import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import type { Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
@@ -222,21 +224,26 @@ function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, 
 const areasDir = (config: ResolvedConfig) => join(config.root, 'node_modules', '.prosebook', 'areas');
 
 /**
- * Writes each area's file, and in a build, with `kept`, each lazy locale's part of it, pruned; in
- * dev an area holds its locales' generated modules whole, so their own updates reach the copies.
+ * Writes each area's file, and in a build, with `kept`, each lazy locale's part of each group of
+ * areas that share a chunk (`tools/chunks.ts`), pruned; in dev an area holds its locales' generated
+ * modules whole, so their own updates reach the copies.
  */
-function writeAreas(config: ResolvedConfig, generated: Generated, kept?: (key: string) => boolean): void {
+function writeAreas(config: ResolvedConfig, generated: Generated, kept?: (key: string) => boolean, keep?: string[]): void {
   const dir = areasDir(config);
   const where = fileSpecifiers(dir, dir);
   const inline = kept === undefined ? undefined : (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept));
+  const groups = kept === undefined ? new Map<string, string>() : areaGroups(config, generated, keep);
   const files = new Map<string, string>();
-  for (const area of areasOf(generated)) {
-    files.set(join(dir, areaFile(area)), areaModule(config, generated, area, inline, where));
-    if (kept === undefined) continue;
+  for (const area of areasOf(generated)) files.set(join(dir, areaFile(area)), areaModule(config, generated, area, inline, where, groups));
+  if (kept === undefined) {
+    writeFiles(files);
+    return;
+  }
+  for (const lead of new Set(groups.values())) {
     for (const [locale, entries] of generated.entries) {
-      const own = inArea(entries, area);
-      if (own.length > 0 && locale !== config.source && !config.bundled.includes(locale))
-        files.set(join(dir, areaFile(area, locale)), prunedModule(own, kept));
+      const parts = inAreas(entries, membersOf(groups, lead));
+      if (parts.length > 0 && locale !== config.source && !config.bundled.includes(locale))
+        files.set(join(dir, areaFile(lead, locale)), prunedModule(parts, kept));
     }
   }
   writeFiles(files);
@@ -253,7 +260,7 @@ function splitRules(
   prepend: string,
   kept?: (key: string) => boolean,
 ) {
-  writeAreas(config, generated, kept);
+  writeAreas(config, generated, kept, options.keep);
   const index = rule(
     config,
     'index',

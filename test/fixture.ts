@@ -39,3 +39,51 @@ export function copyOf(locales: Record<string, Record<string, string>>, options:
   const [source] = Object.keys(locales);
   return createCopy(defineCatalog({ source: source!, locales: Object.keys(locales), messages, loaders: {} }), options);
 }
+
+/**
+ * A shell reading two areas and two lazy routes: the cart, reading three areas across two modules
+ * and the shell's own, and the account, reading one.
+ */
+export const route: Record<string, string> = {
+  'copy/catalog/app.yaml': 'app.title: Shop front\n',
+  'copy/catalog/nav.yaml': 'nav.home: Home link\n',
+  'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
+  'copy/catalog/checkout.yaml': 'checkout.pay: Pay now\n',
+  'copy/catalog/shipping.yaml': 'shipping.title: Delivery\n',
+  'copy/catalog/account.yaml': 'account.title: Account page\n',
+  'copy/locales/de/app.yaml': 'app.title: Ladenfront\n',
+  'copy/locales/de/nav.yaml': 'nav.home: Startseite\n',
+  'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
+  'copy/locales/de/checkout.yaml': 'checkout.pay: Jetzt zahlen\n',
+  'copy/locales/de/shipping.yaml': 'shipping.title: Lieferung\n',
+  'copy/locales/de/account.yaml': 'account.title: Kontoseite\n',
+  'src/main.ts': [
+    "import { createCopy } from 'prosebook';",
+    "import { catalog } from './copy/index.ts';",
+    'export async function cart(start: string, next: string) {',
+    '  const copy = createCopy(catalog, { locale: start });',
+    '  await copy.ready;',
+    "  const { title } = await import('./cart.ts');",
+    '  await copy.setLocale(next);',
+    "  return [copy.t('app.title'), copy.t('nav.home'), ...title(copy)];",
+    '}',
+    'export async function account(locale: string) {',
+    '  const copy = createCopy(catalog, { locale });',
+    "  const { title } = await import('./account.ts');",
+    '  return title(copy);',
+    '}',
+  ].join('\n'),
+  'src/cart.ts': [
+    "import { pay } from './pay.ts';",
+    'export const title = (copy: { t(key: string): string }) =>',
+    "  [copy.t('cart.title'), pay(copy), copy.t('shipping.title'), copy.t('app.title')];",
+  ].join('\n'),
+  'src/pay.ts': "export const pay = (copy: { t(key: string): string }) => copy.t('checkout.pay');\n",
+  'src/account.ts': "export const title = (copy: { t(key: string): string }) => copy.t('account.title');\n",
+};
+
+/** What `route`'s entry exports, once built. */
+export interface RouteApp {
+  cart: (start: string, next: string) => Promise<string[]>;
+  account: (locale: string) => Promise<string>;
+}

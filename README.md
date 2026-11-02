@@ -1010,6 +1010,12 @@ already on the page. The area's module waits for that load (a top-level `await`)
 renders in the reader's language from its first frame, in every binding, with no change to the code
 reading it.
 
+Areas the bundler puts in one chunk share a file in each such locale, so a route reading three areas
+across its modules loads German in one request, not three. Which areas share a chunk is read from
+the imports under `scan.dirs` as the build starts, as the bundler will chunk them. An import that
+can't be followed, such as one through an alias, can leave two areas of a chunk a file each: one
+more request, never a missing message.
+
 The Bun plugin takes `split` too. `Bun.build` needs `splitting: true` for its lazy chunks, and in a
 full-stack build, one `Bun.build` of a server and the pages it imports, only the pages are split.
 bunfig.toml names a module whose default export is the plugin, so the dev server's comes from a
@@ -1155,5 +1161,4 @@ bun run --cwd examples/next dev
 
 Ideas not built yet, roughly in order of value:
 
-1. **A locale's areas in one file per chunk**: a route reading three areas loads German in one request, not three.
-2. **Preloading a split render's areas**: a server render records the areas it read and links their files in the request's locale.
+1. **Preloading a split render's areas**: a server render records the areas it read and links their files in the request's locale.

@@ -8,7 +8,7 @@ import type { EntryView } from 'prosebook/tools';
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { prosebook } from '#src/vite.ts';
-import { fixture } from './fixture.ts';
+import { fixture, route, type RouteApp } from './fixture.ts';
 
 test('a build ships only the messages the code names', async () => {
   const config = fixture({
@@ -111,6 +111,33 @@ test('a split build loads each area with the code that reads it, and each lazy l
     "the cart area has not loaded: name one of its keys in the module that reads it, or keep it: `keep: ['cart.*']`",
   ]);
   expect(await main.later('en', 'de')).toBe('Warenkorbseite');
+});
+
+test("a split build loads a lazy locale's areas in one file per chunk", async () => {
+  const config = fixture(route);
+  const outDir = join(config.root, 'dist');
+  await build({
+    root: config.root,
+    logLevel: 'silent',
+    configFile: false,
+    plugins: [prosebook({ config: { require: [] }, split: true })],
+    resolve: { alias: [{ find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
+    build: { outDir, minify: false, lib: { entry: join(config.root, 'src', 'main.ts'), formats: ['es'], fileName: 'main' } },
+  });
+  const files = new Map(readdirSync(outDir).map((f) => [f, readFileSync(join(outDir, f), 'utf8')]));
+  const holding = (text: string) => [...files].filter(([, js]) => js.includes(text)).map(([f]) => f);
+  // The route's three areas, read in two of its modules, are one file in German; the shell's two another.
+  expect(holding('Warenkorbseite')).toHaveLength(1);
+  expect(holding('Jetzt zahlen')).toEqual(holding('Warenkorbseite'));
+  expect(holding('Lieferung')).toEqual(holding('Warenkorbseite'));
+  expect(holding('Ladenfront')).toHaveLength(1);
+  expect(holding('Startseite')).toEqual(holding('Ladenfront'));
+  expect(holding('Kontoseite')).toHaveLength(1);
+  expect(holding('Kontoseite')).not.toEqual(holding('Warenkorbseite'));
+
+  const main = (await import(join(outDir, 'main.js'))) as RouteApp;
+  expect(await main.cart('en', 'de')).toEqual(['Ladenfront', 'Startseite', 'Warenkorbseite', 'Jetzt zahlen', 'Lieferung', 'Ladenfront']);
+  expect(await main.account('de')).toBe('Kontoseite');
 });
 
 test('in dev, a split catalog serves each area its generated locales whole, imported by the modules that name its keys', async () => {

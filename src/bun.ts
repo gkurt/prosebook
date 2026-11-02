@@ -15,7 +15,8 @@
  * With `split`, the page's catalog is split by area as the Vite plugin's is (`tools/bundle.ts`): each
  * source file under `scan.dirs` naming an area's keys imports the area, a module of the plugin's own
  * namespace. Bun has no transform hook, so those files are read here and handed back. A build knows
- * the keys it keeps before it loads anything, so each area loads already pruned.
+ * the keys it keeps before it loads anything, so each area loads already pruned, and which areas
+ * share a chunk (`tools/chunks.ts`), so a lazy locale's part is a file per group of them.
  */
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -32,9 +33,10 @@ import {
   HOT_SET,
   hotLocale,
   importingAreas,
-  inArea,
+  inAreas,
   installInspector,
   keeper,
+  membersOf,
   prunedModule,
   scanSources,
   splitIndex,
@@ -43,6 +45,7 @@ import {
   type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
+import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig } from './tools/config.ts';
 import { inspectorEndpoints } from './tools/endpoints.ts';
@@ -132,13 +135,17 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       });
       if (!split) return;
 
-      // `cart`, or in a build `cart/de`, a lazy locale's part of the area.
+      const groups = building ? areaGroups(config, generated, options.keep) : new Map<string, string>();
+      // `cart`, or in a build `cart/de`, a lazy locale's part of the group `cart` leads.
       build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({ path: path.slice(AREA.length), namespace: NAMESPACE }));
       build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
         const [area = '', locale] = path.split('/');
-        if (locale !== undefined) return { contents: prunedModule(inArea(generated.entries.get(locale) ?? [], area), kept), loader: 'js' };
+        if (locale !== undefined) {
+          const entries = inAreas(generated.entries.get(locale) ?? [], membersOf(groups, area));
+          return { contents: prunedModule(entries, kept), loader: 'js' };
+        }
         const inline = building ? (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) : undefined;
-        return { contents: areaModule(config, generated, area, inline), loader: 'js' };
+        return { contents: areaModule(config, generated, area, inline, undefined, groups), loader: 'js' };
       });
       const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
       const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);

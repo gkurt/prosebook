@@ -7,7 +7,7 @@ import type { OnLoadCallback, PluginBuilder } from 'bun';
 import type { EntryView } from 'prosebook/tools';
 
 import { inspector, prosebook } from '#src/bun.ts';
-import { fixture } from './fixture.ts';
+import { fixture, route, type RouteApp } from './fixture.ts';
 
 const files = {
   'copy/catalog/app.yaml': 'app.used: Used message\napp.unused: Unused message\n',
@@ -118,6 +118,30 @@ test('a split build loads each area with the code that reads it, and each lazy l
     'Promo banner',
     "the cart area has not loaded: name one of its keys in the module that reads it, or keep it: `keep: ['cart.*']`",
   ]);
+});
+
+test("a split build loads a lazy locale's areas in one file per chunk", async () => {
+  const config = fixture(route);
+  const outdir = join(config.root, 'dist');
+  await Bun.build({
+    entrypoints: [join(config.root, 'src/main.ts')],
+    outdir,
+    splitting: true,
+    format: 'esm',
+    conditions: ['prosebook@dev'],
+    plugins: [prosebook({ root: config.root, config: { require: [] }, split: true })],
+  });
+  const files = written(outdir);
+  const holding = (text: string) => [...files].filter(([, js]) => js.includes(text)).map(([f]) => f);
+  expect(holding('Warenkorbseite')).toHaveLength(1);
+  expect(holding('Jetzt zahlen')).toEqual(holding('Warenkorbseite'));
+  expect(holding('Lieferung')).toEqual(holding('Warenkorbseite'));
+  expect(holding('Startseite')).toEqual(holding('Ladenfront'));
+  expect(holding('Kontoseite')).not.toEqual(holding('Warenkorbseite'));
+
+  const main = (await import(join(outdir, 'main.js'))) as RouteApp;
+  expect(await main.cart('en', 'de')).toEqual(['Ladenfront', 'Startseite', 'Warenkorbseite', 'Jetzt zahlen', 'Lieferung', 'Ladenfront']);
+  expect(await main.account('de')).toBe('Kontoseite');
 });
 
 test('a full-stack split build splits the page and leaves the server its whole locales', async () => {

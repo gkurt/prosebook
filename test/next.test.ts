@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -9,7 +9,7 @@ import type { EntryView } from 'prosebook/tools';
 import loader, { type LoaderOptions } from '#src/next-loader.ts';
 import { withProsebook, type ProsebookNextOptions } from '#src/next.ts';
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
-import { fixture } from './fixture.ts';
+import { fixture, route } from './fixture.ts';
 
 type Rule = { condition: unknown; loaders: { loader: string; options: LoaderOptions }[] };
 type Config = { reactStrictMode?: boolean; turbopack?: { rules?: Record<string, Rule> }; rewrites?: () => Promise<unknown> };
@@ -95,6 +95,19 @@ test('a split build writes each area as files, and has the browser load the inde
   const code = readFileSync(file, 'utf8');
   const appended = loader.call({ getOptions: () => source.loaders[0]!.options, resourcePath: file }, code);
   expect(appended).toBe(`${code}\nimport "../node_modules/.prosebook/areas/cart.js";\n`);
+});
+
+test("a split build writes a lazy locale's part of each group of areas that share a chunk", async () => {
+  // Without the fixture's page, which reads the shell's area as an entry of its own.
+  const { config } = await load('phase-production-build', { ...route, 'src/page.tsx': '' }, { split: true });
+  const areas = join(config.root, 'node_modules', '.prosebook', 'areas');
+  const part = readFileSync(join(areas, 'cart.de.js'), 'utf8');
+  expect([part.includes('Warenkorbseite'), part.includes('Jetzt zahlen'), part.includes('Lieferung'), part.includes('Kontoseite')]).toEqual(
+    [true, true, true, false],
+  );
+  expect(readFileSync(join(areas, 'checkout.js'), 'utf8')).toContain('{ "de": () => import("./cart.de.js") }');
+  expect(existsSync(join(areas, 'checkout.de.js'))).toBe(false);
+  expect(readFileSync(join(areas, 'nav.js'), 'utf8')).toContain('{ "de": () => import("./app.de.js") }');
 });
 
 test('in dev, a split catalog writes each area to hold its generated locales whole', async () => {

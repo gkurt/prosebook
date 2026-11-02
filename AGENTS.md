@@ -152,7 +152,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   And splitting, which every integration shares: `splitIndex`, `areaModule` (its build `inline`
   given by each bundler: Vite's placeholders, Bun's and Next's pruned code), `areasNamed`,
   `importingAreas`, each writing imports through `Specifiers`: `VIRTUAL` for Vite's and Bun's virtual
-  modules, `fileSpecifiers` for Next's area files.
+  modules, `fileSpecifiers` for Next's area files. In a build a lazy locale's part is per group of
+  areas (`Groups`, each led by its first area), which `chunks.ts`'s `areaGroups` reads ahead of the
+  build from the imports under `scan.dirs`: areas loaded by the same entries, the app's own and each
+  dynamic import, less those that load once the area is already in memory, as Rollup chunks them.
+  A guess that costs a request when wrong, never a message: the copy takes each area's own keys.
   `endpoints.ts`: the inspector's `/__prosebook/open` and `/__prosebook/entry` over `Request` and
   `Response`, with each dev server's editor launcher handed in as `open`; `nodeMiddleware` mounts them
   on Vite's server and Next's.
@@ -167,7 +171,7 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   messages, each module naming an area's keys gets `import "virtual:prosebook/area/<area>"` appended
   (imports run first wherever they sit, so no line moves), and the area module awaits `addArea` with
   its messages: in a build placeholders filled per area in `renderChunk`, its lazy locales
-  `virtual:prosebook/area/<area>/<locale>`; in dev the generated locale modules whole, so their hot
+  `virtual:prosebook/area/<group>/<locale>`, the group's part, groups read in `buildStart`; in dev the generated locale modules whole, so their hot
   updates work unchanged and the copy keeps only the areas it holds. `src/cli.ts`: the `prosebook` command.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
   watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the

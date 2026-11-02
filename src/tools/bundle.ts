@@ -78,12 +78,12 @@ export function watchCatalog(config: ResolvedConfig, change: () => void): () => 
   };
 }
 
-/** `virtual:prosebook/area/cart`, and in a build `…/cart/de`, a lazy locale's part of it. */
+/** `virtual:prosebook/area/cart`, and in a build `…/cart/de`, a lazy locale's part of the group `cart` leads. */
 export const AREA = 'virtual:prosebook/area/';
 
 /**
- * How a split catalog's modules are imported: an area (`cart`), a lazy locale's part of one (`cart`,
- * `de`), and a generated module, from its path. Vite's and Bun's are virtual modules (`VIRTUAL`);
+ * How a split catalog's modules are imported: an area (`cart`), a lazy locale's part of a group of
+ * them, by the group's first area (`cart`, `de`), and a generated module, from its path. Vite's and Bun's are virtual modules (`VIRTUAL`);
  * Turbopack has none, so Next's are files.
  */
 export interface Specifiers {
@@ -102,7 +102,7 @@ export function relativeImport(from: string, path: string): string {
   return to.startsWith('.') ? to : `./${to}`;
 }
 
-/** An area's file, or a lazy locale's part of it, where a bundler without virtual modules finds them. */
+/** An area's file, or a lazy locale's part of a group, where a bundler without virtual modules finds them. */
 export const areaFile = (area: string, locale?: string) => (locale === undefined ? `${area}.js` : `${area}.${locale}.js`);
 
 /** The specifiers of area files in `dir`, from a module in the folder `from`. */
@@ -113,8 +113,17 @@ export const fileSpecifiers = (from: string, dir: string): Specifiers => ({
 
 export const areaOf = (key: string) => key.slice(0, key.indexOf('.'));
 
-/** The entries of one area: its keys start with its name. */
-export const inArea = (entries: Entry[], area: string) => entries.filter(([key]) => areaOf(key) === area);
+/** The entries of some areas: their keys start with an area's name. */
+export const inAreas = (entries: Entry[], areas: readonly string[]) => entries.filter(([key]) => areas.includes(areaOf(key)));
+
+/**
+ * Each area to the group whose file its lazy locales load from, named by the group's first area: the
+ * areas a bundler puts in one chunk (`areaGroups` in `chunks.ts`), so they load in one request.
+ */
+export type Groups = ReadonlyMap<string, string>;
+
+/** The areas whose lazy locales load from the group `lead` names. */
+export const membersOf = (groups: Groups, lead: string) => [...groups].filter(([, g]) => g === lead).map(([area]) => area);
 
 export const areasOf = (generated: Generated) => new Set(generated.catalog.messages.map((m) => m.area));
 
@@ -172,16 +181,24 @@ export type Inline = (locale: string, entries: Entry[]) => string;
 /**
  * An area's module: registers its messages in the locales that ship with it, and loaders for the
  * rest, and waits until every copy holds it. In a build, `inline` writes the first, and each of the
- * rest loads its part of the area; in dev, without it, each locale is its generated module whole,
- * so an edit updates it as it would without splitting.
+ * rest loads its part of the area's group, shared with the areas `groups` puts beside it, which the
+ * copy takes only this area's keys from; in dev, without it, each locale is its generated module
+ * whole, so an edit updates it as it would without splitting.
  */
-export function areaModule(config: ResolvedConfig, generated: Generated, area: string, inline?: Inline, where = VIRTUAL): string {
+export function areaModule(
+  config: ResolvedConfig,
+  generated: Generated,
+  area: string,
+  inline?: Inline,
+  where = VIRTUAL,
+  groups: Groups = new Map(),
+): string {
   const lines = ["import { addArea } from 'prosebook';"];
   const messages: string[] = [];
   const loaders: string[] = [];
   for (const [locale, entries] of generated.entries) {
     const name = JSON.stringify(locale);
-    const own = inArea(entries, area);
+    const own = inAreas(entries, [area]);
     const whole = JSON.stringify(where.generated(generatedPath(config, locale)));
     if (locale === config.source || config.bundled.includes(locale)) {
       if (inline !== undefined) {
@@ -193,7 +210,7 @@ export function areaModule(config: ResolvedConfig, generated: Generated, area: s
     } else if (inline === undefined) {
       loaders.push(`${name}: () => import(${whole})`);
     } else if (own.length > 0) {
-      loaders.push(`${name}: () => import(${JSON.stringify(where.area(area, locale))})`);
+      loaders.push(`${name}: () => import(${JSON.stringify(where.area(groups.get(area) ?? area, locale))})`);
     }
   }
   const args = [JSON.stringify(splitId(config)), JSON.stringify(area), `{ ${messages.join(', ')} }`, `{ ${loaders.join(', ')} }`];

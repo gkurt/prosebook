@@ -244,6 +244,10 @@ interface Piece {
   at: number;
 }
 
+/** A single-file component's script blocks, each at its offset. */
+export const scriptBlocks = (code: string): Piece[] =>
+  [...code.matchAll(/(<script\b[^>]*>)([\s\S]*?)<\/script>/g)].map((m) => ({ code: m[2]!, at: m.index + m[1]!.length }));
+
 /**
  * The reads in a module whose key a pruned build can't see, as in `t(item.key)` or `<Text id={id} />`:
  * the build would leave the message out, and the key would show in its place. A build has no types,
@@ -256,7 +260,7 @@ export function unseenReads(file: string, code: string): Reads {
   if (!SFC.test(file)) return readsIn(file, code, file, [{ code, at: 0 }]);
   const vue = file.endsWith('.vue');
   const markup = blank(code, /<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>|<!--[\s\S]*?-->/g);
-  const scripts = [...code.matchAll(/(<script\b[^>]*>)([\s\S]*?)<\/script>/g)].map((m) => ({ code: m[2]!, at: m.index + m[1]!.length }));
+  const scripts = scriptBlocks(code);
   const expressions = vue ? vueExpressions(markup) : svelteExpressions(markup);
   // Scripts and markup alike may be TypeScript.
   return readsIn(file, code, 'component.ts', [...scripts, ...expressions], (names, report) => {
