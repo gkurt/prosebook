@@ -294,9 +294,26 @@ MF1's plural offset.
 
 The functions are MF2's defaults: `:string`, `:number`, `:integer`, `:percent`, `:currency`, `:unit`,
 `:offset`, and the date and time functions `:date`, `:time` and `:datetime`, which are still a draft
-in the spec and follow it as the `messageformat` package does. Option values are literals, since
-formatting is settled at build time; `currency=$code` is refused with that reason. Placeholders
-aren't wrapped in bidi isolation marks.
+in the spec and follow it as the `messageformat` package does. Placeholders aren't wrapped in bidi
+isolation marks.
+
+**Options from arguments.** An option can take its value from an argument, so one message formats
+whatever currency the order is in:
+
+```yaml
+en: 'Total: {$price :currency currency=$code}' # t('cart.total', { price: 9, code: 'USD' }): $9.00
+en: 'Due {$when :time timeZone=$tz}'
+```
+
+The argument is typed with the rest (`code: string`; `currencyDisplay=$d` takes only the values the
+option does), and a translation must use it too. These options can come from an argument: `currency`,
+`currencyDisplay`, `currencySign`, `unit`, `unitDisplay`, `signDisplay`, `fractionDigits` and the
+other digit counts, `timeZone` and `calendar`. The rest, such as a date's `fields` or a number's
+`select`, decide what the formatter is, so they're written in the message and the message says so.
+Literal options are still settled at build time. The ones from arguments are merged in as the
+message renders, and each locale keeps one formatter per distinct value. A value `Intl` refuses,
+such as `code: 'euro'`, throws a `RangeError` there. MF1 has no way to say this, so `migrate 1`
+stops at such a message.
 
 **Switching.** `prosebook migrate 2` rewrites the catalog and every translation in MF2, and
 `prosebook migrate 1` goes back. It's a dry run unless `--write`; then set `messageFormat` in the
@@ -727,5 +744,3 @@ Ideas not built yet, roughly in order of value:
    `cache()`, as a helper.
 4. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
    outside the browser, such as a tray or native menus.
-5. **Variable MF2 options**: `{$price :currency currency=$code}`, compiled to a formatter cached per
-   value.

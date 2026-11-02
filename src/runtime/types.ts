@@ -42,10 +42,10 @@ export type DefaultTags = Register extends { tags: infer T extends string } ? T 
  */
 export interface Helpers {
   readonly locale: string;
-  /** `{x, number, …}` and the `#` of a plural. */
-  n(value: number, options?: Intl.NumberFormatOptions): string;
+  /** `{x, number, …}` and the `#` of a plural; `given` holds the options arguments give, in MF2. */
+  n(value: number, options?: Intl.NumberFormatOptions, given?: Intl.NumberFormatOptions): string;
   /** `{x, date, …}` and `{x, time, …}`. */
-  d(value: Date | number, options?: Intl.DateTimeFormatOptions): string;
+  d(value: Date | number, options?: Intl.DateTimeFormatOptions, given?: Intl.DateTimeFormatOptions): string;
   /** `{x, plural, …}` and `{x, selectordinal, …}`: picks an arm and renders it. */
   p(value: number, offset: number, ordinal: boolean, arms: Arms): unknown;
   /** `{x, select, …}`. */

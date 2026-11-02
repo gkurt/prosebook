@@ -6,10 +6,12 @@
  * arm, a number is a call to a cached `Intl.NumberFormat`. One that calls no helper is `(a) => …`, so
  * the generated TypeScript passes `noUnusedParameters`. Formatting options are resolved here and
  * hoisted to module constants, so a skeleton costs nothing at runtime and its formatter is built once.
+ * Options an argument gives (MF2's `currency=$code`) follow them as an object built per call, and the
+ * runtime keeps a formatter per value.
  */
 import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
 
-import { dateOptions, numberOptions, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { dateOptions, numberOptions, optionArgsOf, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 
 export type Entry = readonly [key: string, ast: MessageFormatElement[]];
 
@@ -47,9 +49,17 @@ function arms(options: Record<string, { value: MessageFormatElement[] }>, hoiste
   return `{ ${body.join(', ')} }`;
 }
 
+/** The hoisted options, then the options arguments give as `{ currency: a.code }`, where there are any. */
+function formatting(el: MessageFormatElement, options: object | undefined, hoisted: Hoisted): string {
+  const args = Object.entries(optionArgsOf(el) ?? {});
+  const fixed = hoisted.arg(options);
+  if (args.length === 0) return fixed;
+  return `${fixed || ', undefined'}, { ${args.map(([option, { arg }]) => `${option}: ${access(arg)}`).join(', ')} }`;
+}
+
 function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null): string {
-  if (isNumberElement(el)) return `h.n(${access(el.value)}${hoisted.arg(numberOptions(el))})`;
-  if (isDateElement(el) || isTimeElement(el)) return `h.d(${access(el.value)}${hoisted.arg(dateOptions(el))})`;
+  if (isNumberElement(el)) return `h.n(${access(el.value)}${formatting(el, numberOptions(el), hoisted)})`;
+  if (isDateElement(el) || isTimeElement(el)) return `h.d(${access(el.value)}${formatting(el, dateOptions(el), hoisted)})`;
   switch (el.type) {
     case TYPE.literal:
       return JSON.stringify(el.value);

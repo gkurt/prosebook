@@ -8,7 +8,7 @@ import { isDateElement, isNumberElement, isTimeElement, parse, TYPE } from '@for
 import type { DateElement, DateTimeSkeleton, NumberElement, NumberSkeleton, TimeElement } from '@formatjs/icu-messageformat-parser';
 
 import type { MessageFormatElement } from './icu.ts';
-import type { Mf2DateSkeleton, Mf2NumberSkeleton } from './mf2.ts';
+import type { Mf2DateSkeleton, Mf2Function, Mf2NumberSkeleton } from './mf2.ts';
 
 type Element = MessageFormatElement;
 
@@ -102,9 +102,9 @@ function native(elements: Element[], plural: { value: string; offset: number } |
 
 function plainNumber(el: NumberElement): boolean {
   const style = el.style;
-  return (
-    style === null || style === undefined || ('mf2' in Object(style) && Object.keys((style as NumberSkeleton).parsedOptions).length === 0)
-  );
+  if (style === null || style === undefined) return true;
+  const mf2 = 'mf2' in Object(style) ? (style as Mf2NumberSkeleton) : undefined;
+  return mf2 !== undefined && mf2.args === undefined && Object.keys(mf2.parsedOptions).length === 0;
 }
 
 function same(a: object, b: object): boolean {
@@ -120,6 +120,7 @@ function same(a: object, b: object): boolean {
 function numberStyle(el: NumberElement): NumberElement['style'] {
   const style = el.style;
   if (style === null || style === undefined || typeof style === 'string' || !('mf2' in style)) return style;
+  refuseArgs(el.value, style as Mf2NumberSkeleton);
   const options = (style as Mf2NumberSkeleton).parsedOptions as Record<string, unknown>;
   if (Object.keys(options).length === 0) return null;
   if (same(options, { maximumFractionDigits: 0 })) return 'integer';
@@ -210,6 +211,7 @@ const NAMED: Record<string, readonly [TYPE.date | TYPE.time, string]> = {
 function dateElement(el: DateElement | TimeElement): Element {
   const style = el.style;
   if (typeof style !== 'object' || style === null || !('mf2' in style)) return el;
+  refuseArgs(el.value, style as Mf2DateSkeleton);
   const fn = (style as Mf2DateSkeleton).mf2;
   const named = NAMED[mf2Text(fn, true).slice(1)];
   if (named !== undefined) return { type: named[0], value: el.value, style: named[1] };
@@ -239,8 +241,16 @@ function dateSkeleton(o: Intl.DateTimeFormatOptions): string | undefined {
   return out === '' ? undefined : out;
 }
 
-function mf2Text(fn: { name: string; options: Record<string, string> }, sortOptions = false): string {
-  const options = Object.entries(fn.options);
+/** A skeleton names every option, so one an argument gives has no MF1 spelling. */
+function refuseArgs(name: string, style: Mf2NumberSkeleton | Mf2DateSkeleton): void {
+  if (style.args === undefined) return;
+  throw new Error(
+    `{${name} ${mf2Text(style.mf2)}} takes an option from an argument, which MF1 can't: write the option's value in the message`,
+  );
+}
+
+function mf2Text(fn: Mf2Function, sortOptions = false): string {
+  const options = [...Object.entries(fn.options), ...Object.entries(fn.args ?? {}).map(([k, v]) => [k, `$${v}`] as const)];
   if (sortOptions) options.sort(([a], [b]) => a.localeCompare(b));
   return [`:${fn.name}`, ...options.map(([k, v]) => `${k}=${v}`)].join(' ');
 }

@@ -58,7 +58,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
   becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
-  `matchTree`'s ranking in step with the spec. `mf1.ts`: the tree written as MF1. `syntax.ts`: the one
+  `matchTree`'s ranking in step with the spec. An option an argument gives (`currency=$code`, those in
+  `FROM_ARGUMENT`) rides on the element's style as `args`, by `Intl` option (`optionArgsOf` in
+  `icu.ts`), which types the argument and which the compiler passes to `h.n`/`h.d` beside the hoisted
+  options. `mf1.ts`: the tree written as MF1, which refuses those. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`. A

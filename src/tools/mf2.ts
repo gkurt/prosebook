@@ -5,8 +5,10 @@
  *
  * The tree holds what a message does, not how it was written. `.input {$n :number}` becomes a number
  * element at each `{$n}`, and `.match` becomes plural and select elements, one level per selector,
- * built so the runtime's ICU-style selection picks the variant MF2's would (see `matchTree`). Option
- * values are literals, resolved here into `Intl` options, so the runtime is the same for both.
+ * built so the runtime's ICU-style selection picks the variant MF2's would (see `matchTree`). Literal
+ * option values are resolved here into `Intl` options, so the runtime is the same for both. An option
+ * an argument gives (`currency=$code`, of those in `FROM_ARGUMENT`) rides on the style as the `Intl`
+ * option it sets, which the compiled message passes beside the hoisted ones.
  */
 import { SKELETON_TYPE, TYPE } from '@formatjs/icu-messageformat-parser';
 import type {
@@ -21,7 +23,7 @@ import type {
 } from '@formatjs/icu-messageformat-parser';
 import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
 
-import { walk, type MessageFormatElement } from './icu.ts';
+import { walk, type MessageFormatElement, type OptionArgs } from './icu.ts';
 
 type Element = MessageFormatElement;
 
@@ -29,6 +31,8 @@ type Element = MessageFormatElement;
 export interface Mf2Function {
   name: string;
   options: Record<string, string>;
+  /** Options given by an argument, as `currency=$code`: the option's name to the argument's. */
+  args?: Record<string, string>;
 }
 
 type Value = { kind: 'literal'; value: string; fn?: Mf2Function } | { kind: 'variable'; name: string; fn?: Mf2Function; offset: number };
@@ -96,6 +100,26 @@ const ENUMS: Record<string, readonly string[]> = {
   hour12: ['true', 'false'],
 };
 
+const oneOf = (values: readonly string[]) => values.map((v) => JSON.stringify(v)).join(' | ');
+
+/**
+ * Options an argument may give, with the `Intl` options each sets and the argument's type. These pass
+ * to `Intl` as they are, so the runtime merges them in; the rest change what the formatter is (a
+ * date's fields, how a number selects) and are settled when the message compiles.
+ */
+const FROM_ARGUMENT: Record<string, { intl: readonly string[]; type: string }> = {
+  currency: { intl: ['currency'], type: 'string' },
+  currencyDisplay: { intl: ['currencyDisplay'], type: oneOf(ENUMS.currencyDisplay!) },
+  currencySign: { intl: ['currencySign'], type: oneOf(['standard', 'accounting']) },
+  unit: { intl: ['unit'], type: 'string' },
+  unitDisplay: { intl: ['unitDisplay'], type: oneOf(['long', 'short', 'narrow']) },
+  signDisplay: { intl: ['signDisplay'], type: oneOf(['auto', 'always', 'exceptZero', 'negative', 'never']) },
+  fractionDigits: { intl: ['minimumFractionDigits', 'maximumFractionDigits'], type: 'number' },
+  ...Object.fromEntries(DIGITS.filter((d) => d !== 'roundingIncrement').map((d) => [d, { intl: [d], type: 'number' }])),
+  timeZone: { intl: ['timeZone'], type: 'string' },
+  calendar: { intl: ['calendar'], type: 'string' },
+};
+
 /** Options an operand's function doesn't pass on to these, per the spec. */
 const DISCARDED: Record<string, readonly string[]> = {
   integer: ['minimumFractionDigits', 'maximumFractionDigits', 'minimumSignificantDigits'],
@@ -156,8 +180,9 @@ export function parseMf2(text: string, locale: string): Element[] {
   }
   const scope: Scope = new Map();
   for (const declaration of message.declarations)
-    // `.input` reads the argument itself; a `.local` can build on what is declared before it.
-    scope.set(declaration.name, resolve(declaration.value, declaration.type === 'input' ? new Map() : scope));
+    // `.input` reads the argument itself; a `.local` can build on what is declared before it. The
+    // options of either can name what is declared before them.
+    scope.set(declaration.name, resolve(declaration.value, declaration.type === 'input' ? new Map() : scope, scope));
 
   if (message.type === 'message') return pattern(message.pattern, scope, locale);
   const selectors = message.selectors.map((s) => selectorOf(s.name, scope));
@@ -169,29 +194,34 @@ export function parseMf2(text: string, locale: string): Element[] {
   return matchTree(selectors, candidates, 0, locale);
 }
 
-function functionOf(ref: Model.FunctionRef): Mf2Function {
+function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
   const allowed = OPTIONS[ref.name];
   if (allowed === undefined) {
     const known = Object.keys(OPTIONS).map((n) => `:${n}`);
     throw new Error(`:${ref.name} is not a function prosebook knows: ${known.join(', ')}`);
   }
   const options: Record<string, string> = {};
+  const args: Record<string, string> = {};
   for (const [key, value] of Object.entries(ref.options ?? {})) {
     // `u:id` and `u:dir` say nothing about formatting here: there is no bidi isolation to steer.
     if (key === 'u:id' || key === 'u:dir') continue;
-    if (value.type === 'variable')
-      throw new Error(`:${ref.name} ${key}=$${value.name}: option values are literals here, since formatting is fixed at build time`);
     if (!allowed.includes(key))
       throw new Error(`:${ref.name} has no option "${key}"${allowed.length > 0 ? `: ${allowed.join(', ')}` : ''}`);
+    const literal = value.type === 'literal' ? value.value : optionArg(ref.name, key, value.name, scope);
+    if (typeof literal !== 'string') {
+      args[key] = literal.arg;
+      continue;
+    }
     const values = ENUMS[key];
-    if (values !== undefined && !values.includes(value.value))
-      throw new Error(`:${ref.name} ${key}=${value.value} is not a value it takes: ${values.join(', ')}`);
-    if (DIGITS.includes(key) && !/^\d+$/.test(value.value)) throw new Error(`:${ref.name} ${key}=${value.value} is not a whole number`);
-    options[key] = value.value;
+    if (values !== undefined && !values.includes(literal))
+      throw new Error(`:${ref.name} ${key}=${literal} is not a value it takes: ${values.join(', ')}`);
+    if (DIGITS.includes(key) && !/^\d+$/.test(literal)) throw new Error(`:${ref.name} ${key}=${literal} is not a whole number`);
+    options[key] = literal;
   }
-  if (ref.name === 'currency' && options.currency === undefined)
-    throw new Error(':currency needs its currency named: {$price :currency currency=EUR}');
-  if (ref.name === 'unit' && options.unit === undefined) throw new Error(':unit needs its unit named: {$distance :unit unit=kilometer}');
+  const given = (key: string) => options[key] !== undefined || args[key] !== undefined;
+  if (ref.name === 'currency' && !given('currency'))
+    throw new Error(':currency needs its currency named: {$price :currency currency=EUR}, or currency=$code to take it from an argument');
+  if (ref.name === 'unit' && !given('unit')) throw new Error(':unit needs its unit named: {$distance :unit unit=kilometer}');
   if (ref.name === 'unit' && ref.options?.usage !== undefined)
     throw new Error(":unit usage converts between units, which `Intl` can't do: convert the value before passing it");
   if (options.timeZone === 'input') throw new Error(`:${ref.name} timeZone=input needs a zoned value, which a JavaScript Date isn't`);
@@ -200,11 +230,29 @@ function functionOf(ref: Model.FunctionRef): Mf2Function {
     if (given.length !== 1 || !/^\d+$/.test(options[given[0]!]!))
       throw new Error(':offset takes one of add or subtract, as a whole number: {$count :offset subtract=1}');
   }
-  return { name: ref.name, options };
+  return Object.keys(args).length > 0 ? { name: ref.name, options, args } : { name: ref.name, options };
 }
 
-function resolve(expr: Model.Expression, scope: Scope): Value {
-  const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef);
+/**
+ * The argument an option names, or the literal a `.local` it names holds. A variable declared with a
+ * function of its own is refused: what it would give the option is its formatted text.
+ */
+function optionArg(fn: string, key: string, name: string, scope: Scope): string | { arg: string } {
+  const bound = scope.get(name);
+  const plain = bound?.fn === undefined || bound.fn.name === 'string';
+  if (bound?.kind === 'literal' && plain) return bound.value;
+  if (FROM_ARGUMENT[key] === undefined) {
+    const which = Object.keys(FROM_ARGUMENT).filter((k) => OPTIONS[fn]!.includes(k));
+    const can = which.length > 0 ? `: of :${fn}'s, only ${which.join(', ')} can` : '';
+    throw new Error(`:${fn} ${key}=$${name}: ${key} is settled as the message compiles, so write its value in the message${can}`);
+  }
+  if (bound === undefined) return { arg: name };
+  if (bound.kind === 'variable' && plain && bound.offset === 0) return { arg: bound.name };
+  throw new Error(`:${fn} ${key}=$${name}: $${name} is formatted, so it can't give an option: name the argument itself`);
+}
+
+function resolve(expr: Model.Expression, scope: Scope, optionScope = scope): Value {
+  const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef, optionScope);
   if (expr.arg === undefined) throw new Error(`{:${fn!.name}} has nothing to format: give it a value, {$value :${fn!.name}}`);
   if (expr.arg.type === 'literal') return apply({ kind: 'literal', value: expr.arg.value }, fn);
   return apply(scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 }, fn);
@@ -221,8 +269,17 @@ function apply(base: Value, fn: Mf2Function | undefined): Value {
   }
   if (base.fn === undefined || family(base.fn.name) !== family(fn.name)) return { ...base, fn };
   const inherited = { ...base.fn.options };
-  for (const key of DISCARDED[fn.name] ?? []) delete inherited[key];
-  return { ...base, fn: { name: fn.name, options: { ...inherited, ...fn.options } } };
+  const inheritedArgs = { ...base.fn.args };
+  for (const key of DISCARDED[fn.name] ?? []) {
+    delete inherited[key];
+    delete inheritedArgs[key];
+  }
+  // An option given again replaces the one inherited, whether either is a literal or an argument.
+  for (const key of Object.keys(fn.options)) delete inheritedArgs[key];
+  for (const key of Object.keys(fn.args ?? {})) delete inherited[key];
+  const args = { ...inheritedArgs, ...fn.args };
+  const options = { ...inherited, ...fn.options };
+  return { ...base, fn: Object.keys(args).length > 0 ? { name: fn.name, options, args } : { name: fn.name, options } };
 }
 
 function literalNumber(value: string): string {
@@ -367,21 +424,36 @@ function element(value: Value, locale: string): Element {
 function formatLiteral(value: Extract<Value, { kind: 'literal' }>, locale: string): string {
   const { fn } = value;
   if (fn === undefined || fn.name === 'string') return value.value;
+  const [option, arg] = Object.entries(fn.args ?? {})[0] ?? [];
+  if (option !== undefined) {
+    const why = 'a literal is formatted as the message compiles, so its options are literals too';
+    throw new Error(`|${value.value}| :${fn.name} ${option}=$${arg}: ${why}`);
+  }
   if (NUMERIC.has(fn.name)) return new Intl.NumberFormat(locale, intlNumber(fn)).format(Number(literalNumber(value.value)));
   const date = new Date(value.value);
   if (Number.isNaN(date.getTime())) throw new Error(`|${value.value}| is not a date: write it as an ISO 8601 date, like 2026-01-05`);
   return new Intl.DateTimeFormat(locale, intlDate(fn)).format(date);
 }
 
-export type Mf2NumberSkeleton = NumberSkeleton & { mf2: Mf2Function };
-export type Mf2DateSkeleton = DateTimeSkeleton & { mf2: Mf2Function };
+export type Mf2NumberSkeleton = NumberSkeleton & { mf2: Mf2Function; args?: OptionArgs };
+export type Mf2DateSkeleton = DateTimeSkeleton & { mf2: Mf2Function; args?: OptionArgs };
 
 function numberStyle(fn: Mf2Function): Mf2NumberSkeleton {
-  return { type: SKELETON_TYPE.number, tokens: [], parsedOptions: intlNumber(fn) as NumberSkeleton['parsedOptions'], mf2: fn };
+  const parsedOptions = intlNumber(fn) as NumberSkeleton['parsedOptions'];
+  return { type: SKELETON_TYPE.number, tokens: [], parsedOptions, mf2: fn, ...optionArgs(fn) };
 }
 
 function dateStyle(fn: Mf2Function): Mf2DateSkeleton {
-  return { type: SKELETON_TYPE.dateTime, pattern: '', parsedOptions: intlDate(fn), mf2: fn };
+  return { type: SKELETON_TYPE.dateTime, pattern: '', parsedOptions: intlDate(fn), mf2: fn, ...optionArgs(fn) };
+}
+
+/** The function's options given by arguments, as the `Intl` options the runtime merges in. */
+function optionArgs(fn: Mf2Function): { args?: OptionArgs } {
+  if (fn.args === undefined) return {};
+  const args: OptionArgs = {};
+  for (const [key, arg] of Object.entries(fn.args))
+    for (const intl of FROM_ARGUMENT[key]!.intl) args[intl] = { arg, type: FROM_ARGUMENT[key]!.type };
+  return { args };
 }
 
 /** The `Intl.NumberFormat` options a numeric function formats with. */
@@ -643,10 +715,17 @@ function variable(name: string): Model.VariableRef {
   return { type: 'variable', name };
 }
 
-function functionRef(name: string, options: Record<string, string> = {}): Model.FunctionRef {
-  const entries = Object.entries(options);
+function functionRef(name: string, options: Record<string, string> = {}, args: Record<string, string> = {}): Model.FunctionRef {
+  const entries: [string, Model.Literal | Model.VariableRef][] = [
+    ...Object.entries(options).map(([k, v]): [string, Model.Literal] => [k, { type: 'literal', value: v }]),
+    ...Object.entries(args).map(([k, v]): [string, Model.VariableRef] => [k, variable(v)]),
+  ];
   if (entries.length === 0) return { type: 'function', name };
-  return { type: 'function', name, options: Object.fromEntries(entries.map(([k, v]) => [k, { type: 'literal', value: v }])) };
+  return { type: 'function', name, options: Object.fromEntries(entries) };
+}
+
+function written(fn: Mf2Function): Model.FunctionRef {
+  return functionRef(fn.name, fn.options, fn.args);
 }
 
 function numberFunction(el: NumberElement): Model.FunctionRef {
@@ -656,7 +735,7 @@ function numberFunction(el: NumberElement): Model.FunctionRef {
     if (style === 'integer' || style === 'percent') return functionRef(style);
     throw new Error(`{${el.value}, number, ${style}} has no MessageFormat 2 equivalent`);
   }
-  if ('mf2' in style) return functionRef((style as Mf2NumberSkeleton).mf2.name, (style as Mf2NumberSkeleton).mf2.options);
+  if ('mf2' in style) return written((style as Mf2NumberSkeleton).mf2);
   const {
     style: kind,
     currency,
@@ -690,8 +769,7 @@ function numberFunction(el: NumberElement): Model.FunctionRef {
  */
 function dateFunction(el: DateElement | TimeElement): Model.FunctionRef {
   const style = el.style;
-  if (typeof style === 'object' && style !== null && 'mf2' in style)
-    return functionRef((style as Mf2DateSkeleton).mf2.name, (style as Mf2DateSkeleton).mf2.options);
+  if (typeof style === 'object' && style !== null && 'mf2' in style) return written((style as Mf2DateSkeleton).mf2);
   if (el.type === TYPE.time && (style === null || style === undefined || typeof style === 'string')) {
     const time: Record<string, Record<string, string>> = {
       short: {},

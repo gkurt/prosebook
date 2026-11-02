@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   applyExtract,
   applyMigrate,
+  compileLocale,
   generate,
   loadCatalog,
   parseMf2,
@@ -18,7 +19,7 @@ import {
 } from 'prosebook/tools';
 import type { CatalogError, Problem } from 'prosebook/tools';
 
-import { parseMessage } from '#src/tools/icu.ts';
+import { argsOf, formatsOf, parseMessage } from '#src/tools/icu.ts';
 
 import { copyOf, fixture } from './fixture.ts';
 
@@ -29,6 +30,9 @@ const rich = (message: string, values: Record<string, unknown>) =>
   copyOf({ en: { m: message } }, {}, 2)
     .rich('m' as never, values as never)
     .join('');
+
+/** The message's compiled row, as the generator writes it. */
+const compiled = (message: string) => compileLocale([['m', parseMf2(message, 'en')]]).rows[0]!.replace(/^ {2}"m": |,$/g, '');
 
 describe('reading MessageFormat 2', () => {
   test('text, placeholders and escapes', () => {
@@ -121,8 +125,9 @@ describe('reading MessageFormat 2', () => {
     expect(problem('.match $n\n* {{a}}')).toContain('a .match variable needs a function that selects');
     expect(problem('{$x :fancy}')).toStartWith(':fancy is not a function prosebook knows');
     expect(problem('{$x :number style=percent}')).toStartWith(':number has no option "style"');
-    expect(problem('{$x :currency currency=$code}')).toContain('option values are literals here');
-    expect(problem('{$x :currency}')).toBe(':currency needs its currency named: {$price :currency currency=EUR}');
+    expect(problem('{$x :currency}')).toBe(
+      ':currency needs its currency named: {$price :currency currency=EUR}, or currency=$code to take it from an argument',
+    );
     expect(problem('{#b}bold')).toBe('{#b} is never closed: end it with {/b}');
     expect(problem('.input {$n :number}\n.match $n\nmany-things {{a}}\n* {{b}}')).toContain('a number key is a number or one of');
     expect(problem('.input {$n :number}\n.match $n\n1.0 {{a}}\n* {{b}}')).toContain('write it as 1');
@@ -162,6 +167,94 @@ describe('reading MessageFormat 2', () => {
     expect(catalog.messages.find((m) => m.key === 'cart.terms')!.tags).toEqual(['link']);
     const index = generate(config).files.get(join(config.out, 'index.ts'))!;
     expect(index).toContain(' * .match $count');
+  });
+});
+
+describe('options from arguments', () => {
+  test('an option an argument gives formats with its value, a formatter kept per value', () => {
+    const total = 'Total: {$price :currency currency=$code}';
+    expect(t(total, { price: 1234.5, code: 'USD' })).toBe('Total: $1,234.50');
+    expect(t(total, { price: 1234.5, code: 'EUR' })).toBe('Total: €1,234.50');
+    // `Intl` puts no-break spaces before a symbol or a day period.
+    const spaced = (s: string) => s.replace(/[  ]/g, ' ');
+    expect(spaced(t(total, { price: 1234.5, code: 'JPY' }, 'de'))).toBe('Total: 1.235 ¥');
+    const due = 'Due {$when :time timeZone=$tz}';
+    const when = new Date(Date.UTC(2026, 0, 5, 14, 30));
+    expect([t(due, { when, tz: 'UTC' }), t(due, { when, tz: 'Asia/Tokyo' })].map(spaced)).toEqual(['Due 2:30 PM', 'Due 11:30 PM']);
+    expect(t('{$n :currency currency=EUR fractionDigits=$d}', { n: 3.14159, d: 0 })).toBe('€3');
+    expect(t('{$n :currency currency=EUR fractionDigits=$d}', { n: 3.14159, d: 3 })).toBe('€3.142');
+  });
+
+  test('options carry over from .input, and a .local literal is a literal option', () => {
+    const signed = '.input {$n :number minimumFractionDigits=$d}\n{{{$n :number signDisplay=always} or {$n}}}';
+    expect(t(signed, { n: 3, d: 2 })).toBe('+3.00 or 3.00');
+    expect(compiled(signed)).toBe(
+      '(a, h) => [h.n(a.n, o0, { minimumFractionDigits: a.d }), " or ", h.n(a.n, undefined, { minimumFractionDigits: a.d })]',
+    );
+    expect(compiled('.local $c = {|JPY|}\n{{{$price :currency currency=$c}}}')).toBe('(a, h) => h.n(a.price, o0)');
+  });
+
+  test('the argument is typed, documented at the call site, and written back as it was', () => {
+    const ast = parseMf2('{$price :currency currency=$code currencyDisplay=$display}', 'en');
+    expect([...argsOf(ast)]).toEqual([
+      ['code', 'string'],
+      ['display', '"narrowSymbol" | "symbol" | "name" | "code"'],
+      ['price', 'number'],
+    ]);
+    expect(formatsOf(ast).get('price')).toBe('`:currency currency=$code currencyDisplay=$display`');
+    expect(toMf2(ast, 'en')).toBe('{$price :currency currency=$code currencyDisplay=$display}');
+  });
+
+  test('what an argument can not give is refused, saying why', () => {
+    const problem = (message: string) => {
+      try {
+        parseMf2(message, 'en');
+        return 'no problem';
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
+    expect(problem('{$n :number select=$s}')).toBe(
+      ":number select=$s: select is settled as the message compiles, so write its value in the message: of :number's, only signDisplay, minimumIntegerDigits, minimumFractionDigits, maximumFractionDigits, minimumSignificantDigits, maximumSignificantDigits can",
+    );
+    expect(problem('{$d :date fields=$f}')).toEndWith("of :date's, only timeZone, calendar can");
+    expect(problem('.input {$c :number}\n{{{$p :currency currency=$c}}}')).toBe(
+      ":currency currency=$c: $c is formatted, so it can't give an option: name the argument itself",
+    );
+    expect(problem('{|5| :currency currency=$c}')).toStartWith('|5| :currency currency=$c: a literal is formatted as the message compiles');
+  });
+
+  test("MF1 can't say it, so migrate refuses", () => {
+    expect(() => toMf1(parseMf2('{$price :currency currency=$code}', 'en'))).toThrow(
+      "{price :currency currency=$code} takes an option from an argument, which MF1 can't: write the option's value in the message",
+    );
+    expect(() =>
+      toMf1(parseMf2('.input {$n :number minimumFractionDigits=$d}\n.match $n\none {{{$n} item}}\n* {{{$n} items}}', 'en')),
+    ).toThrow('takes an option from an argument');
+  });
+
+  test('a catalog checks the argument against its translations, and the build types it', () => {
+    const config = fixture(
+      {
+        'copy/catalog/cart.yaml': "cart.total: 'Total: {$price :currency currency=$code}'\n",
+        'copy/locales/de.yaml': "cart.total: 'Summe: {$price :currency currency=EUR}'\n",
+      },
+      { messageFormat: 2, require: [] },
+    );
+    let problems: Problem[] = [];
+    try {
+      loadCatalog(config);
+    } catch (e) {
+      problems = (e as CatalogError).problems;
+    }
+    expect(problems.map((p) => `${whereOf(p)}: ${p.message}`)).toEqual([
+      'copy/locales/de.yaml cart.total: differs from the source: missing {code}',
+    ]);
+
+    writeFileSync(join(config.locales, 'de.yaml'), "cart.total: 'Summe: {$price :currency currency=$code}'\n");
+    const { files } = generate(config);
+    expect(files.get(join(config.out, 'index.ts'))).toContain('code: string');
+    expect(files.get(join(config.out, 'de.ts'))).toContain('h.n(a.price, o0, { currency: a.code })');
   });
 });
 

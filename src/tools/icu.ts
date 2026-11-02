@@ -65,6 +65,18 @@ function argType(el: MessageFormatElement): string | undefined {
   }
 }
 
+/**
+ * Formatting options read from arguments as the message renders, by `Intl` option: MF2's
+ * `{$price :currency currency=$code}`. MF1 has no way to say this, so only a tree read from MF2 has them.
+ */
+export type OptionArgs = Record<string, { arg: string; type: string }>;
+
+export function optionArgsOf(el: MessageFormatElement): OptionArgs | undefined {
+  if (!isNumberElement(el) && !isDateElement(el) && !isTimeElement(el)) return undefined;
+  const style = el.style;
+  return typeof style === 'object' && style !== null && 'args' in style ? (style as { args: OptionArgs }).args : undefined;
+}
+
 /** Calls `visit` on every element, inside plural and select arms and tags too. */
 export function walk(elements: MessageFormatElement[], visit: (el: MessageFormatElement) => void): void {
   for (const el of elements) {
@@ -76,12 +88,15 @@ export function walk(elements: MessageFormatElement[], visit: (el: MessageFormat
 
 export function argsOf(elements: MessageFormatElement[], clash: (name: string) => void = () => {}): Map<string, string> {
   const args = new Map<string, string>();
+  const add = (name: string, type: string) => {
+    const seen = args.get(name);
+    if (seen !== undefined && seen !== type) clash(name);
+    else args.set(name, type);
+  };
   walk(elements, (el) => {
+    for (const { arg, type } of Object.values(optionArgsOf(el) ?? {})) add(arg, type);
     const type = argType(el);
-    if (type === undefined || !('value' in el) || typeof el.value !== 'string') return;
-    const seen = args.get(el.value);
-    if (seen !== undefined && seen !== type) clash(el.value);
-    else args.set(el.value, type);
+    if (type !== undefined && 'value' in el && typeof el.value === 'string') add(el.value, type);
   });
   return args;
 }
@@ -121,8 +136,12 @@ export function numberOptions(el: NumberElement): Intl.NumberFormatOptions | und
   const unknown = style.tokens.filter((t) => !stemIsKnown(t.stem, t.options)).map((t) => t.stem);
   if (unknown.length > 0) throw new Error(`{${el.value}} has skeleton stems the formatter drops without a word: ${unknown.join(', ')}`);
   const options = style.parsedOptions as Intl.NumberFormatOptions;
+  // An option an argument gives is checked with a stand-in: `Intl` refuses a currency style without
+  // its currency. Whether the argument's value suits it is known only as the message renders.
+  const args = optionArgsOf(el) ?? {};
+  const given = { ...(args.currency && { currency: 'EUR' }), ...(args.unit && { unit: 'meter' }) };
   try {
-    new Intl.NumberFormat('en', options).resolvedOptions();
+    new Intl.NumberFormat('en', { ...options, ...given }).resolvedOptions();
   } catch (e) {
     throw new Error(`{${el.value}} has a skeleton Intl refuses: ${(e as Error).message}`, { cause: e });
   }
@@ -196,8 +215,13 @@ export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
       said = `${kind} \`${style}\``;
     } else if ('mf2' in style) {
       // Read from MF2: the function as written.
-      const { name, options } = (style as { mf2: { name: string; options: Record<string, string> } }).mf2;
-      said = `\`${[`:${name}`, ...Object.entries(options).map(([k, v]) => `${k}=${v}`)].join(' ')}\``;
+      const {
+        name,
+        options,
+        args = {},
+      } = (style as { mf2: { name: string; options: Record<string, string>; args?: Record<string, string> } }).mf2;
+      const written = [...Object.entries(options), ...Object.entries(args).map(([k, v]) => [k, `$${v}`])];
+      said = `\`${[`:${name}`, ...written.map(([k, v]) => `${k}=${v}`)].join(' ')}\``;
     } else if ('tokens' in style) {
       said = `${kind} \`::${style.tokens.map((t) => [t.stem, ...t.options].join('/')).join(' ')}\``;
     } else {
