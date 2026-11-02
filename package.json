@@ -1,6 +1,6 @@
 {
   "name": "prosebook",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
   "keywords": [
     "bun",
