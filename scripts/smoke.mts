@@ -15,6 +15,8 @@ interface Request {
   /** Also look in the module scripts the page loads, for a page rendered in the browser. */
   scripts?: boolean;
   says: string[];
+  /** Said only by the chunks those scripts import lazily, and not by the scripts themselves. */
+  lazy?: string[];
 }
 
 type Example = { requests: Request[] } | { run: string[]; says: string[] };
@@ -27,7 +29,7 @@ const SHOP: Request[] = [
 ];
 
 const EXAMPLES: Record<string, Example> = {
-  vite: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  vite: { requests: [{ path: '/', scripts: true, says: ['Corner Shop'], lazy: ['Add to cart'] }] },
   preact: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   vue: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   svelte: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
@@ -72,8 +74,13 @@ if ('run' in example) {
       const res = await fetch(base + request.path, { headers });
       if (!res.ok) failures.push(`${request.path} answered ${res.status}`);
       const page = await res.text();
-      const text = request.scripts === true ? page + (await scriptsOf(page, base + request.path)) : page;
-      expect(`${request.path} in ${request.language ?? 'the default locale'}`, text, request.says);
+      const scripts = request.scripts === true ? await scriptsOf(page, base + request.path) : '';
+      const what = `${request.path} in ${request.language ?? 'the default locale'}`;
+      expect(what, page + scripts, request.says);
+      if (request.lazy !== undefined) {
+        for (const s of request.lazy) if (scripts.includes(s)) failures.push(`${what} says "${s}" in its scripts, not only lazily`);
+        expect(`${what}, lazily`, await lazyChunksOf(scripts, base), request.lazy);
+      }
     }
   } finally {
     server.kill();
@@ -90,6 +97,12 @@ console.log(`${name}: says what it should`);
 async function scriptsOf(page: string, url: string): Promise<string> {
   const sources = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map(([, src]) => new URL(src, url));
   return (await Promise.all(sources.map(async (src) => (await fetch(src)).text()))).join('\n');
+}
+
+/** The chunks the scripts import dynamically, joined, as Vite writes them: ``import(`./Cart-….js`)``. */
+async function lazyChunksOf(scripts: string, base: string): Promise<string> {
+  const chunks = new Set([...scripts.matchAll(/import\(["'`]\.\/([^"'`]+\.js)["'`]\)/g)].map(([, file]) => `${base}/assets/${file}`));
+  return (await Promise.all([...chunks].map(async (src) => (await fetch(src)).text()))).join('\n');
 }
 
 async function ready(base: string): Promise<void> {

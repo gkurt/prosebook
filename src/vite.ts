@@ -6,6 +6,11 @@
  * code names: each locale module is swapped for its messages less the keys no module references
  * (see `tools/scan.ts` for how a reference is found, and why it errs towards keeping).
  *
+ * With `split`, a client's catalog has no messages of its own: each module naming an area's keys
+ * imports a module for that area, which the bundler places beside it, and which registers the area
+ * (`addArea`) and waits until every copy holds it in its locale. Areas are found by the same
+ * references pruning reads, so a read pruning can't see is one splitting can't place either.
+ *
  * In dev an edit doesn't reload the page: each generated locale module accepts its own update and
  * hands the new messages to every copy (`HotHook`), which re-renders in the locale and state it was in.
  * The index accepts its own too, since its doc comments change with the source text, and reloads the
@@ -42,8 +47,17 @@ export interface ProsebookPluginOptions {
    * pruned. `loose` prunes without that check; `false` ships every message.
    */
   prune?: Prune;
-  /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
+  /**
+   * Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. With
+   * `split`, their areas load with the catalog.
+   */
   keep?: string[];
+  /**
+   * Split each locale by area, so a lazy route loads only the messages it reads: a module that names
+   * an area's keys imports that area, which the bundler places beside it, and a lazy locale loads
+   * each area as it is needed. In the browser only: a server render loads whole locales.
+   */
+  split?: boolean;
   /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
   inspect?: boolean;
 }
@@ -52,8 +66,23 @@ const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
 const SCRIPT = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const DEV = 'virtual:prosebook/dev';
 const DEV_ID = '\0prosebook/dev';
+// `virtual:prosebook/area/cart`, and in a build `…/cart/de`, a lazy locale's part of it.
+const AREA = 'virtual:prosebook/area/';
+const AREA_ID = '\0prosebook/area/';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
+const areaOf = (key: string) => key.slice(0, key.indexOf('.'));
+
+/**
+ * `code` importing each of `areas`. At the end, as imports run first wherever they are, so no line
+ * moves; in a component file, at the end of its first script.
+ */
+function importingAreas(code: string, path: string, areas: string[]): string {
+  const imports = areas.map((a) => `import ${JSON.stringify(AREA + a)};`).join('');
+  if (!SFC.test(path)) return `${code}\n${imports}\n`;
+  const close = code.indexOf('</script>');
+  return close === -1 ? `${code}\n<script>${imports}</script>\n` : `${code.slice(0, close)};${imports}${code.slice(close)}`;
+}
 
 const inspectorPath = beside(import.meta.url, 'inspector');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
@@ -69,7 +98,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   let refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
   const reads = new Map<string, Reads>();
   const prune = options.prune ?? 'strict';
-  const placeholders: string[] = [];
+  // What each placeholder stands for: a locale's messages, or with `split`, one area's of them.
+  const placeholders: { locale: string; area?: string }[] = [];
   const shipped = { total: 0, kept: 0 };
 
   const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
@@ -88,6 +118,57 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     return path === `${out}/index.ts` || path === `${out}/index.js`;
   };
 
+  // Split in the browser only: a server render's copies, one per request, load whole locales.
+  const splitting = (ssr: boolean | undefined) => options.split === true && ssr !== true && generated !== undefined;
+  const areas = () => new Set(generated!.catalog.messages.map((m) => m.area));
+  // Areas `keep` names load with the catalog, as no module may name their keys.
+  const eagerAreas = () => new Set((options.keep ?? []).map(areaOf).filter((a) => areas().has(a)));
+  const placeholder = (locale: string, area?: string) => `__PROSEBOOK_LOCALE_${placeholders.push({ locale, area }) - 1}__`;
+  const generatedPath = (name: string) => normalize(`${config.out}/${name}.${config.language === 'ts' ? 'ts' : 'js'}`);
+
+  /** The index of a split catalog: no messages of its own, only the areas `keep` names. */
+  const splitIndex = () => {
+    const locales = [...generated!.entries.keys()];
+    const split = { id: relative(config.root, config.out).replaceAll('\\', '/'), areas: [...areas()] };
+    return [
+      "import { defineCatalog } from 'prosebook';",
+      ...[...eagerAreas()].map((a) => `import ${JSON.stringify(AREA + a)};`),
+      `export const catalog = defineCatalog(${JSON.stringify({ source: config.source, locales, messages: {}, loaders: {}, split })});`,
+      '',
+    ].join('\n');
+  };
+
+  /**
+   * An area: its messages in the locales that ship with it, and loaders for the rest. In dev each
+   * locale is its generated module whole, so an edit updates it as without `split`.
+   */
+  const areaModule = (area: string) => {
+    const split = relative(config.root, config.out).replaceAll('\\', '/');
+    const lines = ["import { addArea } from 'prosebook';"];
+    const messages: string[] = [];
+    const loaders: string[] = [];
+    for (const [locale, entries] of generated!.entries) {
+      const name = JSON.stringify(locale);
+      if (locale === config.source || config.bundled.includes(locale)) {
+        if (building) {
+          messages.push(`${name}: ${placeholder(locale, area)}`);
+        } else {
+          lines.push(`import m${messages.length} from ${JSON.stringify(generatedPath(locale))};`);
+          messages.push(`${name}: m${messages.length}`);
+        }
+      } else if (!building) {
+        loaders.push(`${name}: () => import(${JSON.stringify(generatedPath(locale))})`);
+      } else if (entries.some(([key]) => areaOf(key) === area)) {
+        loaders.push(`${name}: () => import(${JSON.stringify(`${AREA}${area}/${locale}`)})`);
+      }
+    }
+    lines.push(
+      `await addArea(${JSON.stringify(split)}, ${JSON.stringify(area)}, { ${messages.join(', ')} }, { ${loaders.join(', ')} });`,
+      '',
+    );
+    return lines.join('\n');
+  };
+
   return {
     name: 'prosebook',
 
@@ -99,7 +180,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     },
 
     resolveId(id) {
-      return id === DEV ? DEV_ID : null;
+      if (id === DEV) return DEV_ID;
+      if (id.startsWith(AREA)) return AREA_ID + id.slice(AREA.length);
+      return null;
     },
 
     buildStart() {
@@ -109,7 +192,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         this.error(describe(e));
       }
       refs = { exact: new Set(), prefixes: new Set() };
-      kept = keeper(refs, options.keep);
+      kept = prune === false ? () => true : keeper(refs, options.keep);
       reads.clear();
       placeholders.length = 0;
       shipped.total = shipped.kept = 0;
@@ -123,6 +206,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
         try {
           generated = generate(config);
+          // An area's module names the locales, which an edit may have added to.
+          for (const [id, mod] of server.moduleGraph.idToModuleMap) if (id.startsWith(AREA_ID)) server.moduleGraph.invalidateModule(mod);
           server.config.logger.info(`prosebook: regenerated from ${relative(config.root, path).replaceAll('\\', '/')}`, {
             timestamp: true,
           });
@@ -142,16 +227,20 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       server.middlewares.use(nodeMiddleware(inspectorEndpoints(config, { base, open: editor })));
     },
 
-    load(id) {
+    load(id, loadOptions) {
       if (id === DEV_ID) {
         if (options.inspect === false) return HOT_SET;
         return HOT_SET + installInspector(inspectorPath, base);
       }
+      if (id.startsWith(AREA_ID) && generated !== undefined) {
+        const [area = '', locale] = id.slice(AREA_ID.length).split('/');
+        return locale === undefined ? areaModule(area) : `export default ${placeholder(locale, area)};\n`;
+      }
+      if (splitting(loadOptions?.ssr) && isIndex(id)) return splitIndex();
       if (!building || prune === false || generated === undefined) return null;
       const locale = localeOf(id);
       if (locale === undefined) return null;
-      placeholders.push(locale);
-      return `export default __PROSEBOOK_LOCALE_${placeholders.length - 1}__;\n`;
+      return `export default ${placeholder(locale)};\n`;
     },
 
     // Before other plugins, so a read is found in the source as written: `<Text id>` still JSX, and
@@ -159,24 +248,34 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     transform: {
       order: 'pre',
       handler(code, id, transformOptions) {
+        const ssr = transformOptions?.ssr;
         if (!building) {
           const locale = localeOf(id);
           if (locale !== undefined) return { code: code + hotLocale(locale), map: null };
-          if (!isIndex(id)) return null;
-          // A server render has no page to inspect, and its copies are made per request.
-          const dev = transformOptions?.ssr === true ? '' : `import ${JSON.stringify(DEV)};\n`;
-          return { code: dev + code + HOT_INDEX, map: null };
+          if (isIndex(id)) {
+            // A server render has no page to inspect, and its copies are made per request.
+            const dev = ssr === true ? '' : `import ${JSON.stringify(DEV)};\n`;
+            return { code: dev + code + HOT_INDEX, map: null };
+          }
+          // The index's `Messages` type names every key, and is read here before its types are stripped.
+        } else if (localeOf(id) !== undefined || isIndex(id)) {
+          return null;
         }
-        if (prune === false || id.includes('/node_modules/') || id.startsWith('\0')) return null;
-        // The index's `Messages` type names every key, and is read here before its types are stripped.
-        if (localeOf(id) !== undefined || isIndex(id)) return null;
-        keyRefs(code, refs);
+        if (id.includes('/node_modules/') || id.startsWith('\0')) return null;
         const path = id.split('?', 1)[0]!;
         // A component file is read whole, as written; the parts its compiler splits off (`?vue&type=script`) are not again.
         const part = SFC.test(path) && path !== id;
-        if (prune === 'strict' && SCRIPT.test(path) && !part && !normalize(path).startsWith(`${ownDir}/`))
-          reads.set(id, unseenReads(path, code));
-        return null;
+        const own = normalize(path).startsWith(`${ownDir}/`);
+        if (building && prune !== false) {
+          keyRefs(code, refs);
+          if (prune === 'strict' && SCRIPT.test(path) && !part && !own) reads.set(id, unseenReads(path, code));
+        }
+        if (!splitting(ssr) || !SCRIPT.test(path) || part || own) return null;
+        const named = keyRefs(code);
+        const known = areas();
+        const eager = eagerAreas();
+        const needed = new Set([...named.exact, ...named.prefixes].map(areaOf).filter((a) => known.has(a) && !eager.has(a)));
+        return needed.size === 0 ? null : { code: importingAreas(code, path, [...needed].toSorted()), map: null };
       },
     },
 
@@ -191,8 +290,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       if (!code.includes('__PROSEBOOK_LOCALE_') || generated === undefined) return null;
       const entries = generated.entries;
       const replaced = code.replace(PLACEHOLDER, (_match, index: string) => {
-        const locale = placeholders[Number(index)]!;
-        const list = entries.get(locale) ?? [];
+        const { locale, area } = placeholders[Number(index)]!;
+        const list = (entries.get(locale) ?? []).filter(([key]) => area === undefined || areaOf(key) === area);
         const compiled = compileLocale(list, kept);
         shipped.total += list.length;
         shipped.kept += compiled.rows.length;
@@ -203,9 +302,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
 
     generateBundle() {
       if (shipped.total === 0) return;
-      this.info(
-        `shipped ${shipped.kept} of ${shipped.total} messages across ${placeholders.length} locale(s); pruned ${shipped.total - shipped.kept} no code names`,
-      );
+      const locales = new Set(placeholders.map((p) => p.locale)).size;
+      const pruned = prune === false ? '' : `; pruned ${shipped.total - shipped.kept} no code names`;
+      this.info(`shipped ${shipped.kept} of ${shipped.total} messages across ${locales} locale(s)${pruned}`);
     },
   };
 }

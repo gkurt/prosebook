@@ -48,6 +48,101 @@ test('a build ships only the messages the code names', async () => {
   expect(js).not.toContain('Unbenutzte Nachricht');
 });
 
+test('a split build loads each area with the code that reads it, and each lazy locale by area', async () => {
+  const config = fixture({
+    'copy/catalog/app.yaml': 'app.title: Shop front\napp.unused: Unused message\n',
+    'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
+    'copy/catalog/promo.yaml': 'promo.banner: Promo banner\n',
+    'copy/locales/de/app.yaml': 'app.title: Ladenfront\n',
+    'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
+    'src/cart.ts': "export const title = (copy: { t(key: string): string }) => copy.t('cart.title');",
+    'src/main.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      'export async function first(locale: string) {',
+      '  const errors: string[] = [];',
+      '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
+      '  await copy.ready;',
+      '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
+      "  const before = copy.t(['cart', 'title'].join('.') as never);",
+      "  const { title } = await import('./cart.ts');",
+      "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
+      '}',
+      'export async function later(start: string, next: string) {',
+      '  const copy = createCopy(catalog, { locale: start });',
+      "  const { title } = await import('./cart.ts');",
+      '  await copy.setLocale(next);',
+      '  return title(copy);',
+      '}',
+    ].join('\n'),
+  });
+  const outDir = join(config.root, 'dist');
+  await build({
+    root: config.root,
+    logLevel: 'silent',
+    configFile: false,
+    plugins: [prosebook({ config: { require: [] }, split: true, keep: ['promo.*'] })],
+    resolve: { alias: [{ find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
+    build: { outDir, minify: false, lib: { entry: join(config.root, 'src', 'main.ts'), formats: ['es'], fileName: 'main' } },
+  });
+  const files = new Map(readdirSync(outDir).map((f) => [f, readFileSync(join(outDir, f), 'utf8')]));
+  const holding = (text: string) => [...files].filter(([, js]) => js.includes(text)).map(([f]) => f);
+  // The shell and the areas `keep` names ship in the entry; the cart ships beside the code reading it.
+  expect(holding('Shop front')).toEqual(['main.js']);
+  expect(holding('Promo banner')).toEqual(['main.js']);
+  expect(holding('Cart page')).toHaveLength(1);
+  expect(holding('Cart page')).not.toContain('main.js');
+  expect(holding('Unused message')).toEqual([]);
+  // A lazy locale loads area by area: German for the cart is a file of its own.
+  const [cartDe] = holding('Warenkorbseite');
+  expect(holding('Warenkorbseite')).toHaveLength(1);
+  expect(files.get(cartDe!)).not.toContain('Ladenfront');
+
+  const main = (await import(join(outDir, 'main.js'))) as {
+    first: (locale: string) => Promise<string[]>;
+    later: (start: string, next: string) => Promise<string>;
+  };
+  // In German from the first render of the code that reads the cart; before it loads, a read is reported.
+  expect(await main.first('de')).toEqual([
+    'Ladenfront',
+    'cart.title',
+    'Warenkorbseite',
+    'Promo banner',
+    "the cart area has not loaded: name one of its keys in the module that reads it, or keep it: `keep: ['cart.*']`",
+  ]);
+  expect(await main.later('en', 'de')).toBe('Warenkorbseite');
+});
+
+test('in dev, a split catalog serves each area its generated locales whole, imported by the modules that name its keys', async () => {
+  const config = fixture({
+    'copy/catalog/app.yaml': 'app.title: Shop\n',
+    'copy/catalog/cart.yaml': 'cart.title: Cart\n',
+    'copy/locales/de/cart.yaml': 'cart.title: Warenkorb\n',
+  });
+  const plugin = prosebook({ config: { require: [] }, split: true });
+  type Hook = (...args: unknown[]) => unknown;
+  await (plugin.configResolved as Hook)({ command: 'serve', base: '/', root: config.root });
+  (plugin.buildStart as Hook).call({});
+  const transform = (code: string, id: string, ssr = false) =>
+    ((plugin.transform as { handler: Hook }).handler(code, join(config.root, id).replaceAll('\\', '/'), { ssr }) as { code: string } | null)
+      ?.code;
+  const load = (id: string, ssr = false) => (plugin.load as Hook)(id, { ssr }) as string | null;
+
+  const out = join(config.root, 'src', 'copy').replaceAll('\\', '/');
+  expect(load(join(out, 'index.ts'))).toContain('"split":{"id":"src/copy","areas":["app","cart"]}');
+  expect(load(join(out, 'index.ts'), true)).toBeNull();
+  const area = load('\0prosebook/area/cart')!;
+  expect(area).toContain(`import m0 from "${out}/en.ts";`);
+  expect(area).toContain(`await addArea("src/copy", "cart", { "en": m0 }, { "de": () => import("${out}/de.ts") });`);
+
+  const code = "const a = t('cart.title');\nconst b = t(`app.${id}`);";
+  expect(transform(code, 'src/page.ts')).toBe(`${code}\nimport "virtual:prosebook/area/app";import "virtual:prosebook/area/cart";\n`);
+  expect(transform(code, 'src/page.ts', true)).toBeUndefined();
+  expect(transform("<script setup>\nt('cart.title')\n</script>\n<p />", 'src/Page.vue')).toBe(
+    `<script setup>\nt('cart.title')\n;import "virtual:prosebook/area/cart";</script>\n<p />`,
+  );
+});
+
 const ALIASES = [
   { find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') },
   { find: /^prosebook\/react$/, replacement: join(import.meta.dir, '..', 'src', 'react', 'index.tsx') },

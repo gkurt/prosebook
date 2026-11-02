@@ -3,5 +3,5 @@ import { prosebook } from 'prosebook/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [react(), prosebook()],
+  plugins: [react(), prosebook({ split: true })],
 });

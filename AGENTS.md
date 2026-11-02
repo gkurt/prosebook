@@ -48,6 +48,9 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
   the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
+  A copy's layer per locale fills area by area: a catalog that isn't split is one area, `''`; a split
+  one (`split`) starts empty and takes each area `addArea` registers, by `split.id` in a registry of
+  the module's own, so an area loading after a dev edit ran the index again still reaches its copies.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
@@ -156,7 +159,12 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
   first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
   HTML too. It serves the inspector's endpoints and opens an entry by redirecting to Vite's
-  `/__open-in-editor`. `src/cli.ts`: the `prosebook` command.
+  `/__open-in-editor`. With `split`, in the browser only, the index is loaded as a catalog with no
+  messages, each module naming an area's keys gets `import "virtual:prosebook/area/<area>"` appended
+  (imports run first wherever they sit, so no line moves), and the area module awaits `addArea` with
+  its messages: in a build placeholders filled per area in `renderChunk`, its lazy locales
+  `virtual:prosebook/area/<area>/<locale>`; in dev the generated locale modules whole, so their hot
+  updates work unchanged and the copy keeps only the areas it holds. `src/cli.ts`: the `prosebook` command.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
   watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
   path's end (Turbopack's root may be the monorepo's). `next-loader.ts` is the loader those rules name

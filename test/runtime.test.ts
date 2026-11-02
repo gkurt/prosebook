@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   acceptedLocales,
+  addArea,
   chainOf,
   createCopy,
   defineCatalog,
@@ -118,6 +119,33 @@ describe('copy', () => {
     release();
     await de;
     expect(copy.locale).toBe('fr');
+  });
+
+  test('a split catalog takes each area in as it loads, in the locale shown, and an edit only to the areas it holds', async () => {
+    const message = (key: string, text: string) => compiled([[key, parseMessage(text)]]);
+    const catalog = defineCatalog({
+      source: 'en',
+      locales: ['en', 'de'],
+      messages: {},
+      loaders: {},
+      split: { id: 'split-test', areas: ['a', 'b'] },
+    });
+    const copy = createCopy(catalog, { locale: 'de', onError: () => {} });
+    await copy.ready;
+    expect(copy.t('a.x' as never)).toBe('a.x');
+    const hot = new Set<HotHook>();
+    (globalThis as DevHooks).__PROSEBOOK_HOT__ = hot;
+    try {
+      const unloaded: string[] = [];
+      const watched = createCopy(catalog, { onError: (_e, key) => unloaded.push(key) });
+      await addArea('split-test', 'a', { en: message('a.x', 'A') }, { de: async () => ({ default: message('a.x', 'A de') }) });
+      // Settled once the copy holds the area in German, so the code reading it renders in German first.
+      expect([copy.t('a.x' as never), watched.t('a.x' as never)]).toEqual(['A de', 'A']);
+      for (const update of hot) update('en', { 'a.x': 'A edited', 'b.y': 'B' });
+      expect([watched.t('a.x' as never), watched.t('b.y' as never), ...unloaded]).toEqual(['A edited', 'b.y', 'b.y']);
+    } finally {
+      delete (globalThis as DevHooks).__PROSEBOOK_HOT__;
+    }
   });
 
   test('the starting locale is negotiated from what the reader prefers', async () => {
