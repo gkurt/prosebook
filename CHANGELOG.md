@@ -1,3 +1,45 @@
+## prosebook@0.5.0
+
+### A server render links the files of the areas it reads
+
+Under Vite, a split client's lazy locales are listed in the server build's catalog, and `createCopy`'s new `preload` is handed each file the render reads from, once: `preload: (href) => preloadModule(href, { as: 'script' })` under React, so the browser fetches German beside the route's code rather than after it.
+
+### A split build loads a lazy locale's areas in one file per chunk
+
+Areas the bundler puts in one chunk share a file in each lazy locale, so a route reading three areas loads German in one request, not three. Which areas share a chunk is read from the imports under `scan.dirs`, under Vite, Bun and Next alike.
+
+### Bindings for Preact, Vue, Svelte and Solid
+
+`prosebook/preact`, `prosebook/vue`, `prosebook/svelte` and `prosebook/solid` each give the copy to components the framework's way, update what reads a message when the locale changes, and render rich messages as the framework's own elements: Vue's `<Text>` takes tags as slots, and Svelte's as snippets.
+
+### Strict pruning reads `.vue` and `.svelte` files
+
+A build fails on a read whose key it can't see in a Vue template or Svelte markup as it does in a script, and `scan` finds keys there; `.vue` and `.svelte` join `scan.extensions`' defaults.
+
+### `useCopy()` in React reads the registered catalog's keys
+
+`useCopy().t` and the other plain reads are typed by `Register` as `rich` already was, so a misspelled key there is a type error.
+
+### Dates in Rust, Swift and Kotlin
+
+A `{when, date}` or `{when, time}` message now generates native code, with each format taken apart from `Intl` and checked against it as number formats are: a `Date` in Swift and a `java.time.Instant` in Kotlin, shown in the device's time zone, and in Rust a `DateTime` of the clock's fields, made with `DateTime::from_unix(seconds, offset)`.
+
+### Apple plurals in a `.stringsdict`
+
+The `apple` target writes a message with a plural to a `.stringsdict` beside its `.strings` table, each plural a variable with its count as `%lld`, instead of failing `generate`.
+
+### `prosebook export`: a locale's entries as XLIFF 2.0 or JSON, for translation tools
+
+`export <locale> [file]` writes what `todo` lists, or every entry with `--all`, with each entry's context, kind, surface and placeholders as XLIFF notes. `import` takes the tool's XLIFF or JSON back, checked as a reply is: a translation of a source that has changed since the export is left out, and a stale one given back unchanged is accepted once the tool has moved it on from `initial`.
+
+### Every catalog file starts with its schema line
+
+`generate` adds `# yaml-language-server: $schema=./catalog.schema.json` to a catalog file that doesn't start with it, since an editor finds the schema only through that line, and `generate --check` and `check` fail on such a file, saying why. A file that names a schema of its own on its first line keeps it.
+
+### Splitting by area: a lazy route brings its own messages
+
+With `prosebook({ split: true })`, the Vite, Bun and Next integrations ship each area's messages beside the code that reads them, and a lazy locale loads area by area, so a lazy route loads only its own messages and renders in the reader's language from its first frame. A key read before its area loaded is reported through `onError`.
+
 ## prosebook@0.4.0
 
 ### Android string resources from the same catalog
