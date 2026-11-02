@@ -7,10 +7,12 @@ const result = await Bun.build({
   target: 'bun',
   outdir: './dist',
   minify: true,
+  // The page's catalog is split by area, so the lazily loaded cart brings its own messages.
+  splitting: true,
   // The server imports the inspector's routes only in dev, so the build leaves them, and the tools
   // they need, out of the bundle.
   external: ['prosebook/bun'],
-  plugins: [prosebook()],
+  plugins: [prosebook({ split: true })],
 });
 
 for (const output of result.outputs) console.log(`  ${output.path}`);

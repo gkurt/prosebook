@@ -11,6 +11,11 @@
  * locale module accepts its own update and hands the new messages to every copy, as under Vite. The
  * index starts the inspector on the page too, whose endpoints are `inspector()`'s routes, spread into
  * `Bun.serve`'s; an entry opens in the editor `Bun.openInEditor` finds.
+ *
+ * With `split`, the page's catalog is split by area as the Vite plugin's is (`tools/bundle.ts`): each
+ * source file under `scan.dirs` naming an area's keys imports the area, a module of the plugin's own
+ * namespace. Bun has no transform hook, so those files are read here and handed back. A build knows
+ * the keys it keeps before it loads anything, so each area loads already pruned.
  */
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -18,19 +23,26 @@ import { basename, resolve } from 'node:path';
 import type { BunPlugin } from 'bun';
 
 import {
+  AREA,
+  areaModule,
+  areasNamed,
   beside,
   HOT_INDEX,
   HOT_SET,
   hotLocale,
+  importingAreas,
+  inArea,
   installInspector,
   keeper,
   prunedModule,
   scanSources,
+  splitIndex,
   unseenMessage,
   watchCatalog,
   type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
+import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig } from './tools/config.ts';
 import { inspectorEndpoints } from './tools/endpoints.ts';
 import { generate } from './tools/generate.ts';
@@ -46,16 +58,28 @@ export interface ProsebookBunOptions {
    * check; `false` ships every message.
    */
   prune?: Prune;
-  /** Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. */
+  /**
+   * Keys a build always keeps, exactly or as `prefix.*`: for keys built at runtime from data. With
+   * `split`, their areas load with the catalog.
+   */
   keep?: string[];
+  /**
+   * Split each locale by area in the page, as the Vite plugin's `split` does, so a lazy route loads
+   * only the messages it reads. `Bun.build` needs `splitting: true`. A server's own code loads whole
+   * locales.
+   */
+  split?: boolean;
   /** Under the dev server, Alt-click a string on the page to open its entry in the editor. On by default. */
   inspect?: boolean;
 }
 
 const inspectorPath = beside(import.meta.url, 'inspector');
+const NAMESPACE = 'prosebook-area';
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** A folder's path as a pattern, by either separator: Bun gives paths with either on Windows. */
+const folderPattern = (path: string) => path.split(/[\\/]/).map(escape).join('[\\\\/]');
 
 export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
   return {
@@ -63,25 +87,25 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
     async setup(build) {
       const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
       let generated = generate(config);
-      // The generated modules, by path as Bun gives it: either separator on Windows.
-      const folder = config.out.split(/[\\/]/).map(escape).join('[\\\\/]');
-      const filter = new RegExp(`^${folder}[\\\\/][^\\\\/]+\\.[jt]s$`);
+      // The generated modules, by path as Bun gives it.
+      const filter = new RegExp(`^${folderPattern(config.out)}[\\\\/][^\\\\/]+\\.[jt]s$`);
       const nameOf = (path: string) => basename(path).replace(/\.[jt]s$/, '');
+      const building = 'entrypoints' in build.config;
+      const split = options.split === true;
+      if (building && split && build.config.splitting !== true)
+        throw new Error('prosebook: `split` needs `splitting: true` in Bun.build, or every area ships in the entry chunk');
+      // A full-stack build, one `Bun.build` of a server and the pages it imports, names the side it
+      // loads for (undocumented, and not in Bun's types); any other build is for its target.
+      const client = (args: object) => ('side' in args ? args.side === 'client' : (build.config.target ?? 'browser') === 'browser');
 
-      if ('entrypoints' in build.config) {
-        const prune = options.prune ?? 'strict';
-        if (prune === false) return;
+      const prune = options.prune ?? 'strict';
+      let kept: (key: string) => boolean = () => true;
+      if (building && prune !== false) {
         const { refs, unseen } = scanSources(config, prune === 'strict');
         if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
-        const kept = keeper(refs, options.keep);
-        build.onLoad({ filter }, ({ path }) => {
-          const entries = generated.entries.get(nameOf(path));
-          return entries === undefined ? undefined : { contents: prunedModule(entries, kept), loader: 'js' };
-        });
-        return;
+        kept = keeper(refs, options.keep);
       }
-
-      const dev = process.env.NODE_ENV !== 'production';
+      const dev = !building && process.env.NODE_ENV !== 'production';
       const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
       if (dev) {
         watchCatalog(config, () => {
@@ -92,11 +116,38 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
           }
         });
       }
-      build.onLoad({ filter }, ({ path }) => {
-        const name = nameOf(path);
-        const loader = path.endsWith('.ts') ? 'ts' : 'js';
-        if (generated.entries.has(name)) return { contents: readFileSync(path, 'utf8') + hotLocale(name), loader };
-        return name === 'index' ? { contents: HOT_SET + inspector + readFileSync(path, 'utf8') + HOT_INDEX, loader } : undefined;
+
+      build.onLoad({ filter }, (args) => {
+        const name = nameOf(args.path);
+        if (name === 'index' && split && client(args)) {
+          const index = splitIndex(config, generated, options.keep);
+          return { contents: building ? index : HOT_SET + inspector + index + HOT_INDEX, loader: 'js' };
+        }
+        const entries = generated.entries.get(name);
+        if (building) return entries === undefined || prune === false ? undefined : { contents: prunedModule(entries, kept), loader: 'js' };
+        const loader = args.path.endsWith('.ts') ? 'ts' : 'js';
+        if (entries !== undefined) return { contents: readFileSync(args.path, 'utf8') + hotLocale(name), loader };
+        return name === 'index' ? { contents: HOT_SET + inspector + readFileSync(args.path, 'utf8') + HOT_INDEX, loader } : undefined;
+      });
+      if (!split) return;
+
+      // `cart`, or in a build `cart/de`, a lazy locale's part of the area.
+      build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({ path: path.slice(AREA.length), namespace: NAMESPACE }));
+      build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
+        const [area = '', locale] = path.split('/');
+        if (locale !== undefined) return { contents: prunedModule(inArea(generated.entries.get(locale) ?? [], area), kept), loader: 'js' };
+        const parts = building
+          ? { inline: (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) }
+          : undefined;
+        return { contents: areaModule(config, generated, area, parts), loader: 'js' };
+      });
+      const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
+      const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);
+      build.onLoad({ filter: new RegExp(`^(?:${dirs})[\\\\/].*\\.[cm]?[jt]sx?$`) }, (args) => {
+        if (!client(args) || out.test(args.path) || /[\\/]node_modules[\\/]/.test(args.path)) return undefined;
+        const code = readFileSync(args.path, 'utf8');
+        const areas = areasNamed(code, generated, options.keep);
+        return areas.length === 0 ? undefined : { contents: importingAreas(code, args.path, areas), loader: args.loader };
       });
     },
   };

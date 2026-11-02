@@ -7,6 +7,10 @@
 import { join } from 'node:path';
 
 const PORT = 4173;
+// A chunk's imports as Vite and Bun write them, minified or not: `import"./a.js"`, `from"./a.js"`,
+// and the lazy ``import(`./Cart-….js`)``.
+const STATIC = /\b(?:from|import)\s*["'`](\.{1,2}\/[^"'`]+\.js)["'`]/g;
+const DYNAMIC = /\bimport\(\s*["'`](\.{1,2}\/[^"'`]+\.js)["'`]\s*\)/g;
 
 interface Request {
   path: string;
@@ -36,7 +40,7 @@ const EXAMPLES: Record<string, Example> = {
   solid: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   bun: {
     requests: [
-      { path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] },
+      { path: '/', scripts: true, says: ['Corner Shop'], lazy: ['Add to cart'] },
       { path: '/api/cart?count=3', language: 'de', says: ['3 Artikel im Warenkorb.'] },
       { path: '/api/cart?count=1', language: 'en', says: ['1 item in your cart.'] },
     ],
@@ -74,12 +78,13 @@ if ('run' in example) {
       const res = await fetch(base + request.path, { headers });
       if (!res.ok) failures.push(`${request.path} answered ${res.status}`);
       const page = await res.text();
-      const scripts = request.scripts === true ? await scriptsOf(page, base + request.path) : '';
+      const scripts = request.scripts === true ? await scriptsOf(page, base + request.path) : new Map<string, string>();
+      const loaded = [...scripts.values()].join('\n');
       const what = `${request.path} in ${request.language ?? 'the default locale'}`;
-      expect(what, page + scripts, request.says);
+      expect(what, page + loaded, request.says);
       if (request.lazy !== undefined) {
-        for (const s of request.lazy) if (scripts.includes(s)) failures.push(`${what} says "${s}" in its scripts, not only lazily`);
-        expect(`${what}, lazily`, await lazyChunksOf(scripts, base), request.lazy);
+        for (const s of request.lazy) if (loaded.includes(s)) failures.push(`${what} says "${s}" in its scripts, not only lazily`);
+        expect(`${what}, lazily`, await lazyChunksOf(scripts), request.lazy);
       }
     }
   } finally {
@@ -93,16 +98,32 @@ if (failures.length > 0) {
 }
 console.log(`${name}: says what it should`);
 
-/** The module scripts a page loads, joined. */
-async function scriptsOf(page: string, url: string): Promise<string> {
-  const sources = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map(([, src]) => new URL(src, url));
-  return (await Promise.all(sources.map(async (src) => (await fetch(src)).text()))).join('\n');
+/** Each script at `urls` and every chunk it imports statically, fetched once, keyed by URL. */
+async function withImports(urls: URL[], into = new Map<string, string>()): Promise<Map<string, string>> {
+  const visit = async (url: URL): Promise<void> => {
+    if (into.has(url.href)) return;
+    into.set(url.href, '');
+    const text = await (await fetch(url)).text();
+    into.set(url.href, text);
+    await Promise.all([...text.matchAll(STATIC)].map(([, file]) => visit(new URL(file, url))));
+  };
+  await Promise.all(urls.map(visit));
+  return into;
 }
 
-/** The chunks the scripts import dynamically, joined, as Vite writes them: ``import(`./Cart-….js`)``. */
-async function lazyChunksOf(scripts: string, base: string): Promise<string> {
-  const chunks = new Set([...scripts.matchAll(/import\(["'`]\.\/([^"'`]+\.js)["'`]\)/g)].map(([, file]) => `${base}/assets/${file}`));
-  return (await Promise.all([...chunks].map(async (src) => (await fetch(src)).text()))).join('\n');
+/** The module scripts a page loads, and what they import before it runs. */
+async function scriptsOf(page: string, url: string): Promise<Map<string, string>> {
+  return withImports([...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map(([, src]) => new URL(src, url)));
+}
+
+/** The chunks those scripts import lazily, and what those import that the page had not, joined. */
+async function lazyChunksOf(scripts: Map<string, string>): Promise<string> {
+  const lazy = [...scripts].flatMap(([url, text]) => [...text.matchAll(DYNAMIC)].map(([, file]) => new URL(file, url)));
+  const all = await withImports(lazy, new Map(scripts));
+  return [...all]
+    .filter(([url]) => !scripts.has(url))
+    .map(([, text]) => text)
+    .join('\n');
 }
 
 async function ready(base: string): Promise<void> {

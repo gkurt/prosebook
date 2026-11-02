@@ -1,4 +1,4 @@
 # The dev server bundles the page with these: prosebook regenerates on catalog edits and swaps the
-# messages in place.
+# messages in place. The plugin file sets `split`, which `prosebook/bun`'s default export leaves off.
 [serve.static]
-plugins = ["prosebook/bun"]
+plugins = ["./prosebook.plugin.ts"]

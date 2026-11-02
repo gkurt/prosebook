@@ -149,6 +149,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
   the code reading it, the pruned locale module, the catalog watcher, and the dev code appended to the
   generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
+  And splitting, which Vite and Bun share: `splitIndex`, `areaModule` (its build `parts` given by
+  each bundler: Vite's placeholders, Bun's pruned code), `areasNamed`, and `importingAreas`.
   `endpoints.ts`: the inspector's `/__prosebook/open` and `/__prosebook/entry` over `Request` and
   `Response`, with each dev server's editor launcher handed in as `open`; `nodeMiddleware` mounts them
   on Vite's server and Next's.
@@ -182,6 +184,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from the index
   unless `NODE_ENV` is `production`. `inspector()` is its endpoints as `Bun.serve` routes, opening
   entries with `Bun.openInEditor`; the example imports it only in dev and its build marks it external.
+  With `split`, areas are modules of its own namespace, and the source under `scan.dirs` is loaded
+  here to append their imports, as Bun has no transform hook. A full-stack `Bun.build` loads each
+  module once per side and names it in `onLoad`'s `side`, not in Bun's types; only `client` splits.
+  bunfig.toml takes a module's default export, so the example's dev plugin is `prosebook.plugin.ts`.
 - `src/inspector.ts`: browser code, loaded from beside each integration (a tsdown entry of its own).
   `install` runs once per page, since Bun and Next run the index again on every change. Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
   keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a

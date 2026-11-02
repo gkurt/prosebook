@@ -56,6 +56,134 @@ test('a strict build fails on a read whose key it cannot see', async () => {
   expect((await build(unseen, 'loose')).js).toContain('Used message');
 });
 
+const shop = {
+  'copy/catalog/app.yaml': 'app.title: Shop front\napp.unused: Unused message\n',
+  'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
+  'copy/catalog/promo.yaml': 'promo.banner: Promo banner\n',
+  'copy/locales/de/app.yaml': 'app.title: Ladenfront\n',
+  'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
+  'src/cart.ts': "export const title = (copy: { t(key: string): string }) => copy.t('cart.title');",
+};
+
+/** Every file a build wrote, by name. */
+const written = (dir: string) => new Map(readdirSync(dir).map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
+
+test('a split build loads each area with the code that reads it, and each lazy locale by area', async () => {
+  const config = fixture({
+    ...shop,
+    'src/main.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      'export async function first(locale: string) {',
+      '  const errors: string[] = [];',
+      '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
+      '  await copy.ready;',
+      '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
+      "  const before = copy.t(['cart', 'title'].join('.') as never);",
+      "  const { title } = await import('./cart.ts');",
+      "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
+      '}',
+    ].join('\n'),
+  });
+  const outdir = join(config.root, 'dist');
+  const options = { root: config.root, config: { require: [] }, split: true, keep: ['promo.*'] };
+  const run = (splitting: boolean) =>
+    Bun.build({
+      entrypoints: [join(config.root, 'src/main.ts')],
+      outdir,
+      splitting,
+      format: 'esm',
+      conditions: ['prosebook@dev'],
+      plugins: [prosebook(options)],
+    });
+  // Bun throws a plugin's setup error at the call, not through the promise.
+  expect(await (async () => run(false))().catch(String)).toContain('`split` needs `splitting: true` in Bun.build');
+  await run(true);
+  const files = written(outdir);
+  const holding = (text: string) => [...files].filter(([, js]) => js.includes(text)).map(([f]) => f);
+  expect(holding('Shop front')).toEqual(['main.js']);
+  expect(holding('Promo banner')).toEqual(['main.js']);
+  expect(holding('Cart page')).toHaveLength(1);
+  expect(holding('Cart page')).not.toContain('main.js');
+  expect(holding('Unused message')).toEqual([]);
+  const [cartDe] = holding('Warenkorbseite');
+  expect(holding('Warenkorbseite')).toHaveLength(1);
+  expect(files.get(cartDe!)).not.toContain('Ladenfront');
+
+  const main = (await import(join(outdir, 'main.js'))) as { first: (locale: string) => Promise<string[]> };
+  expect(await main.first('de')).toEqual([
+    'Ladenfront',
+    'cart.title',
+    'Warenkorbseite',
+    'Promo banner',
+    "the cart area has not loaded: name one of its keys in the module that reads it, or keep it: `keep: ['cart.*']`",
+  ]);
+});
+
+test('a full-stack split build splits the page and leaves the server its whole locales', async () => {
+  const config = fixture({
+    ...shop,
+    'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
+    'src/page.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      'const copy = createCopy(catalog);',
+      "document.title = copy.t('app.title');",
+      "document.onclick = () => void import('./cart.ts').then((m) => (document.title = m.title(copy)));",
+    ].join('\n'),
+    'src/server.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      "import page from './index.html';",
+      "export const answer = () => [page, createCopy(catalog).t('cart.title'), createCopy(catalog).t('promo.banner' as never)];",
+    ].join('\n'),
+  });
+  const outdir = join(config.root, 'dist');
+  await Bun.build({
+    entrypoints: [join(config.root, 'src/server.ts')],
+    outdir,
+    target: 'bun',
+    splitting: true,
+    conditions: ['prosebook@dev'],
+    plugins: [prosebook({ root: config.root, config: { require: [] }, split: true, keep: ['promo.*'] })],
+  });
+  const server = written(outdir).get('server.js')!;
+  expect(server).not.toContain('addArea(');
+  expect(server).toContain('Cart page');
+  const page = [...written(outdir)].filter(([f]) => f !== 'server.js' && f.endsWith('.js'));
+  const holding = (text: string) => page.filter(([, js]) => js.includes(text)).map(([f]) => f);
+  expect(holding('addArea("src/copy", "cart"')).toHaveLength(1);
+  expect(holding('Cart page')).toEqual(holding('addArea("src/copy", "cart"'));
+  expect(holding('Shop front')).not.toEqual(holding('Cart page'));
+});
+
+test("under Bun's dev server, a split catalog serves each area its generated locales whole, imported by the files that name its keys", async () => {
+  const config = fixture({ ...shop, 'src/page.ts': "document.title = t('cart.title');\n" });
+  const loads: [{ filter: RegExp; namespace?: string }, OnLoadCallback][] = [];
+  const builder = {
+    config: { target: 'browser' },
+    onLoad: (o: { filter: RegExp; namespace?: string }, cb: OnLoadCallback) => loads.push([o, cb]),
+    onResolve: () => {},
+  };
+  await prosebook({ root: config.root, config: { require: [] }, split: true, inspect: false }).setup(builder as unknown as PluginBuilder);
+  const load = async (path: string, namespace = 'file') => {
+    const [, onLoad] = loads.find(([o]) => (o.namespace ?? 'file') === namespace && o.filter.test(path))!;
+    return ((await onLoad({ path, namespace, loader: 'ts', defer: () => Promise.resolve() })) as { contents: string } | undefined)
+      ?.contents;
+  };
+  const out = join(config.root, 'src', 'copy').replaceAll('\\', '/');
+  const index = (await load(join(config.root, 'src', 'copy', 'index.ts')))!;
+  expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
+  expect(index).toContain('"split":{"id":"src/copy","areas":["app","cart","promo"]}');
+  expect(await load('cart', 'prosebook-area')).toContain(
+    `await addArea("src/copy", "cart", { "en": m0 }, { "de": () => import("${out}/de.ts") });`,
+  );
+  expect(await load(join(config.root, 'src', 'page.ts'))).toBe(
+    'document.title = t(\'cart.title\');\n\nimport "virtual:prosebook/area/cart";\n',
+  );
+  expect(await load(join(config.root, 'src', 'copy', 'de.ts'))).toContain('update("de", next.default)');
+});
+
 /** The plugin's `onLoad` as Bun's dev server sets it up, which names no entry points, under `NODE_ENV`. */
 async function devServer(env: string) {
   const config = fixture(files);

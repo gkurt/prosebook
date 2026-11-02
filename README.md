@@ -1010,11 +1010,35 @@ already on the page. The area's module waits for that load (a top-level `await`)
 renders in the reader's language from its first frame, in every binding, with no change to the code
 reading it.
 
+The Bun plugin takes `split` too. `Bun.build` needs `splitting: true` for its lazy chunks, and in a
+full-stack build, one `Bun.build` of a server and the pages it imports, only the pages are split.
+bunfig.toml names a module whose default export is the plugin, so the dev server's comes from a
+file of the app's own. Under Bun, the files read for areas are those under `scan.dirs`, as for
+pruning:
+
+```ts
+// prosebook.plugin.ts, which bunfig.toml names: plugins = ["./prosebook.plugin.ts"]
+import { prosebook } from 'prosebook/bun';
+
+export default prosebook({ split: true });
+```
+
+```ts
+// build.ts
+await Bun.build({
+  entrypoints: ['./src/server.ts'],
+  target: 'bun',
+  outdir: './dist',
+  splitting: true,
+  plugins: [prosebook({ split: true })],
+});
+```
+
 A read the build can't see, marked `prosebook-ignore`, finds its area only if some module loaded
 before it names one of the area's keys; one read before then shows its key and is reported through
 `onError`, with the fix. Areas `keep` names load with the catalog. Splitting runs in the browser
-only: a server render, and an app without the Vite plugin, load whole locales. It needs a build
-target with top-level `await`, which Vite's default has.
+only: a server render, and an app under Next or without a plugin, load whole locales. It needs a
+build target with top-level `await`, which Vite's and Bun's defaults have.
 
 ## Finding a string's entry
 
@@ -1104,17 +1128,17 @@ Each is a small shop in English, German and the pseudo-locale, and uses proseboo
 from the package. CI generates, lints, typechecks and builds each one, then checks what its build
 serves.
 
-| Example                                              |                                                                                                        |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [`examples/vite`](examples/vite)                     | React with Vite, a part-translated Turkish and the inspector. The cart is a lazy route, split by area. |
-| [`examples/preact`](examples/preact)                 | Preact with Vite's own JSX transform, the same app as the React one.                                   |
-| [`examples/vue`](examples/vue)                       | Vue single-file components: `<Text>` in templates, typed by `vue-tsc`.                                 |
-| [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes: the copy set in the root, the link a snippet, typed by `svelte-check`.            |
-| [`examples/solid`](examples/solid)                   | Solid: reads update in place on a locale switch, and the components run once.                          |
-| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.                  |
-| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.                   |
-| [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector.            |
-| [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript.             |
+| Example                                              |                                                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [`examples/vite`](examples/vite)                     | React with Vite, a part-translated Turkish and the inspector. The cart is a lazy route, split by area.                               |
+| [`examples/preact`](examples/preact)                 | Preact with Vite's own JSX transform, the same app as the React one.                                                                 |
+| [`examples/vue`](examples/vue)                       | Vue single-file components: `<Text>` in templates, typed by `vue-tsc`.                                                               |
+| [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes: the copy set in the root, the link a snippet, typed by `svelte-check`.                                          |
+| [`examples/solid`](examples/solid)                   | Solid: reads update in place on a locale switch, and the components run once.                                                        |
+| [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.                                                |
+| [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.                                                 |
+| [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector. The cart is a lazy route, split by area. |
+| [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt from the generated TypeScript.                                           |
 
 ```bash
 bun run build                      # the examples import prosebook from dist
@@ -1127,4 +1151,4 @@ Ideas not built yet, roughly in order of value:
 
 1. **A locale's areas in one file per chunk**: a route reading three areas loads German in one request, not three.
 2. **Preloading a split render's areas**: a server render records the areas it read and links their files in the request's locale.
-3. **Splitting under Next and Bun**: Turbopack has no hook after chunking and no virtual modules, so it needs areas written as files and a loader over the app's source.
+3. **Splitting under Next**: Turbopack has no virtual modules and no transform hook, so it needs areas written as files and a loader over the app's source.
