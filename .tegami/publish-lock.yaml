@@ -1,15 +1,54 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `plural-count` leaves unit symbols alone: `{rate, number} kbps` is no plural\n\n### `arm-endings` doesn't count an arm that trails off in an ellipsis, as in `Uploading # files…`\n"
-    filename: lint-units-ellipsis.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### MF2 selects on a number as it's shown\n\nUnder `.input {$n :number minimumFractionDigits=1}`, 1 shows as \"1.0\" and matches `other` in English, as MF2 has it; it matched `one`. `:integer` matches the value rounded. A selector's function is written back as it was, `select=exact` included.\n\n### `.match` selects with `:percent`, on the value times 100\n\n### MF2 placeholders are isolated in right-to-left locales\n\nEach is wrapped in Unicode isolation marks, so a Latin name in a Hebrew sentence can't reorder the text around it. `u:dir` picks a placeholder's direction, and `isolate` in the config sets when: `'rtl'` (the default), `'always'`, or `false`.\n\n### A message never throws\n\nA placeholder with no value, or one `Intl` refuses, shows as `{name}` (`{$name}` in MF2) and goes to `console.error`, or to `createCopy`'s new `onError`; it rendered nothing, or threw.\n"
+    filename: mf2-as-the-spec-renders.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A date skeleton's `j` is the hour as each locale writes it\n\n`{when, date, ::yMMMdjmm}` read \"Oct 28, 2026, 5\"; it now reads \"Oct 28, 2026, 2:05 PM\", and \"14:05\" in German. A date field the formatter would drop, such as `J`, fails the build.\n\n### A build fails on a read whose key it can't see\n\n`prune` is `'strict'` by default: `t(item.key)` or `<Text id={id} />` fails the build instead of showing the key where its message was pruned. Mark a deliberate one `prosebook-ignore`, or set `prune: 'loose'`. `prune: true` is gone.\n\n### The Vite plugin takes a `root` for apps that share one catalog\n\n### Generated TypeScript passes `noUnusedParameters`\n\n### Lint rules scoped by area: `on.area`, and `lint.areas` for severities per area\n\n### A `path` rule under `strict`: `Settings › General`, with `lint.pathSeparator`\n\n### The catalog schema offers the `key: message` shorthand only when no field is required\n"
-    filename: drasyn-findings.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### MF2 options from arguments: `{$price :currency currency=$code}`\n\nAn option can take its value from an argument: a currency, unit, time zone, calendar, display or digit count. The argument is typed with the rest, the formatter is built once per value, and `migrate 1` stops at such a message, since MF1 can't say it.\n\n### A `:currency` or `:unit` takes its currency or unit from the `.input` that declared its operand\n\n`.input {$price :currency currency=EUR}` then `{$price :currency fractionDigits=0}` was refused for naming no currency; it is in euros, as MF2 has it.\n"
+    filename: mf2-option-arguments.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The dev inspector under Next.js and Bun\n\nAlt-click a string to open its entry and Alt-right-click to edit it, now in `next dev` with nothing to add to the app, and under Bun's dev server with `inspector()`'s routes spread into `Bun.serve`.\n"
+    filename: inspector-next-bun.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `acceptedLocales(header)`: an `Accept-Language` header read by weight, for a server's copy\n\n`createCopy(catalog, { locale: acceptedLocales(request.headers.get('accept-language')) })` asks for the request's locales in the order its `q` values rank them, so `de;q=0.1, en;q=0.9` gets English.\n"
+    filename: accepted-locales.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/react/server`: `createServerCopy`, one copy per request for React Server Components\n\n`createServerCopy(catalog, () => locales)` returns a reader every server component in a request shares: asked once for the locale, ready when it resolves, and kept per request by React's `cache`.\n"
+    filename: react-server-copy.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook todo <locale> --prompt` and `prosebook import`: translate with any model, checked\n\n`todo --prompt` prints a locale's missing and stale entries as a prompt: how to reply, the plural forms the locale takes, and what each kind and surface asks for. `import` reads the reply, or `todo`'s YAML filled in by hand, and writes each entry to its file once it passes the catalog's checks, leaving out the ones that fail with their fix.\n\n### `prosebook todo` shows each entry's kind and surface\n"
+    filename: todo-prompt-import.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/next`: Next.js with Turbopack\n\n`withProsebook(nextConfig)` generates in `next dev` and `next build`, regenerates on every catalog edit and swaps the messages in place in the browser, and prunes the build to the messages the code names, failing on a read whose key it can't see.\n\n### `prosebook/bun`: `Bun.build` and Bun's dev server\n\n`prosebook()` in `Bun.build`'s `plugins` prunes the build the same way; `\"prosebook/bun\"` in bunfig.toml's `[serve.static] plugins` regenerates on catalog edits and swaps the messages in place.\n\n### The Vite plugin's dev hooks and inspector come in through the generated index, so frameworks that render their own HTML, such as TanStack Start, get them too\n"
+    filename: next-bun-examples.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Rust, Swift and Kotlin from the same catalog\n\n`native: [{ language: 'rust', out: 'src-tauri/src/copy.rs', keys: ['tray'] }]` makes `generate` write an enum of the locales with a typed member per message, with CLDR's plural rules and number formats taken apart from `Intl`, so a tray, a menu bar or a CLI says what the browser says.\n"
+    filename: native-targets.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - lint-units-ellipsis.md
-      - drasyn-findings.md
+      - mf2-as-the-spec-renders.md
+      - mf2-option-arguments.md
+      - inspector-next-bun.md
+      - accepted-locales.md
+      - react-server-copy.md
+      - todo-prompt-import.md
+      - next-bun-examples.md
+      - native-targets.md
     id: npm:prosebook
     updated: true
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vite
+    updated: false
 npm:packages:
   - id: npm:prosebook
+  - id: npm:example-bun
+  - id: npm:example-next
+  - id: npm:example-node
+  - id: npm:example-tanstack-start
+  - id: npm:example-vite
