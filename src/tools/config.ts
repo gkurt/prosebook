@@ -57,18 +57,22 @@ export interface LintConfig extends WordLists {
 
 /**
  * Native code generated from the catalog, for the parts of an app outside the browser: a tray, a
- * menu bar, a CLI. One file, holding every locale, with a typed function per message.
+ * menu bar, a CLI. One file, holding every locale, with a typed function per message; for Android,
+ * string resources, a file per locale.
  */
 export interface NativeTarget {
-  language: 'rust' | 'swift' | 'kotlin';
-  /** The file written. */
+  language: 'rust' | 'swift' | 'kotlin' | 'android';
+  /** The file written; for Android, the `res` folder its `values*` folders go in. */
   out: string;
   /**
    * Key prefixes the file holds: `['native']` takes every `native.*` key, which it names without the
    * prefix (`native.tray.quit` is `tray_quit`). Every key, named in full, by default.
    */
   keys?: string[];
-  /** The type holding the locales and messages: `Locale` in Rust, `Copy` in Swift and Kotlin. */
+  /**
+   * The type holding the locales and messages: `Locale` in Rust, `Copy` in Swift and Kotlin. For
+   * Android, the resource file's name: `strings`, for `values/strings.xml`.
+   */
   name?: string;
   /** Kotlin's package. */
   package?: string;
@@ -150,7 +154,7 @@ export interface ResolvedConfig {
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
 
-const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy' };
+const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings' };
 
 /** Typed config, for `prosebook.config.ts`. */
 export function defineConfig(config: ProsebookConfig): ProsebookConfig {

@@ -59,10 +59,22 @@ export interface NativeModel {
   rules: { name: string; rules: PluralRules }[];
 }
 
-/** Whether a target takes `key`, and the prefix that took it in (longest first), which its name leaves out. */
-function prefixOf(target: NativeTarget, key: string): string | undefined {
-  if (target.keys === undefined) return '';
-  return [...target.keys].sort((a, b) => b.length - a.length).find((p) => key.startsWith(`${p}.`));
+/**
+ * The words a target names `key` by, less the prefix that took it in (longest first): `tray.quit-app`
+ * is quit, app under `['tray']`. Nothing when the target doesn't take the key.
+ */
+export function wordsFor(target: NativeTarget, key: string): string[] | undefined {
+  const prefix = target.keys === undefined ? '' : [...target.keys].sort((a, b) => b.length - a.length).find((p) => key.startsWith(`${p}.`));
+  if (prefix === undefined) return undefined;
+  return key
+    .slice(prefix === '' ? 0 : prefix.length + 1)
+    .split(/[.\-_]/)
+    .filter(Boolean);
+}
+
+/** The locale whose text `locale` shows for `key`: its own, else the first down its fallback chain that has it. */
+export function foundIn(key: string, locale: string, locales: string[], asts: Map<string, Map<string, MessageFormatElement[]>>) {
+  return chainOf(locale, locales, locales[0]!).find((l) => asts.get(l)?.has(key));
 }
 
 /** Values a file declares once each, numbered by what they hold, so locales that format alike share one. */
@@ -95,16 +107,12 @@ export function nativeModel(
   const messages: NativeMessage[] = [];
 
   for (const m of catalog.messages) {
-    const prefix = prefixOf(target, m.key);
-    if (prefix === undefined) continue;
-    const words = m.key
-      .slice(prefix === '' ? 0 : prefix.length + 1)
-      .split(/[.\-_]/)
-      .filter(Boolean);
+    const words = wordsFor(target, m.key);
+    if (words === undefined) continue;
     const bodies = new Map<string, { locales: string[]; parts: Part[] }>();
     let failed = false;
     for (const locale of locales) {
-      const found = chainOf(locale, locales, source).find((l) => asts.get(l)?.has(m.key));
+      const found = foundIn(m.key, locale, locales, asts);
       if (found === undefined) continue;
       const body = bodies.get(found);
       if (body !== undefined) {
@@ -139,7 +147,7 @@ export function nativeModel(
   return { model: { locales, source, messages, formats: formats.list, rules: rules.list }, problems };
 }
 
-function fileOf(m: Message, locale: string, source: string): string {
+export function fileOf(m: Message, locale: string, source: string): string {
   return locale === source ? m.file : (m.translations.get(locale)?.file ?? m.file);
 }
 
@@ -151,7 +159,7 @@ function docOf(m: Message): string[] {
   return lines.map(docText);
 }
 
-const LEAVE_OUT = "or leave the key out of this target's `keys`";
+export const LEAVE_OUT = "or leave the key out of this target's `keys`";
 
 /** Specs by locale and options, kept across runs: taking a format apart checks it against `Intl` dozens of times. */
 const SPECS = new Map<string, NumberSpec | Error>();

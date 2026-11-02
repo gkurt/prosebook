@@ -80,7 +80,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   ICU in Node and Bun is built from, so they agree with `Intl.PluralRules`). `number.ts` takes an
   `Intl.NumberFormat` apart and checks the parts against it; `formatNumber` and `roundDigits` are
   the algorithm every target writes out, rounding the shortest decimal as `Intl` does, so keep them
-  in step. `test/native.test.ts` compiles each target with any toolchain on the PATH and compares
+  in step. `android.ts` writes Android's string resources, a `values*/<name>.xml` per locale under
+  the `res` folder `out` names, straight from the ICU tree (with `wordsFor` and `foundIn` from the
+  model): Android formats with `String.format` and selects plurals itself, so it takes text, `{name}`
+  as `%N$s`, and one cardinal plural as `<plurals>`, and refuses the rest. `test/native.test.ts`
+  compiles each target with any toolchain on the PATH (aapt2 from `ANDROID_HOME` too) and compares
   its output with the runtime's.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
   Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no

@@ -38,7 +38,7 @@ const { t } = useCopy();
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
-  with plurals and number formats that say what the browser says.
+  with plurals and number formats that say what the browser says, and an Android app's string resources.
 
 ## Quick start
 
@@ -238,7 +238,7 @@ function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
 }
 ```
 
-### Outside the browser: Rust, Swift and Kotlin
+### Outside the browser: Rust, Swift, Kotlin and Android
 
 The parts of an app the browser doesn't draw, a tray, a menu bar, a CLI, an Android shell, can read
 the same catalog. `generate` writes one file per target in `native`, holding every locale:
@@ -294,6 +294,47 @@ What can't be written that way fails `generate`, with the fix: a date (pass it f
 `{when}`), a tag, compact notation, significant digits, a unit or currency name that changes with the
 count (`unitDisplay: 'long'`), and an MF2 option read from an argument. Leave such keys out of the
 target's `keys`.
+
+#### Android resources
+
+An Android app needs string resources even with the Kotlin target: its manifest, launcher shortcuts,
+an accessibility service's description and every other XML resource name strings as `@string/…`, and
+only a resource answers that. The `android` target writes them, with `out` naming the `res` folder:
+
+```ts
+native: [{ language: 'android', out: 'android/app/src/main/res', keys: ['android'] }],
+```
+
+`values/strings.xml` holds the source locale, and each other locale gets a folder named as Android
+names it (`values-de`, `values-pt-rBR`, `values-b+sr+Latn` for a script), holding what that locale
+shows, every fallback resolved. `name` renames the file, `strings` by default, so it can sit beside
+strings you write yourself. A resource is named for its key, less the prefix, with `.` and `-` as
+`_`: `android.sign-in.denied` is `R.string.sign_in_denied`. Above each is a comment with its context
+and what each argument holds.
+
+```xml
+<!-- Counts the cart. count: how many items the cart holds. -->
+<plurals name="cart_items">
+    <item quantity="one">%1$d item in the cart.</item>
+    <item quantity="other">%1$d items in the cart.</item>
+</plurals>
+<!-- Greets the person signed in. firstName: the person's first name. -->
+<string name="hello">Hello, %1$s!</string>
+```
+
+Android fills placeholders in with `String.format` and picks a plural's arm itself, so a resource
+holds less than the other targets: text, plain `{name}` placeholders, written `%1$s` by their place in
+the source so a translation can reorder them, and one plural, which becomes `<plurals>` with its count
+as `%1$d` (the text around it goes into each arm). Call it as Android does,
+`resources.getQuantityString(R.plurals.cart_items, count, count)`. `String.format` isn't `Intl`, so
+nothing here is checked against it: `%d` writes 1234 without grouping. Android picks the arm by the
+device's language, so a plural a locale doesn't translate picks among the source's arms by that
+language's rules. Escaping is done for you: quotes, apostrophes, `\`, `&`, `<`, a newline, a leading
+`@` or `?`, `%` where the string is formatted, and spaces Android would collapse or trim.
+
+What a resource can't hold fails `generate`, with the fix: a select, a date, a formatted number, a
+second plural, an ordinal, an offset, an exact arm such as `=0` (Android's `zero` is a category, which
+English never picks), a selector other than a bare `:number` or `:integer`, and a tag.
 
 ## The catalog
 
@@ -815,7 +856,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
-  native: [], // Rust, Swift or Kotlin files: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
+  native: [], // Rust, Swift or Kotlin files, or Android's res: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
   scan: { dirs: ['src'] },
 });
 ```
