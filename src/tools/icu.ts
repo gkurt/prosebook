@@ -72,9 +72,41 @@ function argType(el: MessageFormatElement): string | undefined {
 export type OptionArgs = Record<string, { arg: string; type: string }>;
 
 export function optionArgsOf(el: MessageFormatElement): OptionArgs | undefined {
+  if (el.type === TYPE.plural) return selectionOf(el)?.args;
   if (!isNumberElement(el) && !isDateElement(el) && !isTimeElement(el)) return undefined;
   const style = el.style;
   return typeof style === 'object' && style !== null && 'args' in style ? (style as { args: OptionArgs }).args : undefined;
+}
+
+/**
+ * How an MF2 `.match` selects on a number, beyond its plural type: on the number as formatted, so
+ * the selector's digit options (`Intl.PluralRules` takes the same ones, some from arguments) decide
+ * the category, and on the value `:integer` rounds or `:percent` multiplies by 100. Kept with the
+ * selector's function as written, to write it back. MF1 selects on the bare value.
+ */
+export interface Selection {
+  fn: { name: string; options: Record<string, string>; args?: Record<string, string> };
+  options: Intl.PluralRulesOptions;
+  args?: OptionArgs;
+  value?: 'round' | 'percent';
+}
+
+export function selectionOf(el: MessageFormatElement): Selection | undefined {
+  return el.type === TYPE.plural ? (el as { selection?: Selection }).selection : undefined;
+}
+
+/**
+ * How a placeholder renders around its value: the text it shows when it has none, or one `Intl`
+ * can't format, and the marks isolating its direction from the text around it. MF2 sets these
+ * (`{$name}`, and isolation in a right-to-left locale); an MF1 placeholder shows `{name}`.
+ */
+export interface Placeholder {
+  fallback: string;
+  isolate?: readonly [open: string, close: string];
+}
+
+export function placeholderOf(el: MessageFormatElement, name: string): Placeholder {
+  return (el as { placeholder?: Placeholder }).placeholder ?? { fallback: `{${name}}` };
 }
 
 /** Calls `visit` on every element, inside plural and select arms and tags too. */

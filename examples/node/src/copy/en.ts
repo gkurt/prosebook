@@ -6,9 +6,9 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nothing bought.", "one": () => [h.n(a.count), " item bought."], "other": () => [h.n(a.count), " items bought."] }),
-  "receipt.printed": (a, h) => ["Printed on ", h.d(a.when, o0), " at ", h.d(a.when, o1), "."],
+  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nothing bought.", "one": () => [h.n(a.count) ?? h.e("{count}"), " item bought."], "other": () => [h.n(a.count) ?? h.e("{count}"), " items bought."] }),
+  "receipt.printed": (a, h) => ["Printed on ", h.d(a.when, o0) ?? h.e("{when}"), " at ", h.d(a.when, o1) ?? h.e("{when}"), "."],
   "receipt.thanks": "Thanks for shopping with us.",
   "receipt.title": "Corner Shop",
-  "receipt.total": (a, h) => ["Total: ", h.n(a.amount, o2)],
+  "receipt.total": (a, h) => ["Total: ", h.n(a.amount, o2) ?? h.e("{amount}")],
 } satisfies CompiledMessages;

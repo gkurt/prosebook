@@ -4,7 +4,7 @@
  */
 import { parseMessage, type MessageFormatElement } from './icu.ts';
 import { toMf1 } from './mf1.ts';
-import { parseMf2, toMf2 } from './mf2.ts';
+import { parseMf2, toMf2, type Isolate } from './mf2.ts';
 
 export type MessageFormatVersion = 1 | 2;
 
@@ -14,8 +14,8 @@ export const SYNTAX_NAME: Record<MessageFormatVersion, string> = { 1: 'ICU Messa
  * A message as the element tree. MF2 is read per locale: which variants a value can reach depends
  * on the locale's plural rules (see `matchTree` in mf2.ts).
  */
-export function readMessage(version: MessageFormatVersion, text: string, locale: string): MessageFormatElement[] {
-  return version === 2 ? parseMf2(text, locale) : parseMessage(text);
+export function readMessage(version: MessageFormatVersion, text: string, locale: string, isolate?: Isolate): MessageFormatElement[] {
+  return version === 2 ? parseMf2(text, locale, isolate) : parseMessage(text);
 }
 
 /** A tree as text in the given syntax. Throws, saying what the syntax can't express, where it can't. */

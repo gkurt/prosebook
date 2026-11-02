@@ -7,7 +7,7 @@
 import { isDateElement, isNumberElement, isTimeElement, parse, TYPE } from '@formatjs/icu-messageformat-parser';
 import type { DateElement, DateTimeSkeleton, NumberElement, NumberSkeleton, TimeElement } from '@formatjs/icu-messageformat-parser';
 
-import type { MessageFormatElement } from './icu.ts';
+import { selectionOf, type MessageFormatElement } from './icu.ts';
 import type { Mf2DateSkeleton, Mf2Function, Mf2NumberSkeleton } from './mf2.ts';
 
 type Element = MessageFormatElement;
@@ -89,6 +89,10 @@ function native(elements: Element[], plural: { value: string; offset: number } |
     }
     if (isDateElement(el) || isTimeElement(el)) return dateElement(el);
     if (el.type === TYPE.plural) {
+      // Digit options and `:integer`'s rounding change only which arm some values reach, which
+      // `migrate` reports when it renders both; an argument's option MF1 can't say at all.
+      const args = Object.keys(selectionOf(el)?.args ?? {});
+      if (args.length > 0) throw new Error(`{${el.value}} is selected with ${args.join(', ')} from an argument, which MF1 can't say`);
       const inner = { value: el.value, offset: el.offset };
       return { ...el, options: Object.fromEntries(Object.entries(el.options).map(([k, o]) => [k, { value: native(o.value, inner) }])) };
     }

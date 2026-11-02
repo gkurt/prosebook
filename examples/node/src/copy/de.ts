@@ -6,9 +6,9 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nichts gekauft.", "other": () => [h.n(a.count), " Artikel gekauft."] }),
-  "receipt.printed": (a, h) => ["Gedruckt am ", h.d(a.when, o0), " um ", h.d(a.when, o1), "."],
+  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nichts gekauft.", "other": () => [h.n(a.count) ?? h.e("{count}"), " Artikel gekauft."] }),
+  "receipt.printed": (a, h) => ["Gedruckt am ", h.d(a.when, o0) ?? h.e("{when}"), " um ", h.d(a.when, o1) ?? h.e("{when}"), "."],
   "receipt.thanks": "Danke für deinen Einkauf.",
   "receipt.title": "Eckladen",
-  "receipt.total": (a, h) => ["Summe: ", h.n(a.amount, o2)],
+  "receipt.total": (a, h) => ["Summe: ", h.n(a.amount, o2) ?? h.e("{amount}")],
 } satisfies CompiledMessages;

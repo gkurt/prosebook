@@ -168,6 +168,14 @@ copy.subscribe(() => render()); // after a locale switch, and in dev after a cat
 Set `language: 'js'` in the config to generate `.js` modules with a `.d.ts` beside the index, or
 `importExtension: '.ts'` to run the generated TypeScript in Node as it is.
 
+A message never throws. A placeholder with no value, or with one `Intl` refuses (an invalid date,
+`currency: 'euro'`), shows as `{name}` (`{$name}` in MF2), and the rest of the message renders. The
+problem goes to `console.error`, or to `onError` if you pass one:
+
+```js
+createCopy(catalog, { onError: (error, key, locale) => report(error, { key, locale }) });
+```
+
 ### On a server
 
 Create one `copy` per request, in the locale it asks for, and wait for its messages.
@@ -289,13 +297,22 @@ en: |-
 
 A message with `.match` holds whole sentences per variant, so a translator never stitches a sentence
 from an arm and the text around it. Several selectors pick the variant MF2's rules pick: the best
-match on the first, then the next, an exact number beating its plural category. `:offset` covers
-MF1's plural offset.
+match on the first, then the next, an exact number beating its plural category. A number is matched
+as it's shown: under `.input {$n :number minimumFractionDigits=1}`, 1 shows as "1.0", which English
+counts as `other`. `:integer` matches the value rounded, and `:percent` matches it times 100.
+`:offset` covers MF1's plural offset.
 
 The functions are MF2's defaults: `:string`, `:number`, `:integer`, `:percent`, `:currency`, `:unit`,
 `:offset`, and the date and time functions `:date`, `:time` and `:datetime`, which are still a draft
-in the spec and follow it as the `messageformat` package does. Placeholders aren't wrapped in bidi
-isolation marks.
+in the spec and follow it as the `messageformat` package does. `.match` selects with `:number`,
+`:integer`, `:percent` or `:string`.
+
+**Text direction.** In a locale written right to left, each placeholder is wrapped in Unicode
+isolation marks, so a value written the other way can't reorder the text around it. Without them, a
+Latin name in a Hebrew sentence can pull the punctuation after it to the wrong side. `u:dir` on an
+expression picks its direction (`{$name :string u:dir=ltr}`) and asks for isolation in any locale.
+`isolate: 'always'` in the config also isolates every string placeholder in left-to-right locales,
+as the spec's default does. `isolate: false` turns it off.
 
 **Options from arguments.** An option can take its value from an argument, so one message formats
 whatever currency the order is in:
@@ -692,6 +709,7 @@ export default defineConfig({
   lock: 'copy/lock.json',
   source: 'en',
   messageFormat: 1, // or 2, for Unicode MessageFormat 2
+  isolate: 'rtl', // MF2: isolate placeholders in right-to-left locales; 'always', or false
   bundled: [], // locales shipped in the main bundle; the rest load on first use
   pseudo: false, // or 'en-XA'
   stale: 'use', // or 'fallback'

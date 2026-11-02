@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { createHelpers, flatten } from 'prosebook';
 import {
   applyExtract,
   applyMigrate,
@@ -17,11 +18,11 @@ import {
   toMf2,
   whereOf,
 } from 'prosebook/tools';
-import type { CatalogError, Problem } from 'prosebook/tools';
+import type { CatalogError, Isolate, Problem } from 'prosebook/tools';
 
 import { argsOf, formatsOf, parseMessage } from '#src/tools/icu.ts';
 
-import { copyOf, fixture } from './fixture.ts';
+import { compiled as evaluated, copyOf, fixture } from './fixture.ts';
 
 const t = (message: string, values: Record<string, unknown> = {}, locale = 'en') =>
   copyOf({ [locale]: { m: message } }, { locale }, 2).t('m' as never, values);
@@ -189,9 +190,9 @@ describe('options from arguments', () => {
     const signed = '.input {$n :number minimumFractionDigits=$d}\n{{{$n :number signDisplay=always} or {$n}}}';
     expect(t(signed, { n: 3, d: 2 })).toBe('+3.00 or 3.00');
     expect(compiled(signed)).toBe(
-      '(a, h) => [h.n(a.n, o0, { minimumFractionDigits: a.d }), " or ", h.n(a.n, undefined, { minimumFractionDigits: a.d })]',
+      '(a, h) => [h.n(a.n, o0, { minimumFractionDigits: a.d }) ?? h.e("{$n}"), " or ", h.n(a.n, undefined, { minimumFractionDigits: a.d }) ?? h.e("{$n}")]',
     );
-    expect(compiled('.local $c = {|JPY|}\n{{{$price :currency currency=$c}}}')).toBe('(a, h) => h.n(a.price, o0)');
+    expect(compiled('.local $c = {|JPY|}\n{{{$price :currency currency=$c}}}')).toBe('(a, h) => h.n(a.price, o0) ?? h.e("{$price}")');
   });
 
   test('a currency or unit declared once carries over to each use, from a literal or an argument', () => {
@@ -241,7 +242,7 @@ describe('options from arguments', () => {
     );
     expect(() =>
       toMf1(parseMf2('.input {$n :number minimumFractionDigits=$d}\n.match $n\none {{{$n} item}}\n* {{{$n} items}}', 'en')),
-    ).toThrow('takes an option from an argument');
+    ).toThrow("{n} is selected with minimumFractionDigits from an argument, which MF1 can't say");
   });
 
   test('a catalog checks the argument against its translations, and the build types it', () => {
@@ -266,6 +267,73 @@ describe('options from arguments', () => {
     const { files } = generate(config);
     expect(files.get(join(config.out, 'index.ts'))).toContain('code: string');
     expect(files.get(join(config.out, 'de.ts'))).toContain('h.n(a.price, o0, { currency: a.code })');
+  });
+});
+
+describe('as the spec renders', () => {
+  /** A message read with `isolate`, its direction marks shown as <…> so a failure reads. */
+  const shown = (message: string, values: Record<string, unknown>, locale = 'en', isolate: Isolate = 'rtl') => {
+    const ast = parseMf2(message, locale, isolate);
+    const m = evaluated([['m', ast]]).m!;
+    const out = typeof m === 'string' ? m : m(values, createHelpers(locale));
+    return flatten(out).join('').replace(/[⁦-⁨]/g, '<').replace(/⁩/g, '>');
+  };
+
+  test('a plural selects on the number as formatted: 1.0 is other in English', () => {
+    const miles = '.input {$n :number minimumFractionDigits=1}\n.match $n\none {{{$n} mile}}\n* {{{$n} miles}}';
+    expect([shown(miles, { n: 1 }), shown(miles, { n: 2 })]).toEqual(['1.0 miles', '2.0 miles']);
+    const digits = '.input {$n :number minimumFractionDigits=$d}\n.match $n\none {{{$n} mile}}\n* {{{$n} miles}}';
+    expect([shown(digits, { n: 1, d: 0 }), shown(digits, { n: 1, d: 1 })]).toEqual(['1 mile', '1.0 miles']);
+    expect([...argsOf(parseMf2(digits, 'en'))]).toEqual([
+      ['d', 'number'],
+      ['n', 'number'],
+    ]);
+  });
+
+  test(':percent selects on the value times 100, :integer on it rounded', () => {
+    const percent = '.input {$p :percent}\n.match $p\n0 {{none}}\none {{{$p}, one}}\n* {{{$p}, other}}';
+    expect([shown(percent, { p: 0 }), shown(percent, { p: 0.01 }), shown(percent, { p: 0.5 })]).toEqual(['none', '1%, one', '50%, other']);
+    const integer = '.input {$n :integer}\n.match $n\n1 {{exactly one}}\n* {{{$n}}}';
+    expect([shown(integer, { n: 1.4 }), shown(integer, { n: 1.6 })]).toEqual(['exactly one', '2']);
+  });
+
+  test('a selector is written back with its function', () => {
+    const back = (message: string) => toMf2(parseMf2(message, 'en'), 'en');
+    expect(back('.input {$n :number minimumFractionDigits=1}\n.match $n\none {{{$n} mile}}\n* {{{$n} miles}}')).toBe(
+      '.input {$n :number minimumFractionDigits=1}\n.match $n\none {{{$n :number minimumFractionDigits=1} mile}}\n* {{{$n :number minimumFractionDigits=1} miles}}',
+    );
+    expect(back('.input {$n :number select=exact}\n.match $n\n1 {{one}}\n* {{other}}')).toBe(
+      '.input {$n :number select=exact}\n.match $n\n1 {{one}}\n* {{other}}',
+    );
+  });
+
+  test('placeholders are isolated in a right-to-left locale, where u:dir asks, or always if asked', () => {
+    expect(shown('שלום {$name}, יש {$n :number}!', { name: 'Ada', n: 3 }, 'he')).toBe('שלום <Ada>, יש <3>!');
+    expect(shown('Hi {$name}, {$n :number}', { name: 'Ada', n: 3 })).toBe('Hi Ada, 3');
+    expect(shown('Hi {$name :string u:dir=rtl}', { name: 'שלום' })).toBe('Hi <שלום>');
+    expect(shown('Hi {$name}, {$n :number}', { name: 'Ada', n: 3 }, 'en', 'always')).toBe('Hi <Ada>, 3');
+    expect(shown('שלום {$name}', { name: 'Ada' }, 'he', false)).toBe('שלום Ada');
+    expect(toMf2(parseMf2('Hi {$name :string u:dir=rtl}', 'en'), 'en')).toBe('Hi {$name :string u:dir=rtl}');
+    expect(() => parseMf2('{$x :string u:dir=$d}', 'en')).toThrow(
+      ':string u:dir is one of ltr, rtl, auto, inherit, written in the message',
+    );
+  });
+
+  test('a placeholder with no value shows as MF2 writes it, isolated where it would be', () => {
+    expect(shown('Hi {$name}', {})).toBe('Hi {$name}');
+    expect(shown('שלום {$name}', {}, 'he')).toBe('שלום <{$name}>');
+    expect(shown('{$p :currency currency=$c}', { p: 1, c: 'euro' })).toBe('{$p}');
+  });
+
+  test('isolate is a config option, and migrate compares without it', () => {
+    const config = fixture(
+      { 'copy/catalog/app.yaml': "app.hi: 'Hi {$name}'\n", 'copy/locales/he.yaml': "app.hi: 'שלום {$name}'\n" },
+      { messageFormat: 2, require: [], isolate: false },
+    );
+    expect(generate(config).files.get(join(config.out, 'he.ts'))).not.toContain('\\u2068');
+    const isolated = resolveConfig(config.root, { messageFormat: 2, require: [] });
+    expect(generate(isolated).files.get(join(config.out, 'he.ts'))).toContain('["\\u2068", a.name ?? h.e("{$name}"), "\\u2069"]');
+    expect(planMigrate(isolated, 1).changed).toEqual([]);
   });
 });
 

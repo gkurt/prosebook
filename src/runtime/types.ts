@@ -42,12 +42,27 @@ export type DefaultTags = Register extends { tags: infer T extends string } ? T 
  */
 export interface Helpers {
   readonly locale: string;
-  /** `{x, number, …}` and the `#` of a plural; `given` holds the options arguments give, in MF2. */
-  n(value: number, options?: Intl.NumberFormatOptions, given?: Intl.NumberFormatOptions): string;
-  /** `{x, date, …}` and `{x, time, …}`. */
-  d(value: Date | number, options?: Intl.DateTimeFormatOptions, given?: Intl.DateTimeFormatOptions): string;
-  /** `{x, plural, …}` and `{x, selectordinal, …}`: picks an arm and renders it. */
-  p(value: number, offset: number, ordinal: boolean, arms: Arms): unknown;
+  /**
+   * `{x, number, …}` and the `#` of a plural; `given` holds the options arguments give, in MF2.
+   * Nothing where there is no value or `Intl` refuses it, so the message shows `e`'s fallback.
+   */
+  n(value: number, options?: Intl.NumberFormatOptions, given?: Intl.NumberFormatOptions): string | undefined;
+  /** `{x, date, …}` and `{x, time, …}`, as `n`. */
+  d(value: Date | number, options?: Intl.DateTimeFormatOptions, given?: Intl.DateTimeFormatOptions): string | undefined;
+  /** A placeholder's fallback, `{x}`, where it has no value or `n` or `d` gave nothing: reports why. */
+  e(fallback: string): string;
+  /**
+   * `{x, plural, …}` and `{x, selectordinal, …}`: picks an arm and renders it. MF2 passes the
+   * options its selector formats with, since those decide the category: `1.0` is `other` in English.
+   */
+  p(
+    value: number,
+    offset: number,
+    ordinal: boolean,
+    arms: Arms,
+    options?: Intl.PluralRulesOptions,
+    given?: Intl.PluralRulesOptions,
+  ): unknown;
   /** `{x, select, …}`. */
   s(value: unknown, arms: Arms): unknown;
   /** `<tag>…</tag>`: the tag's function from the values, or the bare children when there is none. */

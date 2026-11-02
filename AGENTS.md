@@ -44,6 +44,8 @@ Runtime (`prosebook`, `prosebook/react`):
   for the inspector, and the `HotHook` set every copy adds itself to, so an edited locale's messages
   are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
+  None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
+  the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`.
@@ -61,12 +63,18 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `matchTree`'s ranking in step with the spec. An option an argument gives (`currency=$code`, those in
   `FROM_ARGUMENT`) rides on the element's style as `args`, by `Intl` option (`optionArgsOf` in
   `icu.ts`), which types the argument and which the compiler passes to `h.n`/`h.d` beside the hoisted
-  options. `mf1.ts`: the tree written as MF1, which refuses those. `syntax.ts`: the one
+  options. A number selector other than a bare `:number` rides on its plural element as `selection`
+  (`selectionOf`): the `Intl.PluralRules` options that make it select as formatted, and `:integer`'s
+  rounding or `:percent`'s scale, with its function to write back. Each placeholder carries its
+  `placeholder` (`placeholderOf`): its `{$name}` fallback and, per `isolate` and `u:dir`, the marks
+  isolating it, as the reference `messageformat` package decides. `mf1.ts`: the tree written as MF1,
+  which refuses options from arguments. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
-- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`. A
-  message that calls no helper takes no `h`, so the generated TypeScript passes `noUnusedParameters`,
-  which the repo's tsconfig turns on over the example's output.
+- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
+  Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no
+  placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
+  example's output, which keeps that so.
 - `src/tools/generate.ts`: the files `generate` writes. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and

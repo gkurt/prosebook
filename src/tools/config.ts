@@ -7,6 +7,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { compileRule, CORE_RULES, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
+import type { Isolate } from './mf2.ts';
 import { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 
 export type { KindRule, Severity };
@@ -70,6 +71,13 @@ export interface ProsebookConfig {
    * translations alike; `prosebook migrate` rewrites a catalog from one to the other.
    */
   messageFormat?: 1 | 2;
+  /**
+   * In MF2, when a placeholder is wrapped in Unicode isolation marks, so a value written the other
+   * way (a Latin name in Hebrew) can't reorder the text around it. `'rtl'`, the default: in locales
+   * written right to left, and wherever `u:dir` asks. `'always'`: also every string in any locale,
+   * as the spec's default has it. `false`: never.
+   */
+  isolate?: Isolate;
   /** Locales that ship in the main bundle beside the source, rather than loading when first used. */
   bundled?: string[];
   /** A pseudo-locale generated from the source (accented and lengthened) to find layout bugs and hardcoded text. */
@@ -104,6 +112,7 @@ export interface ResolvedConfig {
   lock: string;
   source: string;
   messageFormat: 1 | 2;
+  isolate: Isolate;
   bundled: string[];
   pseudo: string | false;
   stale: 'use' | 'fallback';
@@ -163,6 +172,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     lock: at(config.lock ?? 'copy/lock.json'),
     source: config.source ?? 'en',
     messageFormat: config.messageFormat ?? 1,
+    isolate: config.isolate ?? 'rtl',
     bundled: config.bundled ?? [],
     pseudo: config.pseudo ?? false,
     stale: config.stale ?? 'use',

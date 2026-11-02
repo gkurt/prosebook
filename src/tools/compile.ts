@@ -3,15 +3,26 @@
  *
  * A message with no placeholders becomes its string. Any other becomes `(a, h) => …`, where `a` holds
  * the arguments and `h` the locale's helpers (see `runtime/helpers.ts`): a plural is a call picking an
- * arm, a number is a call to a cached `Intl.NumberFormat`. One that calls no helper is `(a) => …`, so
- * the generated TypeScript passes `noUnusedParameters`. Formatting options are resolved here and
+ * arm, a number is a call to a cached `Intl.NumberFormat`. A placeholder without a value, or with one
+ * `Intl` refuses, shows as `{name}` and is reported (`h.e`) rather than throwing, so every such
+ * message uses `h`. Formatting options are resolved here and
  * hoisted to module constants, so a skeleton costs nothing at runtime and its formatter is built once.
  * Options an argument gives (MF2's `currency=$code`) follow them as an object built per call, and the
  * runtime keeps a formatter per value.
  */
 import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
 
-import { dateOptions, numberOptions, optionArgsOf, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import {
+  dateOptions,
+  numberOptions,
+  optionArgsOf,
+  placeholderOf,
+  selectionOf,
+  staticLiteral,
+  TYPE,
+  type MessageFormatElement,
+  type OptionArgs,
+} from './icu.ts';
 
 export type Entry = readonly [key: string, ast: MessageFormatElement[]];
 
@@ -38,42 +49,67 @@ function access(name: string): string {
   return /^[A-Za-z_$][\w$]*$/.test(name) ? `a.${name}` : `a[${JSON.stringify(name)}]`;
 }
 
-function nodes(elements: MessageFormatElement[], hoisted: Hoisted, pound: string | null): string {
+/** The plural a `#` prints the value of. */
+type Pound = { name: string; offset: number } | null;
+
+function nodes(elements: MessageFormatElement[], hoisted: Hoisted, pound: Pound): string {
   if (elements.length === 0) return '""';
   const parts = elements.map((el) => node(el, hoisted, pound));
   return parts.length === 1 ? parts[0]! : `[${parts.join(', ')}]`;
 }
 
-function arms(options: Record<string, { value: MessageFormatElement[] }>, hoisted: Hoisted, pound: string | null): string {
+function arms(options: Record<string, { value: MessageFormatElement[] }>, hoisted: Hoisted, pound: Pound): string {
   const body = Object.entries(options).map(([arm, option]) => `${JSON.stringify(arm)}: () => ${nodes(option.value, hoisted, pound)}`);
   return `{ ${body.join(', ')} }`;
 }
 
 /** The hoisted options, then the options arguments give as `{ currency: a.code }`, where there are any. */
-function formatting(el: MessageFormatElement, options: object | undefined, hoisted: Hoisted): string {
-  const args = Object.entries(optionArgsOf(el) ?? {});
+function formatting(options: object | undefined, args: OptionArgs | undefined, hoisted: Hoisted): string {
+  const given = Object.entries(args ?? {});
   const fixed = hoisted.arg(options);
-  if (args.length === 0) return fixed;
-  return `${fixed || ', undefined'}, { ${args.map(([option, { arg }]) => `${option}: ${access(arg)}`).join(', ')} }`;
+  if (given.length === 0) return fixed;
+  return `${fixed || ', undefined'}, { ${given.map(([option, { arg }]) => `${option}: ${access(arg)}`).join(', ')} }`;
 }
 
-function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null): string {
-  if (isNumberElement(el)) return `h.n(${access(el.value)}${formatting(el, numberOptions(el), hoisted)})`;
-  if (isDateElement(el) || isTimeElement(el)) return `h.d(${access(el.value)}${formatting(el, dateOptions(el), hoisted)})`;
+/** A string literal, its invisible direction marks escaped so the generated code shows them. */
+function text(value: string): string {
+  return JSON.stringify(value).replace(/[\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16)}`);
+}
+
+/**
+ * A placeholder's value, or its fallback (`{name}`, reported through `h.e`) where it has none or
+ * `Intl` refuses it, between the marks isolating its direction where it has them.
+ */
+function placed(el: MessageFormatElement, name: string, value: string): string {
+  const { fallback, isolate } = placeholderOf(el, name);
+  const shown = `${value} ?? h.e(${text(fallback)})`;
+  return isolate === undefined ? shown : `[${text(isolate[0])}, ${shown}, ${text(isolate[1])}]`;
+}
+
+function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string {
+  const formatted = (helper: string, name: string, options: object | undefined) =>
+    placed(el, name, `h.${helper}(${access(name)}${formatting(options, optionArgsOf(el), hoisted)})`);
+  if (isNumberElement(el)) return formatted('n', el.value, numberOptions(el));
+  if (isDateElement(el) || isTimeElement(el)) return formatted('d', el.value, dateOptions(el));
   switch (el.type) {
     case TYPE.literal:
       return JSON.stringify(el.value);
     case TYPE.argument:
-      return access(el.value);
+      return placed(el, el.value, access(el.value));
     case TYPE.pound:
-      return pound ?? '"#"';
+      // `#` is its plural's own value less its offset, formatted as a number.
+      if (pound === null) return '"#"';
+      return placed(el, pound.name, `h.n(${access(pound.name)}${pound.offset !== 0 ? ` - ${pound.offset}` : ''})`);
     case TYPE.select:
       return `h.s(${access(el.value)}, ${arms(el.options, hoisted, pound)})`;
     case TYPE.plural: {
-      // `#` is the plural's own value less its offset, formatted as a number.
+      // Read from MF2, a plural selects on the number as formatted, and on what `:integer` and `:percent` make of it.
+      const selection = selectionOf(el);
       const value = access(el.value);
-      const hash = `h.n(${value}${el.offset !== 0 ? ` - ${el.offset}` : ''})`;
-      return `h.p(${value}, ${el.offset}, ${el.pluralType === 'ordinal'}, ${arms(el.options, hoisted, hash)})`;
+      const on = selection?.value === 'round' ? `Math.round(${value})` : selection?.value === 'percent' ? `${value} * 100` : value;
+      const rules = selection === undefined ? '' : formatting(selection.options, selection.args, hoisted);
+      const own = { name: el.value, offset: el.offset };
+      return `h.p(${on}, ${el.offset}, ${el.pluralType === 'ordinal'}, ${arms(el.options, hoisted, own)}${rules})`;
     }
     case TYPE.tag:
       return `h.t(a, ${JSON.stringify(el.value)}, ${nodes(el.children, hoisted, pound)})`;
@@ -82,19 +118,10 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: string | null):
   }
 }
 
-/** Whether the message calls a helper: everything but literals and plain placeholders does. */
-function usesHelpers(ast: MessageFormatElement[]): boolean {
-  let uses = false;
-  walk(ast, (el) => {
-    if (el.type !== TYPE.literal && el.type !== TYPE.argument) uses = true;
-  });
-  return uses;
-}
-
 function message(ast: MessageFormatElement[], hoisted: Hoisted): string {
   const literal = staticLiteral(ast);
   if (literal !== undefined) return JSON.stringify(literal);
-  return `(${usesHelpers(ast) ? 'a, h' : 'a'}) => ${nodes(ast, hoisted, null)}`;
+  return `(a, h) => ${nodes(ast, hoisted, null)}`;
 }
 
 export interface CompiledLocale {

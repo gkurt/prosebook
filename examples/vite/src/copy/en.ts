@@ -6,18 +6,18 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "app.greeting": (a) => ["Welcome back, ", a.name, "."],
+  "app.greeting": (a, h) => ["Welcome back, ", a.name ?? h.e("{name}"), "."],
   "app.language": "Language",
-  "app.last-visit": (a, h) => ["Your last visit was ", h.d(a.when, o0), " at ", h.d(a.when, o1), "."],
+  "app.last-visit": (a, h) => ["Your last visit was ", h.d(a.when, o0) ?? h.e("{when}"), " at ", h.d(a.when, o1) ?? h.e("{when}"), "."],
   "app.title": "Corner Shop",
   "cart.add": "Add to cart",
   "cart.checkout": "Check out",
   "cart.express": "Express delivery",
-  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Your cart is empty.", "one": () => [h.n(a.count), " item in your cart."], "other": () => [h.n(a.count), " items in your cart."] }),
-  "cart.place": (a, h) => ["Today's ", h.p(a.rank, 0, true, { "one": () => [h.n(a.rank), "st"], "two": () => [h.n(a.rank), "nd"], "few": () => [h.n(a.rank), "rd"], "other": () => [h.n(a.rank), "th"] }), " order!"],
+  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Your cart is empty.", "one": () => [h.n(a.count) ?? h.e("{count}"), " item in your cart."], "other": () => [h.n(a.count) ?? h.e("{count}"), " items in your cart."] }),
+  "cart.place": (a, h) => ["Today's ", h.p(a.rank, 0, true, { "one": () => [h.n(a.rank) ?? h.e("{rank}"), "st"], "two": () => [h.n(a.rank) ?? h.e("{rank}"), "nd"], "few": () => [h.n(a.rank) ?? h.e("{rank}"), "rd"], "other": () => [h.n(a.rank) ?? h.e("{rank}"), "th"] }), " order!"],
   "cart.remove": "Empty cart",
-  "cart.shipping": (a, h) => ["Arrives in ", h.p(a.days, 0, false, { "one": () => [h.n(a.days), " working day"], "other": () => [h.n(a.days), " working days"] }), ". ", h.s(a.speed, { "express": () => "Express delivery is on.", "other": () => "Choose express at checkout for next-day delivery." })],
+  "cart.shipping": (a, h) => ["Arrives in ", h.p(a.days, 0, false, { "one": () => [h.n(a.days) ?? h.e("{days}"), " working day"], "other": () => [h.n(a.days) ?? h.e("{days}"), " working days"] }), ". ", h.s(a.speed, { "express": () => "Express delivery is on.", "other": () => "Choose express at checkout for next-day delivery." })],
   "cart.terms": (a, h) => ["By checking out you agree to our ", h.t(a, "link", "terms of sale"), "."],
   "cart.title": "Cart",
-  "cart.total": (a, h) => ["Total: ", h.n(a.amount, o2)],
+  "cart.total": (a, h) => ["Total: ", h.n(a.amount, o2) ?? h.e("{amount}")],
 } satisfies CompiledMessages;

@@ -7,28 +7,55 @@ type Formatters<F> = Map<object | undefined, Map<string, F>>;
  * The helpers compiled messages call, for one locale. Formatters are built once per options object:
  * the generator hoists each message's options to a module-level constant, so identity is a stable key.
  * Options an argument gives are built per call, so those are told apart by value.
+ *
+ * A value missing, or one `Intl` refuses, never throws: `n` and `d` give nothing back, and the message
+ * shows the placeholder's fallback through `e`, which hands `report` what went wrong.
  */
-export function createHelpers(locale: string): Helpers {
+export function createHelpers(locale: string, report?: (error: Error) => void): Helpers {
   const numbers: Formatters<Intl.NumberFormat> = new Map();
   const dates: Formatters<Intl.DateTimeFormat> = new Map();
-  let cardinal: Intl.PluralRules | undefined;
-  let ordinal: Intl.PluralRules | undefined;
+  const rules: Formatters<Intl.PluralRules>[] = [new Map(), new Map()];
+  let failure: unknown;
+
+  function attempt(value: unknown, format: () => string): string | undefined {
+    failure = undefined;
+    // `value !== value`: NaN, which `Intl` prints as "NaN".
+    if (value === undefined || value === null || value !== value) return undefined;
+    try {
+      return format();
+    } catch (error) {
+      failure = error;
+      return undefined;
+    }
+  }
 
   return {
     locale,
     n(value, options, given) {
-      return formatter(numbers, options, given, (o) => new Intl.NumberFormat(locale, o)).format(value);
+      return attempt(value, () => formatter(numbers, options, given, (o) => new Intl.NumberFormat(locale, o)).format(value));
     },
     d(value, options, given) {
-      return formatter(dates, options, given, (o) => new Intl.DateTimeFormat(locale, o)).format(value);
+      return attempt(value, () => formatter(dates, options, given, (o) => new Intl.DateTimeFormat(locale, o)).format(value));
     },
-    p(value, offset, isOrdinal, arms) {
+    e(fallback) {
+      const why = failure instanceof Error ? `could not be formatted: ${failure.message}` : 'has no value';
+      report?.(new Error(`${fallback} ${why}`, { cause: failure }));
+      failure = undefined;
+      return fallback;
+    },
+    p(value, offset, isOrdinal, arms, options, given) {
       const exact = arms[`=${value}`];
       if (exact !== undefined) return exact();
-      const rules = isOrdinal
-        ? (ordinal ??= new Intl.PluralRules(locale, { type: 'ordinal' }))
-        : (cardinal ??= new Intl.PluralRules(locale));
-      return pick(arms, rules.select(value - offset));
+      let category = 'other';
+      try {
+        const type = isOrdinal ? 'ordinal' : 'cardinal';
+        category = formatter(rules[+isOrdinal]!, options, given, (o) => new Intl.PluralRules(locale, { ...o, type })).select(
+          value - offset,
+        );
+      } catch {
+        // Options an argument gave that `Intl` refuses: the catch-all arm, as MF2 falls back to `*`.
+      }
+      return pick(arms, category);
     },
     s(value, arms) {
       return pick(arms, String(value));

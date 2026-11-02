@@ -2,11 +2,11 @@
 import type { CompiledMessages } from 'prosebook';
 
 export default {
-  "app.greeting": (a) => ["Tekrar hoş geldin, ", a.name, "."],
+  "app.greeting": (a, h) => ["Tekrar hoş geldin, ", a.name ?? h.e("{name}"), "."],
   "app.language": "Dil",
   "app.title": "Köşe Dükkan",
   "cart.add": "Sepete ekle",
   "cart.checkout": "Ödemeye geç",
-  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Sepetin boş.", "other": () => ["Sepetinde ", h.n(a.count), " ürün var."] }),
+  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Sepetin boş.", "other": () => ["Sepetinde ", h.n(a.count) ?? h.e("{count}"), " ürün var."] }),
   "cart.title": "Sepet",
 } satisfies CompiledMessages;

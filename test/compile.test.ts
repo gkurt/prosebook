@@ -74,16 +74,33 @@ describe('compiled messages', () => {
     expect(say('{d, time, ::jjmm}', { d: when }, 'de')).toBe('14:05');
   });
 
-  test('a message that calls no helper takes no helpers, so strict TypeScript has no unused parameter', () => {
+  test('a placeholder falls back to its name where it has no value, so every one reads h', () => {
     const { rows } = compileLocale([
       ['a.a', parseMessage('Hello, {name}.')],
       ['a.b', parseMessage('Read the <link>terms</link>.')],
       ['a.c', parseMessage('{n, number} items')],
+      ['a.d', parseMessage('{n, plural, one {# item} other {# items}}')],
     ]);
     expect(rows).toEqual([
-      '  "a.a": (a) => ["Hello, ", a.name, "."],',
+      '  "a.a": (a, h) => ["Hello, ", a.name ?? h.e("{name}"), "."],',
       '  "a.b": (a, h) => ["Read the ", h.t(a, "link", "terms"), "."],',
-      '  "a.c": (a, h) => [h.n(a.n), " items"],',
+      '  "a.c": (a, h) => [h.n(a.n) ?? h.e("{n}"), " items"],',
+      '  "a.d": (a, h) => h.p(a.n, 0, false, { "one": () => [h.n(a.n) ?? h.e("{n}"), " item"], "other": () => [h.n(a.n) ?? h.e("{n}"), " items"] }),',
+    ]);
+  });
+
+  test('a missing value, or one Intl refuses, renders its fallback and is reported, never thrown', () => {
+    const errors: string[] = [];
+    const copy = copyOf(
+      { en: { m: 'Hi {name}, {n, number} on {when, date, medium}.' } },
+      { onError: (error, key, locale) => errors.push(`${key} ${locale}: ${error.message}`) },
+    );
+    expect(copy.t('m' as never, { n: Number.NaN, when: new Date(Number.NaN) })).toBe('Hi {name}, {n} on {when}.');
+    // The engine words its own error: Bun and Node differ.
+    expect(errors.map((e) => e.replace(/formatted: .*/, 'formatted: …'))).toEqual([
+      'm en: {name} has no value',
+      'm en: {n} has no value',
+      'm en: {when} could not be formatted: …',
     ]);
   });
 

@@ -23,7 +23,7 @@ import type {
 } from '@formatjs/icu-messageformat-parser';
 import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
 
-import { walk, type MessageFormatElement, type OptionArgs } from './icu.ts';
+import { selectionOf, walk, type MessageFormatElement, type OptionArgs, type Placeholder, type Selection } from './icu.ts';
 
 type Element = MessageFormatElement;
 
@@ -33,6 +33,8 @@ export interface Mf2Function {
   options: Record<string, string>;
   /** Options given by an argument, as `currency=$code`: the option's name to the argument's. */
   args?: Record<string, string>;
+  /** `u:dir`: the direction the value is written in, which picks the mark isolating it. */
+  dir?: 'ltr' | 'rtl' | 'auto';
 }
 
 type Value = { kind: 'literal'; value: string; fn?: Mf2Function } | { kind: 'variable'; name: string; fn?: Mf2Function; offset: number };
@@ -43,7 +45,22 @@ interface Selector {
   name: string;
   kind: 'plural' | 'ordinal' | 'exact' | 'string';
   offset: number;
+  /** For a number selected on other than as a bare `:number`. */
+  selection?: Selection;
 }
+
+/** The `Intl.NumberFormat` options `Intl.PluralRules` takes too, which change a number's category. */
+const PLURAL_OPTIONS = new Set([
+  'minimumIntegerDigits',
+  'minimumFractionDigits',
+  'maximumFractionDigits',
+  'minimumSignificantDigits',
+  'maximumSignificantDigits',
+  'roundingIncrement',
+  'roundingMode',
+  'roundingPriority',
+  'trailingZeroDisplay',
+]);
 
 export const NUMBER_LITERAL = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][-+]?\d+)?$/;
 const CATEGORIES = new Set(['zero', 'one', 'two', 'few', 'many', 'other']);
@@ -168,7 +185,8 @@ function syntaxProblem(text: string, e: unknown): string {
 }
 
 /** An MF2 message as the element tree. Throws, with the fix, where it can't be read or compiled. */
-export function parseMf2(text: string, locale: string): Element[] {
+export function parseMf2(text: string, locale: string, isolate: Isolate = 'rtl'): Element[] {
+  const reading: Reading = { locale, isolate, dir: directionOf(locale) };
   let message: Model.Message;
   try {
     message = parseMessage(text);
@@ -184,14 +202,54 @@ export function parseMf2(text: string, locale: string): Element[] {
     // options of either can name what is declared before them.
     scope.set(declaration.name, resolve(declaration.value, declaration.type === 'input' ? new Map() : scope, scope));
 
-  if (message.type === 'message') return pattern(message.pattern, scope, locale);
+  if (message.type === 'message') return pattern(message.pattern, scope, reading);
   const selectors = message.selectors.map((s) => selectorOf(s.name, scope));
   const candidates = message.variants.map((variant) => {
     const keys = variant.keys.map((k) => (k.type === '*' ? null : k.value));
     keys.forEach((key, i) => checkKey(selectors[i]!, key, message.selectors[i]!.name));
-    return { keys, prefs: [], value: pattern(variant.value, scope, locale) };
+    return { keys, prefs: [], value: pattern(variant.value, scope, reading) };
   });
   return matchTree(selectors, candidates, 0, locale);
+}
+
+/**
+ * When a placeholder is isolated from the text around it, so a value written the other way can't
+ * reorder it: `'rtl'` in a locale not known to run left to right, or where `u:dir` asks; `'always'`
+ * also for every value of unknown direction (a string), as the spec's default strategy has it.
+ */
+export type Isolate = 'rtl' | 'always' | false;
+
+type Direction = 'ltr' | 'rtl' | 'auto';
+
+interface Reading {
+  locale: string;
+  isolate: Isolate;
+  /** The locale's direction, which the message's is. */
+  dir: Direction;
+}
+
+// The scripts CLDR writes right to left, as the `messageformat` package lists them.
+const RTL_SCRIPTS = new Set(['Adlm', 'Arab', 'Hebr', 'Mand', 'Nkoo', 'Rohg', 'Syrc', 'Thaa']);
+const [LRI, RLI, FSI, PDI] = ['\u2066', '\u2067', '\u2068', '\u2069'];
+
+function directionOf(locale: string): Direction {
+  try {
+    const script = new Intl.Locale(locale).maximize().script;
+    return script === undefined ? 'auto' : RTL_SCRIPTS.has(script) ? 'rtl' : 'ltr';
+  } catch {
+    return 'auto';
+  }
+}
+
+/** The fallback a placeholder shows, and the marks isolating it where `isolate` and `u:dir` ask. */
+function placeholderFor(name: string, fn: Mf2Function | undefined, r: Reading): Placeholder {
+  const fallback = `{$${name}}`;
+  if (r.isolate === false) return { fallback };
+  // A number or date is written as the locale writes; a string's direction is its own.
+  const dir = fn?.dir ?? (fn === undefined || fn.name === 'string' ? 'auto' : r.dir);
+  const isolate = r.dir !== 'ltr' || (dir !== 'ltr' && (r.isolate === 'always' || fn?.dir !== undefined));
+  if (!isolate) return { fallback };
+  return { fallback, isolate: [dir === 'ltr' ? LRI : dir === 'rtl' ? RLI : FSI, PDI] };
 }
 
 function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
@@ -202,9 +260,18 @@ function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
   }
   const options: Record<string, string> = {};
   const args: Record<string, string> = {};
+  let dir: Mf2Function['dir'];
   for (const [key, value] of Object.entries(ref.options ?? {})) {
-    // `u:id` and `u:dir` say nothing about formatting here: there is no bidi isolation to steer.
-    if (key === 'u:id' || key === 'u:dir') continue;
+    // `u:id` names a part of the formatted output, which this runtime doesn't hand out.
+    if (key === 'u:id') continue;
+    if (key === 'u:dir') {
+      const dirs = ['ltr', 'rtl', 'auto', 'inherit'];
+      if (value.type !== 'literal' || !dirs.includes(value.value))
+        throw new Error(`:${ref.name} u:dir is one of ${dirs.join(', ')}, written in the message`);
+      // `inherit` is the direction it would have had anyway.
+      if (value.value !== 'inherit') dir = value.value as Mf2Function['dir'];
+      continue;
+    }
     if (!allowed.includes(key))
       throw new Error(`:${ref.name} has no option "${key}"${allowed.length > 0 ? `: ${allowed.join(', ')}` : ''}`);
     const literal = value.type === 'literal' ? value.value : optionArg(ref.name, key, value.name, scope);
@@ -226,7 +293,7 @@ function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
     if (given.length !== 1 || !/^\d+$/.test(options[given[0]!]!))
       throw new Error(':offset takes one of add or subtract, as a whole number: {$count :offset subtract=1}');
   }
-  return Object.keys(args).length > 0 ? { name: ref.name, options, args } : { name: ref.name, options };
+  return { name: ref.name, options, ...(Object.keys(args).length > 0 && { args }), ...(dir && { dir }) };
 }
 
 /**
@@ -291,7 +358,7 @@ function apply(base: Value, fn: Mf2Function | undefined): Value {
   for (const key of Object.keys(fn.args ?? {})) delete inherited[key];
   const args = { ...inheritedArgs, ...fn.args };
   const options = { ...inherited, ...fn.options };
-  return { ...base, fn: Object.keys(args).length > 0 ? { name: fn.name, options, args } : { name: fn.name, options } };
+  return { ...base, fn: { name: fn.name, options, ...(Object.keys(args).length > 0 && { args }), ...(fn.dir && { dir: fn.dir }) } };
 }
 
 function literalNumber(value: string): string {
@@ -307,11 +374,27 @@ function selectorOf(name: string, scope: Scope): Selector {
     throw new Error(`.match $${name} selects on a literal, which always picks the same variant: use that variant's text`);
   const { fn } = value;
   if (fn.name === 'string') return { name: value.name, kind: 'string', offset: 0 };
-  if (fn.name === 'number' || fn.name === 'integer') {
+  if (fn.name === 'number' || fn.name === 'integer' || fn.name === 'percent') {
     const kind = (fn.options.select ?? 'plural') as Selector['kind'];
-    return { name: value.name, kind, offset: value.offset };
+    return { name: value.name, kind, offset: value.offset, ...selectionWith(fn) };
   }
-  throw new Error(`.match $${name} selects with :${fn.name}, which prosebook can't select on: use :number, :integer or :string`);
+  throw new Error(`.match $${name} selects with :${fn.name}, which prosebook can't select on: use :number, :integer, :percent or :string`);
+}
+
+/**
+ * What a number is selected with beyond its kind, as the spec has it: its category as formatted
+ * (`1.0` is `other` in English), `:integer` on the value rounded, `:percent` on it times 100. None
+ * for a bare `:number`, which selects as MF1 does.
+ */
+function selectionWith(fn: Mf2Function): { selection?: Selection } {
+  const pick = <T>(from: Record<string, T>) => Object.fromEntries(Object.entries(from).filter(([k]) => PLURAL_OPTIONS.has(k)));
+  const options = pick(intlNumber(fn) as Record<string, unknown>) as Intl.PluralRulesOptions;
+  const args = pick(optionArgs(fn).args ?? {});
+  const value = fn.name === 'integer' ? 'round' : fn.name === 'percent' ? 'percent' : undefined;
+  const plain = Object.keys(options).length === 0 && Object.keys(args).length === 0 && value === undefined;
+  // `select=exact` is kept too, so it is written back.
+  if (plain && fn.options.select !== 'exact') return {};
+  return { selection: { fn, options, ...(Object.keys(args).length > 0 && { args }), ...(value && { value }) } };
 }
 
 function checkKey(selector: Selector, key: string | null, name: string): void {
@@ -364,7 +447,7 @@ function matchTree(selectors: Selector[], candidates: Candidate[], i: number, lo
     arm('other', (key) => (key === null ? 1 : undefined));
     return [{ type: TYPE.select, value: s.name, options }];
   }
-  const rules = new Intl.PluralRules(locale, { type: s.kind === 'ordinal' ? 'ordinal' : 'cardinal' });
+  const rules = new Intl.PluralRules(locale, { ...s.selection?.options, type: s.kind === 'ordinal' ? 'ordinal' : 'cardinal' });
   for (const k of keys.filter((key) => NUMBER_LITERAL.test(key))) {
     const category = s.kind === 'exact' ? undefined : rules.select(Number(k));
     // The runtime compares the value before its offset; the key is the value after it.
@@ -377,7 +460,8 @@ function matchTree(selectors: Selector[], candidates: Candidate[], i: number, lo
     for (const c of categories) arm(c, (key) => (key === c ? 1 : key === null ? 2 : undefined));
   }
   if (!('other' in options)) arm('other', (key) => (key === null ? 2 : undefined));
-  return [{ type: TYPE.plural, value: s.name, offset: s.offset, pluralType: s.kind === 'ordinal' ? 'ordinal' : 'cardinal', options }];
+  const pluralType = s.kind === 'ordinal' ? 'ordinal' : 'cardinal';
+  return [{ type: TYPE.plural, value: s.name, offset: s.offset, pluralType, options, ...(s.selection && { selection: s.selection }) }];
 }
 
 function compare(a: number[], b: number[]): number {
@@ -385,7 +469,7 @@ function compare(a: number[], b: number[]): number {
   return 0;
 }
 
-function pattern(parts: Model.Pattern, scope: Scope, locale: string): Element[] {
+function pattern(parts: Model.Pattern, scope: Scope, r: Reading): Element[] {
   const root: Element[] = [];
   const open: { name: string; children: Element[] }[] = [];
   const push = (el: Element) => {
@@ -398,7 +482,7 @@ function pattern(parts: Model.Pattern, scope: Scope, locale: string): Element[] 
     if (typeof part === 'string') {
       push({ type: TYPE.literal, value: part });
     } else if (part.type === 'expression') {
-      push(element(resolve(part, scope), locale));
+      push(element(resolve(part, scope), r));
     } else if (part.kind === 'close') {
       const top = open.pop();
       if (top?.name !== part.name) {
@@ -421,15 +505,19 @@ function pattern(parts: Model.Pattern, scope: Scope, locale: string): Element[] 
   return root;
 }
 
-function element(value: Value, locale: string): Element {
-  if (value.kind === 'literal') return { type: TYPE.literal, value: formatLiteral(value, locale) };
+function element(value: Value, r: Reading): Element {
+  if (value.kind === 'literal') return { type: TYPE.literal, value: formatLiteral(value, r.locale) };
   const { name, fn, offset } = value;
+  const placeholder = placeholderFor(name, fn, r);
   // A value less its offset is what `#` prints inside a plural, so a plural with only `other` prints it.
-  if (offset !== 0)
-    return { type: TYPE.plural, value: name, offset, pluralType: 'cardinal', options: { other: { value: [{ type: TYPE.pound }] } } };
-  if (fn === undefined || fn.name === 'string') return { type: TYPE.argument, value: name };
-  if (NUMERIC.has(fn.name)) return { type: TYPE.number, value: name, style: numberStyle(fn) };
-  return { type: TYPE.date, value: name, style: dateStyle(fn) };
+  if (offset !== 0) {
+    const pound = { type: TYPE.pound, placeholder } as Element;
+    return { type: TYPE.plural, value: name, offset, pluralType: 'cardinal', options: { other: { value: [pound] } } };
+  }
+  if (fn === undefined || fn.name === 'string')
+    return { type: TYPE.argument, value: name, placeholder, ...(fn?.dir && { dir: fn.dir }) } as Element;
+  if (NUMERIC.has(fn.name)) return { type: TYPE.number, value: name, style: numberStyle(fn), placeholder } as Element;
+  return { type: TYPE.date, value: name, style: dateStyle(fn), placeholder } as Element;
 }
 
 /** A literal with a function is the same in every render, so it is formatted now. */
@@ -529,6 +617,8 @@ interface Found {
   offset: number;
   /** MF2 keys, in order of appearance; `*` is implied. */
   keys: string[];
+  /** The function it was selected with, read from MF2; a bare `:number` where none is kept. */
+  fn?: Mf2Function;
 }
 
 /** A message tree as MF2 text. Throws, saying what has no MF2 equivalent, where it can't be written. */
@@ -542,7 +632,11 @@ export function toMf2(ast: Element[], locale: string): string {
   const declarations: Model.Declaration[] = [];
   for (const s of found) {
     const fn: Model.FunctionRef =
-      s.kind === 'string' ? functionRef('string') : functionRef('number', s.kind === 'ordinal' ? { select: 'ordinal' } : {});
+      s.kind === 'string'
+        ? functionRef('string')
+        : s.fn !== undefined
+          ? written(s.fn)
+          : functionRef('number', s.kind === 'ordinal' ? { select: 'ordinal' } : {});
     declarations.push({ type: 'input', name: s.arg, value: { type: 'expression', arg: variable(s.arg), functionRef: fn } });
     if (s.offset !== 0) {
       declarations.push({
@@ -557,7 +651,8 @@ export function toMf2(ast: Element[], locale: string): string {
   let combos: (string | null)[][] = [[]];
   for (const s of found) combos = combos.flatMap((c) => [...s.keys, null].map((k) => [...c, k]));
   const variables = new Map(found.map((s) => [s.arg, s.variable]));
-  const numeric = new Set(found.filter((s) => s.kind !== 'string').map((s) => s.arg));
+  // Under a selector declared with more than a bare `:number`, a placeholder spells out its own.
+  const numeric = new Set(found.filter((s) => s.kind !== 'string' && s.fn === undefined).map((s) => s.arg));
   const render = (keys: (string | null)[]) =>
     toPattern(ast, { choice: new Map(found.map((s, i) => [s.arg, keys[i]!])), variables, numeric, locale });
   const variants = combos.map((keys) => ({ keys, pattern: render(keys), text: '' }));
@@ -590,7 +685,8 @@ function selectorsOf(ast: Element[]): Found[] {
       checkName(el.value);
       let local = `${el.value}_minus_${offset}`;
       while (names.has(local)) local += '_';
-      s = { arg: el.value, variable: offset === 0 ? el.value : local, kind, offset, keys: [] };
+      const fn = selectionOf(el)?.fn;
+      s = { arg: el.value, variable: offset === 0 ? el.value : local, kind, offset, keys: [], ...(fn && { fn }) };
       found.set(el.value, s);
     } else if (s.kind !== kind || s.offset !== offset) {
       throw new Error(
@@ -662,10 +758,16 @@ function toPattern(elements: Element[], w: Writing, pound?: string): Model.Patte
       case TYPE.literal:
         text(el.value);
         break;
-      case TYPE.argument:
+      case TYPE.argument: {
         checkName(el.value);
-        out.push({ type: 'expression', arg: variable(el.value) });
+        const dir = (el as { dir?: Mf2Function['dir'] }).dir;
+        out.push({
+          type: 'expression',
+          arg: variable(el.value),
+          ...(dir && { functionRef: written({ name: 'string', options: {}, dir }) }),
+        });
         break;
+      }
       case TYPE.number: {
         checkName(el.value);
         const fn = numberFunction(el);
@@ -737,7 +839,7 @@ function functionRef(name: string, options: Record<string, string> = {}, args: R
 }
 
 function written(fn: Mf2Function): Model.FunctionRef {
-  return functionRef(fn.name, fn.options, fn.args);
+  return functionRef(fn.name, { ...fn.options, ...(fn.dir && { 'u:dir': fn.dir }) }, fn.args);
 }
 
 function numberFunction(el: NumberElement): Model.FunctionRef {

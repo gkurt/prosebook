@@ -43,6 +43,11 @@ export interface CopyOptions<L extends string> {
   tags?: { [tag: string]: AnyTagFn };
   /** What a key the catalog lacks reads as. Defaults to the key itself. */
   onMissing?: (key: string, locale: L) => string;
+  /**
+   * Told of a placeholder that had no value, or one `Intl` refused (`currency: 'euro'`): the message
+   * still renders, showing `{name}` there. Defaults to `console.error`.
+   */
+  onError?: (error: Error, key: string, locale: L) => void;
 }
 
 /** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
@@ -92,9 +97,17 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   const listeners = new Set<() => void>();
   const defaultTags = options.tags ?? {};
   const formatters = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.RelativeTimeFormat>();
+  // The key being rendered, which a helper's report names; none while the inspector renders it again.
+  let reading: string | undefined;
+  const helpers = (l: L) =>
+    createHelpers(l, (error) => {
+      if (reading === undefined) return;
+      if (options.onError) options.onError(error, reading, l);
+      else console.error(`prosebook: ${reading} in ${l}: ${error.message}`);
+    });
 
   for (const [locale, messages] of Object.entries(catalog.messages) as [L, CompiledMessages][])
-    loaded.set(locale, { messages, h: createHelpers(locale) });
+    loaded.set(locale, { messages, h: helpers(locale) });
 
   let locale = catalog.source;
   let chain: Layer[] = layers(chainOf(locale, catalog.locales, catalog.source));
@@ -127,7 +140,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       const loader = catalog.loaders[l];
       if (loader === undefined) return Promise.reject(new Error(`prosebook: no messages for locale "${l}"`));
       p = loader().then((mod) => {
-        const layer = { messages: mod.default, h: createHelpers(l) };
+        const layer = { messages: mod.default, h: helpers(l) };
         loaded.set(l, layer);
         pending.delete(l);
         return layer;
@@ -163,7 +176,13 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     const found = find(key);
     if (found === undefined) return options.onMissing ? options.onMissing(key, locale) : key;
     const [message, h] = found;
-    const out = typeof message === 'string' ? message : message(values, h);
+    reading = key;
+    let out: unknown;
+    try {
+      out = typeof message === 'string' ? message : message(values, h);
+    } finally {
+      reading = undefined;
+    }
     const read = (globalThis as DevHooks).__PROSEBOOK_READ__;
     if (read !== undefined) read(key, typeof out === 'string' ? out : textOf(message, values, h), h.locale);
     return out;

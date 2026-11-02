@@ -34,7 +34,8 @@ export interface MigratePlan {
 }
 
 export function planMigrate(config: ResolvedConfig, to: MessageFormatVersion): MigratePlan {
-  const catalog = loadCatalog(config);
+  // Both syntaxes read without isolation marks, which MF1 never has, so their renders compare.
+  const catalog = loadCatalog({ ...config, isolate: false });
   const plan: MigratePlan = { to, rewrites: [], blocked: [], changed: [] };
   for (const m of catalog.messages) {
     const versions = [
@@ -47,7 +48,7 @@ export function planMigrate(config: ResolvedConfig, to: MessageFormatVersion): M
       let back: MessageFormatElement[];
       try {
         after = writeMessage(to, ast, locale);
-        back = readMessage(to, after, locale);
+        back = readMessage(to, after, locale, false);
       } catch (e) {
         plan.blocked.push({ ...at, reason: (e as Error).message });
         continue;
