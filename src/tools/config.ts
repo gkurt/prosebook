@@ -55,6 +55,25 @@ export interface LintConfig extends WordLists {
   areas?: Record<string, RuleSeverities>;
 }
 
+/**
+ * Native code generated from the catalog, for the parts of an app outside the browser: a tray, a
+ * menu bar, a CLI. One file, holding every locale, with a typed function per message.
+ */
+export interface NativeTarget {
+  language: 'rust' | 'swift' | 'kotlin';
+  /** The file written. */
+  out: string;
+  /**
+   * Key prefixes the file holds: `['native']` takes every `native.*` key, which it names without the
+   * prefix (`native.tray.quit` is `tray_quit`). Every key, named in full, by default.
+   */
+  keys?: string[];
+  /** The type holding the locales and messages: `Locale` in Rust, `Copy` in Swift and Kotlin. */
+  name?: string;
+  /** Kotlin's package. */
+  package?: string;
+}
+
 export interface ProsebookConfig {
   /** The source-language catalog: one `<area>.yaml` per area. */
   catalog?: string;
@@ -95,6 +114,8 @@ export interface ProsebookConfig {
   /** Where a string may sit, with what each surface means. */
   surfaces?: Record<string, string>;
   lint?: LintConfig;
+  /** Rust, Swift or Kotlin files `generate` writes beside the TypeScript. */
+  native?: NativeTarget[];
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
   scan?: {
     dirs?: string[];
@@ -125,8 +146,11 @@ export interface ResolvedConfig {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
   } & Required<WordLists>;
+  native: (NativeTarget & { name: string })[];
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
+
+const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy' };
 
 /** Typed config, for `prosebook.config.ts`. */
 export function defineConfig(config: ProsebookConfig): ProsebookConfig {
@@ -190,6 +214,11 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       properNouns: lint.properNouns ?? [],
       pathSeparator: lint.pathSeparator ?? '›',
     },
+    native: (config.native ?? []).map((target, i) => {
+      if (!(target.language in NATIVE_NAMES))
+        throw new Error(`native[${i}].language is "${target.language}": name one of ${Object.keys(NATIVE_NAMES).join(', ')}`);
+      return { ...target, out: at(target.out), name: target.name ?? NATIVE_NAMES[target.language] };
+    }),
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'],

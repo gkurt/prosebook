@@ -37,6 +37,8 @@ const { t } = useCopy();
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
   own rules, scoped by kind, surface and locale, and translations are held to their source.
+- **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
+  with plurals and number formats that say what the browser says.
 
 ## Quick start
 
@@ -235,6 +237,63 @@ function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
   return <CopyProvider copy={copy}>{children}</CopyProvider>;
 }
 ```
+
+### Outside the browser: Rust, Swift and Kotlin
+
+The parts of an app the browser doesn't draw, a tray, a menu bar, a CLI, an Android shell, can read
+the same catalog. `generate` writes one file per target in `native`, holding every locale:
+
+```ts
+// prosebook.config.ts
+export default defineConfig({
+  native: [
+    { language: 'rust', out: 'src-tauri/src/copy.rs', keys: ['tray', 'menu'] },
+    { language: 'swift', out: 'mac/Sources/Copy.swift' },
+    { language: 'kotlin', out: 'android/app/src/main/java/shop/Copy.kt', package: 'shop' },
+  ],
+});
+```
+
+Each is an enum of the locales with a member per message, named for its key (`tray.recordings` is
+`tray_recordings` in Rust, `trayRecordings` in Swift and Kotlin). `keys` takes only the keys under
+those prefixes and names them without the prefix, so `tray.quit` above is `quit`:
+
+```rust
+mod copy;
+use copy::Locale;
+
+let copy = Locale::negotiate(&["de-AT", "en"]); // de-AT, then de, then the source
+let quit: &'static str = copy.quit();
+let count = copy.recordings(3); // "3 Aufnahmen": any integer or float
+```
+
+```swift
+let copy = Copy.negotiate(Locale.preferredLanguages)
+menu.title = copy.trayQuit
+label.stringValue = copy.trayRecordings(count: 3)
+```
+
+```kotlin
+val copy = Copy.negotiate(listOf(Locale.getDefault().toLanguageTag()))
+item.title = copy.trayQuit
+label.text = copy.trayRecordings(3)
+```
+
+A message with no placeholders is a `&'static str` in Rust and a property in Swift and Kotlin; one
+with placeholders is a function taking them in order, a string or a number. Each member's doc comment
+is the source text, its context and what each argument holds.
+
+The files need nothing beside them: each brings the plural rules of its locales, compiled from CLDR's
+(the data `Intl.PluralRules` is built on), and its number formats, taken apart from `Intl` when it is
+generated: the digits, the separators, how integers group, the text around a currency or a percent.
+Each format is checked against `Intl` before any code is written, so native code writes what the
+browser does, Arabic digits and Indian grouping included. A key with no translation falls back
+through its parents to the source as the runtime's do, resolved when the file is written.
+
+What can't be written that way fails `generate`, with the fix: a date (pass it formatted, as a plain
+`{when}`), a tag, compact notation, significant digits, a unit or currency name that changes with the
+count (`unitDisplay: 'long'`), and an MF2 option read from an argument. Leave such keys out of the
+target's `keys`.
 
 ## The catalog
 
@@ -756,6 +815,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
+  native: [], // Rust, Swift or Kotlin files: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
   scan: { dirs: ['src'] },
 });
 ```
@@ -785,5 +845,5 @@ Ideas not built yet, roughly in order of value:
 
 1. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
 2. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-3. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
-   outside the browser, such as a tray or native menus.
+3. **Dates in native targets**: date and time formats taken apart from `Intl` as number formats are,
+   so a Rust, Swift or Kotlin message can say when.

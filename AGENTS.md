@@ -73,6 +73,15 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   which refuses options from arguments. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
+- `src/tools/native/`: the Rust, Swift and Kotlin files `generate` writes for the config's `native`
+  targets (`index.ts`). `model.ts` reads the catalog into a tree per message and locale, every fallback
+  resolved, which `rust.ts`, `swift.ts` and `kotlin.ts` write out; a message one can't write is a
+  `Problem` with the fix. `plurals.ts` compiles CLDR's rules (`cldr-core`, kept on the major the
+  ICU in Node and Bun is built from, so they agree with `Intl.PluralRules`). `number.ts` takes an
+  `Intl.NumberFormat` apart and checks the parts against it; `formatNumber` and `roundDigits` are
+  the algorithm every target writes out, rounding the shortest decimal as `Intl` does, so keep them
+  in step. `test/native.test.ts` compiles each target with any toolchain on the PATH and compares
+  its output with the runtime's.
 - `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
   Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the

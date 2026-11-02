@@ -39,7 +39,7 @@ export {
   type EntryView,
   type EntryYaml,
 } from './entry.ts';
-export { defineConfig, loadConfig, resolveConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
+export { defineConfig, loadConfig, resolveConfig, type NativeTarget, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
 export {
   applyEdits,

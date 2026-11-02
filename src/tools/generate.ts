@@ -12,6 +12,7 @@ import { loadCatalog, type Catalog, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
+import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
@@ -229,6 +230,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
     );
   }
 
+  for (const [path, content] of nativeFiles(config, catalog, locales, entries, head)) files.set(path, content);
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
   if (Object.keys(lock.translations).length > 0 || existsSync(config.lock)) files.set(config.lock, serializeLock(lock));
   return { catalog, files, lock, stale, entries };
