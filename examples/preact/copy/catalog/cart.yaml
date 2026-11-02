@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=./catalog.schema.json
+cart.title:
+  kind: name
+  surface: heading
+  context: Heads the shopping cart panel.
+  en: Cart
+
+cart.items:
+  kind: state
+  surface: status
+  context: Under the cart heading, counts what is in the cart.
+  args:
+    count: how many items are in the cart
+  en: '{count, plural, =0 {Your cart is empty.} one {# item in your cart.} other {# items in your cart.}}'
+
+cart.total:
+  kind: state
+  surface: status
+  context: The sum of the cart, beside the checkout button.
+  args:
+    amount: the total price, in euros
+  fragment: true
+  en: 'Total: {amount, number, ::currency/EUR}'
+
+cart.add:
+  kind: action
+  surface: action
+  context: The button on a product that adds one to the cart.
+  en: Add to cart
+
+cart.remove:
+  kind: action
+  surface: action
+  context: The button that empties the cart.
+  en: Empty cart
+
+cart.checkout:
+  kind: action
+  surface: action
+  context: The button that starts paying for the cart.
+  en: Check out
+
+cart.terms:
+  kind: description
+  surface: hint
+  context: Under the checkout button. The link opens the terms of sale.
+  en: By checking out you agree to our <link>terms of sale</link>.
+
+cart.shipping:
+  kind: description
+  surface: hint
+  context: Under the total, says how long delivery takes. The second sentence depends on the delivery speed chosen.
+  args:
+    days: how many working days delivery takes
+    speed: the delivery speed chosen
+  en: 'Arrives in {days, plural, one {# working day} other {# working days}}. {speed, select, express {Express delivery is on.} other {Choose express at checkout for next-day delivery.}}'
+
+cart.place:
+  kind: state
+  surface: status
+  context: Says how this order ranks among the shop's orders today, as a small celebration.
+  args:
+    rank: the order's position today, starting from 1
+  en: "Today's {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} order!"
+
+cart.express:
+  kind: name
+  surface: label
+  context: Labels the checkbox that picks next-day delivery.
+  en: Express delivery

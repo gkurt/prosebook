@@ -1,0 +1,7 @@
+app.title: Köşe Dükkan
+app.language: Dil
+app.greeting: Tekrar hoş geldin, {name}.
+cart.title: Sepet
+cart.items: '{count, plural, =0 {Sepetin boş.} other {Sepetinde # ürün var.}}'
+cart.add: Sepete ekle
+cart.checkout: Ödemeye geç

@@ -28,6 +28,10 @@ const SHOP: Request[] = [
 
 const EXAMPLES: Record<string, Example> = {
   vite: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  preact: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  vue: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  svelte: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  solid: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   bun: {
     requests: [
       { path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] },

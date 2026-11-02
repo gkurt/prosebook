@@ -7,16 +7,14 @@
  */
 import { createContext, Fragment, isValidElement, use, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 
+import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
-import type { MessageShape, RegisteredLocale, RegisteredMessages, RichKey, RichParam, TagFn } from '#src/runtime/types.ts';
+import type { RegisteredLocale, RegisteredMessages, TagFn } from '#src/runtime/types.ts';
 
 type M = RegisteredMessages;
-type L = RegisteredLocale;
 
 /** `Copy`, with `rich` returning a `ReactNode`. */
-export interface ReactCopy extends Omit<Copy, 'rich'> {
-  rich<K extends RichKey<M>>(this: void, key: K, ...values: RichParam<M[K], ReactNode>): ReactNode;
-}
+export type ReactCopy = BoundCopy<ReactNode>;
 
 const CopyContext = createContext<{ copy: Copy; tags: Tags } | null>(null);
 
@@ -29,8 +27,8 @@ export interface CopyProviderProps {
   children?: ReactNode;
 }
 
-export function CopyProvider({ copy, tags, children }: CopyProviderProps) {
-  const value = useMemo(() => ({ copy: copy, tags: { ...(copy.tags as unknown as Tags), ...tags } }), [copy, tags]);
+export function CopyProvider({ copy, tags = {}, children }: CopyProviderProps) {
+  const value = useMemo(() => ({ copy, tags }), [copy, tags]);
   return <CopyContext value={value}>{children}</CopyContext>;
 }
 
@@ -44,11 +42,12 @@ export function useCopy(): ReactCopy {
     () => copy.version,
     () => copy.version,
   );
-  return useMemo(() => readerFor(copy, tags, version), [copy, tags, version]);
+  // Rebuilt on each version, so its identity changes when what it reads does.
+  return useMemo(() => bindCopy(copy, tags, { tag, whole }), [copy, tags, version]);
 }
 
 /** The current locale alone, for components that only format or switch. */
-export function useLocale(): L {
+export function useLocale(): RegisteredLocale {
   const context = use(CopyContext);
   if (context === null) throw new Error('prosebook: useLocale() needs a <CopyProvider> above it');
   return useSyncExternalStore(
@@ -58,33 +57,8 @@ export function useLocale(): L {
   );
 }
 
-// Takes the version only so the reader is rebuilt, and its identity changes, when what it reads does.
-function readerFor(copy: Copy, tags: Tags, version: number): ReactCopy {
-  return {
-    locale: copy.locale,
-    version,
-    locales: copy.locales,
-    source: copy.source,
-    tags: copy.tags,
-    ready: copy.ready,
-    t: copy.t,
-    has: copy.has,
-    setLocale: copy.setLocale,
-    subscribe: copy.subscribe,
-    number: copy.number,
-    date: copy.date,
-    list: copy.list,
-    relative: copy.relative,
-    rich(key, ...values) {
-      const given = (values[0] ?? {}) as Record<string, unknown>;
-      const merged: Record<string, unknown> = { ...tags, ...given };
-      for (const [name, value] of Object.entries(merged))
-        if (typeof value === 'function') merged[name] = (chunks: unknown[]) => (value as TagFn<ReactNode>)(keyed(chunks));
-
-      return <>{keyed(copy.rich(key as never, merged as never))}</>;
-    },
-  };
-}
+const tag = (render: (chunks: never) => unknown, chunks: unknown[]) => render(keyed(chunks) as never);
+const whole = (parts: unknown[]): ReactNode => <>{keyed(parts)}</>;
 
 /** Text joined where it can be, and each element under its own key, so React never warns about a list. */
 function keyed(parts: unknown[]): (string | ReactNode)[] {
@@ -95,11 +69,7 @@ function keyed(parts: unknown[]): (string | ReactNode)[] {
   );
 }
 
-type ValuesProp<S extends MessageShape> = {} extends S['args'] & { [T in S['tags']]: unknown }
-  ? { values?: S['args'] & { [T in S['tags']]?: TagFn<ReactNode> } }
-  : { values: RichParam<S, ReactNode>[0] };
-
-export type TextProps<K extends Extract<keyof M, string>> = { id: K } & ValuesProp<M[K]>;
+export type TextProps<K extends Extract<keyof M, string>> = Props<K, ReactNode>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
@@ -108,5 +78,5 @@ export type TextProps<K extends Extract<keyof M, string>> = { id: K } & ValuesPr
 export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>) {
   const copy = useCopy();
   const values = (props as { values?: object }).values;
-  return <>{copy.rich(props.id, values as never)}</>;
+  return <>{copy.rich(props.id as never, values as never)}</>;
 }

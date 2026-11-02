@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [vite, next, bun, tanstack-start, node]
+        example: [vite, preact, vue, svelte, solid, next, bun, tanstack-start, node]
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2

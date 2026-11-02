@@ -1,0 +1,21 @@
+{
+  "name": "example-preact",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc",
+    "check": "prosebook generate --check && prosebook lint",
+    "generate": "prosebook generate"
+  },
+  "dependencies": {
+    "preact": "^11.1.1",
+    "prosebook": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

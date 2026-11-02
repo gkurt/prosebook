@@ -1,0 +1,4 @@
+app.title: Eckladen
+app.language: Sprache
+app.greeting: Willkommen zurück, {name}.
+app.last-visit: Dein letzter Besuch war am {when, date, medium} um {when, time, short}.

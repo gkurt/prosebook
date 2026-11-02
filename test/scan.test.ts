@@ -88,4 +88,61 @@ describe('reads a pruned build cannot see', () => {
     const code = "import { Text } from '@ui/kit';\n<Text id={id} />;\ntracks.forEach((t) => t.stop());\n({ t: key });";
     expect(unseen(code)).toEqual([]);
   });
+
+  const at = (file: string, code: string) => unseenReads(file, code).unseen.map((u) => `${u.line}:${u.column} ${u.name} ${u.code}`);
+
+  test("a Vue component's reads are found in its script and its template, at their lines", () => {
+    const code = [
+      '<script setup lang="ts">',
+      "import { Text, useCopy } from 'prosebook/vue';",
+      'const { t } = useCopy();',
+      "const title = t('a.title') + t(name);",
+      '</script>',
+      '',
+      '<template>',
+      '  <h1 :title="t(hint)">{{ t(`a.${id}`) }} {{ copy.t(item.key) }}</h1>',
+      '  <Text id="a.items" :values="{ n }" /><Text :id="key" />',
+      "  <Text :id=\"on ? 'a.on' : 'a.off'\" />",
+      '  <!-- prosebook-ignore: every key is in the tabs array -->',
+      '  <li v-for="tab in tabs" @click="pick(tab)">{{ t(tab.key) }}</li>',
+      '</template>',
+      '<style>h1 { color: red }</style>',
+    ].join('\n');
+    expect(at('A.vue', code)).toEqual([
+      // Kept for the build to match against aliases bound elsewhere, as in a script.
+      '3:15 useCopy useCopy()',
+      '4:30 t t(name)',
+      '8:15 t t(hint)',
+      '8:46 t copy.t(item.key)',
+      '9:40 Text <Text :id="key" />',
+    ]);
+  });
+
+  test("a Svelte component's reads are found in its script and its markup, blocks and attributes alike", () => {
+    const code = [
+      '<script lang="ts">',
+      "  import { getCopy, Text } from 'prosebook/svelte';",
+      '  const copy = getCopy();',
+      '</script>',
+      '',
+      '{#each items as item (item.id)}',
+      '  <p title={copy.t(item.hint)}>{copy.t(`a.${item.id}`)}</p>',
+      '{:else}',
+      '  {@const label = copy.t(empty)}',
+      '{/each}',
+      '{#if copy.has(key)}<Text id={key} />{:else if ready}<Text {id} />{/if}',
+      '<Text id="a.items" values={{ n: copy.t(count) }} /><Text id="a.{name}" />',
+      '{#snippet link(chunks)}<a href="#"><Text {chunks} /></a>{/snippet}',
+      '<style>p { margin: 0 }</style>',
+    ].join('\n');
+    expect(at('A.svelte', code)).toEqual([
+      '3:16 getCopy getCopy()',
+      '7:13 t copy.t(item.hint)',
+      '9:19 t copy.t(empty)',
+      '11:20 Text <Text id={key} />',
+      '11:53 Text <Text {id} />',
+      '12:33 t copy.t(count)',
+      '12:52 Text <Text id="a.{name}" />',
+    ]);
+  });
 });

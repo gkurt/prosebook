@@ -37,7 +37,8 @@ commit their `src/copy/`, so they show the current output; CI fails on an exampl
 One package, ESM-only. Two halves that share only types: the runtime, which ships to browsers and
 must stay small and dependency-free, and the tools, which run at build time in Node or Bun.
 
-Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`):
+Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/preact`, `prosebook/vue`,
+`prosebook/svelte`, `prosebook/solid`):
 
 - `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation;
   `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
@@ -51,6 +52,15 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`):
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
+- `src/runtime/bind.ts`: what every framework binding shares. `bindCopy` is a copy read through the
+  framework's reactivity: `track` on every read, the provider's tags under each rich read's own, `tag` for
+  what a tag renderer becomes and `whole` for what a rich read returns. Also `<Text>`'s prop types.
+- `src/preact/index.ts`, `src/vue/index.ts`, `src/solid/index.ts`, `src/svelte/index.ts`: one binding
+  each, written without JSX or a framework compiler. React and Preact rebuild the reader per version;
+  Vue tracks a ref, Solid a signal, Svelte a `createSubscriber`. Vue's `<Text>` takes tags as slots;
+  Svelte's tags are snippets, so a rich read returns `{ snippet, chunks }` parts and `Text.svelte`, which
+  ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
+  imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
 Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):
 
@@ -121,7 +131,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
   `scan.ts`: hardcoded JSX text, key references, and `unseenReads`: reads whose key a pruned build
-  can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>`). `pseudo.ts`.
+  can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding). A `.vue`
+  or `.svelte` file is read as its script blocks and the expressions in its markup, each parsed apart
+  at its offset, so lines and `prosebook-ignore` hold; Vite reads such a file whole, not the parts its
+  compiler splits off. `pseudo.ts`.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
@@ -182,12 +195,16 @@ push to main. Its in-context demo recreates the inspector over a copy of `exampl
 keep it in step when the inspector or that catalog changes, and add new features to its list. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
 
-`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`), each a
+`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`) and per
+binding beyond React (`preact`, `vue`, `svelte`, `solid`, each on Vite), each a
 private workspace that imports prosebook from `dist` as a user's app would, so build before running
 one. They share the shop catalog, but each is standalone. `scripts/smoke.mts` serves an example's
 build and checks what it says; CI's `examples` job runs it after each example's check, typecheck and
 build. The examples link prosebook's bin only once `dist/cli.js` exists, so CI installs again after
-building. `test/fixture.ts` builds projects on disk under `test/.tmp/` and evaluates compiled messages.
+building. `vue` and `svelte` typecheck with `vue-tsc` and `svelte-check` on TypeScript 6, since both need
+the TypeScript API that 7 lacks. `test/fixture.ts` builds projects on disk under `test/.tmp/` and evaluates
+compiled messages. `test/preload.ts` (bunfig's) gives the framework tests Solid's and Svelte's browser
+builds, which Bun would otherwise resolve to their server builds, and compiles `.svelte` files.
 
 ## Conventions
 

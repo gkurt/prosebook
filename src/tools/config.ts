@@ -239,7 +239,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     }),
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
-      extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'],
+      extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte'],
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
     },
   };

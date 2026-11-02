@@ -26,7 +26,7 @@ import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
 import { generate, type Generated } from './tools/generate.ts';
-import { keyRefs, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
+import { keyRefs, SFC, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
 export interface ProsebookPluginOptions {
   /** The config, inline. Without it, `prosebook.config.*` at `root` is read. */
@@ -49,7 +49,7 @@ export interface ProsebookPluginOptions {
 }
 
 const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
-const SCRIPT = /\.[cm]?[jt]sx?$/;
+const SCRIPT = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const DEV = 'virtual:prosebook/dev';
 const DEV_ID = '\0prosebook/dev';
 
@@ -172,7 +172,10 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         if (localeOf(id) !== undefined || isIndex(id)) return null;
         keyRefs(code, refs);
         const path = id.split('?', 1)[0]!;
-        if (prune === 'strict' && SCRIPT.test(path) && !normalize(path).startsWith(`${ownDir}/`)) reads.set(id, unseenReads(path, code));
+        // A component file is read whole, as written; the parts its compiler splits off (`?vue&type=script`) are not again.
+        const part = SFC.test(path) && path !== id;
+        if (prune === 'strict' && SCRIPT.test(path) && !part && !normalize(path).startsWith(`${ownDir}/`))
+          reads.set(id, unseenReads(path, code));
         return null;
       },
     },

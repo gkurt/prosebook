@@ -26,6 +26,30 @@
       "port": 3002
     },
     {
+      "name": "example-preact",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/preact", "dev", "--port", "3003", "--strictPort"],
+      "port": 3003
+    },
+    {
+      "name": "example-vue",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/vue", "dev", "--port", "3004", "--strictPort"],
+      "port": 3004
+    },
+    {
+      "name": "example-svelte",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/svelte", "dev", "--port", "3005", "--strictPort"],
+      "port": 3005
+    },
+    {
+      "name": "example-solid",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/solid", "dev", "--port", "3006", "--strictPort"],
+      "port": 3006
+    },
+    {
       "name": "site",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["x", "vite", "preview", "--outDir", "_site", "--port", "4173", "--strictPort"],

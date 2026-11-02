@@ -9,3 +9,5 @@ linker = "isolated"
 # Only re-print failing tests on reruns.
 [test]
 onlyFailures = true
+# Solid's and Svelte's browser builds, and `.svelte` compiled (see the file).
+preload = ["./test/preload.ts"]

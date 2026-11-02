@@ -1,0 +1,22 @@
+{
+  "name": "example-solid",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc",
+    "check": "prosebook generate --check && prosebook lint",
+    "generate": "prosebook generate"
+  },
+  "dependencies": {
+    "prosebook": "workspace:*",
+    "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-solid": "^2.11.15"
+  }
+}

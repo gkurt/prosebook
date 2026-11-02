@@ -1,0 +1,23 @@
+{
+  "name": "example-vue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview --port 4173 --strictPort",
+    "typecheck": "vue-tsc",
+    "check": "prosebook generate --check && prosebook lint",
+    "generate": "prosebook generate"
+  },
+  "dependencies": {
+    "prosebook": "workspace:*",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vue-tsc": "^3.3.14"
+  }
+}

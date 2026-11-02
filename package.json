@@ -1,7 +1,7 @@
 {
   "name": "prosebook",
   "version": "0.4.0",
-  "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React and any JavaScript.",
+  "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.",
   "keywords": [
     "bun",
     "i18n",
@@ -12,11 +12,15 @@
     "messageformat",
     "messageformat2",
     "nextjs",
+    "preact",
     "react",
+    "solid",
+    "svelte",
     "translation",
     "typescript",
     "ux-writing",
-    "vite"
+    "vite",
+    "vue"
   ],
   "homepage": "https://gkurt.com/prosebook/",
   "bugs": {
@@ -70,6 +74,38 @@
       "import": {
         "types": "./dist/react/server.d.ts",
         "default": "./dist/react/server.js"
+      }
+    },
+    "./preact": {
+      "prosebook@dev": "./src/preact/index.ts",
+      "import": {
+        "types": "./dist/preact/index.d.ts",
+        "default": "./dist/preact/index.js"
+      }
+    },
+    "./vue": {
+      "prosebook@dev": "./src/vue/index.ts",
+      "import": {
+        "types": "./dist/vue/index.d.ts",
+        "default": "./dist/vue/index.js"
+      }
+    },
+    "./solid": {
+      "prosebook@dev": "./src/solid/index.ts",
+      "import": {
+        "types": "./dist/solid/index.d.ts",
+        "default": "./dist/solid/index.js"
+      }
+    },
+    "./svelte": {
+      "prosebook@dev": "./src/svelte/index.ts",
+      "svelte": {
+        "types": "./dist/svelte/index.d.ts",
+        "default": "./dist/svelte/index.js"
+      },
+      "import": {
+        "types": "./dist/svelte/index.d.ts",
+        "default": "./dist/svelte/index.js"
       }
     },
     "./vite": {
@@ -145,30 +181,50 @@
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
     "oxlint-tsgolint": "^7.0.2005",
+    "preact": "^11.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "solid-js": "^1.9.18",
+    "svelte": "^5.57.3",
     "tegami": "^1.5.0",
     "tsdown": "^0.23.4",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vue": "^3.5.44"
   },
   "peerDependencies": {
     "next": ">=16",
+    "preact": ">=10",
     "react": ">=18",
+    "solid-js": ">=1.8",
+    "svelte": ">=5.7",
     "typescript": ">=7",
-    "vite": ">=6"
+    "vite": ">=6",
+    "vue": ">=3.5"
   },
   "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
-    "vite": {
+    "solid-js": {
+      "optional": true
+    },
+    "svelte": {
       "optional": true
     },
     "typescript": {
       "optional": true
     },
-    "next": {
+    "vite": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },

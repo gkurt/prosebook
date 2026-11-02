@@ -1,6 +1,6 @@
 # prosebook
 
-Every string your app shows, in one typed catalog. For React and any JavaScript.
+Every string your app shows, in one typed catalog. For React, Preact, Vue, Svelte, Solid and any JavaScript.
 
 [Homepage](https://gkurt.com/prosebook/) · [Try it on the page](https://gkurt.com/prosebook/#in-context)
 
@@ -150,6 +150,121 @@ function Cart({ count }: { count: number }) {
       <Text id="cart.items" values={{ count }} />
       <p>{copy.rich('cart.terms')}</p>
       <button onClick={() => copy.setLocale('de')}>Deutsch</button>
+    </>
+  );
+}
+```
+
+### In Preact
+
+`prosebook/preact` is the React binding for Preact, written on `preact/hooks`, so it needs no
+`preact/compat`: `CopyProvider`, `useCopy`, `useLocale` and `Text`, used as above.
+
+```tsx
+import { CopyProvider, Text, useCopy } from 'prosebook/preact';
+```
+
+### In Vue
+
+Install the copy as a plugin, or give a subtree its own with `provideCopy(copy)` in `setup`. What
+`useCopy()` returns reads through a ref, so a template or `computed` that reads a message runs again
+when the locale changes. `rich` returns a `VNode`; in a template, `<Text>` renders a message and takes
+each tag as a slot of the same name, which gets what the tag wraps as `chunks`:
+
+```ts
+// main.ts
+import { copyPlugin } from 'prosebook/vue';
+
+createApp(App)
+  .use(copyPlugin(copy, { tags: { link: (chunks) => h('a', { href: '/terms' }, chunks) } }))
+  .mount('#app');
+```
+
+```vue
+<script setup lang="ts">
+import { Text, useCopy } from 'prosebook/vue';
+import { ref } from 'vue';
+
+const copy = useCopy();
+const count = ref(2);
+</script>
+
+<template>
+  <h2>{{ copy.t('cart.title') }}</h2>
+  <Text id="cart.items" :values="{ count }" />
+  <Text id="cart.terms">
+    <template #link="{ chunks }"
+      ><RouterLink to="/terms"><component :is="chunks" /></RouterLink
+    ></template>
+  </Text>
+  <button @click="copy.setLocale('de')">Deutsch</button>
+</template>
+```
+
+Templates are typed with `vue-tsc`, which runs on TypeScript 6 until TypeScript 7 ships its API.
+
+### In Svelte
+
+`setCopy(copy)` in a component gives it and everything below it the copy; `getCopy()` reads it. Its
+reads are reactive, so markup, `$derived` and effects that read a message run again when the locale
+changes. Tags render through snippets: give `<Text>` one of the same name, or `setCopy` one for every
+message. A snippet gets what its tag wraps as `chunks`, which `<Text {chunks} />` renders:
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+  import { setCopy, Text, type RichPart } from 'prosebook/svelte';
+
+  let { copy } = $props();
+  setCopy(copy, { tags: { link } });
+</script>
+
+{#snippet link(chunks: RichPart[])}<a href="/terms"><Text {chunks} /></a>{/snippet}
+```
+
+```svelte
+<!-- Cart.svelte -->
+<script lang="ts">
+  import { getCopy, Text } from 'prosebook/svelte';
+
+  const copy = getCopy();
+  let count = $state(2);
+</script>
+
+<h2>{copy.t('cart.title')}</h2>
+<Text id="cart.items" values={{ count }} />
+<Text id="cart.terms" />
+<button onclick={() => copy.setLocale('de')}>Deutsch</button>
+```
+
+`Text` ships as a `.svelte` file for your Svelte compiler to build, so it needs Svelte 5 and its Vite
+plugin (or SvelteKit). `svelte-check` types it, and runs on TypeScript 6 for now.
+
+### In Solid
+
+Each read tracks a signal the copy sets, so what reads a message updates in place when the locale
+changes, and components never run again. `rich` returns your tag renderers' elements beside the text.
+
+```tsx
+import { CopyProvider, Text, useCopy } from 'prosebook/solid';
+
+render(
+  () => (
+    <CopyProvider copy={copy} tags={{ link: (chunks) => <a href="/terms">{chunks}</a> }}>
+      <Cart />
+    </CopyProvider>
+  ),
+  root,
+);
+
+function Cart() {
+  const copy = useCopy();
+  const [count, setCount] = createSignal(2);
+  return (
+    <>
+      <h2>{copy.t('cart.title')}</h2>
+      <Text id="cart.items" values={{ count: count() }} />
+      <p>{copy.rich('cart.terms')}</p>
     </>
   );
 }
@@ -867,8 +982,10 @@ A message the build leaves out shows as its key, so by default a build fails on 
 it can't see: `t(item.key)`, ``rich(`${area}.title`)``, `<Text id={id} />`. Write the key at the read,
 or, where every key it reads is written elsewhere (in an array, say) or listed in `keep`, mark the
 line with `prosebook-ignore`. Reads are known by name: `t` and `rich` alone or as methods, the names
-they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Text>` from
-`prosebook/react`. `prune: 'loose'` prunes without the check, and `prune: false` ships everything.
+they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Text>` from any of the
+bindings. In `.vue` and `.svelte` files the scripts and the expressions in the markup are read alike
+(`{{ t(key) }}`, `:id="key"`, `{copy.t(key)}`, `<Text {id} />`), and `<!-- prosebook-ignore -->` marks
+a line there. `prune: 'loose'` prunes without the check, and `prune: false` ships everything.
 `prune` and `keep` are options of each integration.
 
 ## Finding a string's entry
@@ -962,6 +1079,10 @@ serves.
 | Example                                              |                                                                                             |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [`examples/vite`](examples/vite)                     | React with Vite, and a part-translated Turkish. The inspector is on.                        |
+| [`examples/preact`](examples/preact)                 | Preact with Vite's own JSX transform, the same app as the React one.                        |
+| [`examples/vue`](examples/vue)                       | Vue single-file components: `<Text>` in templates, typed by `vue-tsc`.                      |
+| [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes: the copy set in the root, the link a snippet, typed by `svelte-check`. |
+| [`examples/solid`](examples/solid)                   | Solid: reads update in place on a locale switch, and the components run once.               |
 | [`examples/next`](examples/next)                     | Next.js: server components read a copy per request, client components the provider's.       |
 | [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale with the Vite plugin.        |
 | [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page, a route that answers in the request's locale, the inspector. |
