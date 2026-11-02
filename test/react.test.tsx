@@ -3,10 +3,13 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import type { DevHooks, HotHook } from 'prosebook';
+import { acceptedLocales, defineCatalog, type DevHooks, type HotHook } from 'prosebook';
 import { CopyProvider, Text, useCopy } from 'prosebook/react';
+import { createServerCopy } from 'prosebook/react/server';
 
-import { copyOf } from './fixture.ts';
+import { parseMessage } from '#src/tools/icu.ts';
+
+import { compiled, copyOf } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
 afterAll(() => GlobalRegistrator.unregister());
@@ -73,4 +76,21 @@ test('in dev, a catalog edit re-renders what reads it, keeping the locale', asyn
   });
   expect(host.innerHTML).toBe('Dein Warenkorb');
   await act(async () => root.unmount());
+});
+
+test('a server copy asks for the locale, negotiates it, and comes back with its messages loaded', async () => {
+  const catalog = defineCatalog({
+    source: 'en',
+    locales: ['en', 'de'],
+    messages: { en: compiled([['a.b', parseMessage('Cart {n, number}')]]) },
+    loaders: { de: async () => ({ default: compiled([['a.b', parseMessage('Warenkorb {n, number}')]]) }) },
+  });
+  const errors: string[] = [];
+  const serverCopy = createServerCopy(catalog, async () => acceptedLocales('fr, de-AT;q=0.8, en;q=0.5'), {
+    onError: (error) => errors.push(error.message),
+  });
+  const copy = await serverCopy();
+  expect(copy.locale).toBe('de');
+  expect([copy.t('a.b' as never, { n: 1234 } as never), copy.t('a.b' as never)]).toEqual(['Warenkorb 1.234', 'Warenkorb {n}']);
+  expect(errors).toEqual(['{n} has no value']);
 });

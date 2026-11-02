@@ -7,6 +7,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'react/index': 'src/react/index.tsx',
+    'react/server': 'src/react/server.ts',
     vite: 'src/vite.ts',
     next: 'src/next.ts',
     'next-loader': 'src/next-loader.ts',

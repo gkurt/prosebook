@@ -65,6 +65,13 @@
         "default": "./dist/react/index.js"
       }
     },
+    "./react/server": {
+      "prosebook@dev": "./src/react/server.ts",
+      "import": {
+        "types": "./dist/react/server.d.ts",
+        "default": "./dist/react/server.js"
+      }
+    },
     "./vite": {
       "prosebook@dev": "./src/vite.ts",
       "import": {

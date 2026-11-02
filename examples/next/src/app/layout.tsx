@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { requestLocale, serverCopy } from '@/server-copy.ts';
+import { serverCopy } from '@/server-copy.ts';
 
 import { Providers } from './providers.tsx';
 import './globals.css';
@@ -11,7 +11,7 @@ export async function generateMetadata() {
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const locale = await requestLocale();
+  const { locale } = await serverCopy();
   return (
     <html lang={locale}>
       <body>

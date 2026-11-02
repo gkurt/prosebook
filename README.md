@@ -189,6 +189,33 @@ const copy = createCopy(catalog, { locale: acceptedLocales(request.headers.get('
 await copy.ready;
 ```
 
+**React Server Components** can't read context, so `prosebook/react/server` hands each request one
+copy that every server component in it shares. Your function is asked for the locale once per
+request, and React's `cache` keeps one request's copy from reaching another's:
+
+```ts
+// server-copy.ts, here with Next.js
+import { cookies, headers } from 'next/headers';
+import { acceptedLocales } from 'prosebook';
+import { createServerCopy } from 'prosebook/react/server';
+
+export const serverCopy = createServerCopy(catalog, async () => {
+  const picked = (await cookies()).get('locale')?.value;
+  const asked = acceptedLocales((await headers()).get('accept-language'));
+  return picked === undefined ? asked : [picked, ...asked];
+});
+```
+
+```tsx
+export default async function Page() {
+  const { t, locale } = await serverCopy(); // ready, in the locale negotiated for the request
+  return <h1 lang={locale}>{t('app.title')}</h1>;
+}
+```
+
+It's its own entry because `prosebook/react` creates a context when it loads, which the server
+build of React refuses. It needs React 19, where `cache` is.
+
 A page rendered on the server must hydrate in the same locale, so the browser's copy waits for its
 messages too. Create it above a `<Suspense>` boundary and wait below it: a component that suspends
 before it first mounts loses its state, copy included.
@@ -758,7 +785,5 @@ Ideas not built yet, roughly in order of value:
 
 1. **Exchange formats**: XLIFF 2 and JSON export and import for translation tools.
 2. **Per-area splitting**: one chunk per area and locale, so a lazy route loads only its own messages.
-3. **A React Server Components reader**: the copy per request that the Next.js example builds with
-   `cache()`, as a helper.
-4. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
+3. **Native targets**: generate Rust, Swift or Kotlin from the same catalog, for the parts of an app
    outside the browser, such as a tray or native menus.

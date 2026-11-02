@@ -22,6 +22,8 @@ type Example = { requests: Request[] } | { run: string[]; says: string[] };
 const SHOP: Request[] = [
   { path: '/', language: 'de', says: ['Eckladen', 'Willkommen zurück, Ada.', 'Warenkorb leeren'] },
   { path: '/', language: 'en', says: ['Corner Shop', 'Welcome back, Ada.', 'Empty cart'] },
+  // By weight, not by order: English first.
+  { path: '/', language: 'de;q=0.1, en;q=0.9', says: ['Corner Shop', 'Welcome back, Ada.'] },
 ];
 
 const EXAMPLES: Record<string, Example> = {

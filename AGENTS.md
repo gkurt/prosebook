@@ -37,7 +37,7 @@ commit their `src/copy/`, so they show the current output; CI fails on an exampl
 One package, ESM-only. Two halves that share only types: the runtime, which ships to browsers and
 must stay small and dependency-free, and the tools, which run at build time in Node or Bun.
 
-Runtime (`prosebook`, `prosebook/react`):
+Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`):
 
 - `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation;
   `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
@@ -48,7 +48,9 @@ Runtime (`prosebook`, `prosebook/react`):
   the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
-- `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`.
+- `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
+  a copy per request through React's `cache`, for server components. An entry of its own: the server
+  build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
 
 Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):
 
