@@ -218,10 +218,6 @@ function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
     if (DIGITS.includes(key) && !/^\d+$/.test(literal)) throw new Error(`:${ref.name} ${key}=${literal} is not a whole number`);
     options[key] = literal;
   }
-  const given = (key: string) => options[key] !== undefined || args[key] !== undefined;
-  if (ref.name === 'currency' && !given('currency'))
-    throw new Error(':currency needs its currency named: {$price :currency currency=EUR}, or currency=$code to take it from an argument');
-  if (ref.name === 'unit' && !given('unit')) throw new Error(':unit needs its unit named: {$distance :unit unit=kilometer}');
   if (ref.name === 'unit' && ref.options?.usage !== undefined)
     throw new Error(":unit usage converts between units, which `Intl` can't do: convert the value before passing it");
   if (options.timeZone === 'input') throw new Error(`:${ref.name} timeZone=input needs a zoned value, which a JavaScript Date isn't`);
@@ -254,8 +250,24 @@ function optionArg(fn: string, key: string, name: string, scope: Scope): string 
 function resolve(expr: Model.Expression, scope: Scope, optionScope = scope): Value {
   const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef, optionScope);
   if (expr.arg === undefined) throw new Error(`{:${fn!.name}} has nothing to format: give it a value, {$value :${fn!.name}}`);
-  if (expr.arg.type === 'literal') return apply({ kind: 'literal', value: expr.arg.value }, fn);
-  return apply(scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 }, fn);
+  const base: Value =
+    expr.arg.type === 'literal'
+      ? { kind: 'literal', value: expr.arg.value }
+      : (scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 });
+  const value = apply(base, fn);
+  if (value.fn !== undefined) checkNamed(value.fn);
+  return value;
+}
+
+/**
+ * A currency or a unit named, on the function or on the one its operand was declared with: after
+ * `.input {$price :currency currency=EUR}`, `{$price :currency fractionDigits=0}` is still in euros.
+ */
+function checkNamed(fn: Mf2Function): void {
+  const given = (key: string) => fn.options[key] !== undefined || fn.args?.[key] !== undefined;
+  if (fn.name === 'currency' && !given('currency'))
+    throw new Error(':currency needs its currency named: {$price :currency currency=EUR}, or currency=$code to take it from an argument');
+  if (fn.name === 'unit' && !given('unit')) throw new Error(':unit needs its unit named: {$distance :unit unit=kilometer}');
 }
 
 /** `fn` applied to a value that may already carry one: options carry over within a family, as the spec has it. */

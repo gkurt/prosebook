@@ -194,6 +194,17 @@ describe('options from arguments', () => {
     expect(compiled('.local $c = {|JPY|}\n{{{$price :currency currency=$c}}}')).toBe('(a, h) => h.n(a.price, o0)');
   });
 
+  test('a currency or unit declared once carries over to each use, from a literal or an argument', () => {
+    const inEuros = '.input {$price :currency currency=EUR}\n{{{$price :currency fractionDigits=0} or {$price}}}';
+    expect(t(inEuros, { price: 9.5 })).toBe('€10 or €9.50');
+    const inAny = '.input {$price :currency currency=$code}\n{{{$price :currency fractionDigits=0} or {$price}}}';
+    expect(t(inAny, { price: 9.5, code: 'USD' })).toBe('$10 or $9.50');
+    expect(t('.input {$d :unit unit=kilometer}\n{{{$d :unit unitDisplay=long}}}', { d: 3 })).toBe('3 kilometers');
+    expect(() => parseMf2('.input {$price :number}\n{{{$price :currency fractionDigits=0}}}', 'en')).toThrow(
+      ':currency needs its currency named',
+    );
+  });
+
   test('the argument is typed, documented at the call site, and written back as it was', () => {
     const ast = parseMf2('{$price :currency currency=$code currencyDisplay=$display}', 'en');
     expect([...argsOf(ast)]).toEqual([
