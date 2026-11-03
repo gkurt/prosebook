@@ -10,6 +10,7 @@ import { stringify } from 'yaml';
 import type { Catalog, Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { TYPE, walk } from './icu.ts';
+import { applies, severityOf } from './lint.ts';
 import { changeOf, type StaleTranslation } from './lock.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
@@ -93,11 +94,18 @@ function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, an
 
   const kinds = new Set(wanted.flatMap((m) => (m.kind === undefined ? [] : [m.kind])));
   const surfaces = new Set(wanted.flatMap((m) => (m.surface === undefined ? [] : [m.surface])));
+  // The guide's rules that read this locale, as the lint would: only those some entry here answers to.
+  const guidelines = Object.entries(config.lint.rules).flatMap(([name, { rule }]) =>
+    rule.guide === true && wanted.some((m) => applies(rule, m, locale, config.source) && severityOf(config, name, m) !== 'off')
+      ? [rule.description]
+      : [],
+  );
   const legend = [
     ...(kinds.size > 0 ? ['', 'Kinds of string:'] : []),
     ...[...kinds].map((k) => `- ${k}: ${config.kinds[k]?.doc ?? ''}`),
     ...(surfaces.size > 0 ? ['', 'Surfaces:'] : []),
     ...[...surfaces].map((s) => `- ${s}: ${config.surfaces[s] ?? ''}`),
+    ...(guidelines.length > 0 ? ['', 'Guidelines:', ...guidelines.map((g) => `- ${g}`)] : []),
   ];
 
   return [

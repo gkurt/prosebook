@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { generate, importTranslations, render, todoOf } from 'prosebook/tools';
+import { definePlugin, generate, importTranslations, render, todoOf, type ProsebookConfig } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -30,11 +30,14 @@ cart.add:
 `;
 
 // German in a folder of area files, with cart.add made from an earlier source, so stale.
-const project = () => {
-  const config = fixture({
-    'copy/catalog/cart.yaml': CATALOG.replace('Add one to cart', 'Add to cart'),
-    'copy/locales/de/cart.yaml': 'cart.add: In den Warenkorb\n',
-  });
+const project = (options: ProsebookConfig = {}) => {
+  const config = fixture(
+    {
+      'copy/catalog/cart.yaml': CATALOG.replace('Add one to cart', 'Add to cart'),
+      'copy/locales/de/cart.yaml': 'cart.add: In den Warenkorb\n',
+    },
+    options,
+  );
   generate(config);
   writeFileSync(join(config.root, 'copy/catalog/cart.yaml'), CATALOG);
   return config;
@@ -70,6 +73,42 @@ describe('prosebook todo', () => {
     expect(text).toContain('- action: Says what pressing it does.');
     expect(text).toContain('- heading: ');
     expect(text).toEndWith('cart.title: ""\n```');
+  });
+
+  test('a prompt says the guidelines that read its locale and some entry in it', () => {
+    const house = definePlugin({
+      name: 'house',
+      rules: {
+        du: { type: 'guideline', description: 'Address the reader as du.', on: { locale: ['de'] } },
+        everywhere: { type: 'guideline', description: 'Keep a button as short as its source.', on: { surface: ['action'], locale: 'all' } },
+        errors: { type: 'guideline', description: 'Say what to do next.', on: { surface: ['error'], locale: 'all' } },
+        english: { type: 'guideline', description: 'Talk plainly.' },
+        offInCart: { type: 'guideline', description: 'Turned off in the cart.', on: { locale: 'all' } },
+        checked: {
+          type: 'occurrence',
+          description: 'Half again as long as the source at most.',
+          on: { locale: 'all' },
+          count: 'characters',
+          max: 1.5,
+          relative: true,
+          recommended: 'warn',
+          guide: true,
+        },
+      },
+    });
+    const config = project({ lint: { plugins: [house], areas: { cart: { 'house/offInCart': 'off' } } } });
+    const { catalog } = render(config);
+    const prompt = (locale: string) => todoOf(config, catalog, new Map(), locale, true).text;
+    expect(prompt('de-CH')).toContain(
+      [
+        'Guidelines:',
+        '- Address the reader as du.',
+        '- Keep a button as short as its source.',
+        '- Half again as long as the source at most.',
+      ].join('\n'),
+    );
+    expect(prompt('fr')).not.toContain('du.');
+    for (const unsaid of ['Say what to do next.', 'Talk plainly.', 'Turned off in the cart.']) expect(prompt('de')).not.toContain(unsaid);
   });
 
   test('a stale entry in a prompt comes with how to treat it', () => {

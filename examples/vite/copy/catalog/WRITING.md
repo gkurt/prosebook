@@ -34,6 +34,7 @@ Every string a person reads is an entry in `copy/catalog/<area>.yaml`, in Englis
 
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
+- In `de`: Address the shopper as du, never Sie.
 
 ## Before you finish
 

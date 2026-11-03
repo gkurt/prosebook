@@ -746,7 +746,8 @@ const readsLocale = (locales: 'all' | string[] | undefined, locale: string, sour
     : locales === 'all' ||
       locales.some((l) => locale.toLowerCase() === l.toLowerCase() || locale.toLowerCase().startsWith(`${l.toLowerCase()}-`));
 
-function applies(rule: RuleBase, message: Message, locale: string, sourceLocale: string): boolean {
+/** Whether a rule reads an entry in a locale, by its `on`. */
+export function applies(rule: RuleBase, message: Message, locale: string, sourceLocale: string): boolean {
   const { kind, surface, area, locale: locales } = rule.on ?? {};
   return (
     readsLocale(locales, locale, sourceLocale) &&

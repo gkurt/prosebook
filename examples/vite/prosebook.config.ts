@@ -10,6 +10,8 @@ const shop = definePlugin({
       on: { surface: ['error'] },
     },
     plain: { type: 'guideline', description: 'Talk to the shopper as someone behind the counter would: plainly, without selling.' },
+    // Said in `prosebook todo de --prompt` too, as it reads German.
+    du: { type: 'guideline', description: 'Address the shopper as du, never Sie.', on: { locale: ['de'] } },
   },
 });
 

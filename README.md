@@ -718,7 +718,8 @@ Stale translations still show by default; `stale: 'fallback'` shows the source i
 
 **Translating with a model.** prosebook calls no model itself. `prosebook todo de --prompt` prints
 the same entries as a prompt for whichever model you use: how to reply, the plural forms German
-takes, what each kind of string and surface asks for, and how to treat a stale entry. Hand it to the
+takes, what each kind of string and surface asks for, the guidelines that read German (below), and
+how to treat a stale entry. Hand it to the
 model and give its reply to `import`, as a file or on stdin:
 
 ```bash
@@ -863,8 +864,13 @@ and case read the `other` arms. A message names what was found with `{match}`.
 ```ts
 rules: {
   'error-next': { type: 'guideline', description: 'An error says what failed and what to do about it.', on: { surface: ['error'] } },
+  du: { type: 'guideline', description: 'Address the reader as du, never Sie.', on: { locale: ['de'] } },
 },
 ```
+
+Like any rule, a guideline reads the source unless `on.locale` says otherwise, since most are
+written about the source language. One that reads a translation's locale is said in that locale's
+`todo --prompt` too, when some entry in it is one the guideline reads (a rule with `guide: true` as well).
 
 ```json
 {

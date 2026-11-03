@@ -124,7 +124,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   the lint can't check, the kinds' and surfaces' docs and the rules marked `guide`, which every
   `guideline` (a data rule with no check) is. Keep it short; what a rule checks, its finding says. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
-  and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and
+  and with `--prompt` the prompt for a model, which says the rules marked `guide` that read the
+  locale and some entry in it (`applies`, as the lint decides). prosebook never calls a model: it writes the prompt, and
   `import` (`importTranslations` in `entry.ts`) checks the reply. `exchange.ts`: `prosebook export`,
   the same entries as XLIFF 2.0 or JSON for translation tools, and `readReturned`, which reads every
   format `import` takes (todo's YAML, JSON, XLIFF, through a small XML reader of its own). Messages

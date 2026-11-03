@@ -148,7 +148,8 @@
             "formatted-by-hand",
             "source-ending",
             "shop/error-next",
-            "shop/plain"
+            "shop/plain",
+            "shop/du"
           ]
         },
         "additionalProperties": {
