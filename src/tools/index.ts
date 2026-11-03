@@ -41,6 +41,7 @@ export {
 } from './entry.ts';
 export { defineConfig, loadConfig, resolveConfig, type NativeTarget, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 export { catalogSchema, generate, localeEntries, localesOf, render, writeFiles, type Generated } from './generate.ts';
+export { writingGuide } from './guide.ts';
 export {
   applyEdits,
   compileRule,

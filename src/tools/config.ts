@@ -128,6 +128,12 @@ export interface ProsebookConfig {
   /** Where a string may sit, with what each surface means. */
   surfaces?: Record<string, string>;
   lint?: LintConfig;
+  /**
+   * The writing guide `generate` writes for whoever writes the copy, a person or an agent: the kinds,
+   * the surfaces and the rules the lint holds them to, as instructions. `WRITING.md` in the catalog
+   * folder by default; `false` writes none. Point AGENTS.md at it.
+   */
+  guide?: string | false;
   /** Rust, Swift or Kotlin files `generate` writes beside the TypeScript. */
   native?: NativeTarget[];
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
@@ -160,6 +166,7 @@ export interface ResolvedConfig {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
   } & Required<WordLists>;
+  guide: string | false;
   native: (NativeTarget & { name: string })[];
   scan: { dirs: string[]; extensions: string[]; attributes: string[] };
 }
@@ -198,13 +205,14 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
   const rules = lintRules(lint);
+  const catalog = at(config.catalog ?? 'copy/catalog');
   for (const [area, severities] of Object.entries(lint.areas ?? {})) {
     for (const name of Object.keys(severities))
       if (!(name in rules)) throw new Error(`lint.areas.${area}.${name} is not a rule: name one of ${Object.keys(rules).join(', ')}`);
   }
   return {
     root,
-    catalog: at(config.catalog ?? 'copy/catalog'),
+    catalog,
     locales: at(config.locales ?? 'copy/locales'),
     out: at(config.out ?? 'src/copy'),
     lock: at(config.lock ?? 'copy/lock.json'),
@@ -228,6 +236,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       properNouns: lint.properNouns ?? [],
       pathSeparator: lint.pathSeparator ?? '›',
     },
+    guide: config.guide === false ? false : config.guide === undefined ? join(catalog, 'WRITING.md') : at(config.guide),
     native: (config.native ?? []).map((target, i) => {
       if (!(target.language in NATIVE_NAMES))
         throw new Error(`native[${i}].language is "${target.language}": name one of ${Object.keys(NATIVE_NAMES).join(', ')}`);

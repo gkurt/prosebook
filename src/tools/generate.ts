@@ -11,6 +11,7 @@ import { dirname, join, relative } from 'node:path';
 import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
+import { writingGuide } from './guide.ts';
 import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
@@ -176,7 +177,7 @@ export interface Generated {
   entries: Map<string, Entry[]>;
 }
 
-/** Everything `generate` writes, in memory. */
+/** Everything `generate` writes, in memory: the modules, native files, the schema, the writing guide. */
 export function render(config: ResolvedConfig, accept?: Map<string, Set<string> | true>): Generated {
   const catalog = loadCatalog(config);
   const { lock, stale } = reconcile(catalog, readLock(config.lock), accept);
@@ -232,6 +233,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
 
   for (const [path, content] of nativeFiles(config, catalog, locales, entries, head)) files.set(path, content);
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
+  if (config.guide !== false) files.set(config.guide, writingGuide(config));
   // Without its schema line a catalog file has no completion, so generate adds it and --check fails there.
   for (const file of yamlFiles(config.catalog)) {
     const path = join(config.catalog, file);

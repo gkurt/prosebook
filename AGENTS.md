@@ -119,7 +119,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
   example's output, which keeps that so.
 - `src/tools/generate.ts`: the files `generate` writes, the catalog's own included where one lacks its
-  first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `lock.ts`: stale translations and the source texts
+  first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `guide.ts`: the writing guide
+  `generate` writes (`guide`, `WRITING.md` in the catalog folder), the config said as instructions for
+  whoever writes next. `ADVICE` holds a line per core rule, typed over all of them, so a new rule
+  needs one; a rule that is off isn't said. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model. prosebook never calls a model: it writes the prompt, and
   `import` (`importTranslations` in `entry.ts`) checks the reply. `exchange.ts`: `prosebook export`,
@@ -227,7 +230,7 @@ differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo 
 
 `examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`) and per
 binding beyond React (`preact`, `vue`, `svelte`, `solid`, each on Vite), each a
-private workspace that imports prosebook from `dist` as a user's app would, so build before running
+private workspace whose copy follows its `copy/catalog/WRITING.md`, and that imports prosebook from `dist` as a user's app would, so build before running
 one. They share the shop catalog, but each is standalone. `scripts/smoke.mts` serves an example's
 build and checks what it says; CI's `examples` job runs it after each example's check, typecheck and
 build. The examples link prosebook's bin only once `dist/cli.js` exists, so CI installs again after

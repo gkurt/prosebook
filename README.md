@@ -36,7 +36,8 @@ const { t } = useCopy();
   read whose key it can't see rather than show a key where a message was.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
-  own rules, scoped by kind, surface and locale, and translations are held to their source.
+  own rules, scoped by kind, surface and locale, and translations are held to their source. The
+  guide itself is generated as `WRITING.md`, for a coding agent to read before it writes.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
   with plurals, numbers and dates that say what the browser says, and the string resources Android and Apple read.
 
@@ -548,6 +549,25 @@ catalog, so an editor with the YAML language server completes and explains every
 That line is how the editor finds the schema, so `generate` starts each catalog file with it, and
 `generate --check` (and `check`) fails on a file without it. A file that names a schema of its own on
 its first line keeps it.
+
+### The writing guide
+
+The lint says what's wrong after the words are written. `generate` also writes the same rules
+beforehand, as instructions, to `copy/catalog/WRITING.md`: where an entry goes and what it says about
+itself, each kind with the budget it's held to, the surfaces, the banned words with their reasons,
+the spellings and the one word per concept, how a plural and a price are written in your message
+format, your plugins' rules with what they read, and what to run before finishing. It lists only the
+rules your config turns on, and `generate --check` fails once the config has moved past it. Point
+your agent at it:
+
+```markdown
+<!-- AGENTS.md -->
+
+Before writing or changing UI copy, read copy/catalog/WRITING.md.
+```
+
+Claude Code reads it with `@copy/catalog/WRITING.md` in CLAUDE.md. Set `guide` to write it
+elsewhere, or `guide: false` for none.
 
 ### Messages
 
@@ -1145,6 +1165,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
+  guide: 'copy/catalog/WRITING.md', // the writing guide, beside the catalog by default; false for none
   native: [], // Rust, Swift or Kotlin files, Android's res or Apple's .lproj: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
   scan: { dirs: ['src'] },
 });
