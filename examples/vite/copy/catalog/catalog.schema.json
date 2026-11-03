@@ -146,7 +146,9 @@
             "plural-one",
             "arm-endings",
             "formatted-by-hand",
-            "source-ending"
+            "source-ending",
+            "shop/error-next",
+            "shop/plain"
           ]
         },
         "additionalProperties": {

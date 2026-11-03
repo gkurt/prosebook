@@ -36,8 +36,8 @@ const { t } = useCopy();
   read whose key it can't see rather than show a key where a message was.
 - **Written well.** An optional lint holds the words to a writing guide: word budgets per kind of
   string, periods, sentence case, banned filler, and `{count} files` outside a plural. Plugins add your
-  own rules, scoped by kind, surface and locale, and translations are held to their source. The
-  guide itself is generated as `WRITING.md`, for a coding agent to read before it writes.
+  own rules, scoped by kind, surface and locale, and translations are held to their source. What no
+  rule can check goes in `WRITING.md`, generated for a coding agent to read before it writes.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI,
   with plurals, numbers and dates that say what the browser says, and the string resources Android and Apple read.
 
@@ -552,13 +552,11 @@ its first line keeps it.
 
 ### The writing guide
 
-The lint says what's wrong after the words are written. `generate` also writes the same rules
-beforehand, as instructions, to `copy/catalog/WRITING.md`: where an entry goes and what it says about
-itself, each kind with the budget it's held to, the surfaces, the banned words with their reasons,
-the spellings and the one word per concept, how a plural and a price are written in your message
-format, your plugins' rules with what they read, and what to run before finishing. It lists only the
-rules your config turns on, and `generate --check` fails once the config has moved past it. Point
-your agent at it:
+The lint checks what a pattern can, after the words are written, and says each finding with its fix.
+What it can't check goes before the writing, in `copy/catalog/WRITING.md`, which `generate` writes:
+where an entry goes, what each kind and surface is for, and your guidelines, the rules with no check
+(see [Lint plugins](#checks)). A checked rule is in it too when it says `guide: true`. It is short on
+purpose, and `generate --check` fails once the config has moved past it. Point your agent at it:
 
 ```markdown
 <!-- AGENTS.md -->
@@ -823,7 +821,7 @@ tags (`code`, `kbd`, ...) read as `HOLE`. `on` limits a rule to kinds, surfaces 
 locales it reads: the source when unset, `'all'`, or a list of languages (`['de']` covers `de-CH`).
 A rule is then given the `locale`, that locale's `ast` and `text`, and the `source` readings to
 compare with. `recommended` is its severity under that preset (off when unset), `strict` under
-strict (`error` when unset).
+strict (`error` when unset). `guide: true` says the rule's description in the writing guide too.
 
 ```ts
 import { defineConfig, definePlugin, words } from 'prosebook/config';
@@ -860,6 +858,13 @@ and case read the `other` arms. A message names what was found with `{match}`.
 | `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`, `relative` | the count is out of bounds (`{count}`); placeholders count as words, not characters. With `relative`, `max` and `min` are multiples of the source's count (`{source}`) |
 | `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions`           | a word is out of case; `lint.properNouns` keep theirs too                                                                                                              |
 | `conditional`    | `when`, `require`, `message`                                           | the string matches `when` (or `when` is unset) but not `require`                                                                                                       |
+| `guideline`      | `description` only                                                     | never: it is advice no pattern can check, said in the writing guide, and on under either preset unless `recommended` says otherwise                                    |
+
+```ts
+rules: {
+  'error-next': { type: 'guideline', description: 'An error says what failed and what to do about it.', on: { surface: ['error'] } },
+},
+```
 
 ```json
 {

@@ -60,6 +60,7 @@ export {
   type Edit,
   type ExistenceRule,
   type Finding,
+  type GuidelineRule,
   type OccurrenceRule,
   type Plugin,
   type Readings,

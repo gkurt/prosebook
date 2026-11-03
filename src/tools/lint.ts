@@ -43,6 +43,8 @@ interface RuleBase {
    * every locale, and a list those languages and their regions (`de` covers `de-CH`).
    */
   on?: { kind?: string[]; surface?: string[]; area?: string[]; locale?: 'all' | string[] };
+  /** Said in the writing guide too, before the writing, for a rule worth knowing before the lint finds it. */
+  guide?: boolean;
 }
 
 /** A rule written as code. */
@@ -127,7 +129,15 @@ export interface ConditionalRule extends RuleBase {
   message: string;
 }
 
-export type Rule = CheckRule | ExistenceRule | SubstitutionRule | OccurrenceRule | CapitalizationRule | ConditionalRule;
+/**
+ * Advice no pattern can check: "an error says what to do next". Said in the writing guide only, as its
+ * description, and on under either preset unless it says otherwise, since no finding comes of it.
+ */
+export interface GuidelineRule extends RuleBase {
+  type: 'guideline';
+}
+
+export type Rule = CheckRule | ExistenceRule | SubstitutionRule | OccurrenceRule | CapitalizationRule | ConditionalRule | GuidelineRule;
 
 /** A set of rules, named `<name>/<rule>` in `lint.rules` and in an entry's `allow`. */
 export interface Plugin {
@@ -627,9 +637,11 @@ export function compileRule(name: string, rule: Rule): CheckRule {
     typeof message === 'string' && message !== '' ? message : fail('has no message: say what to write instead');
   if (typeof rule.description !== 'string' || rule.description === '') fail('has no description: say what it holds a string to');
   if ('check' in rule) return typeof rule.check === 'function' ? rule : fail('has a check that is not a function');
-  const { description, recommended, strict, on } = rule;
-  const base = { description, recommended, strict, on };
+  const { description, recommended, strict, on, guide } = rule;
+  const base = { description, recommended, strict, on, guide };
   switch (rule.type) {
+    case 'guideline':
+      return { ...base, recommended: recommended ?? 'warn', guide: true, check: () => [] };
     case 'existence': {
       const list = rule.words ?? [];
       const patterns = (rule.patterns ?? []).map((p, i) => pattern(p, `patterns[${i}]`, rule.ignoreCase));
@@ -714,7 +726,7 @@ export function compileRule(name: string, rule: Rule): CheckRule {
     }
     default:
       return fail(
-        `has type ${String((rule as { type?: unknown }).type)}: use existence, substitution, occurrence, capitalization or conditional, or give it a check`,
+        `has type ${String((rule as { type?: unknown }).type)}: use existence, substitution, occurrence, capitalization, conditional or guideline, or give it a check`,
       );
   }
 }

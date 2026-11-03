@@ -3,6 +3,6 @@ packages:
   'prosebook': minor
 ---
 
-### `generate` writes the writing guide, for an agent to read before it writes
+### Guidelines, and a writing guide for an agent to read before it writes
 
-`copy/catalog/WRITING.md` says the config as instructions: each kind with its budget, the surfaces, the banned words with their reasons, plurals and prices in your message format, and your plugins' rules, only those turned on. `generate --check` fails once it is stale; set `guide` to move it, or `false` for none.
+A lint rule of `type: 'guideline'` is advice no pattern can check. `generate` writes `copy/catalog/WRITING.md` with what each kind and surface is for, the guidelines, and any checked rule marked `guide: true`, and `generate --check` fails once it is stale. Set `guide` to move it, or `false` for none.

@@ -21,6 +21,7 @@ export {
   type CheckRule,
   type ConditionalRule,
   type ExistenceRule,
+  type GuidelineRule,
   type OccurrenceRule,
   type Plugin,
   type Readings,
