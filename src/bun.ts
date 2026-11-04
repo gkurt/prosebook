@@ -16,15 +16,19 @@
  * source file under `scan.dirs` naming an area's keys imports the area, a module of the plugin's own
  * namespace. Bun has no transform hook, so those files are read here and handed back. A build knows
  * the keys it keeps before it loads anything, so each area loads already pruned, and which areas
- * share a chunk (`tools/chunks.ts`), so a lazy locale's part is a file per group of them.
+ * share a chunk (`tools/chunks.ts`), so a lazy locale's part is a file per group of them. Bun's
+ * metafile names the file each part went to, which the server's catalog lists (`areaFiles`), so a
+ * server render can link what it read.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
-import type { BunPlugin } from 'bun';
+import type { BunPlugin, PluginBuilder } from 'bun';
 
 import {
   AREA,
+  areaFilesOf,
+  areaFilesPath,
   areaModule,
   areasNamed,
   lazyAreas,
@@ -42,14 +46,16 @@ import {
   splitIndex,
   unseenMessage,
   watchCatalog,
+  withAreaFiles,
+  type Groups,
   type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
-import { loadConfig, type ProsebookConfig } from './tools/config.ts';
+import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { inspectorEndpoints } from './tools/endpoints.ts';
-import { generate } from './tools/generate.ts';
+import { generate, writeFiles, type Generated } from './tools/generate.ts';
 
 export interface ProsebookBunOptions {
   /** The config, inline. Without it, `prosebook.config.*` at `root` is read. */
@@ -70,7 +76,8 @@ export interface ProsebookBunOptions {
   /**
    * Split each locale by area in the page, as the Vite plugin's `split` does, so a lazy route loads
    * only the messages it reads. `Bun.build` needs `splitting: true`. A server's own code loads whole
-   * locales.
+   * locales, and its catalog lists each area's files, which a copy's `preload` hands on as the render
+   * reads them.
    */
   split?: boolean;
   /** Under the dev server, Alt-click a string on the page to open its entry in the editor. On by default. */
@@ -98,8 +105,8 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       const split = options.split === true;
       if (building && split && build.config.splitting !== true)
         throw new Error('prosebook: `split` needs `splitting: true` in Bun.build, or every area ships in the entry chunk');
-      // A full-stack build, one `Bun.build` of a server and the pages it imports, names the side it
-      // loads for (undocumented, and not in Bun's types); any other build is for its target.
+      // Bun names the side it loads a module for (undocumented, and not in Bun's types): both, in a
+      // full-stack build, one `Bun.build` of a server and the pages it imports; else its target's.
       const client = (args: object) => ('side' in args ? args.side === 'client' : (build.config.target ?? 'browser') === 'browser');
 
       const prune = options.prune ?? 'strict';
@@ -136,6 +143,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       if (!split) return;
 
       const groups = building ? areaGroups(config, generated, options.keep) : new Map<string, string>();
+      if (building) linkAreaFiles(build, config, () => generated, groups, client);
       // `cart`, or in a build `cart/de`, a lazy locale's part of the group `cart` leads.
       build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({ path: path.slice(AREA.length), namespace: NAMESPACE }));
       build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
@@ -157,6 +165,62 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       });
     },
   };
+}
+
+/** Stands for `areaFiles` in a server's index, until the page's files are written. */
+const PLACEHOLDER = '"__PROSEBOOK_AREA_FILES__"';
+/** The placeholder as the minifier may have quoted it. */
+const AREA_FILES = /(["'`])__PROSEBOOK_AREA_FILES__\1/g;
+const NO_PAGE = 'prosebook: no split page build to link area files from: build the page before the server, or `preload` is handed nothing';
+
+/**
+ * A split build's lazy locales, each area's file, for a server render to link (`Catalog.areaFiles`).
+ * Bun's metafile names the modules in each file it writes, known only once the build ends. A server's
+ * index holds a placeholder, filled in the written file: in a full-stack build, from the page built
+ * beside it; in a server's own build, from the page's build before it, which wrote its files down.
+ */
+function linkAreaFiles(
+  build: PluginBuilder,
+  config: ResolvedConfig,
+  generated: () => Generated,
+  groups: Groups,
+  client: (args: object) => boolean,
+): void {
+  build.config.metafile = true;
+  let server = false;
+  build.onLoad({ filter: new RegExp(`^${folderPattern(config.out)}[\\\\/]index\\.[jt]s$`) }, (args) => {
+    if (client(args)) return undefined;
+    server = true;
+    return { contents: withAreaFiles(readFileSync(args.path, 'utf8'), PLACEHOLDER), loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
+  });
+  build.onEnd((result) => {
+    if (!result.success || result.metafile === undefined) return;
+    // Bun serves a page's files, and imports them, from `publicPath`, or beside the page.
+    const base = build.config.publicPath ?? '/';
+    const parts: [string, string, string][] = [];
+    for (const [file, output] of Object.entries(result.metafile.outputs)) {
+      const href = base + file.replaceAll('\\', '/').replace(/^\.\//, '');
+      for (const input of Object.keys(output.inputs)) {
+        if (!input.startsWith(`${NAMESPACE}:`)) continue;
+        const [lead = '', locale] = input.slice(NAMESPACE.length + 1).split('/');
+        if (locale !== undefined) parts.push([lead, locale, href]);
+      }
+    }
+    const path = areaFilesPath(config.root);
+    let files = JSON.stringify(areaFilesOf(generated(), groups, parts));
+    if (parts.length > 0) writeFiles(new Map([[path, `${files}\n`]]));
+    if (!server) return;
+    if (parts.length === 0 && existsSync(path)) files = readFileSync(path, 'utf8').trim();
+    else if (parts.length === 0) console.warn(NO_PAGE);
+    // Written only with an `outdir`; without one, the server is handed no files.
+    if (build.config.outdir === undefined) return;
+    for (const output of result.outputs) {
+      if (output.kind !== 'entry-point' && output.kind !== 'chunk') continue;
+      const code = readFileSync(output.path, 'utf8');
+      const filled = code.replace(AREA_FILES, () => files);
+      if (filled !== code) writeFileSync(output.path, filled);
+    }
+  });
 }
 
 export interface InspectorRoutesOptions {

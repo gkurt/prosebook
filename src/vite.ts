@@ -25,13 +25,15 @@
  * launches.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
 
 import {
   AREA,
+  areaFilesOf,
+  areaFilesPath,
   areaModule,
   areasNamed,
   lazyAreas,
@@ -47,6 +49,7 @@ import {
   splitIndex,
   unseenMessage,
   unseenOf,
+  withAreaFiles,
   type Groups,
   type Prune,
 } from './tools/bundle.ts';
@@ -95,13 +98,6 @@ const DEV_ID = '\0prosebook/dev';
 const AREA_ID = '\0prosebook/area/';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
-
-/** Where a split client build leaves its area files for the server build: apart from the source and the output. */
-const areaFilesPath = (root: string) => join(root, 'node_modules', '.prosebook', 'area-files.json');
-
-/** The index with `areaFiles` among its catalog's fields. */
-const withAreaFiles = (index: string, files: unknown) =>
-  index.replace(/defineCatalog(?:<[^>]*>)?\(\{/, (call) => `${call}\n  areaFiles: ${JSON.stringify(files)},`);
 
 const inspectorPath = beside(import.meta.url, 'inspector');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
@@ -214,7 +210,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       if (splitting(loadOptions?.ssr) && isIndex(id)) return splitIndex(config, generated!, options.keep);
       if (building && options.split === true && loadOptions?.ssr === true && isIndex(id)) {
         const path = areaFilesPath(viteRoot);
-        if (existsSync(path)) return withAreaFiles(readFileSync(id.split('?', 1)[0]!, 'utf8'), JSON.parse(readFileSync(path, 'utf8')));
+        if (existsSync(path)) return withAreaFiles(readFileSync(id.split('?', 1)[0]!, 'utf8'), readFileSync(path, 'utf8').trim());
         this.warn('no split client build to link area files from: build the client before the server, or `preload` is handed nothing');
       }
       if (!building || prune === false || generated === undefined) return null;
@@ -281,15 +277,13 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     generateBundle(_output, bundle) {
       if (building && options.split === true && this.environment.config.consumer === 'client') {
         // Each lazy locale's part of a group, for the areas in it that locale translates.
-        const files: Record<string, Record<string, string>> = {};
+        const parts: [string, string, string][] = [];
         for (const chunk of Object.values(bundle)) {
           if (chunk.type !== 'chunk' || chunk.facadeModuleId?.startsWith(AREA_ID) !== true) continue;
           const [lead = '', locale] = chunk.facadeModuleId.slice(AREA_ID.length).split('/');
-          if (locale === undefined) continue;
-          const own = generated?.entries.get(locale) ?? [];
-          for (const area of membersOf(groups, lead))
-            if (inAreas(own, [area]).length > 0) (files[area] ??= {})[locale] = base + chunk.fileName;
+          if (locale !== undefined) parts.push([lead, locale, base + chunk.fileName]);
         }
+        const files = areaFilesOf(generated!, groups, parts);
         writeFiles(new Map([[areaFilesPath(viteRoot), `${JSON.stringify(files, null, 2)}\n`]]));
       }
       if (shipped.total === 0) return;

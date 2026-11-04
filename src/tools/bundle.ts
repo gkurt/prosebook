@@ -218,6 +218,29 @@ export function areaModule(
   return lines.join('\n');
 }
 
+/** Each area's file per lazy locale, for a server build's catalog to list (`Catalog.areaFiles`). */
+export type AreaFiles = Record<string, Record<string, string>>;
+
+/** Where a split client build leaves its area files for the server build: apart from the source and the output. */
+export const areaFilesPath = (root: string) => join(root, 'node_modules', '.prosebook', 'area-files.json');
+
+/** The index with `areaFiles` among its catalog's fields, as `files` writes them: an object's JSON, or a placeholder. */
+export const withAreaFiles = (index: string, files: string) =>
+  index.replace(/defineCatalog(?:<[^>]*>)?\(\{/, (call) => `${call}\n  areaFiles: ${files},`);
+
+/**
+ * The files a client build wrote each lazy locale's part of a group to, `[lead, locale, href]`, as
+ * each area's: every area of the group the locale translates loads from its part.
+ */
+export function areaFilesOf(generated: Generated, groups: Groups, parts: Iterable<readonly [string, string, string]>): AreaFiles {
+  const files: AreaFiles = {};
+  for (const [lead, locale, href] of parts) {
+    const own = generated.entries.get(locale) ?? [];
+    for (const area of membersOf(groups, lead)) if (inAreas(own, [area]).length > 0) (files[area] ??= {})[locale] = href;
+  }
+  return files;
+}
+
 /** A locale's module holding only the keys `kept`, as JavaScript, for a bundler to load in its place. */
 export function prunedModule(entries: Entry[], kept: (key: string) => boolean): string {
   return localeModule(compileLocale(entries, kept), '// Pruned by prosebook: only the messages the code names.', false);

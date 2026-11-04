@@ -1084,9 +1084,9 @@ only: a server render, and an app without a plugin, load whole locales. It needs
 with top-level `await`, which Vite's, Bun's and Next's defaults have.
 
 A page rendered on a server in a lazy locale hydrates once its areas' files have loaded, and the
-browser asks for them only after the code reading them has. Under Vite, the server can link them
-first. A split client build writes down each area's file per lazy locale, the server build after
-it lists them in its catalog, and a copy hands each file it reads from to `preload`, once:
+browser asks for them only after the code reading them has. Under Vite and Bun, the server can link
+them first. A split client build writes down each area's file per lazy locale, the server build
+lists them in its catalog, and a copy hands each file it reads from to `preload`, once:
 
 ```tsx
 import { preloadModule } from 'react-dom';
@@ -1098,6 +1098,11 @@ React puts a `<link rel="modulepreload">` in the page for each, so the browser f
 beside the route's code. Without React, collect them and write the links yourself. Build the client
 before the server, as TanStack Start and other frameworks on Vite do; `vite build` warns where it
 built the server with no client to take the files from.
+
+Under Bun, a full-stack `Bun.build`, a server importing its page's HTML, builds both in one pass, and
+the server learns the page's files as the build ends. A server built on its own takes them from the
+page's `Bun.build` before it, and warns without one. Each file is linked from `publicPath`, or `/`,
+where `Bun.serve` serves a page's files.
 
 ## Finding a string's entry
 
@@ -1209,4 +1214,4 @@ bun run --cwd examples/next dev
 
 Ideas not built yet, roughly in order of value:
 
-1. **Preloading a split render's areas under Bun and Next**: Bun's chunks and Turbopack's name no module, so neither says which file holds an area.
+1. **Preloading a split render's areas under Next**: Turbopack's chunks name no module, so nothing says which file holds an area.

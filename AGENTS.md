@@ -206,7 +206,11 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   entries with `Bun.openInEditor`; the example imports it only in dev and its build marks it external.
   With `split`, areas are modules of its own namespace, and the source under `scan.dirs` is loaded
   here to append their imports, as Bun has no transform hook. A full-stack `Bun.build` loads each
-  module once per side and names it in `onLoad`'s `side`, not in Bun's types; only `client` splits.
+  module once per side and names it in `onLoad`'s `side`, not in Bun's types (a server's own build
+  names `server` too); only `client` splits. A split build turns on Bun's metafile, which names the
+  file each lazy locale's part of a group went to; `onEnd`, once the files are written, writes them
+  to `node_modules/.prosebook/area-files.json` and fills the server index's placeholder `areaFiles`
+  in the written output, from this build's page or, in a server's own build, from that file.
   bunfig.toml takes a module's default export, so the example's dev plugin is `prosebook.plugin.ts`.
 - `src/inspector.ts`: browser code, loaded from beside each integration (a tsdown entry of its own).
   `install` runs once per page, since Bun and Next run the index again on every change. Matches the text under the pointer to the reads the runtime reported, since the DOM carries no

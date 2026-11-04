@@ -181,6 +181,81 @@ test('a full-stack split build splits the page and leaves the server its whole l
   expect(holding('Shop front')).not.toEqual(holding('Cart page'));
 });
 
+/** A server rendering keys it is handed, which collects the files its copy hands `preload`. */
+const rendering = [
+  "import { createCopy } from 'prosebook';",
+  "import { catalog } from './copy/index.ts';",
+  'export async function render(locale: string, keys: string[]) {',
+  '  const files: string[] = [];',
+  '  const copy = createCopy(catalog, { locale, preload: (href) => files.push(href) });',
+  '  await copy.ready;',
+  '  for (const key of keys) copy.t(key as never);',
+  '  return files;',
+  '}',
+].join('\n');
+
+type Render = (locale: string, keys: string[]) => Promise<string[]>;
+
+test('the server build after a split browser build lists its area files, which a copy hands on as it reads', async () => {
+  const config = fixture({ ...route, 'src/server.ts': rendering });
+  // The server reads keys it is handed, which a pruned build would refuse.
+  const plugins = [prosebook({ root: config.root, config: { require: [] }, split: true, prune: false })];
+  const client = join(config.root, 'dist', 'client');
+  await Bun.build({
+    entrypoints: [join(config.root, 'src/main.ts')],
+    outdir: client,
+    splitting: true,
+    conditions: ['prosebook@dev'],
+    plugins,
+  });
+  const server = join(config.root, 'dist', 'server');
+  await Bun.build({
+    entrypoints: [join(config.root, 'src/server.ts')],
+    outdir: server,
+    target: 'bun',
+    splitting: true,
+    conditions: ['prosebook@dev'],
+    plugins,
+  });
+
+  const { render } = (await import(join(server, 'server.js'))) as { render: Render };
+  // The route's areas share a file, which the copy hands on once; the shell's is another.
+  const files = await render('de', ['cart.title', 'checkout.pay', 'app.title', 'shipping.title']);
+  expect(files).toHaveLength(2);
+  expect(files.every((href) => href.startsWith('/chunk-'))).toBe(true);
+  const text = (href: string) => readFileSync(join(client, href), 'utf8');
+  expect(['Warenkorbseite', 'Jetzt zahlen', 'Lieferung'].every((s) => text(files[0]!).includes(s))).toBe(true);
+  expect(text(files[1]!)).toContain('Ladenfront');
+  expect(await render('en', ['cart.title', 'app.title'])).toEqual([]);
+});
+
+test("a full-stack split build fills in the server's area files once the page's are written, minified", async () => {
+  const config = fixture({
+    ...route,
+    'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
+    'src/page.ts': "import { cart } from './main.ts';\ndocument.onclick = () => void cart('en', 'de');\n",
+    'src/server.ts': `import page from './index.html';\nexport { page };\n${rendering}`,
+  });
+  const outdir = join(config.root, 'dist');
+  await Bun.build({
+    entrypoints: [join(config.root, 'src/server.ts')],
+    outdir,
+    target: 'bun',
+    splitting: true,
+    minify: true,
+    conditions: ['prosebook@dev'],
+    plugins: [prosebook({ root: config.root, config: { require: [] }, split: true, prune: false })],
+  });
+  expect([...written(outdir).values()].some((js) => js.includes('__PROSEBOOK_AREA_FILES__'))).toBe(false);
+
+  const { render } = (await import(join(outdir, 'server.js'))) as { render: Render };
+  const files = await render('de', ['cart.title', 'app.title']);
+  expect(files).toHaveLength(2);
+  const text = (href: string) => readFileSync(join(outdir, href.slice(1)), 'utf8');
+  expect(text(files[0]!)).toContain('Warenkorbseite');
+  expect(text(files[1]!)).toContain('Ladenfront');
+});
+
 test("under Bun's dev server, a split catalog serves each area its generated locales whole, imported by the files that name its keys", async () => {
   const config = fixture({ ...shop, 'src/page.ts': "document.title = t('cart.title');\n" });
   const loads: [{ filter: RegExp; namespace?: string }, OnLoadCallback][] = [];
