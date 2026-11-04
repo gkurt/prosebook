@@ -243,7 +243,8 @@ function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifRepor
       report?.add({ rule: 'out-of-date', level: 'error', message: `${why(p)}: run \`prosebook generate\``, file: rel(config, p) });
     return 1;
   }
-  out(`prosebook: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
+  // A dev server may have written them a moment before, so "nothing changed" would mislead.
+  out(`prosebook: ${changed.length === 0 ? 'the generated files are current' : `wrote ${changed.length} file(s)`} (${summary})`);
   return broken;
 }
 

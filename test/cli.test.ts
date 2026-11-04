@@ -75,3 +75,9 @@ describe('a broken entry', () => {
     expect(read(config.root, 'copy/locales/de.yaml')).toBe(files['copy/locales/de.yaml']);
   });
 });
+
+test('generate run again, as after a dev server wrote the files, says they are current', () => {
+  const { root } = fixture({ 'copy/catalog/app.yaml': 'app.title:\n  context: The header.\n  en: My app\n' });
+  expect(cli(root, 'generate').stdout).toContain('wrote');
+  expect(cli(root, 'generate').stdout).toContain('prosebook: the generated files are current (1 messages, 1 locale(s))');
+});
