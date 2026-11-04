@@ -137,6 +137,14 @@ export interface ProsebookConfig {
   guide?: string | false;
   /** Rust, Swift or Kotlin files `generate` writes beside the TypeScript. */
   native?: NativeTarget[];
+  /** How `prosebook extract` writes new entries. */
+  extract?: {
+    /**
+     * An area for the words several features say, `Cancel` and `Loading…`: an entry there is reused
+     * from any file, and text another area holds already goes there rather than into a second area.
+     */
+    shared?: string;
+  };
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
   scan?: {
     dirs?: string[];
@@ -185,6 +193,7 @@ export interface ResolvedConfig {
   } & Required<WordLists>;
   guide: string | false;
   native: (NativeTarget & { name: string })[];
+  extract: { shared?: string };
   scan: ScanOptions;
 }
 
@@ -263,6 +272,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       const name = target.name ?? (target.plist === undefined ? NATIVE_NAMES[target.language] : 'InfoPlist');
       return { ...target, out: at(target.out), name, ...plist };
     }),
+    extract: { ...config.extract },
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte'],

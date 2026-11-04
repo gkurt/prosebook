@@ -53,7 +53,11 @@ export function writingGuide(config: ResolvedConfig): string {
     '',
     'Read this before adding or changing an entry in the catalog. It says what the lint cannot check; `prosebook lint` checks the rest.',
     '',
-    `Every string a person reads is an entry in \`${catalog}/<area>.yaml\`, in ${languageOf(config.source)}, read from the code by its key. A key's first segment names its file: \`cart.items\` lives in \`cart.yaml\`. An entry holds ${context}. Give it a \`kind\` and a \`surface\` from the lists below.`,
+    `Every string a person reads is an entry in \`${catalog}/<area>.yaml\`, in ${languageOf(config.source)}, read from the code by its key. A key's first segment names its file: \`cart.items\` lives in \`cart.yaml\`. An entry holds ${context}. Give it a \`kind\` and a \`surface\` from the lists below.${
+      config.extract.shared === undefined
+        ? ''
+        : ` Words several features say, \`Cancel\` and \`Loading…\`, are one entry in \`${config.extract.shared}.yaml\`: read that one rather than adding another.`
+    }`,
     '',
     '## Kinds',
     '',

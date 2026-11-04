@@ -539,7 +539,7 @@ async function runExtract(config: ResolvedConfig, paths: string[], write: boolea
     out(`${x.file}:${x.line}:${x.column}  ${x.where === 'text' ? '' : `${x.where}=`}"${x.message}"`);
     out(`  → ${x.key}${x.reused ? ' (already in the catalog)' : ''}: ${x.replacement.trim()}`);
   }
-  for (const f of plan.files) for (const w of f.warnings) err(`warn  ${w}`);
+  for (const w of [...plan.files.flatMap((f) => f.warnings), ...plan.warnings]) err(`warn  ${w}`);
   if (extractions.length === 0) {
     out('prosebook: no hardcoded text to extract');
     return 0;

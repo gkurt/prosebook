@@ -8,6 +8,8 @@ import { createCopy, type Catalog } from 'prosebook';
 import { CopyProvider } from 'prosebook/react';
 import { applyExtract, areaOf, generate, loadCatalog, planExtract, slugOf } from 'prosebook/tools';
 
+import { writingGuide } from '#src/tools/guide.ts';
+
 import { fixture } from './fixture.ts';
 
 const COMPONENT = `import { useState } from 'react';
@@ -214,6 +216,32 @@ describe('prosebook extract', () => {
       'cards.copy-link-tooltip name/tooltip',
       'cards.copies-the-link-to-tooltip description/tooltip',
     ]);
+  });
+
+  test('words several areas say go in the shared area, or are named', async () => {
+    const files = {
+      'copy/catalog/dialog.yaml': 'dialog.cancel:\n  kind: action\n  surface: action\n  context: Closes the dialog.\n  en: Cancel\n',
+      'src/Cart.tsx': 'export const Cart = () => <button>Cancel</button>;\n',
+      'src/Plan.tsx': 'export const Plan = () => <><button>Cancel</button><p>Your plan</p></>;\n',
+    };
+    const paths = (root: string) => ['src/Cart.tsx', 'src/Plan.tsx'].map((p) => join(root, p));
+    const loose = fixture(files);
+    const plan = await planExtract(loose, paths(loose.root), { types: false });
+    expect(plan.entries.map((e) => e.key)).toEqual(['cart.cancel', 'plan.cancel', 'plan.your-plan']);
+    expect(plan.warnings).toEqual([
+      '"Cancel" is an entry in 3 areas (dialog.cancel, cart.cancel, plan.cancel): set extract.shared in the config to keep words like it in one',
+    ]);
+
+    const config = fixture(files, { extract: { shared: 'common' } });
+    const shared = await planExtract(config, paths(config.root), { types: false });
+    expect(shared.entries.map((e) => e.key)).toEqual(['common.cancel', 'plan.your-plan']);
+    expect(shared.files.flatMap((f) => f.extractions).map((x) => `${x.key}${x.reused ? ' (reused)' : ''}`)).toEqual([
+      'common.cancel',
+      'common.cancel (reused)',
+      'plan.your-plan',
+    ]);
+    expect(shared.warnings).toEqual([]);
+    expect(writingGuide(config)).toContain('are one entry in `common.yaml`: read that one rather than adding another.');
   });
 
   test('two files that would share an area each take their folder too, and say so', async () => {

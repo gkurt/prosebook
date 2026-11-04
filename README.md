@@ -1028,7 +1028,11 @@ profile.hi-read-the-terms:
   `index`; `--area` overrides it. A name in `lint.properNouns` stays one word (`GitHubConnect.tsx` →
   `github-connect`). Two files that would share an area, `routes/notifications.tsx` and
   `components/Notifications.tsx`, each take their folder's name too (`routes-notifications`), and the
-  report says so. The key adds the message's first words, and a suffix for an
+  report says so.
+- Words every feature says, `Cancel` and `Loading…`, belong in one area. Set
+  `extract: { shared: 'common' }` and an entry there is reused from any file, and text another area
+  holds already goes there, once. Without it, the report names each string that is now an entry in
+  several areas. The key adds the message's first words, and a suffix for an
   attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area, in the same
   role (its kind and surface), reuses that key: a button's "Search" and a placeholder's are two.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
@@ -1243,6 +1247,7 @@ export default defineConfig({
   },
   guide: 'copy/catalog/WRITING.md', // the writing guide, beside the catalog by default; false for none
   native: [], // Rust, Swift or Kotlin files, Android's res or Apple's .lproj: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
+  extract: {}, // shared: an area for the words several features say, `Cancel` and `Loading…`
   scan: { dirs: ['src'] }, // and attributes, calls, properties: what scan reads as text a person reads
 });
 ```

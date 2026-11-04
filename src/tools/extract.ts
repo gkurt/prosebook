@@ -66,6 +66,8 @@ export interface FilePlan {
 export interface ExtractPlan {
   files: FilePlan[];
   entries: NewEntry[];
+  /** About the plan as a whole: the same text made an entry in several areas. */
+  warnings: string[];
   /** What said which placeholders are numbers and dates: `TypeScript`, or `syntax` alone. */
   types: string;
 }
@@ -362,13 +364,19 @@ function planFile(path: string, ctx: Context): FilePlan {
     // that say "Search" each translate on their own. An entry that names no role claims none.
     const unclassified = (k: Known) => k.kind === undefined && k.surface === undefined;
     const same = (k: Known) => k.text === message && ((k.kind === kind && k.surface === surface) || unclassified(k));
-    for (const [key, k] of ctx.known) if (same(k) && key.startsWith(`${ctx.area}.`)) return { key, reused: true };
+    const shared = ctx.config.extract.shared;
+    const sameIn = (area: string) => [...ctx.known].find(([key, k]) => same(k) && key.startsWith(`${area}.`))?.[0];
+    const found = sameIn(ctx.area) ?? (shared === undefined ? undefined : sameIn(shared));
+    if (found !== undefined) return { key: found, reused: true };
+    // Words another area says already are shared ones, which go in the shared area, once.
+    const elsewhere = shared !== undefined && [...ctx.known].some(([, k]) => same(k));
+    const area = elsewhere ? shared : ctx.area;
 
-    const base = `${ctx.area}.${slugOf(message)}${suffix ? `-${suffix}` : ''}`;
+    const base = `${area}.${slugOf(message)}${suffix ? `-${suffix}` : ''}`;
     let key = base;
     for (let n = 2; ctx.known.has(key); n++) key = `${base}-${n}`;
     ctx.known.set(key, { text: message, kind, surface });
-    ctx.entries.push({ key, area: ctx.area, message, ...(kind ? { kind } : {}), ...(surface ? { surface } : {}), context, args });
+    ctx.entries.push({ key, area, message, ...(kind ? { kind } : {}), ...(surface ? { surface } : {}), context, args });
     return { key, reused: false };
   };
 
@@ -689,6 +697,9 @@ export async function planExtract(
       throw new Error(`prosebook: fix the catalog before extracting into it:\n${e.message}`, { cause: e });
     }
   }
+  const shared = config.extract.shared;
+  if (shared !== undefined && !KEY_PATTERN.test(`${shared}.x`))
+    throw new Error(`prosebook: extract.shared is "${shared}", which is not an area: lowercase words joined by -`);
   const entries: NewEntry[] = [];
   const { areas, warnings } = areasFor(config, paths, options.area);
   const oracle = options.types === false ? undefined : await typescriptOracle(config.root, paths);
@@ -707,7 +718,7 @@ export async function planExtract(
       plan.warnings.unshift(...(warnings.get(path) ?? []));
       files.push(plan);
     }
-    return { files, entries, types: oracle?.source ?? 'syntax' };
+    return { files, entries, warnings: repeated(known, entries, shared), types: oracle?.source ?? 'syntax' };
   } finally {
     await oracle?.close();
   }
@@ -739,6 +750,26 @@ function areasFor(config: ResolvedConfig, paths: string[], given: string | undef
     }
   }
   return { areas, warnings };
+}
+
+/** The new entries whose words, in the same role, are entries in other areas too: shared words, kept in several places. */
+function repeated(known: Map<string, Known>, entries: NewEntry[], shared: string | undefined): string[] {
+  if (shared !== undefined) return [];
+  const keysOf = new Map<string, string[]>();
+  for (const [key, k] of known) {
+    const id = `${k.text}\u0000${k.kind}\u0000${k.surface}`;
+    keysOf.set(id, [...(keysOf.get(id) ?? []), key]);
+  }
+  const said = new Set<string>();
+  return entries.flatMap((e) => {
+    const keys = keysOf.get(`${e.message}\u0000${e.kind}\u0000${e.surface}`) ?? [];
+    const areas = new Set(keys.map((k) => k.slice(0, k.indexOf('.'))));
+    if (areas.size < 2 || said.has(e.message)) return [];
+    said.add(e.message);
+    return [
+      `"${e.message}" is an entry in ${areas.size} areas (${keys.join(', ')}): set extract.shared in the config to keep words like it in one`,
+    ];
+  });
 }
 
 /** Applies a plan: rewrites the files and appends the new entries to their area's catalog file. */
