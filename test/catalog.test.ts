@@ -101,6 +101,7 @@ describe('catalog checks', () => {
           'app.tool: "{tool, select, shell {Shell} other {{tool}}}"',
           'app.both: "{mode, select, dark {Dark} other {Light}} and {mode, select, auto {auto} other {set}}"',
           'app.open: "{x, select, other {any}} {x}"',
+          'app.on: "{on, select, true {On} other {Off}}"',
           'app.clash: "{n, number} {n, select, one {one} other {more}}"',
         ].join('\n'),
         'copy/locales/de.yaml': 'app.tool: "{tool}"\n',
@@ -112,6 +113,7 @@ describe('catalog checks', () => {
     expect(args('app.tool')).toEqual(new Map([['tool', '"shell" | (string & {})']]));
     expect(args('app.both')).toEqual(new Map([['mode', '"dark" | "auto" | (string & {})']]));
     expect(args('app.open')).toEqual(new Map([['x', 'string']]));
+    expect(args('app.on')).toEqual(new Map([['on', 'boolean']]));
     // A translation may print the argument where its source selects on it.
     expect(catalog.messages.find((m) => m.key === 'app.tool')?.translations.has('de')).toBe(true);
     expect(catalog.problems.map((p) => `${p.key}: ${p.message}`)).toEqual(['app.clash: "n" is used as two different types']);

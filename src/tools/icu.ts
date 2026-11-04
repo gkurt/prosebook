@@ -46,7 +46,8 @@ export const takesText = (type: string) => type === 'string' || type.endsWith(OP
 /**
  * ICU argument types, as TypeScript. A bare `{x}` is a string: a number spliced in raw is printed by
  * `String()`, which knows no locale, so a quantity says `{x, number}` and the type is what asks for it.
- * A `select` narrows to the arms it names, and still takes any string, since `other` catches the rest.
+ * A `select` narrows to the arms it names, and still takes any string, since `other` catches the rest;
+ * one whose arms are `true` and `false` takes a boolean.
  */
 function argType(el: MessageFormatElement): string | undefined {
   switch (el.type) {
@@ -60,6 +61,8 @@ function argType(el: MessageFormatElement): string | undefined {
       return 'Date | number';
     case TYPE.select: {
       const named = Object.keys(el.options).filter((o) => o !== 'other');
+      // `{on, select, true {On} other {Off}}` selects on a boolean, which the runtime reads as its text.
+      if (named.length > 0 && named.every((o) => o === 'true' || o === 'false')) return 'boolean';
       return named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')}${OPEN}` : 'string';
     }
     case TYPE.literal:

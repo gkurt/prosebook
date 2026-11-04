@@ -587,6 +587,7 @@ en: 'Hello, {name}.' # name: string
 en: '{n, plural, =0 {No files} one {# file} other {# files}}' # n: number
 en: '{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}'
 en: '{mode, select, dark {Dark} other {Light}}' # mode: 'dark' | (string & {})
+en: '{on, select, true {On} other {Off}}' # on: boolean
 en: '{size, number, ::.0 unit/megabyte}' # 1.4 MB
 en: '{total, number, ::currency/EUR}' # €9.00
 en: '{when, date, medium} at {when, time, short}' # Oct 28, 2026 at 2:05 PM
