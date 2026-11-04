@@ -38,6 +38,11 @@ function dateFields(skeleton: string): Intl.DateTimeFormatOptions {
   }
 }
 
+const OPEN = ' | (string & {})';
+
+/** A type that takes any string: a bare placeholder's, or a select's, which `other` keeps open. */
+export const takesText = (type: string) => type === 'string' || type.endsWith(OPEN);
+
 /**
  * ICU argument types, as TypeScript. A bare `{x}` is a string: a number spliced in raw is printed by
  * `String()`, which knows no locale, so a quantity says `{x, number}` and the type is what asks for it.
@@ -55,7 +60,7 @@ function argType(el: MessageFormatElement): string | undefined {
       return 'Date | number';
     case TYPE.select: {
       const named = Object.keys(el.options).filter((o) => o !== 'other');
-      return named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')} | (string & {})` : 'string';
+      return named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')}${OPEN}` : 'string';
     }
     case TYPE.literal:
     case TYPE.pound:
@@ -118,12 +123,25 @@ export function walk(elements: MessageFormatElement[], visit: (el: MessageFormat
   }
 }
 
+/**
+ * The type of an argument used twice in one message, or nothing where the uses can't agree. Text
+ * meets text: `{tool, select, shell {Shell} other {{tool}}}` prints the name it didn't match, and two
+ * selects on one argument take the arms of both.
+ */
+function unionOf(a: string, b: string): string | undefined {
+  if (a === b) return a;
+  if (!takesText(a) || !takesText(b)) return undefined;
+  const arms = [...new Set([a, b].flatMap((t) => (t === 'string' ? [] : t.slice(0, -OPEN.length).split(' | '))))];
+  return arms.length === 0 ? 'string' : `${arms.join(' | ')}${OPEN}`;
+}
+
 export function argsOf(elements: MessageFormatElement[], clash: (name: string) => void = () => {}): Map<string, string> {
   const args = new Map<string, string>();
   const add = (name: string, type: string) => {
     const seen = args.get(name);
-    if (seen !== undefined && seen !== type) clash(name);
-    else args.set(name, type);
+    const union = seen === undefined ? type : unionOf(seen, type);
+    if (union === undefined) clash(name);
+    else args.set(name, union);
   };
   walk(elements, (el) => {
     for (const { arg, type } of Object.values(optionArgsOf(el) ?? {})) add(arg, type);

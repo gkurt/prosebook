@@ -588,7 +588,11 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag: an element i
 ```
 
 A placeholder holds a number, a name or something a person typed, never a translated fragment: a
-word that changes with the sentence belongs in a `plural` or `select` arm. A skeleton's `j` is the
+word that changes with the sentence belongs in a `plural` or `select` arm.
+
+An argument can be used more than once where the uses agree: a select's argument can also be printed
+(`{tool, select, shell {Shell} other {{tool}}}`), and two selects on one argument take the arms of
+both. A number and a select on one argument can't agree, and fail. A skeleton's `j` is the
 hour as each locale writes it, 12 or 24. A skeleton the formatter would silently drop
 (`::compact-shortt`, a date's `J`) fails the build instead of reaching the screen unformatted.
 

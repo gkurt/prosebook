@@ -11,7 +11,7 @@ import { join, relative, resolve } from 'node:path';
 import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
 
 import type { ResolvedConfig } from './config.ts';
-import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, type MessageFormatElement } from './icu.ts';
+import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, takesText, type MessageFormatElement } from './icu.ts';
 import { readMessage } from './syntax.ts';
 
 export interface Translation {
@@ -301,7 +301,7 @@ function driftFrom(message: Message, ast: MessageFormatElement[]): string | unde
   const missing = [...message.args.keys()].filter((a) => !args.has(a));
   const extra = [...args.keys()].filter((a) => !message.args.has(a));
   const retyped = [...args]
-    .filter(([a, type]) => message.args.has(a) && message.args.get(a) !== type && !type.includes('string &'))
+    .filter(([a, type]) => message.args.has(a) && message.args.get(a) !== type && !(takesText(type) && takesText(message.args.get(a)!)))
     .map(([a]) => a);
   const tags = tagsOf(ast);
   const parts = [

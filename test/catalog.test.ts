@@ -68,6 +68,29 @@ describe('catalog checks', () => {
     ]);
   });
 
+  test('an argument used twice takes both uses where they agree, and fails where they cannot', () => {
+    const config = fixture(
+      {
+        'copy/catalog/app.yaml': [
+          'app.tool: "{tool, select, shell {Shell} other {{tool}}}"',
+          'app.both: "{mode, select, dark {Dark} other {Light}} and {mode, select, auto {auto} other {set}}"',
+          'app.open: "{x, select, other {any}} {x}"',
+          'app.clash: "{n, number} {n, select, one {one} other {more}}"',
+        ].join('\n'),
+        'copy/locales/de.yaml': 'app.tool: "{tool}"\n',
+      },
+      { require: [] },
+    );
+    const catalog = loadCatalog(config, undefined, { partial: true });
+    const args = (key: string) => catalog.messages.find((m) => m.key === key)?.args;
+    expect(args('app.tool')).toEqual(new Map([['tool', '"shell" | (string & {})']]));
+    expect(args('app.both')).toEqual(new Map([['mode', '"dark" | "auto" | (string & {})']]));
+    expect(args('app.open')).toEqual(new Map([['x', 'string']]));
+    // A translation may print the argument where its source selects on it.
+    expect(catalog.messages.find((m) => m.key === 'app.tool')?.translations.has('de')).toBe(true);
+    expect(catalog.problems.map((p) => `${p.key}: ${p.message}`)).toEqual(['app.clash: "n" is used as two different types']);
+  });
+
   test('placeholders are documented exactly when context is required', () => {
     const problems = problemsOf({
       'copy/catalog/app.yaml': `app.a:\n${entry('{n, plural, one {# x} other {# xs}}')}app.b:\n${entry('Hi', '  args:\n    who: a name\n')}`,
