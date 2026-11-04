@@ -18,7 +18,7 @@ import { lint, type Finding } from './tools/lint.ts';
 import { changeOf, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { SarifReport } from './tools/sarif.ts';
-import { isReferenced, scan, sourceFiles } from './tools/scan.ts';
+import { isReferenced, scan, sourceFiles, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 import { todoOf } from './tools/todo.ts';
 
@@ -478,9 +478,9 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
 
 function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport): number {
   const { catalog } = rendered(config, report);
-  const result = scan(config.scan.dirs, config.scan.extensions, config.scan.attributes, config.root, [config.out]);
+  const result = scan(config.scan, config.root, [config.out]);
   for (const h of result.hardcoded)
-    err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text' : `${h.where}=`} "${h.text}"`);
+    err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text ' : hardcodedWhere(h)}"${h.text}"`);
   const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   const unseen = runUnseen(config, strict ? 'error' : 'warning', report);
@@ -490,7 +490,7 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
     report.rule('hardcoded-text', RULES['hardcoded-text']);
     report.rule('unused-key', RULES['unused-key']);
     for (const h of result.hardcoded) {
-      const what = `${h.where === 'text' ? '' : `${h.where}=`}"${h.text}"`;
+      const what = `${hardcodedWhere(h)}"${h.text}"`;
       const message = `${what} is hardcoded: move it into the catalog with \`prosebook extract\`, or mark the line \`prosebook-ignore\``;
       report.add({ rule: 'hardcoded-text', level, message, file: h.file, line: h.line, column: h.column });
     }

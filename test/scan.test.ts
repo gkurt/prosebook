@@ -2,8 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads } from 'prosebook/tools';
 
+import { whereOf } from '#src/tools/scan.ts';
+
 describe('hardcoded text', () => {
-  const ATTRS = ['alt', 'title', 'placeholder', 'aria-label'];
+  const ATTRS = { attributes: ['alt', 'title', 'placeholder', 'aria-label'] };
+  const found = (file: string, code: string, options = {}) =>
+    hardcodedText(file, code, { ...ATTRS, ...options }).map((h) => `${h.line}:${h.column} ${whereOf(h) || 'text '}${h.text}`);
 
   test('finds JSX text and readable attributes, and skips code, symbols and ignored lines', () => {
     const code = `
@@ -21,12 +25,58 @@ export function A({ n }) {
     </form>
   );
 }`;
-    expect(hardcodedText('A.tsx', code, ATTRS).map((h) => `${h.line}:${h.column} ${h.where} ${h.text}`)).toEqual([
-      '4:17 title Edit profile',
+    expect(found('A.tsx', code)).toEqual([
+      '4:17 title=Edit profile',
       '5:11 text Your profile',
-      '6:27 placeholder Search',
+      '6:27 placeholder=Search',
       '12:8 text Literal child',
     ]);
+  });
+
+  test('finds what expressions render: both arms, fallbacks and templates, in text and attributes', () => {
+    const code = `
+export const A = ({ pending, name, x, ok, cls }) => (
+  <div className={\`flex \${cls}\`}>
+    <button>{pending ? 'Saving…' : 'Save'}</button>
+    <p>{x ?? 'None'} {ok && 'Ready'} {name || \`Guest\`}</p>
+    <a aria-label={\`Open \${name}\`} title={ok ? 'Open' : undefined}>{\`\${x} \${name}\`}</a>
+    <i>{t(ok ? 'app.on' : 'app.off')}</i>
+  </div>
+);`;
+    expect(found('A.tsx', code)).toEqual([
+      '4:24 text Saving…',
+      '4:36 text Save',
+      '5:14 text None',
+      '5:29 text Ready',
+      '5:47 text Guest',
+      '6:20 aria-label=Open ${name}',
+      '6:48 title=Open',
+    ]);
+  });
+
+  test('finds what notices are given and what label properties hold, outside tests', () => {
+    const code = `
+export const STATUS = [{ value: 'started', label: 'Started' }, { value: 'done', label: \`Done\` }];
+export function save() {
+  toast.success('Saved');
+  toast.promise(run(), { loading: 'Saving…', error: (e) => e.message });
+  alert(failed ? 'It failed' : 'It worked');
+  log('Not shown');
+  return { header: 'Name', accessorKey: 'name' };
+}`;
+    const options = { calls: ['toast', 'alert'], properties: ['label', 'header'] };
+    expect(found('A.tsx', code, options)).toEqual([
+      '2:51 label: Started',
+      '2:88 label: Done',
+      '4:17 toast.success(…) Saved',
+      '5:35 toast.promise(…) Saving…',
+      '6:18 alert(…) It failed',
+      '6:32 alert(…) It worked',
+      '8:20 header: Name',
+    ]);
+    expect(found('A.test.tsx', code, options)).toEqual([]);
+    // Outside a component, a title or description is as often a model's or an API's.
+    expect(found('A.ts', code, options).filter((f) => f.includes(': '))).toEqual([]);
   });
 });
 

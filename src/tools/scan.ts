@@ -11,6 +11,8 @@ import { extname, join, relative } from 'node:path';
 
 import { parseSync } from 'oxc-parser';
 
+import type { ScanOptions } from './config.ts';
+
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git']);
 
 export function sourceFiles(dirs: string[], extensions: string[], skip: string[] = []): string[] {
@@ -62,8 +64,16 @@ export interface Hardcoded {
   line: number;
   column: number;
   text: string;
-  /** Where it sits: `text`, or the attribute it is the value of. */
+  /** Where it sits: `text`, the attribute or property it is the value of, or the function it is passed to. */
   where: string;
+  /** How `where` holds it: as JSX's text or an attribute, a call's argument or a property's value. */
+  via: 'jsx' | 'call' | 'property';
+}
+
+/** `where` as the code says it: `title=`, `toast.error(…)`, `label:`, or nothing for text. */
+export function whereOf(h: Hardcoded): string {
+  if (h.where === 'text') return '';
+  return h.via === 'call' ? `${h.where}(…) ` : h.via === 'property' ? `${h.where}: ` : `${h.where}=`;
 }
 
 type Node = { type: string; start: number; end: number; [field: string]: unknown };
@@ -79,6 +89,49 @@ export function looksLikeCode(text: string): boolean {
 }
 
 const NON_PROSE_ELEMENTS = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path']);
+/** Tests and stories hold text a person never reads in the app: fixtures, expectations. */
+const NOT_APP = /\.(?:test|spec|stories)\.[cm]?[jt]sx?$/;
+
+/**
+ * The literals an expression can come to, which the screen shows where it is rendered: both arms of
+ * `pending ? 'Saving…' : 'Save'`, the fallback of `x ?? 'None'`, `` `Open ${name}` ``. Not what
+ * it passes to calls, which may be keys or code.
+ */
+function shownLiterals(node: Node | undefined): Node[] {
+  if (node === undefined) return [];
+  if (WRAPPERS.has(node.type)) return shownLiterals(node.expression as Node);
+  switch (node.type) {
+    case 'Literal':
+      return typeof node.value === 'string' ? [node] : [];
+    case 'TemplateLiteral':
+      return [node];
+    case 'ConditionalExpression':
+      return [...shownLiterals(node.consequent as Node), ...shownLiterals(node.alternate as Node)];
+    case 'LogicalExpression':
+      return node.operator === '&&'
+        ? shownLiterals(node.right as Node)
+        : [...shownLiterals(node.left as Node), ...shownLiterals(node.right as Node)];
+    default:
+      return [];
+  }
+}
+
+/** A call's name as written, `toast.error` or `alert`, and its first part, which `calls` names. */
+function calleeOf(node: Node): { name: string; root: string } | undefined {
+  if (node.type === 'Identifier') return { name: node.name as string, root: node.name as string };
+  if (node.type !== 'MemberExpression' || node.computed === true) return undefined;
+  const object = calleeOf(node.object as Node);
+  const property = node.property as Node;
+  return object === undefined || property.type !== 'Identifier'
+    ? undefined
+    : { name: `${object.name}.${property.name as string}`, root: object.root };
+}
+
+function propertyName(node: Node): string | undefined {
+  const key = node.key as Node;
+  if (node.computed === true) return undefined;
+  return key.type === 'Identifier' ? (key.name as string) : key.type === 'Literal' && typeof key.value === 'string' ? key.value : undefined;
+}
 const LETTER = /\p{L}/u;
 
 /** Offsets in `code` as lines and columns, and whether a line is marked `prosebook-ignore`, on it or the line above. */
@@ -105,17 +158,37 @@ function lineIndex(code: string) {
   return { position, ignored };
 }
 
-/** Literal text in JSX that a person reads, where it should be a catalog entry. */
-export function hardcodedText(file: string, code: string, attributes: string[]): Hardcoded[] {
+/**
+ * Literal text a person reads, where it should be a catalog entry: JSX's text and readable attributes,
+ * what their expressions render (`{pending ? 'Saving…' : 'Save'}`), what the `calls` it names are
+ * given (`toast.error('…')`), and in a component the `properties` it names (`label: '…'`), outside
+ * tests and stories.
+ */
+export function hardcodedText(file: string, code: string, options: Pick<ScanOptions, 'attributes'> & Partial<ScanOptions>): Hardcoded[] {
+  const { attributes, calls = [], properties = [] } = options;
+  const app = !NOT_APP.test(file);
+  // A label map sits in a component; elsewhere, a `title` or `description` is as often a model's or an API's.
+  const component = /\.[jt]sx$/.test(file);
   const { program } = parseSync(file, code);
   const found: Hardcoded[] = [];
   const { position, ignored } = lineIndex(code);
-  const report = (node: Node, text: string, where: string) => {
+  const report = (node: Node, text: string, where: string, via: Hardcoded['via'] = 'jsx') => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
-    found.push({ file, ...at, text: trimmed, where });
+    found.push({ file, ...at, text: trimmed, where, via });
+  };
+  // A template's text is its words, so `${a} ${b}` is none; it is shown as written, placeholders and all.
+  const reportShown = (expr: Node | undefined, where: string, via?: Hardcoded['via']) => {
+    for (const node of shownLiterals(expr)) {
+      if (node.type === 'Literal') {
+        report(node, node.value as string, where, via);
+        continue;
+      }
+      const words = (node.quasis as { value: { cooked: string } }[]).map((q) => q.value.cooked).join('');
+      if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via);
+    }
   };
 
   const visit = (node: Node, inProse: boolean) => {
@@ -125,24 +198,31 @@ export function hardcodedText(file: string, code: string, attributes: string[]):
       if (opening.name.type === 'JSXIdentifier' && NON_PROSE_ELEMENTS.has(opening.name.name ?? '')) prose = false;
     }
     if (node.type === 'JSXText' && prose) report(node, node.value as string, 'text');
-    if (node.type === 'JSXExpressionContainer' && prose) {
-      const expr = node.expression as Node;
-      if (expr.type === 'Literal' && typeof expr.value === 'string') report(expr, expr.value, 'text');
-      if (expr.type === 'TemplateLiteral' && (expr.expressions as Node[]).length === 0)
-        report(expr, String((expr.quasis as { value: { cooked: string } }[])[0]?.value.cooked), 'text');
-    }
+    if (node.type === 'JSXExpressionContainer' && prose) reportShown(node.expression as Node, 'text');
     if (node.type === 'JSXAttribute') {
       const name = node.name as Node & { name?: string };
       const value = node.value as Node | null;
       const attr = name.type === 'JSXIdentifier' ? (name.name ?? '') : '';
       if (attributes.includes(attr) && value !== null) {
         if (value.type === 'Literal' && typeof value.value === 'string') report(value, value.value, attr);
-        if (value.type === 'JSXExpressionContainer') {
-          const expr = value.expression as Node;
-          if (expr.type === 'Literal' && typeof expr.value === 'string') report(expr, expr.value, attr);
+        if (value.type === 'JSXExpressionContainer') reportShown(value.expression as Node, attr);
+      }
+      // Its expression is no child of the element, but may hold JSX of its own, or call `toast`.
+      if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose);
+      return;
+    }
+    if (app && node.type === 'CallExpression') {
+      const callee = calleeOf(node.callee as Node);
+      if (callee !== undefined && calls.includes(callee.root)) {
+        for (const arg of node.arguments as Node[]) {
+          if (arg.type !== 'ObjectExpression') reportShown(arg, callee.name, 'call');
+          else for (const p of arg.properties as Node[]) if (p.type === 'Property') reportShown(p.value as Node, callee.name, 'call');
         }
       }
-      return;
+    }
+    if (app && component && node.type === 'Property' && node.kind === 'init') {
+      const name = propertyName(node);
+      if (name !== undefined && properties.includes(name)) reportShown(node.value as Node, name, 'property');
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
@@ -166,14 +246,15 @@ export interface ScanResult {
   files: number;
 }
 
-export function scan(dirs: string[], extensions: string[], attributes: string[], root: string, skip: string[] = []): ScanResult {
+export function scan(options: ScanOptions, root: string, skip: string[] = []): ScanResult {
   const refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
   const hardcoded: Hardcoded[] = [];
-  const files = sourceFiles(dirs, extensions, skip);
+  const files = sourceFiles(options.dirs, options.extensions, skip);
   for (const path of files) {
     const code = readFileSync(path, 'utf8');
     keyRefs(code, refs);
-    if (/\.[jt]sx$/.test(path)) hardcoded.push(...hardcodedText(relative(root, path).replaceAll('\\', '/'), code, attributes));
+    // JSX in .tsx and .jsx; calls and properties in any script.
+    if (!SFC.test(path)) hardcoded.push(...hardcodedText(relative(root, path).replaceAll('\\', '/'), code, options));
   }
   return { hardcoded, refs, files: files.length };
 }

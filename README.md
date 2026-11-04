@@ -950,9 +950,14 @@ written about the source language. One that reads a translation's locale is said
 Every rule is checked when the config loads: a name in `lint.rules` that no rule has, a plugin
 added twice, a pattern that is not a regular expression, or a rule missing what its type needs.
 
-**Scan** reports JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...)
-written as literals, and catalog keys no code names. Mark a deliberate literal with
-`prosebook-ignore` on its line or the line above. It also reports each read whose key a pruned build
+**Scan** reports text a person reads that is still written in the code, and catalog keys no code
+names: JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...), and what
+their expressions render, both arms of `{pending ? 'Saving…' : 'Save'}`, the fallback in
+`{name ?? 'Guest'}` and the words of ``aria-label={`Open ${name}`}``. It reads the text given to
+`scan.calls` (`toast`, `alert` and `confirm` by default: `toast.error('…')`, and the options object of
+`toast.promise`) in any script, and in components the values of `scan.properties` (`label`, `title`,
+`description`, `placeholder`, `header`), as a label map or a table's columns hold them. Tests and
+stories are left out. Mark a deliberate literal with `prosebook-ignore` on its line or the line above. It also reports each read whose key a pruned build
 can't see (`t(id)`, `<Text id={id} />`, see [Pruning](#pruning)), which the bundler plugins fail a
 build on, so you learn of one before the build does; `check` warns of them too. `--strict` fails on
 any of the three.
@@ -1233,7 +1238,7 @@ export default defineConfig({
   },
   guide: 'copy/catalog/WRITING.md', // the writing guide, beside the catalog by default; false for none
   native: [], // Rust, Swift or Kotlin files, Android's res or Apple's .lproj: { language: 'rust', out: 'src/copy.rs', keys: ['tray'] }
-  scan: { dirs: ['src'] },
+  scan: { dirs: ['src'] }, // and attributes, calls, properties: what scan reads as text a person reads
 });
 ```
 

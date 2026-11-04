@@ -143,7 +143,23 @@ export interface ProsebookConfig {
     extensions?: string[];
     /** JSX attributes whose literal value a person reads. */
     attributes?: string[];
+    /**
+     * Functions whose text arguments a person reads, by name: `toast` covers `toast('…')` and
+     * `toast.error('…')`, and the text of an options object passed to them.
+     */
+    calls?: string[];
+    /** Object properties whose literal value a person reads, as in a label map: `{ value: 'done', label: 'Done' }`. */
+    properties?: string[];
   };
+}
+
+/** What `scan` reads, and where. */
+export interface ScanOptions {
+  dirs: string[];
+  extensions: string[];
+  attributes: string[];
+  calls: string[];
+  properties: string[];
 }
 
 export interface ResolvedConfig {
@@ -169,7 +185,7 @@ export interface ResolvedConfig {
   } & Required<WordLists>;
   guide: string | false;
   native: (NativeTarget & { name: string })[];
-  scan: { dirs: string[]; extensions: string[]; attributes: string[] };
+  scan: ScanOptions;
 }
 
 const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings', apple: 'Localizable' };
@@ -251,6 +267,8 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       dirs: (config.scan?.dirs ?? ['src']).map(at),
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte'],
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
+      calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
+      properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
     },
   };
 }
