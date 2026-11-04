@@ -1045,13 +1045,14 @@ profile.hi-read-the-terms:
 **Typed placeholders.** extract asks the project's TypeScript (7 or later, found through the nearest
 `tsconfig.json`) what each expression holds:
 
-| The value is                                   | The placeholder becomes                                                 |
-| ---------------------------------------------- | ----------------------------------------------------------------------- |
-| text                                           | `{name}`                                                                |
-| a number                                       | `{count, number}`, so it's formatted for the locale (`1,234`, `1.234`)  |
-| a number followed by a plural noun, in English | `{count, plural, one {# file} other {# files}}`                         |
-| a `Date`                                       | `{when, date, medium}`                                                  |
-| markup (`ReactNode`, elements)                 | nothing: the sentence is left as it is, with a warning to make it a tag |
+| The value is                                             | The placeholder becomes                                                     |
+| -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| text                                                     | `{name}`                                                                    |
+| a number                                                 | `{count, number}`, so it's formatted for the locale (`1,234`, `1.234`)      |
+| a number followed by a plural noun, in English           | `{count, plural, one {# file} other {# files}}`                             |
+| a `Date`                                                 | `{when, date, medium}`                                                      |
+| a number made text, `n.toLocaleString()`, `n.toFixed(2)` | the number: `{n, number}`, `{n, number, ::.00}`, and a plural before a noun |
+| markup (`ReactNode`, elements)                           | nothing: the sentence is left as it is, with a warning to make it a tag     |
 
 Without TypeScript (a JavaScript project, a file outside any tsconfig) the syntax decides where it can:
 `items.length`, arithmetic and number literals are numbers, `new Date()` is a date. The report says

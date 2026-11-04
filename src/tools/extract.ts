@@ -15,7 +15,7 @@ import { stringify } from 'yaml';
 
 import { CatalogError, KEY_PATTERN, loadCatalog, SCHEMA_LINE } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { parseMessage } from './icu.ts';
+import { parseMessage, TYPE, type MessageFormatElement } from './icu.ts';
 import { singularOf } from './lint.ts';
 import { isNonProse, looksLikeCode } from './scan.ts';
 import { writeMessage } from './syntax.ts';
@@ -162,8 +162,7 @@ function kebabOf(name: string, nouns: readonly string[]): string {
 
 /** A key segment from the words of a message: its first four, plain ASCII, lowercase, whole. */
 export function slugOf(message: string): string {
-  const words = message
-    .replace(/<\/?[\w-]+>|\{[^}]*\}/g, ' ')
+  const words = wordsOf(message)
     // `couldn't` is one word, `couldnt`, not `couldn` and a stray `t`.
     .replace(/(?<=\p{L})['’](?=\p{L})/gu, '')
     .replace(/ı/g, 'i')
@@ -176,6 +175,27 @@ export function slugOf(message: string): string {
     .filter(Boolean)
     .slice(0, 4);
   return words.length === 0 ? 'text' : words.join('-');
+}
+
+/** A message's words, as its `other` arms read, without placeholders or tags: `{n, plural, …}` is its words, not `other`. */
+function wordsOf(message: string): string {
+  let ast: MessageFormatElement[];
+  try {
+    ast = parseMessage(message);
+  } catch {
+    // MF2, which keeps its structure out of the words a slug starts from.
+    return message.replace(/<\/?[\w-]+>|\{[^{}]*\}/g, ' ');
+  }
+  const read = (elements: MessageFormatElement[]): string =>
+    elements
+      .map((el) => {
+        if (el.type === TYPE.literal) return el.value;
+        if (el.type === TYPE.tag) return read(el.children);
+        if (el.type === TYPE.plural || el.type === TYPE.select) return read(el.options.other?.value ?? []);
+        return ' ';
+      })
+      .join('');
+  return read(ast);
 }
 
 /**
@@ -276,6 +296,20 @@ function bindingsIn(root: Node, deep = true): Set<string> {
   };
   walk(root, true);
   return names;
+}
+
+/**
+ * `n.toLocaleString()` and `n.toFixed(2)`: a number made text in code, which the message can format
+ * itself, as `{n, number}` and `{n, number, ::.00}`, so a plural can count it. The number, and its style.
+ */
+function formattedNumber(expr: Node): { value: Node; style: string } | undefined {
+  if (expr.type !== 'CallExpression' || expr.callee?.type !== 'MemberExpression' || expr.callee.computed) return undefined;
+  const method = expr.callee.property?.name as string | undefined;
+  const value = expr.callee.object as Node;
+  if (method === 'toLocaleString' && expr.arguments.length === 0) return { value, style: '' };
+  const digits = expr.arguments[0] as Node | undefined;
+  if (method !== 'toFixed' || digits?.type !== 'Literal' || typeof digits.value !== 'number') return undefined;
+  return { value, style: digits.value === 0 ? ', integer' : `, ::.${'0'.repeat(digits.value)}` };
 }
 
 /** The text of a string literal, or of a template with no placeholders. */
@@ -480,6 +514,12 @@ function planFile(path: string, ctx: Context): FilePlan {
       const expr = node.expression as Node;
       const literal = literalText(expr);
       if (literal !== undefined) return escapeIcu(literal);
+      // A number formatted into a string by hand is the number, formatted by the message instead.
+      const counted = formattedNumber(expr);
+      if (counted !== undefined) {
+        const kind = ctx.kinds.get(`${counted.value.start}:${counted.value.end}`) ?? syntaxKind(counted.value);
+        if (kind === undefined || kind === 'number' || kind === 'unknown') return `{${argName(counted.value)}, number${counted.style}}`;
+      }
       const kind = ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr);
       if (kind === 'node') markup.push(code.slice(expr.start, expr.end));
       return `{${argName(expr)}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
@@ -662,8 +702,12 @@ function importEdit(program: Node, code: string, plan: FilePlan, wanted: string[
 function jsxExpressions(file: string, code: string): Span[] {
   const spans: Span[] = [];
   const walk = (node: Node) => {
-    if (node.type === 'JSXExpressionContainer' && node.expression.type !== 'JSXEmptyExpression')
+    if (node.type === 'JSXExpressionContainer' && node.expression.type !== 'JSXEmptyExpression') {
       spans.push({ start: node.expression.start as number, end: node.expression.end as number });
+      // `n.toLocaleString()` is a string; whether `n` is a number decides what it becomes.
+      const counted = formattedNumber(node.expression as Node);
+      if (counted !== undefined) spans.push({ start: counted.value.start, end: counted.value.end });
+    }
 
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {

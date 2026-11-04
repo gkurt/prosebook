@@ -77,6 +77,32 @@ export function Inbox({ user, files, when, children }: { user: { name: string };
     ]);
   });
 
+  test('a number made text in code is the number, which the message formats and counts', async () => {
+    const config = fixture({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { strict: true, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler', noEmit: true },
+      }),
+      'src/Stats.tsx': [
+        'export function Stats({ c, frameMs, when }: { c: number; frameMs: number; when: Date }) {',
+        '  return (',
+        '    <div>',
+        '      <p>{c.toLocaleString()} nodes</p>',
+        '      <p>Frame {frameMs.toFixed(2)} ms</p>',
+        '      <p>Synced {when.toLocaleString()}</p>',
+        '    </div>',
+        '  );',
+        '}',
+      ].join('\n'),
+    });
+    const plan = await planExtract(config, [join(config.root, 'src', 'Stats.tsx')]);
+    expect(plan.files[0]!.extractions.map((x) => `${x.message} ← ${x.replacement}`)).toEqual([
+      '{c, plural, one {# node} other {# nodes}} ← <Text id="stats.nodes" values={{ c: c }} />',
+      'Frame {frameMs, number, ::.00} ms ← <Text id="stats.frame-ms" values={{ frameMs: frameMs }} />',
+      // A date's toLocaleString says its time too, which a date format would drop: left a string.
+      'Synced {value} ← <Text id="stats.synced" values={{ value: when.toLocaleString() }} />',
+    ]);
+  });
+
   test('without TypeScript, the syntax still gives away a count', async () => {
     const config = fixture({
       'src/Inbox.jsx': COMPONENT.replace(/: \{[^)]*\}\)/, ')')
