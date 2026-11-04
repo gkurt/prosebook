@@ -1,3 +1,13 @@
+## prosebook@0.6.0
+
+### Guidelines, and a writing guide for an agent to read before it writes
+
+A lint rule of `type: 'guideline'` is advice no pattern can check. `generate` writes `copy/catalog/WRITING.md` with what each kind and surface is for, the guidelines, and any checked rule marked `guide: true`, and `generate --check` fails once it is stale. Set `guide` to move it, or `false` for none. A guideline whose `on.locale` reads a translation's locale is said in that locale's `todo --prompt` too.
+
+### A server render links the files of the areas it reads, under Bun too
+
+A split `Bun.build` lists each lazy locale's files in the server's catalog, so `createCopy`'s `preload` is handed them as under Vite: in a full-stack build from the page built beside the server, and in a server's own build from the page's build before it.
+
 ## prosebook@0.5.0
 
 ### A server render links the files of the areas it reads
