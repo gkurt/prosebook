@@ -473,7 +473,7 @@ describe('prosebook migrate', () => {
     expect(loadCatalog(config).messages[0]!.args).toEqual(
       new Map([
         ['name', 'string'],
-        ['length', 'number'],
+        ['filesCount', 'number'],
       ]),
     );
   });
