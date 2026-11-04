@@ -803,13 +803,13 @@ hold each other up, and an edit, a fix or an import is refused only for the prob
 **Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace. It
 reads the message format too:
 
-| Rule                | Catches                                                                                   |
-| ------------------- | ----------------------------------------------------------------------------------------- |
-| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                         |
-| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                  |
-| `arm-endings`       | plural or select arms where some end with a stop and some don't                           |
-| `formatted-by-hand` | `${price}` or `{rate}%` typed around a placeholder, and digits grouped by hand (`10,000`) |
-| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round      |
+| Rule                | Catches                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                                     |
+| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                              |
+| `arm-endings`       | plural or select arms where some end with a stop and some don't                                       |
+| `formatted-by-hand` | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`) |
+| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round                  |
 
 Translations are linted too, by the rules that hold in any language: `whitespace`, `ellipsis`,
 `arm-endings`, `formatted-by-hand`, `source-ending`, and `plural-one`'s `#` (not its `one`

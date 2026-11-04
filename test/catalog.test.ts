@@ -444,6 +444,7 @@ describe('lint', () => {
       'app.l': '{count, plural, =0 {Nothing to upload} other {Uploading # files…}}',
       'app.m': '{used, number} of {window, number} tokens',
       'app.n': '{mode, select, a {{count} files here} other {{count} files there}}',
+      'app.o': '{hours, number}h {minutes, number}m, {size, number} MB, {name}s',
     });
     expect(findings(yaml)).toEqual([
       'app.a [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
@@ -456,6 +457,9 @@ describe('lint', () => {
       'app.h [formatted-by-hand] "10,000" groups its digits the English way: make it a placeholder formatted as a number',
       'app.k [plural-count] total is followed by "IDs", which reads "1 IDs": make it a plural with a "# ID" arm',
       'app.n [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
+      'app.o [formatted-by-hand] "h" is typed after hours: format it as a unit, {hours, number, ::unit/hour unit-width-narrow}, which writes it as the locale does',
+      'app.o [formatted-by-hand] "m" is typed after minutes: format it as a unit, {minutes, number, ::unit/minute unit-width-narrow}, which writes it as the locale does',
+      'app.o [formatted-by-hand] "MB" is typed after size: format it as a unit, {size, number, ::unit/megabyte unit-width-narrow}, which writes it as the locale does',
     ]);
   });
 

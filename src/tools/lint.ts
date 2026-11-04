@@ -367,6 +367,34 @@ const hasStop = (text: string) => /(?![,，、،])[\p{Terminal_Punctuation}…][
 
 const CURRENCY_BEFORE = /[$€£¥₹]\s?$/;
 
+/** A unit written after a number by hand (`{h, number}h`, `{size, number} MB`), and the `Intl` unit that writes it. */
+const UNIT_AFTER = /^\s?(ms|sec|secs|min|mins|hrs?|[hmsd]|[kmgt]b|km|cm|mm|kg|lbs?|mi|ft)(?![\p{L}\d])/iu;
+const UNITS: Record<string, string> = {
+  ms: 'millisecond',
+  s: 'second',
+  sec: 'second',
+  secs: 'second',
+  m: 'minute',
+  min: 'minute',
+  mins: 'minute',
+  h: 'hour',
+  hr: 'hour',
+  hrs: 'hour',
+  d: 'day',
+  kb: 'kilobyte',
+  mb: 'megabyte',
+  gb: 'gigabyte',
+  tb: 'terabyte',
+  km: 'kilometer',
+  cm: 'centimeter',
+  mm: 'millimeter',
+  kg: 'kilogram',
+  lb: 'pound',
+  lbs: 'pound',
+  mi: 'mile',
+  ft: 'foot',
+};
+
 /**
  * The ways a path through menus is written, the separator in a group: an arrow or `›` however
  * spaced, and `>` or `/` only spaced between words or placeholders, with a capital after a slash,
@@ -583,7 +611,7 @@ export const CORE_RULES = {
     description: 'A currency symbol or `%` typed beside a placeholder, or digits grouped by hand, which only suit one locale.',
     recommended: 'warn',
     on: { locale: 'all' },
-    check: ({ ast, text }) => {
+    check: ({ ast, text, config }) => {
       const said = new Map<string, Report>();
       const say = (message: string, match: string) => said.set(message, { message, match });
       eachRun(ast, (run) =>
@@ -596,6 +624,16 @@ export const CORE_RULES = {
             say(`"${symbol}" is typed before ${el.value}: format it as a currency, which puts the symbol where the locale does`, symbol);
           if (after?.type === TYPE.literal && /^\s?%/.test(after.value))
             say(`"%" is typed after ${el.value}: format it as a percent, which takes the fraction (0.5 for 50%)`, '%');
+          // A plain placeholder only where its name says it counts: `{name}s` is a word, not seconds.
+          const unit = after?.type === TYPE.literal ? UNIT_AFTER.exec(after.value)?.[1] : undefined;
+          if (unit !== undefined && (el.type === TYPE.number || COUNT_NAME.test(el.value))) {
+            const name = UNITS[unit.toLowerCase()]!;
+            const written =
+              config.messageFormat === 2
+                ? `{$${el.value} :unit unit=${name} unitDisplay=narrow}`
+                : `{${el.value}, number, ::unit/${name} unit-width-narrow}`;
+            say(`"${unit}" is typed after ${el.value}: format it as a unit, ${written}, which writes it as the locale does`, unit);
+          }
         }),
       );
       const grouped = text.variants.map((v) => /\d{1,3}(?:,\d{3})+(?!\d)/.exec(v)?.[0]).find((g) => g !== undefined);
