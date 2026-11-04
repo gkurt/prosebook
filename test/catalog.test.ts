@@ -19,6 +19,7 @@ import {
 } from 'prosebook/tools';
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
+import { todoOf } from '#src/tools/todo.ts';
 import { fixture } from './fixture.ts';
 
 const problemsOf = (files: Record<string, string>, config = {}) => {
@@ -68,6 +69,24 @@ describe('catalog checks', () => {
     ]);
   });
 
+  test("args describes a tag too, which the types and the translator's notes say", () => {
+    const config = fixture({
+      'copy/catalog/app.yaml': [
+        'app.terms:',
+        '  context: Under the checkout button.',
+        '  args:',
+        '    link: links to the terms of sale',
+        '  en: Read the <link>terms</link>.',
+        '',
+      ].join('\n'),
+      'copy/locales/de.yaml': '{}\n',
+    });
+    const { catalog, files } = generate(config, { check: true });
+    expect(catalog.problems).toEqual([]);
+    expect(files.get(join(config.out, 'index.ts'))).toContain('   * `<link>`: Links to the terms of sale.');
+    expect(todoOf(config, catalog, new Map(), 'de', false).text).toContain('#   <link>: links to the terms of sale');
+  });
+
   test('an argument used twice takes both uses where they agree, and fails where they cannot', () => {
     const config = fixture(
       {
@@ -97,7 +116,7 @@ describe('catalog checks', () => {
     });
     expect(problems).toEqual([
       'copy/catalog/app.yaml app.a: args.n is missing: say what the placeholder holds',
-      'copy/catalog/app.yaml app.b: args.who is not an argument of this message',
+      'copy/catalog/app.yaml app.b: args.who is neither a placeholder nor a tag of this message',
     ]);
   });
 

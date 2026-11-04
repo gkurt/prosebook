@@ -29,7 +29,7 @@ export interface Message {
   surface?: string;
   /** One sentence telling a translator where the string appears. */
   context?: string;
-  /** What each placeholder holds, keyed by argument name. */
+  /** What each placeholder holds, keyed by argument name, and what each tag wraps, by tag. */
   argDocs: Map<string, string>;
   /** Completes something beside it rather than standing as a sentence, so sentence rules do not apply. */
   fragment: boolean;
@@ -207,7 +207,9 @@ function readEntry(
   if (config.require.includes('context'))
     for (const name of args.keys()) if (!argDocs.has(name)) fail(`args.${name} is missing: say what the placeholder holds`);
 
-  for (const name of argDocs.keys()) if (!args.has(name)) fail(`args.${name} is not an argument of this message`);
+  const tags = tagsOf(ast);
+  for (const name of argDocs.keys())
+    if (!args.has(name) && !tags.includes(name)) fail(`args.${name} is neither a placeholder nor a tag of this message`);
 
   if (!ok) return undefined;
   return {
@@ -226,7 +228,7 @@ function readEntry(
     ast,
     args,
     argFormats: formatsOf(ast),
-    tags: tagsOf(ast),
+    tags,
     translations: new Map(),
   };
 }
@@ -467,6 +469,11 @@ export function entryLocator(root: string): (file: string, key?: string, offset?
     const { line, col } = lines.linePos(start);
     return { line, column: col };
   };
+}
+
+/** What `args` describes by `name`, as the message writes it: `{count}`, or a tag's `<link>`. */
+export function heldAs(message: Message, name: string): string {
+  return message.args.has(name) ? `{${name}}` : `<${name}>`;
 }
 
 /** The source message as a reader sees it with no placeholders filled: for docs and reports. */

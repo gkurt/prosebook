@@ -98,7 +98,7 @@ describe('editing an entry in place', () => {
     const problems = editEntry(config, 'cart.items', { fields }, true)
       .problems.map((p) => p.message)
       .join('\n');
-    expect(problems).toContain('args.count is not an argument of this message');
+    expect(problems).toContain('args.count is neither a placeholder nor a tag of this message');
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(CATALOG);
     expect(read(config, 'copy/locales/tr.yaml')).toBe('app.title: Dükkan\n');
   });

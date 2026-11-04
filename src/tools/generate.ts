@@ -91,6 +91,8 @@ function typesBlock(catalog: Catalog, locales: string[]): string {
     // An MF2 message with variants spans lines; each is a line of the doc comment.
     const lines = (m.text.length > 400 ? `${m.text.slice(0, 397)}...` : m.text).split('\n');
     if (m.context) lines.push('', m.context);
+    const tagDocs = m.tags.filter((t) => m.argDocs.has(t) && !m.args.has(t));
+    if (tagDocs.length > 0) lines.push('', ...tagDocs.map((t) => `\`<${t}>\`: ${sentence(m.argDocs.get(t)!)}`));
     if (m.remove) lines.push('', 'Marked for removal in the catalog.');
     if (m.comment) lines.push('', `Comment: ${m.comment}`);
     return `${doc(lines, '  ')}  ${quote(m.key)}: ${shapeOf(m)};`;

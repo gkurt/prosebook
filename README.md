@@ -529,17 +529,17 @@ an Info.plist string takes no placeholders at all. Show those from the Swift tar
 One file per area, `copy/catalog/<area>.yaml`. A key's first segment names its file, so
 `cart.items` lives in `cart.yaml` and nowhere else; searching for a key finds its entry.
 
-| Field      |                                                                                                          |
-| ---------- | -------------------------------------------------------------------------------------------------------- |
-| `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.   |
-| `context`  | One sentence telling a translator where the string appears. Required by default.                         |
-| `args`     | What each placeholder holds, one line each. Required for every placeholder when `context` is.            |
-| `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget.  |
-| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                              |
-| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                            |
-| `allow`    | Lint rules the entry is exempt from, each with the reason.                                               |
-| `comment`  | A change asked of whoever edits the entry next. A warning until it is made and the comment deleted.      |
-| `remove`   | `true` asks for the entry to go, with its translations and the code that reads it. A warning until then. |
+| Field      |                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.              |
+| `context`  | One sentence telling a translator where the string appears. Required by default.                                    |
+| `args`     | What each placeholder holds, one line each, and what a tag wraps. Required for every placeholder when `context` is. |
+| `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget.             |
+| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                                         |
+| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                                       |
+| `allow`    | Lint rules the entry is exempt from, each with the reason.                                                          |
+| `comment`  | A change asked of whoever edits the entry next. A warning until it is made and the comment deleted.                 |
+| `remove`   | `true` asks for the entry to go, with its translations and the code that reads it. A warning until then.            |
 
 `key: message` is the shorthand for an entry with nothing to say about itself (set `require: []`;
 the schema offers it only then).
@@ -603,7 +603,8 @@ hour as each locale writes it, 12 or 24. A skeleton the formatter would silently
 (`::compact-shortt`, a date's `J`) fails the build instead of reaching the screen unformatted.
 
 **Tags** keep a sentence with a link or bold run inside it as one entry, so a translator can move the
-element. `t()` renders a tag as its text; `rich()` and `<Text>` render it through a function. Tags
+element. Say what a tag wraps under `args`, as for a placeholder (`link: links to the terms of
+sale`); the translator sees it, and so does the code, in the key's doc comment. `t()` renders a tag as its text; `rich()` and `<Text>` render it through a function. Tags
 the provider renders by default don't have to be passed at each call. Tell the types which ones those
 are:
 

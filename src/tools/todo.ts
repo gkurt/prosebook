@@ -7,7 +7,7 @@
  */
 import { stringify } from 'yaml';
 
-import type { Catalog, Message } from './catalog.ts';
+import { heldAs, type Catalog, type Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { TYPE, walk } from './icu.ts';
 import { applies, severityOf } from './lint.ts';
@@ -37,7 +37,7 @@ export function todoOf(
     if (m.context) lines.push(`# ${m.context}`);
     const what = [m.kind && `kind: ${m.kind}`, m.surface && `surface: ${m.surface}`].filter(Boolean).join(', ');
     if (what) lines.push(`# ${what}`);
-    for (const [arg, said] of m.argDocs) lines.push(`#   {${arg}}: ${said}`);
+    for (const [arg, said] of m.argDocs) lines.push(`#   ${heldAs(m, arg)}: ${said}`);
     lines.push(`# ${config.source}: ${m.text.replaceAll('\n', ' ')}`);
     const change = stale.get(m.key);
     if (change !== undefined) lines.push(`# stale, the source changed: ${changeOf(change)}`);

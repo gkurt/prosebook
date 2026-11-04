@@ -8,7 +8,7 @@
  */
 import { isMap, isScalar, parseDocument, type YAMLMap } from 'yaml';
 
-import type { Catalog, Message } from './catalog.ts';
+import { heldAs, type Catalog, type Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { changeOf, type StaleTranslation } from './lock.ts';
 import { todoMessages } from './todo.ts';
@@ -57,7 +57,7 @@ export function exportOf(
         ['context', m.context],
         ['kind', m.kind],
         ['surface', m.surface],
-        ...[...m.argDocs].map(([arg, said]) => ['placeholder', `{${arg}}: ${said}`]),
+        ...[...m.argDocs].map(([arg, said]) => ['placeholder', `${heldAs(m, arg)}: ${said}`]),
         ['stale', isSource || !stale.has(m.key) ? undefined : `the source changed: ${changeOf(stale.get(m.key)!)}`],
       ].filter((n): n is [string, string] => n[1] !== undefined);
       if (notes.length > 0) {

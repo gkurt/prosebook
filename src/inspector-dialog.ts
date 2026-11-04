@@ -306,7 +306,12 @@ export async function openDialog(options: DialogOptions): Promise<void> {
               {},
               el('legend', { textContent: 'What each placeholder holds' }),
               ...argNames.map((n) =>
-                el('label', {}, el('small', { textContent: `{${n}}` }), el('input', { name: `arg.${n}`, value: f.args[n] ?? '' })),
+                el(
+                  'label',
+                  {},
+                  el('small', { textContent: view.argNames.includes(n) ? `{${n}}` : `<${n}>` }),
+                  el('input', { name: `arg.${n}`, value: f.args[n] ?? '' }),
+                ),
               ),
             ),
           ]),
