@@ -578,20 +578,23 @@ export default defineConfig({
 });
 `;
 
+// Commented out: entries no code reads yet would be the first thing \`scan\` reported.
 const SAMPLE_CATALOG = `${SCHEMA_LINE}
-app.title:
-  kind: name
-  surface: title
-  context: The app's name, in the window title and the header.
-  en: My app
-
-app.greeting:
-  kind: state
-  surface: status
-  context: Greets the person signed in, at the top of the home page.
-  args:
-    name: the person's first name
-  en: Welcome back, {name}.
+# One entry per string the app shows, keyed <area>.<what it is>. Write yours like these:
+#
+# app.title:
+#   kind: name
+#   surface: title
+#   context: The app's name, in the window title and the header.
+#   en: My app
+#
+# app.greeting:
+#   kind: state
+#   surface: status
+#   context: Greets the person signed in, at the top of the home page.
+#   args:
+#     name: the person's first name
+#   en: Welcome back, {name}.
 `;
 
 function init(root: string): number {
@@ -607,7 +610,9 @@ function init(root: string): number {
     writeFileSync(join(catalogDir, 'app.yaml'), SAMPLE_CATALOG);
     out('created copy/catalog/app.yaml');
   }
-  out('\nNext: `prosebook generate`, then `createCopy(catalog)` from the generated src/copy.');
+  out('\nNext: write the first entries in copy/catalog/app.yaml (its comments show how), or move the');
+  out('text already in your JSX there with `prosebook extract`, then `prosebook generate` and');
+  out('`createCopy(catalog)` from the generated src/copy.');
   return 0;
 }
 

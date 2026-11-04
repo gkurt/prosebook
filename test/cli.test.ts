@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { editEntry, importTranslations } from 'prosebook/tools';
@@ -74,6 +74,15 @@ describe('a broken entry', () => {
     expect(imported.problems.map((p) => p.key)).toEqual(['cart.title']);
     expect(read(config.root, 'copy/locales/de.yaml')).toBe(files['copy/locales/de.yaml']);
   });
+});
+
+test('init writes a catalog that generates, with nothing for scan to report', () => {
+  const root = join(fixture({}).root, 'fresh');
+  mkdirSync(root);
+  expect(cli(root, 'init').code).toBe(0);
+  expect(read(root, 'copy/catalog/app.yaml')).toContain('# app.title:');
+  expect(cli(root, 'generate').code).toBe(0);
+  expect(cli(root, 'scan').stdout).toContain('0 hardcoded string(s), 0 unused key(s)');
 });
 
 test('generate run again, as after a dev server wrote the files, says they are current', () => {

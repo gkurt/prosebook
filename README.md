@@ -51,7 +51,9 @@ bun add prosebook
 bunx prosebook init
 ```
 
-`init` writes `prosebook.config.ts` and `copy/catalog/app.yaml`. Then:
+`init` writes `prosebook.config.ts` and `copy/catalog/app.yaml`, whose comments show an entry or
+two to write yours after (or move the text in your JSX there with [`extract`](#extracting-hardcoded-text)).
+Then:
 
 ```bash
 bunx prosebook generate
