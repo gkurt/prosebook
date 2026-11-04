@@ -193,6 +193,29 @@ describe('prosebook extract', () => {
     expect(render(After)).toBe(render(Before));
   });
 
+  test("an element's title is a tooltip, a component's its heading, and a sentence a description", async () => {
+    const config = fixture({
+      'src/Cards.tsx': [
+        'const NavCard = ({ title }: { title: string }) => <h3>{title}</h3>;',
+        'export function Cards() {',
+        '  return (',
+        '    <div>',
+        '      <NavCard title="Billing" />',
+        '      <span title="Copy link">⧉</span>',
+        '      <span title="Copies the link to this page, for sharing.">?</span>',
+        '    </div>',
+        '  );',
+        '}',
+      ].join('\n'),
+    });
+    const plan = await planExtract(config, [join(config.root, 'src', 'Cards.tsx')], { types: false });
+    expect(plan.entries.map((e) => `${e.key} ${e.kind}/${e.surface}`)).toEqual([
+      'cards.billing-title name/heading',
+      'cards.copy-link-tooltip name/tooltip',
+      'cards.copies-the-link-to-tooltip description/tooltip',
+    ]);
+  });
+
   test('a key is reused for the same words in the same role only', async () => {
     const config = fixture({
       'copy/catalog/find.yaml': [

@@ -128,6 +128,12 @@ const ATTRIBUTE_ROLES: Record<string, [kind: string | undefined, surface: string
   label: ['name', 'label', 'label'],
 };
 
+/** A component's `title` is its heading, which it shows, where an element's is a tooltip. */
+const COMPONENT_TITLE: [kind: string, surface: string, suffix: string] = ['name', 'heading', 'title'];
+
+/** Words past a name's budget, or a stop at the end: a sentence, which describes rather than names. */
+const isSentence = (text: string) => /[.!?…]$/.test(text.trim()) || text.trim().split(/\s+/).length > 4;
+
 /** Names whose capitals sit inside one word, which kebab case would split: `GitHub` is not `git-hub`. */
 const ONE_WORD = ['GitHub', 'GitLab', 'JavaScript', 'TypeScript', 'OAuth', 'PagerDuty', 'YouTube', 'LinkedIn', 'WordPress', 'iOS', 'macOS'];
 
@@ -346,7 +352,8 @@ function planFile(path: string, ctx: Context): FilePlan {
     context: string,
     suffix?: string,
   ) => {
-    const kind = role[0] !== undefined && role[0] in ctx.config.kinds ? role[0] : undefined;
+    const named = role[0] === 'name' && isSentence(message) ? 'description' : role[0];
+    const kind = named !== undefined && named in ctx.config.kinds ? named : undefined;
     const surface = role[1] !== undefined && role[1] in ctx.config.surfaces ? role[1] : undefined;
     // The same words in another role are another string: an aria-label, a placeholder and a button
     // that say "Search" each translate on their own. An entry that names no role claims none.
@@ -509,8 +516,13 @@ function planFile(path: string, ctx: Context): FilePlan {
       );
       return;
     }
-    const [kind, surface, suffix] = ATTRIBUTE_ROLES[name] ?? [undefined, undefined, name];
     const tag = elementName(element) ?? 'element';
+    const isComponent = !/^[a-z]/.test(tag);
+    const [kind, surface, suffix] = (name === 'title' && isComponent ? COMPONENT_TITLE : ATTRIBUTE_ROLES[name]) ?? [
+      undefined,
+      undefined,
+      name,
+    ];
     const component = components.at(-1)?.name;
     const context = `${component ? `In ${component}` : `In ${file}`}, the ${name} of a <${tag}>.`;
     const message = inSyntax(ctx.config, escapeIcu(text));

@@ -1030,7 +1030,8 @@ profile.hi-read-the-terms:
   attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area, in the same
   role (its kind and surface), reuses that key: a button's "Search" and a placeholder's are two.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
-  heading, `placeholder` → placeholder). `context` names the component and the element.
+  heading, `placeholder` → placeholder, an element's `title` → tooltip, a component's → heading), and
+  a name that runs to a sentence is a description. `context` names the component and the element.
 - Whitespace renders exactly as before. Code-like text (`form.json()`, `src/index.ts`, `us-west-2`, a
   list of hosts, a shell command), text in `<code>`, `<pre>` and `<kbd>` and components named for them
   (`<Kbd>`), and lines marked `prosebook-ignore` stay where they are; `scan` skips them too.
