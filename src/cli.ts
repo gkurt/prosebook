@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { watchCatalog } from './tools/bundle.ts';
+import { scanSources, watchCatalog } from './tools/bundle.ts';
 import { CatalogError, entryLocator, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
@@ -40,12 +40,14 @@ Commands:
   import <locale> [file]  Write translations from todo's YAML filled in, a model's reply to --prompt,
                           or a tool's XLIFF or JSON (stdin without a file); each is checked first,
                           and one that fails is left out
-  scan                    Find hardcoded text in JSX and catalog keys no code reads  (--strict)
+  scan                    Find hardcoded text in JSX, catalog keys no code reads, and reads whose key
+                          a pruned build can't see  (--strict: fail on any of them)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
   migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
                           (dry run unless --write)
-  check                   generate --check, lint and status --strict together, for CI
+  check                   generate --check, lint and status --strict together, for CI, and warns
+                          of reads whose key a pruned build can't see
 
 Options:
   --root <dir>            Project root (default: the current directory)
@@ -66,6 +68,7 @@ const RULES = {
   'stale-translation': 'A translation was made from the source text as it is now.',
   'hardcoded-text': 'Text a person reads comes from the catalog, not from a literal in JSX.',
   'unused-key': 'Code reads every catalog key.',
+  'unseen-read': 'Every read names its key where a build can see it, so pruning keeps its message.',
   allow: "An entry's exemption names a rule the entry breaks, and says why in a sentence.",
 };
 
@@ -147,6 +150,7 @@ async function main(argv: string[]): Promise<number> {
         return runMigrate(config, rest[0], values.write === true);
       case 'check': {
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
+        runUnseen(config, 'warning', report);
         code = results.some((r) => r !== 0) ? 1 : 0;
         break;
       }
@@ -479,6 +483,7 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text' : `${h.where}=`} "${h.text}"`);
   const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
+  const unseen = runUnseen(config, strict ? 'error' : 'warning', report);
   if (report !== undefined) {
     const level = strict ? 'error' : 'warning';
     const locate = entryLocator(config.root);
@@ -493,12 +498,36 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
       report.add({ rule: 'unused-key', level, message: `no code reads ${m.key}: remove it`, file: m.file, ...locate(m.file, m.key) });
   }
   out(
-    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s)` +
+    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s), ${unseen} unseen read(s)` +
       (result.hardcoded.length > 0
         ? '. `prosebook extract` moves the text into the catalog; mark a deliberate line `prosebook-ignore`.'
         : ''),
   );
-  return strict && result.hardcoded.length + unused.length > 0 ? 1 : errorsIn(catalog).length > 0 ? 1 : 0;
+  return strict && result.hardcoded.length + unused.length + unseen > 0 ? 1 : errorsIn(catalog).length > 0 ? 1 : 0;
+}
+
+/**
+ * Reads whose key a pruned build can't see, which the bundler plugins fail a build on (`prune:
+ * 'strict'`, their default): said here too, so a project learns of one before it builds. A warning
+ * unless asked otherwise, since an app that doesn't prune reads keys from variables as it likes.
+ */
+function runUnseen(config: ResolvedConfig, level: 'error' | 'warning', report?: SarifReport): number {
+  const { unseen } = scanSources(config, true);
+  const fix =
+    'write the key at the read (a literal, or `area.${id}`), or mark the line `prosebook-ignore` where every key it reads is written elsewhere';
+  for (const u of unseen) {
+    err(
+      `${level === 'error' ? 'error' : 'warn '} ${rel(config, u.file)}:${u.line}:${u.column} a pruned build can't see the key ${u.code} reads: ${fix}`,
+    );
+  }
+  if (report !== undefined) {
+    report.rule('unseen-read', RULES['unseen-read']);
+    for (const u of unseen) {
+      const message = `a pruned build can't see the key ${u.code} reads, and would show the key: ${fix}`;
+      report.add({ rule: 'unseen-read', level, message, file: rel(config, u.file), line: u.line, column: u.column });
+    }
+  }
+  return unseen.length;
 }
 
 async function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): Promise<number> {

@@ -952,14 +952,17 @@ added twice, a pattern that is not a regular expression, or a rule missing what 
 
 **Scan** reports JSX text and readable attributes (`title`, `alt`, `placeholder`, `aria-label`, ...)
 written as literals, and catalog keys no code names. Mark a deliberate literal with
-`prosebook-ignore` on its line or the line above.
+`prosebook-ignore` on its line or the line above. It also reports each read whose key a pruned build
+can't see (`t(id)`, `<Text id={id} />`, see [Pruning](#pruning)), which the bundler plugins fail a
+build on, so you learn of one before the build does; `check` warns of them too. `--strict` fails on
+any of the three.
 
 **SARIF.** `lint`, `scan`, `status` and `check` take `--format sarif` and write a
 [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log to stdout for
 code scanning; the usual text goes to stderr and the exit code is the same. Each result points at
 the line it is about: the entry in the catalog or translation file, or the JSX for hardcoded text.
 Lint results carry the rule's name and description; the other checks are `catalog`, `out-of-date`,
-`missing-translation`, `stale-translation`, `hardcoded-text` and `unused-key`. In GitHub Actions:
+`missing-translation`, `stale-translation`, `hardcoded-text`, `unused-key` and `unseen-read`. In GitHub Actions:
 
 ```yaml
 - run: npx prosebook check --format sarif > prosebook.sarif

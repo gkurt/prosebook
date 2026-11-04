@@ -85,6 +85,22 @@ test('init writes a catalog that generates, with nothing for scan to report', ()
   expect(cli(root, 'scan').stdout).toContain('0 hardcoded string(s), 0 unused key(s)');
 });
 
+test("scan and check report a read whose key a pruned build can't see", () => {
+  const { root } = fixture({
+    'copy/catalog/app.yaml': 'app.title:\n  context: The header.\n  en: My app\n',
+    'src/App.tsx': "export const App = ({ t, id }) => <h1>{t('app.title')}{t(id)}</h1>;\n",
+  });
+  cli(root, 'generate');
+  const scan = cli(root, 'scan');
+  expect(scan.code).toBe(0);
+  expect(scan.stderr).toContain("warn  src/App.tsx:1:56 a pruned build can't see the key t(id) reads: write the key at the read");
+  expect(scan.stdout).toContain('1 unseen read(s)');
+  expect(cli(root, 'scan', '--strict').code).toBe(1);
+  const check = cli(root, 'check');
+  expect(check.code).toBe(0);
+  expect(check.stderr).toContain("src/App.tsx:1:56 a pruned build can't see the key t(id) reads");
+});
+
 test('generate run again, as after a dev server wrote the files, says they are current', () => {
   const { root } = fixture({ 'copy/catalog/app.yaml': 'app.title:\n  context: The header.\n  en: My app\n' });
   expect(cli(root, 'generate').stdout).toContain('wrote');
