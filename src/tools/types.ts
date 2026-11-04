@@ -26,11 +26,22 @@ export interface Span {
   end: number;
 }
 
+/** What an expression holds, and whether it may be null or undefined too. */
+export interface ValueInfo {
+  kind: ValueKind;
+  nullable: boolean;
+}
+
 export interface TypeOracle {
   /** Where the answers come from, for the report. */
   readonly source: string;
   /** The kind of each span's expression in `file`, or nothing where the oracle can't say. */
-  kinds(file: string, spans: readonly Span[]): Promise<(ValueKind | undefined)[]>;
+  kinds(file: string, spans: readonly Span[]): Promise<(ValueInfo | undefined)[]>;
+  /**
+   * What each component, by the span of its name in `file`, takes as `children`: `string` where it
+   * takes only text, which a `<Text>` can't be.
+   */
+  children(file: string, spans: readonly Span[]): Promise<(ValueKind | undefined)[]>;
   close(): Promise<void>;
 }
 
@@ -48,6 +59,9 @@ const ANY_OR_UNKNOWN = 3;
 const NUMBER_LIKE = 67648 | 4224;
 const STRING_LIKE = 12583968;
 const UNION = 134217728;
+const NULLABLE = 12;
+/** SignatureKind.Call. */
+const CALL = 0;
 const OBJECT = 1048576;
 
 /**
@@ -89,26 +103,58 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
     return 'unknown';
   };
 
+  const nullable = async (type: Type): Promise<boolean> => {
+    if ((type.flags & NULLABLE) !== 0) return true;
+    if ((type.flags & UNION) === 0) return false;
+    const members = (await (type as Type & { getTypes(): Promise<readonly Type[] | undefined> }).getTypes()) ?? [];
+    return members.some((m) => (m.flags & NULLABLE) !== 0);
+  };
+
+  /** Each span's node in `file`, with the checker of its project; nothing where the file is in none. */
+  const located = async (file: string, spans: readonly Span[]) => {
+    const project = await snapshot.getDefaultProjectForFile(resolve(file));
+    const sourceFile = await project?.program.getSourceFile(resolve(file));
+    if (project === undefined || sourceFile === undefined) return undefined;
+    // The smallest node covering each span is the expression itself.
+    const nodes = spans.map(({ start, end }) => {
+      let node: TsNode = sourceFile;
+      for (;;) {
+        let next: TsNode | undefined;
+        node.forEachChild((child) => {
+          if (next === undefined && child.pos <= start && child.end >= end) next = child;
+        });
+        if (next === undefined) return node;
+        node = next;
+      }
+    });
+    return { checker: project.checker, types: await project.checker.getTypeAtLocation(nodes as never[]) };
+  };
+
   return {
     source: 'TypeScript',
     async kinds(file, spans) {
-      const project = await snapshot.getDefaultProjectForFile(resolve(file));
-      const sourceFile = await project?.program.getSourceFile(resolve(file));
-      if (project === undefined || sourceFile === undefined) return spans.map(() => undefined);
-      // The smallest node covering each span is the expression itself.
-      const nodes = spans.map(({ start, end }) => {
-        let node: TsNode = sourceFile;
-        for (;;) {
-          let next: TsNode | undefined;
-          node.forEachChild((child) => {
-            if (next === undefined && child.pos <= start && child.end >= end) next = child;
-          });
-          if (next === undefined) return node;
-          node = next;
-        }
-      });
-      const types = await project.checker.getTypeAtLocation(nodes as never[]);
-      return Promise.all(types.map((type) => classify(project.checker, type)));
+      const found = await located(file, spans);
+      if (found === undefined) return spans.map(() => undefined);
+      return Promise.all(
+        found.types.map(async (type) => {
+          const kind = await classify(found.checker, type);
+          return kind === undefined || type === undefined ? undefined : { kind, nullable: await nullable(type) };
+        }),
+      );
+    },
+    async children(file, spans) {
+      const found = await located(file, spans);
+      if (found === undefined) return spans.map(() => undefined);
+      const { checker } = found;
+      return Promise.all(
+        found.types.map(async (type) => {
+          if (type === undefined) return undefined;
+          const [signature] = await checker.getSignaturesOfType(type, CALL);
+          const props = signature === undefined ? undefined : await checker.getParameterType(signature, 0);
+          const children = props === undefined ? undefined : await checker.getPropertyOfType(props, 'children');
+          return children === undefined ? undefined : classify(checker, await checker.getTypeOfSymbol(children));
+        }),
+      );
     },
     close() {
       return api.close();

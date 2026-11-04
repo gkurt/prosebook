@@ -1021,6 +1021,8 @@ profile.hi-read-the-terms:
 ```
 
 - Text becomes `<Text>`, which needs no hook, so it works in class components and in callbacks too.
+  Inside a component whose `children` TypeScript says are a `string`, which takes no element, it
+  becomes `{t('…')}` instead.
   A readable attribute becomes `t('…')`, a template one with its values (``aria-label={`Open ${name}`}``
   is `t('…', { name })`), and each text a ternary or a fallback in it picks, `t('…')` in place. extract adds `const { t } = useCopy()` to the component,
   joins an existing `useCopy()` call, or uses `copy.t` where the component already binds a `t` of its
@@ -1061,6 +1063,7 @@ changed in code (`.toLowerCase()`).
 | a number                                                 | `{count, number}`, so it's formatted for the locale (`1,234`, `1.234`)      |
 | a number followed by a plural noun, in English           | `{count, plural, one {# file} other {# files}}`                             |
 | a `Date`                                                 | `{when, date, medium}`                                                      |
+| text that may be `null`                                  | `{login}`, given `login ?? ''`, which renders as React rendered the null    |
 | a number made text, `n.toLocaleString()`, `n.toFixed(2)` | the number: `{n, number}`, `{n, number, ::.00}`, and a plural before a noun |
 | markup (`ReactNode`, elements)                           | nothing: the sentence is left as it is, with a warning to make it a tag     |
 

@@ -103,6 +103,32 @@ export function Inbox({ user, files, when, children }: { user: { name: string };
     ]);
   });
 
+  test("a component whose children are only text reads t(), and a value that may be null is given ''", async () => {
+    const config = fixture({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { strict: true, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler', noEmit: true },
+      }),
+      'src/Picker.tsx': [
+        "import type { ReactNode } from 'react';",
+        'const Toggle = ({ children }: { children: string }) => <button type="button">{children}</button>;',
+        'const Box = ({ children }: { children: ReactNode }) => <div>{children}</div>;',
+        'export function Picker({ login }: { login: string | null }) {',
+        '  return (',
+        '    <div>',
+        '      <Toggle>Show drafts</Toggle>',
+        '      <Box>Signed in as {login}</Box>',
+        '    </div>',
+        '  );',
+        '}',
+      ].join('\n'),
+    });
+    const plan = await planExtract(config, [join(config.root, 'src', 'Picker.tsx')]);
+    expect(plan.files[0]!.extractions.map((x) => x.replacement)).toEqual([
+      '{t("picker.show-drafts")}',
+      `<Text id="picker.signed-in-as" values={{ login: login ?? '' }} />`,
+    ]);
+  });
+
   test('without TypeScript, the syntax still gives away a count', async () => {
     const config = fixture({
       'src/Inbox.jsx': COMPONENT.replace(/: \{[^)]*\}\)/, ')')

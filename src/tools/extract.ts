@@ -19,7 +19,7 @@ import { parseMessage, TYPE, type MessageFormatElement } from './icu.ts';
 import { singularOf } from './lint.ts';
 import { isNonProse, looksLikeCode, shownLiterals } from './scan.ts';
 import { writeMessage } from './syntax.ts';
-import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
+import { syntaxKind, typescriptOracle, type Span, type ValueInfo, type ValueKind } from './types.ts';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- a loose ESTree node: the walk reads whichever fields each node type has
 type Node = { type: string; start: number; end: number; [field: string]: any };
@@ -432,6 +432,10 @@ interface Context {
   entries: NewEntry[];
   /** The kind of value each JSX expression holds, by `start:end`. */
   kinds: Map<string, ValueKind>;
+  /** The JSX expressions, by `start:end`, that may be null or undefined too. */
+  nullable: Set<string>;
+  /** The components, by where their element starts, whose `children` take only text. */
+  textChildren: Set<number>;
 }
 
 /** Plans the extraction from one file: the edits and the entries, without writing anything. */
@@ -516,7 +520,7 @@ function planFile(path: string, ctx: Context): FilePlan {
     const parentName = parent.type === 'JSXElement' ? elementName(parent) : undefined;
     let run: Node[] = [];
     const flush = () => {
-      if (run.length > 0) extractRun(run, parentName);
+      if (run.length > 0) extractRun(run, parentName, ctx.textChildren.has(parent.start));
       run = [];
     };
     // Words code picks, `{ok ? 'fine' : 'broken'}`: beside other words they would leave fragments, so
@@ -594,7 +598,7 @@ function planFile(path: string, ctx: Context): FilePlan {
     return false;
   };
 
-  const extractRun = (run: Node[], parentName: string | undefined) => {
+  const extractRun = (run: Node[], parentName: string | undefined, textOnly = false) => {
     // Whitespace at either end stays where it is, so the layout around the run is unchanged: text,
     // and `{' '}`, which is how a space is written before a line break.
     const blank = (n: Node) =>
@@ -659,7 +663,10 @@ function planFile(path: string, ctx: Context): FilePlan {
         ? 'number'
         : (ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr));
       if (kind === 'node') markup.push(code.slice(expr.start, expr.end));
-      return `{${argName(expr)}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
+      const name = argName(expr);
+      // React renders null as nothing, as a message does an empty string; a string argument takes no null.
+      if (kind === 'string' && ctx.nullable.has(`${expr.start}:${expr.end}`)) values.set(name, `${values.get(name)} ?? ''`);
+      return `{${name}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
     };
 
     const markup: string[] = [];
@@ -708,11 +715,25 @@ function planFile(path: string, ctx: Context): FilePlan {
     const { key, reused } = entryFor(message, argDocs, role ?? [undefined, undefined], where(parentName));
     const props = [...values].map(([name, source]) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: ${source}`);
     const space = (s: string) => (s === '' ? '' : `{${JSON.stringify(s)}}`);
-    const replacement = `${space(lead)}<Text id=${JSON.stringify(key)}${props.length > 0 ? ` values={{ ${props.join(', ')} }}` : ''} />${space(trail)}`;
+    let read = `<Text id=${JSON.stringify(key)}${props.length > 0 ? ` values={{ ${props.join(', ')} }}` : ''} />`;
+    // A component whose children are typed `string` takes no element: there the text is `t()`'s.
+    if (textOnly) {
+      const fn = components.findLast((c) => c.isComponent)?.fn;
+      const call = tags.size === 0 && fn?.body?.type === 'BlockStatement' ? hookFor(fn) : undefined;
+      if (call === undefined) {
+        const at = position(start);
+        plan.warnings.push(
+          `${file}:${at.line}:${at.column} <${parentName}> takes only text as children, and ${tags.size > 0 ? 'this sentence holds tags, which t() renders as text' : 'no t() can be added here'}; left as it is`,
+        );
+        return;
+      }
+      read = `{${call}(${JSON.stringify(key)}${props.length > 0 ? `, { ${props.join(', ')} }` : ''})}`;
+    }
+    const replacement = `${space(lead)}${read}${space(trail)}`;
     plan.edits.push({ start, end, text: replacement });
     for (const n of nodes) consumed.add(n);
     plan.extractions.push({ file, ...position(start), key, message, reused, where: 'text', replacement });
-    needText = true;
+    if (!textOnly) needText = true;
   };
 
   const extractAttribute = (attr: Node, element: Node) => {
@@ -907,6 +928,25 @@ function importEdit(program: Node, code: string, plan: FilePlan, wanted: string[
   }
 }
 
+/** Each component's element with children, by where it starts, and the span of its name. */
+function componentElements(file: string, code: string): { start: number; name: Span }[] {
+  const found: { start: number; name: Span }[] = [];
+  const walk = (node: Node) => {
+    const name = node.type === 'JSXElement' && !node.openingElement.selfClosing ? (node.openingElement.name as Node) : undefined;
+    if (name?.type === 'JSXIdentifier' && /^[A-Z]/.test(name.name as string))
+      found.push({ start: node.start, name: { start: name.start, end: name.end } });
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const child of value) if (isNode(child)) walk(child);
+      } else if (isNode(value)) {
+        walk(value);
+      }
+    }
+  };
+  walk(parseSync(file, code).program);
+  return found;
+}
+
 /** The spans of every expression inside JSX, which are the ones that may become placeholders. */
 function jsxExpressions(file: string, code: string): Span[] {
   const spans: Span[] = [];
@@ -963,13 +1003,27 @@ export async function planExtract(
     const files: FilePlan[] = [];
     for (const path of paths) {
       const kinds = new Map<string, ValueKind>();
+      const nullable = new Set<string>();
+      const textChildren = new Set<number>();
       if (oracle) {
-        const spans = jsxExpressions(path, readFileSync(path, 'utf8'));
-        (await oracle.kinds(path, spans)).forEach((kind, i) => {
-          if (kind !== undefined && kind !== 'unknown') kinds.set(`${spans[i]!.start}:${spans[i]!.end}`, kind);
+        const code = readFileSync(path, 'utf8');
+        const spans = jsxExpressions(path, code);
+        (await oracle.kinds(path, spans)).forEach((info: ValueInfo | undefined, i) => {
+          const id = `${spans[i]!.start}:${spans[i]!.end}`;
+          if (info !== undefined && info.kind !== 'unknown') kinds.set(id, info.kind);
+          if (info?.nullable === true) nullable.add(id);
+        });
+        const elements = componentElements(path, code);
+        (
+          await oracle.children(
+            path,
+            elements.map((e) => e.name),
+          )
+        ).forEach((kind, i) => {
+          if (kind === 'string') textChildren.add(elements[i]!.start);
         });
       }
-      const plan = planFile(path, { config, area: areas.get(path)!, known, entries, kinds });
+      const plan = planFile(path, { config, area: areas.get(path)!, known, entries, kinds, nullable, textChildren });
       plan.warnings.unshift(...(warnings.get(path) ?? []));
       files.push(plan);
     }
