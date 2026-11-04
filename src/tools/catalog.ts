@@ -324,8 +324,10 @@ function syntaxError(config: ResolvedConfig, text: string, e: unknown): string {
 }
 
 function icuError(text: string, e: unknown): string {
-  const hyphenated = /select\s*,/.test(text) ? /[,{]\s*([a-z0-9]+(?:-[a-z0-9]+)+)\s*\{/.exec(text) : null;
-  if (hyphenated) return `names a select arm "${hyphenated[1]}": an arm's name takes no hyphen, so write it with an underscore`;
+  // The parser says only EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT for an arm it can't name.
+  const arm = /select\s*,/.test(text) ? /[,}]\s*(?!=)([^\s{},]*[^\w\s{},][^\s{},]*)\s*\{/u.exec(text) : null;
+  if (arm)
+    return `names a select arm "${arm[1]}": an arm's name is letters, digits and _, so write it ${arm[1].replace(/\W+/gu, '_')} and map the value to it in code, or write the catalog in MF2, which quotes it: |${arm[1]}|`;
   const reason = (e as Error).message;
   if (/TAG/.test(reason)) return `is not valid ICU (${reason}): a literal < is written '<'`;
   return `is not valid ICU MessageFormat: ${reason}`;

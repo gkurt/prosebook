@@ -87,6 +87,13 @@ describe('catalog checks', () => {
     expect(todoOf(config, catalog, new Map(), 'de', false).text).toContain('#   <link>: links to the terms of sale');
   });
 
+  test("a select arm ICU can't name says what it can", () => {
+    const problems = problemsOf({ 'copy/catalog/app.yaml': `app.a:\n${entry('{type, select, application/pdf {PDF} other {File}}')}` });
+    expect(problems).toEqual([
+      'copy/catalog/app.yaml app.a: names a select arm "application/pdf": an arm\'s name is letters, digits and _, so write it application_pdf and map the value to it in code, or write the catalog in MF2, which quotes it: |application/pdf|',
+    ]);
+  });
+
   test('an argument used twice takes both uses where they agree, and fails where they cannot', () => {
     const config = fixture(
       {

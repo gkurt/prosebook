@@ -602,6 +602,10 @@ both. A number and a select on one argument can't agree, and fail. A skeleton's 
 hour as each locale writes it, 12 or 24. A skeleton the formatter would silently drop
 (`::compact-shortt`, a date's `J`) fails the build instead of reaching the screen unformatted.
 
+A select arm's name is letters, digits and `_` (`{type, select, pdf {PDF} other {File}}`), so map a
+value such as `application/pdf` to one in code; MF2 quotes any value as a key, `|application/pdf|`. A
+key can name an entry and be the prefix of others too: `alerts.mute` and `alerts.mute.hint`.
+
 **Tags** keep a sentence with a link or bold run inside it as one entry, so a translator can move the
 element. Say what a tag wraps under `args`, as for a placeholder (`link: links to the terms of
 sale`); the translator sees it, and so does the code, in the key's doc comment. `t()` renders a tag as its text; `rich()` and `<Text>` render it through a function. Tags
