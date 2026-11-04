@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { compileRule, CORE_RULES, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
+import { compileRule, CORE_RULES, REASON_NAME, reasonProblem, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
 import type { Isolate } from './mf2.ts';
 import { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 
@@ -54,6 +54,11 @@ export interface LintConfig extends WordLists {
   rules?: RuleSeverities;
   /** Severities for one area's entries (a key's first segment) over `rules`: `{ native: { 'sentence-case': 'off' } }`. */
   areas?: Record<string, RuleSeverities>;
+  /**
+   * Reasons many exemptions share, by name: `allow: { period: card-detail }` takes the reason
+   * `card-detail` names here, so it is written, reviewed and changed once.
+   */
+  reasons?: Record<string, string>;
 }
 
 /**
@@ -190,6 +195,7 @@ export interface ResolvedConfig {
   lint: {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
+    reasons: Record<string, string>;
   } & Required<WordLists>;
   guide: string | false;
   native: (NativeTarget & { name: string })[];
@@ -256,6 +262,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     lint: {
       rules,
       areas: lint.areas ?? {},
+      reasons: checkedReasons(lint.reasons ?? {}),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...lint.spelling },
       concepts: { ...lint.concepts },
@@ -281,6 +288,16 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
     },
   };
+}
+
+/** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
+function checkedReasons(reasons: Record<string, string>): Record<string, string> {
+  for (const [name, why] of Object.entries(reasons)) {
+    if (!REASON_NAME.test(name)) throw new Error(`lint.reasons.${name}: a reason's name is lowercase words joined by -`);
+    const problem = reasonProblem(why);
+    if (problem !== undefined) throw new Error(`lint.reasons.${name} ${problem}`);
+  }
+  return reasons;
 }
 
 function lintRules(lint: LintConfig): ResolvedConfig['lint']['rules'] {

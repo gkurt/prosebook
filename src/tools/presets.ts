@@ -55,6 +55,8 @@ export const DEFAULT_SURFACES: Record<string, string> = {
   aria: 'Reached only by a screen reader, so nothing on screen carries it.',
   choice: 'One option among a set offered together.',
   confirm: 'The question of a confirmation, or the verb that answers it.',
+  detail:
+    "A phrase beside or under the thing it qualifies: a row's detail line, a reading, a count. Not a sentence, so a state here ends without a period.",
   empty: 'Fills a list or a panel that has nothing in it.',
   error: 'Says what failed.',
   heading: 'Heads a section, group, dialog or list.',

@@ -831,7 +831,8 @@ shape rules read the entry's `kind`, as the config's kinds define them (these ar
 | `description` | 2 sentences                                          | always                                           |             |                            |
 | `state`       | 1 sentence (2 on `error`, `empty`, `hint`, `status`) | on `hint`, `status`, `error`, `empty`, `confirm` |             |                            |
 
-A state on any other surface, a `toast` or a `label`, needs no period, and an entry with no kind is
+A state on any other surface, a `toast`, a `label` or a `detail` (a row's detail line, a reading, a
+count: a phrase, not a sentence), needs no period, and an entry with no kind is
 held to none of these, so an `allow.period` there fails as an exemption it doesn't need. `fragment:
 true` lifts `period` and the sentence rules from a string that completes another.
 
@@ -873,6 +874,17 @@ legal.privacy:
 ```
 
 A reason that is a shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs.
+A reason many entries share is written once, in the config, and named:
+
+```ts
+lint: { reasons: { 'card-detail': "A card's detail line, which reads as a label, as every card's does." } },
+```
+
+```yaml
+allow:
+  period: card-detail
+```
+
 An exemption covers the entry in every locale, and is needed while any of them needs it.
 
 Where a rule is wrong about a whole area, set its severity there. A key's first segment is its area:
@@ -1278,6 +1290,7 @@ export default defineConfig({
     plugins: [],
     rules: {},
     areas: {}, // severities per area: { native: { 'sentence-case': 'off' } }
+    reasons: {}, // reasons allow names: { 'card-detail': "A card's detail line, which reads as a label." }
     banned: [],
     spelling: {},
     concepts: {},

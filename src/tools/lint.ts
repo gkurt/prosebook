@@ -782,8 +782,11 @@ export function compileRule(name: string, rule: Rule): CheckRule {
   }
 }
 
+/** What `allow` gives where it names a reason in `lint.reasons` rather than writing one. */
+export const REASON_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** A reason is a sentence a reviewer can check, not a shrug. */
-function reasonProblem(why: string): string | undefined {
+export function reasonProblem(why: string): string | undefined {
   if (why.split(/\s+/).length < 4) return 'is four words at least: say why the rule is wrong here';
   if (/^(?:intentional|needed|required|ok|fine|false positive|by design|legacy|todo)\b/i.test(why))
     return 'names the reason, not that there is one';
@@ -919,7 +922,14 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
         continue;
       } else if (!fired.has(name)) {
         findings.push({ ...at, message: `allow.${name} exempts the entry from a rule it passes: remove it` });
-      } else {
+      } else if (REASON_NAME.test(why) && config.lint.reasons[why] === undefined) {
+        const named = Object.keys(config.lint.reasons);
+        findings.push({
+          ...at,
+          message: `allow.${name} names the reason "${why}", which lint.reasons doesn't hold${named.length > 0 ? `: ${named.join(', ')}` : ''}`,
+        });
+      } else if (config.lint.reasons[why] === undefined) {
+        // A named reason was checked as the config loaded.
         const problem = reasonProblem(why);
         if (problem !== undefined) findings.push({ ...at, message: `allow.${name} ${problem}` });
       }

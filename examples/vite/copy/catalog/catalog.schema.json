@@ -59,6 +59,10 @@
             "description": "The question of a confirmation, or the verb that answers it."
           },
           {
+            "const": "detail",
+            "description": "A phrase beside or under the thing it qualifies: a row's detail line, a reading, a count. Not a sentence, so a state here ends without a period."
+          },
+          {
             "const": "empty",
             "description": "Fills a list or a panel that has nothing in it."
           },

@@ -437,6 +437,22 @@ describe('lint', () => {
       })
       .join('\n');
 
+  test('a state on a detail line needs no period, and an exemption can name a reason the config holds', () => {
+    const yaml = [
+      'app.count:\n  kind: state\n  surface: detail\n  context: Under a row.\n  args:\n    count: Lines.\n  en: "{count, plural, one {# line} other {# lines}}"',
+      'app.badge:\n  kind: state\n  surface: status\n  context: A badge.\n  allow:\n    period: badge\n  en: Running',
+      'app.typo:\n  kind: state\n  surface: status\n  context: A badge.\n  allow:\n    period: bagde\n  en: Stopped',
+    ].join('\n');
+    const reasons = { badge: 'A badge reads as a label, as every badge beside it does.' };
+    const config = fixture({ 'copy/catalog/app.yaml': yaml }, { lint: { reasons } });
+    expect(lint(loadCatalog(config).messages, config).map((f) => `${f.key} [${f.rule}] ${f.message}`)).toEqual([
+      'app.typo [allow] allow.period names the reason "bagde", which lint.reasons doesn\'t hold: badge',
+    ]);
+    expect(() => fixture({}, { lint: { reasons: { shrug: 'Intentional.' } } })).toThrow(
+      'lint.reasons.shrug is four words at least: say why the rule is wrong here',
+    );
+  });
+
   test('format rules read the placeholders, plurals and selects', () => {
     const yaml = entries({
       'app.a': '{count} files selected',
