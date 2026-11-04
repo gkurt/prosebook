@@ -1027,8 +1027,8 @@ profile.hi-read-the-terms:
 - The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`), or its folder's for an
   `index`; `--area` overrides it. A name in `lint.properNouns` stays one word (`GitHubConnect.tsx` →
   `github-connect`). The key adds the message's first words, and a suffix for an
-  attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area
-  reuses that key.
+  attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area, in the same
+  role (its kind and surface), reuses that key: a button's "Search" and a placeholder's are two.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
   heading, `placeholder` → placeholder). `context` names the component and the element.
 - Whitespace renders exactly as before. Code-like text (`form.json()`, `src/index.ts`, `us-west-2`, a

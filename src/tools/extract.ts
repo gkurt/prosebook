@@ -283,11 +283,18 @@ function isNode(value: unknown): value is Node {
   return typeof value === 'object' && value !== null && typeof (value as Node).type === 'string';
 }
 
+/** An entry extract can reuse: the same words in the same role. */
+interface Known {
+  text: string;
+  kind?: string;
+  surface?: string;
+}
+
 interface Context {
   config: ResolvedConfig;
   area: string;
-  /** Every key's source message, the catalog's and those added in this run. */
-  known: Map<string, string>;
+  /** Every key's source message and role, the catalog's and those added in this run. */
+  known: Map<string, Known>;
   entries: NewEntry[];
   /** The kind of value each JSX expression holds, by `start:end`. */
   kinds: Map<string, ValueKind>;
@@ -339,22 +346,19 @@ function planFile(path: string, ctx: Context): FilePlan {
     context: string,
     suffix?: string,
   ) => {
-    for (const [key, text] of ctx.known) if (text === message && key.startsWith(`${ctx.area}.`)) return { key, reused: true };
+    const kind = role[0] !== undefined && role[0] in ctx.config.kinds ? role[0] : undefined;
+    const surface = role[1] !== undefined && role[1] in ctx.config.surfaces ? role[1] : undefined;
+    // The same words in another role are another string: an aria-label, a placeholder and a button
+    // that say "Search" each translate on their own. An entry that names no role claims none.
+    const unclassified = (k: Known) => k.kind === undefined && k.surface === undefined;
+    const same = (k: Known) => k.text === message && ((k.kind === kind && k.surface === surface) || unclassified(k));
+    for (const [key, k] of ctx.known) if (same(k) && key.startsWith(`${ctx.area}.`)) return { key, reused: true };
 
     const base = `${ctx.area}.${slugOf(message)}${suffix ? `-${suffix}` : ''}`;
     let key = base;
     for (let n = 2; ctx.known.has(key); n++) key = `${base}-${n}`;
-    ctx.known.set(key, message);
-    const [kind, surface] = role;
-    ctx.entries.push({
-      key,
-      area: ctx.area,
-      message,
-      ...(kind !== undefined && kind in ctx.config.kinds ? { kind } : {}),
-      ...(surface !== undefined && surface in ctx.config.surfaces ? { surface } : {}),
-      context,
-      args,
-    });
+    ctx.known.set(key, { text: message, kind, surface });
+    ctx.entries.push({ key, area: ctx.area, message, ...(kind ? { kind } : {}), ...(surface ? { surface } : {}), context, args });
     return { key, reused: false };
   };
 
@@ -646,10 +650,10 @@ export async function planExtract(
 ): Promise<ExtractPlan> {
   if (options.area !== undefined && !KEY_PATTERN.test(`${options.area}.x`))
     throw new Error(`prosebook: "${options.area}" is not an area: lowercase words joined by -`);
-  const known = new Map<string, string>();
+  const known = new Map<string, Known>();
   if (existsSync(config.catalog)) {
     try {
-      for (const m of loadCatalog(config).messages) known.set(m.key, m.text);
+      for (const m of loadCatalog(config).messages) known.set(m.key, { text: m.text, kind: m.kind, surface: m.surface });
     } catch (e) {
       if (!(e instanceof CatalogError)) throw e;
       throw new Error(`prosebook: fix the catalog before extracting into it:\n${e.message}`, { cause: e });

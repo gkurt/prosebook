@@ -193,6 +193,38 @@ describe('prosebook extract', () => {
     expect(render(After)).toBe(render(Before));
   });
 
+  test('a key is reused for the same words in the same role only', async () => {
+    const config = fixture({
+      'copy/catalog/find.yaml': [
+        'find.search:\n  kind: action\n  surface: action\n  context: Runs the search.\n  en: Search',
+        // Names no role, so any role may reuse it.
+        'find.find:\n  context: Anywhere.\n  en: Find',
+      ].join('\n'),
+      'src/Find.tsx': [
+        'export function Find() {',
+        '  return (',
+        '    <form aria-label="Search">',
+        '      <input placeholder="Search" />',
+        '      <dl><dt>Search</dt></dl>',
+        '      <button>Search</button>',
+        '      <button>Search</button>',
+        '      <button>Find</button>',
+        '    </form>',
+        '  );',
+        '}',
+      ].join('\n'),
+    });
+    const [file] = (await planExtract(config, [join(config.root, 'src', 'Find.tsx')], { types: false })).files;
+    expect(file!.extractions.map((x) => `${x.where} ${x.key}${x.reused ? ' (reused)' : ''}`)).toEqual([
+      'aria-label find.search-aria',
+      'placeholder find.search-placeholder',
+      'text find.search-2',
+      'text find.search (reused)',
+      'text find.search (reused)',
+      'text find.find (reused)',
+    ]);
+  });
+
   test('a key, an example value or a command is not copy', async () => {
     const config = fixture({
       'src/Bar.tsx': [
