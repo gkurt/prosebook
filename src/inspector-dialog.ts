@@ -275,7 +275,9 @@ export async function openDialog(options: DialogOptions): Promise<void> {
         el('option', { value: '', textContent: '—' }),
         ...choices.map((c) => el('option', { value: c, textContent: c, selected: c === value })),
       );
-    const argNames = [...new Set([...view.argNames, ...Object.keys(f.args)])];
+    const placeholders = new Set(view.argNames);
+    // Beside the placeholders, the tags `args` describes too.
+    const argNames = [...new Set([...placeholders, ...Object.keys(f.args)])];
     body.replaceChildren(
       ...(focus() === undefined ? [] : [translation(focus()!)]),
       withFindings(area('message', `${focus() === undefined ? 'Message' : 'Source'} · ${view.source}`, f.message, true), view.source),
@@ -309,7 +311,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
                 el(
                   'label',
                   {},
-                  el('small', { textContent: view.argNames.includes(n) ? `{${n}}` : `<${n}>` }),
+                  el('small', { textContent: placeholders.has(n) ? `{${n}}` : `<${n}>` }),
                   el('input', { name: `arg.${n}`, value: f.args[n] ?? '' }),
                 ),
               ),
