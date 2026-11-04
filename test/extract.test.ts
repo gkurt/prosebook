@@ -103,7 +103,7 @@ describe('prosebook extract', () => {
       [
         '# TODO(prosebook extract): check the key, kind and context.',
         'cart.hi-read-the-terms:',
-        '  context: In Profile, the text of a <p>.',
+        '  context: "TODO: say where this appears and what it does (found in Profile, the text of a <p>)."',
         '  args:',
         '    name: "TODO: what `user.name` holds"',
         '  en: Hi {name}, read the <a>terms of <b>sale</b></a>.',
@@ -111,8 +111,13 @@ describe('prosebook extract', () => {
     );
     expect(yaml).toContain('cart.profile:\n  kind: name\n  surface: heading\n');
     expect(yaml).toContain('cart.save:\n  kind: action\n  surface: action\n');
-    // What was written loads as a valid catalog.
-    expect(loadCatalog(config).messages).toHaveLength(9);
+    // What was written loads as a valid catalog, whose drafts are warnings until someone finishes them.
+    const catalog = loadCatalog(config);
+    expect(catalog.messages).toHaveLength(9);
+    expect(catalog.problems.filter((p) => p.key === 'cart.hi-read-the-terms').map((p) => p.message)).toEqual([
+      'context is a draft: say where the string appears and what it does',
+      'args.name is a draft: say what it holds',
+    ]);
   });
 
   test('an attribute outside a component body is left alone, with a warning', async () => {
@@ -396,6 +401,27 @@ describe('prosebook extract', () => {
     expect(render(After)).toBe(render(Before));
     const other = { ...props, n: 3, pending: false, ok: false, x: 'Kept' };
     expect(render(After, other)).toBe(render(Before, other));
+  });
+
+  test('a placeholder is named for what it holds', async () => {
+    const config = fixture({
+      'src/Feed.tsx': [
+        'const PREVIEW_EVENTS = 5;',
+        'export function Feed({ files, user, size, formatBytes, run }: any) {',
+        '  return (',
+        '    <div>',
+        '      <p>Showing {PREVIEW_EVENTS} of {files.length} events</p>',
+        '      <p>By {user.getName()}, {formatBytes(size)} in {run.steps.length} steps</p>',
+        '    </div>',
+        '  );',
+        '}',
+      ].join('\n'),
+    });
+    const plan = await planExtract(config, [join(config.root, 'src', 'Feed.tsx')], { types: false });
+    expect(plan.files[0]!.extractions.map((x) => x.message)).toEqual([
+      'Showing {previewEvents} of {filesCount, plural, one {# event} other {# events}}',
+      'By {name}, {size} in {stepsCount, plural, one {# step} other {# steps}}',
+    ]);
   });
 
   test('markup with no words beside it is no sentence, and says nothing', async () => {

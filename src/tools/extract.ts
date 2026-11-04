@@ -367,13 +367,45 @@ function literalText(expr: Node): string | undefined {
   return undefined;
 }
 
-/** A placeholder's name from its expression: the variable, or the property it reads. */
+/**
+ * A placeholder's name from what its expression holds: the variable in camel case (`PREVIEW_EVENTS` is
+ * `previewEvents`), the property it reads, a count of what it measures (`files.length` is `filesCount`),
+ * or what a call is given (`formatBytes(size)` is `size`) or gets (`user.getName()` is `name`).
+ */
 function nameOf(expr: Node): string {
   let inner = expr;
   while (inner.type === 'TSNonNullExpression' || inner.type === 'ChainExpression') inner = inner.expression as Node;
-  if (inner.type === 'Identifier') return inner.name as string;
-  if (inner.type === 'MemberExpression' && !inner.computed && inner.property?.type === 'Identifier') return inner.property.name as string;
+  if (inner.type === 'Identifier') return camel(inner.name as string);
+  if (inner.type === 'MemberExpression' && !inner.computed && inner.property?.type === 'Identifier') {
+    const property = inner.property.name as string;
+    if (!['length', 'size', 'count'].includes(property)) return camel(property);
+    const of = nameOf(inner.object as Node);
+    return of === 'value' ? 'count' : `${of}Count`;
+  }
+  if (inner.type === 'CallExpression') {
+    const args = inner.arguments as Node[];
+    if (args.length === 1 && (args[0]!.type === 'Identifier' || args[0]!.type === 'MemberExpression')) return nameOf(args[0]!);
+    const callee = inner.callee as Node;
+    const name =
+      callee.type === 'Identifier'
+        ? callee.name
+        : callee.type === 'MemberExpression' && !callee.computed
+          ? callee.property?.name
+          : undefined;
+    // `when.toLocaleString()` holds `when`; `user.getName()` holds a name.
+    if (callee.type === 'MemberExpression' && args.length === 0 && !/^get[A-Z]/.test(name as string)) return nameOf(callee.object as Node);
+    const stripped = typeof name === 'string' ? name.replace(/^(?:get|format)(?=[A-Z])/, '') : '';
+    return stripped === '' ? 'value' : camel(stripped);
+  }
   return 'value';
+}
+
+/** `PREVIEW_EVENTS` and `Total` as an argument is named: `previewEvents`, `total`. */
+function camel(name: string): string {
+  const words = name.split('_').filter(Boolean);
+  if (words.length > 1 || /^[A-Z0-9]+$/.test(name))
+    return words.map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join('');
+  return name.charAt(0).toLowerCase() + name.slice(1);
 }
 
 function elementName(el: Node): string | undefined {
@@ -471,10 +503,13 @@ function planFile(path: string, ctx: Context): FilePlan {
     return { key, reused: false };
   };
 
-  const where = (element: string | undefined) => {
+  // A draft, marked so: a component's name tells a translator nothing, and `generate` lists each
+  // draft until someone says where the string appears and what it does.
+  const draft = (found: string) => {
     const component = components.at(-1)?.name;
-    return `${component ? `In ${component}` : `In ${file}`}${element ? `, the text of a <${element}>` : ''}.`;
+    return `TODO: say where this appears and what it does (found in ${component ?? file}, ${found}).`;
   };
+  const where = (element: string | undefined) => draft(element ? `the text of a <${element}>` : 'as text');
 
   /** The children of one element, split into runs at anything that cannot sit inside a sentence. */
   const extractChildren = (parent: Node, children: Node[]) => {
@@ -582,14 +617,7 @@ function planFile(path: string, ctx: Context): FilePlan {
       const source = code.slice(expr.start, expr.end);
       const known = names.get(source);
       if (known !== undefined) return known;
-      let inner = expr;
-      while (inner.type === 'TSNonNullExpression' || inner.type === 'ChainExpression') inner = inner.expression;
-      let name =
-        inner.type === 'Identifier'
-          ? (inner.name as string)
-          : inner.type === 'MemberExpression' && !inner.computed && inner.property?.type === 'Identifier'
-            ? (inner.property.name as string)
-            : 'value';
+      let name = nameOf(expr);
       const base = name;
       for (let n = 2; values.has(name) || tags.has(name); n++) name = `${base}${n}`;
       names.set(source, name);
@@ -768,8 +796,7 @@ function planFile(path: string, ctx: Context): FilePlan {
       undefined,
       name,
     ];
-    const component = components.at(-1)?.name;
-    const context = `${component ? `In ${component}` : `In ${file}`}, the ${name} of a <${tag}>.`;
+    const context = draft(`the ${name} of a <${tag}>`);
     const message = inSyntax(ctx.config, said);
     const { key, reused } = entryFor(message, args, [kind, surface], context, suffix);
     const props = values.map(([n, source]) => `${n}: ${source}`);

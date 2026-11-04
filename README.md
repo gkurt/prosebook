@@ -1014,7 +1014,7 @@ message, so a translator can reorder all of it:
 ```yaml
 # TODO(prosebook extract): check the key, kind and context.
 profile.hi-read-the-terms:
-  context: In Profile, the text of a <p>.
+  context: 'TODO: say where this appears and what it does (found in Profile, the text of a <p>).'
   args:
     name: 'TODO: what `user.name` holds'
   en: Hi {name}, read the <a>terms of <b>sale</b></a>.
@@ -1038,7 +1038,8 @@ profile.hi-read-the-terms:
   role (its kind and surface), reuses that key: a button's "Search" and a placeholder's are two.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
   heading, `placeholder` → placeholder, an element's `title` → tooltip, a component's → heading), and
-  a name that runs to a sentence is a description. `context` names the component and the element.
+  a name that runs to a sentence is a description. `context` is a draft naming where extract found
+  it, and a placeholder is named for what it holds (`files.length` is `filesCount`).
 - Whitespace renders exactly as before. Code-like text (`form.json()`, `src/index.ts`, `us-west-2`, a
   list of hosts, a shell command), text in `<code>`, `<pre>` and `<kbd>` and components named for them
   (`<Kbd>`), and lines marked `prosebook-ignore` stay where they are; `scan` skips them too.
@@ -1068,8 +1069,10 @@ Without TypeScript (a JavaScript project, a file outside any tsconfig) the synta
 which of the two it used.
 
 Every new entry is marked `TODO(prosebook extract)`. The key is a suggestion: rename it to say what
-the string is for, then fill in the context a translator needs. Check a drafted plural's arms too:
-the singular is the plural less its `s`, `es` or `ies`.
+the string is for, then write the context a translator needs in place of the draft, and what each
+placeholder holds. `generate` and `check` list each draft context and argument as a warning until
+then, so none ships as a translator's only note. Check a drafted plural's arms too: the singular is
+the plural less its `s`, `es` or `ies`.
 
 ## Pruning
 

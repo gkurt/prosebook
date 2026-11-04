@@ -145,6 +145,9 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
       const warn = (m: string) => problems.push({ severity: 'warn', file: at, key, message: m });
       if (message.remove) warn('marked for removal: delete the entry, its translations and the code that reads it');
       if (message.comment !== undefined) warn(`a comment to act on, then delete: ${message.comment}`);
+      // `prosebook extract`'s drafts, which only a person or an agent reading the code can finish.
+      if (message.context?.startsWith('TODO') === true) warn('context is a draft: say where the string appears and what it does');
+      for (const [name, said] of message.argDocs) if (said.startsWith('TODO')) warn(`args.${name} is a draft: say what it holds`);
     }
   }
 

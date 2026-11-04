@@ -68,7 +68,7 @@ export function Inbox({ user, files, when, children }: { user: { name: string };
     const plan = await planExtract(config, [join(config.root, 'src', 'Inbox.tsx')]);
     expect(plan.types).toBe('TypeScript');
     expect(plan.files[0]!.extractions.map((x) => x.message)).toEqual([
-      'Hi {name}, you have {length, plural, one {# file} other {# files}}.',
+      'Hi {name}, you have {filesCount, plural, one {# file} other {# files}}.',
       'Kept {kept, number} of them.',
       'Last sync {when, date, medium}.',
     ]);
@@ -99,7 +99,7 @@ export function Inbox({ user, files, when, children }: { user: { name: string };
       '{c, plural, one {# node} other {# nodes}} ← <Text id="stats.nodes" values={{ c: c }} />',
       'Frame {frameMs, number, ::.00} ms ← <Text id="stats.frame-ms" values={{ frameMs: frameMs }} />',
       // A date's toLocaleString says its time too, which a date format would drop: left a string.
-      'Synced {value} ← <Text id="stats.synced" values={{ value: when.toLocaleString() }} />',
+      'Synced {when} ← <Text id="stats.synced" values={{ when: when.toLocaleString() }} />',
     ]);
   });
 
@@ -112,7 +112,7 @@ export function Inbox({ user, files, when, children }: { user: { name: string };
     const plan = await planExtract(config, [join(config.root, 'src', 'Inbox.jsx')], { types: false });
     expect(plan.types).toBe('syntax');
     expect(plan.files[0]!.extractions.map((x) => x.message)).toEqual([
-      'Hi {name}, you have {length, plural, one {# file} other {# files}}.',
+      'Hi {name}, you have {filesCount, plural, one {# file} other {# files}}.',
       'Kept {kept} of them.',
       'Last sync {when}.',
       'See {children} here.',
