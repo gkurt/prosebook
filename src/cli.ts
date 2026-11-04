@@ -514,7 +514,7 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
 function runUnseen(config: ResolvedConfig, level: 'error' | 'warning', report?: SarifReport): number {
   const { unseen } = scanSources(config, true);
   const fix =
-    'write the key at the read (a literal, or `area.${id}`), or mark the line `prosebook-ignore` where every key it reads is written elsewhere';
+    'write the key at the read (a literal, `area.${id}`, or a `const` map of keys in the module), or mark the line `prosebook-ignore` where every key it reads is written elsewhere';
   for (const u of unseen) {
     err(
       `${level === 'error' ? 'error' : 'warn '} ${rel(config, u.file)}:${u.line}:${u.column} a pruned build can't see the key ${u.code} reads: ${fix}`,

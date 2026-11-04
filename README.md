@@ -643,9 +643,12 @@ the moment it renders, and needs no getter:
 import type { MessageKey, Translate } from 'prosebook';
 
 const STATUS: Record<Status, MessageKey> = { started: 'run.started', done: 'run.done' };
-// prosebook-ignore: every key it reads is written in STATUS, which a pruned build keeps
 const summary = (t: Translate, run: Run) => t(STATUS[run.status]);
 ```
+
+A pruned build sees that read: `STATUS` is a `const` of the module that reads it, holding only keys,
+so every key the read can be is written there. So is `KINDS[i].label` over a `const` list of objects
+that each hold a key under `label`.
 
 Where only one sentence shows the label, a select keeps it there, with no map at all:
 `{status, select, started {Started} done {Done} other {Unknown}}`.
@@ -1125,7 +1128,8 @@ some other way, list them: `prosebook({ keep: ['plan.*'] })`.
 
 A message the build leaves out shows as its key, so by default a build fails on any read whose key
 it can't see: `t(item.key)`, ``rich(`${area}.title`)``, `<Text id={id} />`. Write the key at the read,
-or, where every key it reads is written elsewhere (in an array, say) or listed in `keep`, mark the
+or read it from a `const` map of keys in the same module (`t(STATUS[s])`, `KINDS[i].label`), which
+counts as written there; where every key it reads is written elsewhere or listed in `keep`, mark the
 line with `prosebook-ignore`. Reads are known by name: `t` and `rich` alone or as methods, the names
 they're destructured to (`const { rich: tRich } = copy`) in any module, and `<Text>` from any of the
 bindings. In `.vue` and `.svelte` files the scripts and the expressions in the markup are read alike

@@ -294,10 +294,17 @@ const PREFIX = /^[a-z0-9][\w-]*(?:\.[\w-]+)*\.$/;
 const WRAPPERS = new Set(['ParenthesizedExpression', 'TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'TSTypeAssertion']);
 
 /** Whether `keyRefs` finds every key an expression can be: a literal, or a template or sum after a key prefix. */
-function keySeen(node: Node | undefined): boolean {
+function keySeen(node: Node | undefined, maps: KeyMaps = new Map()): boolean {
   if (node === undefined) return false;
-  if (WRAPPERS.has(node.type)) return keySeen(node.expression as Node);
+  if (WRAPPERS.has(node.type)) return keySeen(node.expression as Node, maps);
   switch (node.type) {
+    case 'MemberExpression': {
+      // `STATUS[s]` over a map of keys, and `STATUS[s].label` over a map of objects holding one.
+      const object = unwrapped(node.object as Node);
+      if (node.computed === true) return object.type === 'Identifier' && maps.get(object.name as string)?.direct === true;
+      const inner = object.type === 'MemberExpression' && object.computed === true ? unwrapped(object.object as Node) : undefined;
+      return inner?.type === 'Identifier' && maps.get(inner.name as string)?.props.has(nameOf(node.property as Node) ?? '') === true;
+    }
     case 'Literal':
       return typeof node.value === 'string';
     case 'TemplateLiteral': {
@@ -309,12 +316,60 @@ function keySeen(node: Node | undefined): boolean {
       return node.operator === '+' && left.type === 'Literal' && typeof left.value === 'string' && PREFIX.test(left.value);
     }
     case 'ConditionalExpression':
-      return keySeen(node.consequent as Node) && keySeen(node.alternate as Node);
+      return keySeen(node.consequent as Node, maps) && keySeen(node.alternate as Node, maps);
     case 'LogicalExpression':
-      return keySeen(node.left as Node) && keySeen(node.right as Node);
+      return keySeen(node.left as Node, maps) && keySeen(node.right as Node, maps);
     default:
       return false;
   }
+}
+
+const unwrapped = (node: Node): Node => (WRAPPERS.has(node.type) ? unwrapped(node.expression as Node) : node);
+
+/**
+ * A module's `const` maps of keys, by name: `direct` where every value is a key (`{ done: 'run.done' }`,
+ * `['a.b', 'a.c']`), and `props` the properties every value holds a key under (`{ done: { label:
+ * 'run.done' } }`). A read through one is seen: every key it can read is written in the map, which
+ * pruning keeps.
+ */
+type KeyMaps = Map<string, { direct: boolean; props: Set<string> }>;
+
+const isKey = (node: Node) => node.type === 'Literal' && typeof node.value === 'string' && /^[a-z0-9][\w-]*(?:\.[\w-]+)+$/.test(node.value);
+
+function keyMapsIn(program: Node): KeyMaps {
+  const maps: KeyMaps = new Map();
+  for (const top of program.body as Node[]) {
+    const statement = top.type === 'ExportNamedDeclaration' && top.declaration ? (top.declaration as Node) : top;
+    if (statement.type !== 'VariableDeclaration' || statement.kind !== 'const') continue;
+    for (const d of statement.declarations as Node[]) {
+      const id = d.id as Node;
+      const init = d.init === null || d.init === undefined ? undefined : unwrapped(d.init as Node);
+      if (id.type !== 'Identifier' || init === undefined) continue;
+      const values =
+        init.type === 'ArrayExpression'
+          ? (init.elements as (Node | null)[])
+          : init.type === 'ObjectExpression'
+            ? (init.properties as Node[]).map((p) => (p.type === 'Property' ? (p.value as Node) : null))
+            : undefined;
+      if (values === undefined || values.length === 0 || values.includes(null)) continue;
+      const shown = (values as Node[]).map(unwrapped);
+      const direct = shown.every(isKey);
+      const props = new Set<string>();
+      if (shown.every((v) => v.type === 'ObjectExpression')) {
+        const keyed = shown.map(
+          (v) =>
+            new Set(
+              (v.properties as Node[])
+                .filter((p) => p.type === 'Property' && isKey(unwrapped(p.value as Node)))
+                .map((p) => nameOf(p.key as Node)),
+            ),
+        );
+        for (const name of keyed[0] ?? []) if (name !== undefined && keyed.every((k) => k.has(name))) props.add(name);
+      }
+      if (direct || props.size > 0) maps.set(id.name as string, { direct, props });
+    }
+  }
+  return maps;
 }
 
 const nameOf = (node: Node | undefined): string | undefined =>
@@ -370,7 +425,9 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
   /** Local name to the name it was imported by. */
   const imported = new Map<string, string>();
   const texts = new Set<string>();
+  const maps: KeyMaps = new Map();
   for (const { program } of programs) {
+    for (const [name, map] of keyMapsIn(program)) maps.set(name, map);
     for (const statement of program.body as Node[]) {
       if (statement.type !== 'ImportDeclaration') continue;
       for (const s of statement.specifiers as Node[]) {
@@ -397,7 +454,7 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
           aliases.add(nameOf(p.value as Node)!);
       }
     }
-    if (node.type === 'CallExpression' && !keySeen((node.arguments as Node[])[0])) {
+    if (node.type === 'CallExpression' && !keySeen((node.arguments as Node[])[0], maps)) {
       const callee = node.callee as Node;
       if (callee.type === 'Identifier') calls.push([at + node.start, at + node.end, callee.name as string]);
       else if (callee.type === 'MemberExpression' && !callee.computed && READERS.has(nameOf(callee.property as Node) ?? ''))
@@ -406,7 +463,11 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
     if (node.type === 'JSXOpeningElement' && texts.has(nameOf(node.name as Node) ?? '')) {
       const id = (node.attributes as Node[]).find((a) => a.type === 'JSXAttribute' && nameOf(a.name as Node) === 'id');
       const value = id?.value as Node | null | undefined;
-      if (value !== null && value !== undefined && !keySeen(value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value))
+      if (
+        value !== null &&
+        value !== undefined &&
+        !keySeen(value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value, maps)
+      )
         report(at + node.start, at + node.end, 'Text');
     }
     for (const value of Object.values(node)) {

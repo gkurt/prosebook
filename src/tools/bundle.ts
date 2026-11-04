@@ -37,7 +37,7 @@ export function unseenMessage(unseen: UnseenRead[], root: string): string {
   return [
     `${unseen.length} read(s) whose key the build can't see, so their messages would be pruned and the key shown instead:`,
     ...unseen.map((u) => `  ${at(u.file)}:${u.line}:${u.column}  ${u.code}`),
-    'Write each key at the read, as a literal or `area.${id}`; or, where every key it reads is written elsewhere or listed in `keep`, mark the line `prosebook-ignore`. `prune: "loose"` turns this check off.',
+    'Write each key at the read, as a literal or `area.${id}`, or in a `const` map of keys in the same module; or, where every key it reads is written elsewhere or listed in `keep`, mark the line `prosebook-ignore`. `prune: "loose"` turns this check off.',
   ].join('\n');
 }
 

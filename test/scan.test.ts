@@ -121,6 +121,21 @@ describe('reads a pruned build cannot see', () => {
     expect(unseen(code)).toEqual([]);
   });
 
+  test("a read through a module's const map of keys is seen, and through any other map is not", () => {
+    const code = [
+      "const STATUS = { started: 'run.started', done: 'run.done' } as const;",
+      "export const KINDS = [{ label: 'kind.a', icon: 'a' }, { label: 'kind.b', icon: 'b' }];",
+      "const LABELS = { started: 'Started' };",
+      'let loose = { a: "run.started" };',
+      't(STATUS[s]);',
+      '<Text id={KINDS[i].label} />;',
+      't(KINDS[i].icon);',
+      't(LABELS[s]);',
+      't(loose[s]);',
+    ].join('\n');
+    expect(unseen(code)).toEqual(['7:1 t t(KINDS[i].icon)', '8:1 t t(LABELS[s])', '9:1 t t(loose[s])']);
+  });
+
   test("a key in a variable, after no prefix, or in a Text's id is not", () => {
     const code = [
       "import { Text } from 'prosebook/react';",
