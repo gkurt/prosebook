@@ -78,6 +78,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `entryLocator` finds an entry's line, reading each file once.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
+  Argument types are TypeScript text: a select's is its arms and `(string & {})` (`OPEN`), closed by the
+  entry's `closed`, a boolean for `true`/`false` arms, and `| null | undefined` with a `null` arm, which
+  the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
   becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
   `matchTree`'s ranking in step with the spec. An option an argument gives (`currency=$code`, those in
@@ -146,7 +149,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
   and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
-  can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding). A `.vue`
+  can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding); a read
+  through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`
   or `.svelte` file is read as its script blocks and the expressions in its markup, each parsed apart
   at its offset, so lines and `prosebook-ignore` hold; Vite reads such a file whole, not the parts its
   compiler splits off. `pseudo.ts`.
