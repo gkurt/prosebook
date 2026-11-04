@@ -467,7 +467,7 @@ describe('prosebook migrate', () => {
     );
     const plan = await planExtract(config, [join(config.root, 'src', 'Inbox.jsx')], { types: false });
     expect(plan.files[0]!.extractions.map((x) => x.message)).toEqual([
-      '.input {$length :number}\n.match $length\none {{Hi {$name}, you have {$length} file.}}\n* {{Hi {$name}, you have {$length} files.}}',
+      '.input {$filesCount :number}\n.match $filesCount\none {{Hi {$name}, you have {$filesCount} file.}}\n* {{Hi {$name}, you have {$filesCount} files.}}',
     ]);
     applyExtract(config, plan);
     expect(loadCatalog(config).messages[0]!.args).toEqual(
