@@ -13,7 +13,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 import { isMap, isScalar, parseDocument, Scalar, type Document, type YAMLMap } from 'yaml';
 
-import { CatalogError, loadCatalog, type Catalog, type Message, type Problem } from './catalog.ts';
+import { loadCatalog, type Catalog, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { readReturned } from './exchange.ts';
 import { applyEdits, lint, type Edit, type Finding } from './lint.ts';
@@ -70,7 +70,19 @@ export type EntryEdit = { fields: EntryFields } | { yaml: EntryYaml };
 
 /** The entry for `key`, with its translation in every locale. */
 export function readEntry(config: ResolvedConfig, key: string): EntryView {
-  return viewOf(config, loadCatalog(config), key, new Map());
+  return viewOf(config, loadCatalog(config, undefined, { partial: true }), key, new Map());
+}
+
+/**
+ * The catalog with `unsaved` in place of what is on disk, and the errors the edit brings: those the
+ * catalog on disk has already, a broken entry someone else is editing, are no reason to refuse it.
+ */
+function checkEdit(config: ResolvedConfig, unsaved: ReadonlyMap<string, string>): { catalog: Catalog; problems: Problem[] } {
+  const id = (p: Problem) => `${p.file}\u0000${p.key}\u0000${p.message}`;
+  const errors = (catalog: Catalog) => catalog.problems.filter((p) => p.severity === 'error');
+  const before = new Set(errors(loadCatalog(config, undefined, { partial: true })).map(id));
+  const catalog = loadCatalog(config, unsaved, { partial: true });
+  return { catalog, problems: errors(catalog).filter((p) => !before.has(id(p))) };
 }
 
 /**
@@ -78,7 +90,7 @@ export function readEntry(config: ResolvedConfig, key: string): EntryView {
  * only comes back as the view, which is how the dialog turns fields into YAML and back.
  */
 export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, write: boolean): { view?: EntryView; problems: Problem[] } {
-  const current = viewOf(config, loadCatalog(config), key, new Map());
+  const current = viewOf(config, loadCatalog(config, undefined, { partial: true }), key, new Map());
   const unsaved = new Map<string, string>();
   const text = (file: string) => contentOf(config, file, unsaved);
   const put = (file: string, content: string) => unsaved.set(resolve(config.root, file), content);
@@ -103,13 +115,8 @@ export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, 
     }
   }
 
-  let catalog: Catalog;
-  try {
-    catalog = loadCatalog(config, unsaved);
-  } catch (e) {
-    if (!(e instanceof CatalogError)) throw e;
-    return { problems: e.problems.filter((p) => p.severity === 'error') };
-  }
+  const { catalog, problems } = checkEdit(config, unsaved);
+  if (problems.length > 0) return { problems };
   const message = catalog.messages.find((m) => m.key === key);
   const renamed = [
     ...(message === undefined ? [current.files.catalog] : []),
@@ -159,12 +166,8 @@ export function applyFixes(config: ResolvedConfig, catalog: Catalog, findings: F
     );
     fixed += count;
   }
-  try {
-    loadCatalog(config, unsaved);
-  } catch (e) {
-    if (!(e instanceof CatalogError)) throw e;
-    return { fixed: 0, problems: e.problems.filter((p) => p.severity === 'error') };
-  }
+  const { problems } = checkEdit(config, unsaved);
+  if (problems.length > 0) return { fixed: 0, problems };
   for (const [path, content] of unsaved) writeFileSync(path, content);
   return { fixed, problems: [] };
 }
@@ -191,7 +194,7 @@ export function importTranslations(config: ResolvedConfig, locale: string, reply
   const read = readReturned(reply, locale, config.source);
   if ('problem' in read) return { written: [], unchanged: [], problems: [failed(read.problem)] };
 
-  const catalog = loadCatalog(config);
+  const catalog = loadCatalog(config, undefined, { partial: true });
   const problems: Problem[] = [];
   const unchanged: string[] = [];
   const pending = new Map<string, { file: string; text: string }>();
@@ -219,17 +222,14 @@ export function importTranslations(config: ResolvedConfig, locale: string, reply
     else if (checked) unchanged.push(key);
   }
 
-  // An entry whose own file reports it is left out, until what is left loads clean. A problem
-  // anywhere else means the catalog was broken before the reply, so nothing is written.
+  // An entry whose own file reports it is left out, until what is left loads clean. Any other new
+  // problem means the reply broke the catalog somewhere it can't say, so nothing is written.
   for (;;) {
     const unsaved = new Map<string, string>();
     for (const [key, { file, text }] of pending)
       unsaved.set(resolve(config.root, file), withTranslation(contentOf(config, file, unsaved), key, text));
-    try {
-      loadCatalog(config, unsaved);
-    } catch (e) {
-      if (!(e instanceof CatalogError)) throw e;
-      const errors = e.problems.filter((p) => p.severity === 'error');
+    const errors = checkEdit(config, unsaved).problems;
+    if (errors.length > 0) {
       const own = errors.filter((p) => p.key !== undefined && pending.get(p.key)?.file === p.file);
       if (own.length === 0) return { written: [], unchanged: [], problems: [...problems, ...errors] };
       for (const p of own) if (p.key !== undefined) pending.delete(p.key);

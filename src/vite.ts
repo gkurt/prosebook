@@ -36,8 +36,9 @@ import {
   areaFilesPath,
   areaModule,
   areasNamed,
-  lazyAreas,
   beside,
+  brokenIn,
+  type Groups,
   HOT_INDEX,
   HOT_SET,
   hotLocale,
@@ -45,13 +46,13 @@ import {
   inAreas,
   installInspector,
   keeper,
+  lazyAreas,
   membersOf,
+  type Prune,
   splitIndex,
   unseenMessage,
   unseenOf,
   withAreaFiles,
-  type Groups,
-  type Prune,
 } from './tools/bundle.ts';
 import { CatalogError, type EntryLocation } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
@@ -156,10 +157,13 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
 
     buildStart() {
       try {
-        generated = generate(config);
+        // In dev a broken entry is left out and said, so the rest of the catalog is still served.
+        generated = generate(config, { partial: !building });
       } catch (e) {
         this.error(describe(e));
       }
+      const broken = building ? undefined : brokenIn(generated);
+      if (broken !== undefined) this.warn(broken);
       refs = { exact: new Set(), prefixes: new Set() };
       kept = prune === false ? () => true : keeper(refs, options.keep);
       reads.clear();
@@ -175,9 +179,11 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         const path = normalize(file);
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
         try {
-          generated = generate(config);
+          generated = generate(config, { partial: true });
           // An area's module names the locales, which an edit may have added to.
           for (const [id, mod] of server.moduleGraph.idToModuleMap) if (id.startsWith(AREA_ID)) server.moduleGraph.invalidateModule(mod);
+          const broken = brokenIn(generated);
+          if (broken !== undefined) throw new Error(broken);
           server.config.logger.info(`prosebook: regenerated from ${relative(config.root, path).replaceAll('\\', '/')}`, {
             timestamp: true,
           });

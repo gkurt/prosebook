@@ -39,7 +39,7 @@ async function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions
   const key = url.searchParams.get('key') ?? '';
   let message;
   try {
-    message = loadCatalog(config).messages.find((m) => m.key === key);
+    message = loadCatalog(config, undefined, { partial: true }).messages.find((m) => m.key === key);
   } catch (e) {
     return failed(e);
   }

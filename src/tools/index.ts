@@ -11,6 +11,7 @@ export {
   whereOf,
   type Catalog,
   type EntryLocation,
+  type LoadOptions,
   type Message,
   type Problem,
   type Translation,

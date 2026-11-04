@@ -186,19 +186,49 @@ function reportProblems(config: ResolvedConfig, problems: Problem[], report?: Sa
   }
 }
 
+const errorsIn = (catalog: Catalog) => catalog.problems.filter((p) => p.severity === 'error');
+
+/** Said once per run, as `check` renders the catalog for each of its parts. */
+let saidErrors = false;
+
+/**
+ * The catalog rendered with each broken entry left out, so one entry being edited doesn't stop the
+ * rest from being generated and checked. Its errors are reported, once, and fail the command.
+ */
+function rendered(config: ResolvedConfig, report?: SarifReport) {
+  const generated = render(config, undefined, { partial: true });
+  sayErrors(config, generated.catalog, report);
+  return generated;
+}
+
+function sayErrors(config: ResolvedConfig, catalog: Catalog, report?: SarifReport) {
+  const problems = errorsIn(catalog);
+  if (saidErrors || problems.length === 0) return;
+  saidErrors = true;
+  reportProblems(config, problems, report);
+  err(`${problems.length} error(s) in the catalog: those entries are left out until they're fixed.\n`);
+}
+
 function rel(config: ResolvedConfig, path: string) {
   return relative(config.root, path).replaceAll('\\', '/');
 }
 
 function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifReport): number {
-  const { changed, catalog, stale } = generate(config, { check });
-  reportProblems(config, catalog.problems, report);
+  const { changed, catalog, stale } = generate(config, { check, partial: true });
+  const broken = errorsIn(catalog).length > 0 ? 1 : 0;
+  // Warnings first, then the errors with what they mean.
+  reportProblems(
+    config,
+    catalog.problems.filter((p) => p.severity !== 'error'),
+    report,
+  );
+  sayErrors(config, catalog, report);
   const staleCount = [...stale.values()].reduce((n, s) => n + s.size, 0);
   const summary = `${catalog.messages.length} messages, ${catalog.locales.length + 1} locale(s)${staleCount > 0 ? `, ${staleCount} stale translation(s)` : ''}`;
   if (check) {
     if (changed.length === 0) {
       out(`prosebook: generated files are up to date (${summary})`);
-      return 0;
+      return broken;
     }
     // A catalog file is listed for its schema line, which generate adds.
     const why = (p: string) =>
@@ -214,11 +244,12 @@ function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifRepor
     return 1;
   }
   out(`prosebook: ${changed.length === 0 ? 'nothing changed' : `wrote ${changed.length} file(s)`} (${summary})`);
-  return 0;
+  return broken;
 }
 
 function watchMode(config: ResolvedConfig): Promise<number> {
   const regenerate = () => {
+    saidErrors = false;
     try {
       runGenerate(config, false);
     } catch (e) {
@@ -233,7 +264,7 @@ function watchMode(config: ResolvedConfig): Promise<number> {
 }
 
 function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): number {
-  let { catalog } = render(config);
+  let { catalog } = rendered(config, report);
   let findings = lint(catalog.messages, config);
   if (fix) {
     const { fixed, problems } = applyFixes(config, catalog, findings);
@@ -244,7 +275,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
     }
     if (fixed > 0) {
       out(`prosebook: fixed ${fixed} finding(s); run prosebook generate to compile them`);
-      ({ catalog } = render(config));
+      ({ catalog } = rendered(config, report));
       findings = lint(catalog.messages, config);
     }
   }
@@ -265,15 +296,18 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
   }
   const errors = findings.filter((f) => f.severity === 'error').length;
   const fixable = findings.filter((f) => f.fix !== undefined).length;
+  const broken = errorsIn(catalog).length;
   if (findings.length === 0) {
-    out(`prosebook: ${catalog.messages.length} messages pass the writing rules`);
+    out(
+      `prosebook: ${catalog.messages.length} messages pass the writing rules${broken > 0 ? `, and ${broken} broken entr${broken === 1 ? 'y was' : 'ies were'} left out` : ''}`,
+    );
   } else {
     err(
       `\n${errors} error(s), ${findings.length - errors} warning(s). Fix the string, or add \`allow: { <rule>: <why> }\` where the rule is wrong about it.`,
     );
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
-  return errors > 0 ? 1 : 0;
+  return errors + broken > 0 ? 1 : 0;
 }
 
 /** Each finding on its line, placed at its entry's words. */
@@ -292,12 +326,13 @@ function missingKeys(catalog: Catalog, locale: string): string[] {
 }
 
 function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean, report?: SarifReport): number {
-  const { catalog, stale } = render(config);
+  const { catalog, stale } = rendered(config, report);
+  const broken = errorsIn(catalog).length > 0 ? 1 : 0;
   if (report !== undefined) reportStatus(config, catalog, stale, strict ? 'error' : 'warning', report);
   const total = catalog.messages.length;
   if (catalog.locales.length === 0) {
     out(`prosebook: ${total} messages in ${config.source}, no translations yet`);
-    return 0;
+    return broken;
   }
   let incomplete = false;
   out(`${'locale'.padEnd(10)} ${'translated'.padStart(12)} ${'missing'.padStart(8)} ${'stale'.padStart(6)}`);
@@ -318,7 +353,7 @@ function runStatus(config: ResolvedConfig, strict: boolean, verbose: boolean, re
   }
   if (incomplete && !verbose)
     out('\n`prosebook status --verbose` lists the keys; `prosebook todo <locale>` prints them ready to translate.');
-  return strict && incomplete ? 1 : 0;
+  return strict && incomplete ? 1 : broken;
 }
 
 function reportStatus(
@@ -352,10 +387,10 @@ function runAccept(config: ResolvedConfig, args: string[], all: boolean): number
     err('Usage: prosebook accept <locale> <key>... | prosebook accept <locale> --all');
     return 1;
   }
-  const before = render(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
+  const before = rendered(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
   const accepting = all ? new Set(before.keys()) : new Set(keys);
   for (const key of accepting) if (!before.has(key)) err(`warn  ${locale} ${key} is not stale`);
-  generate(config, { accept: new Map([[locale, all ? true : new Set(keys)]]) });
+  generate(config, { accept: new Map([[locale, all ? true : new Set(keys)]]), partial: true });
   out(`prosebook: accepted ${[...accepting].filter((k) => before.has(k)).length} translation(s) in ${locale}`);
   return 0;
 }
@@ -365,7 +400,7 @@ function runTodo(config: ResolvedConfig, locale: string | undefined, prompt: boo
     err('Usage: prosebook todo <locale> [--prompt]');
     return 1;
   }
-  const { catalog, stale } = render(config);
+  const { catalog, stale } = rendered(config);
   const todo = todoOf(config, catalog, stale.get(locale) ?? new Map(), locale, prompt);
   out(todo.text);
   if (prompt && todo.count > 0) err(`\nHand this to a model, save its reply, and \`prosebook import ${locale} <reply>\`.`);
@@ -388,7 +423,7 @@ function runExport(
     err(`prosebook: ${file} is neither .xlf nor .json: name the format with --format xliff or --format json`);
     return 1;
   }
-  const { catalog, stale } = render(config);
+  const { catalog, stale } = rendered(config);
   const exported = exportOf(config, catalog, stale.get(locale) ?? new Map(), locale, format, all);
   if (exported.count === 0) {
     err(`prosebook: ${locale} is complete; --all exports every entry`);
@@ -416,9 +451,9 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
   reportProblems(config, problems);
   if (written.length + unchanged.length > 0) {
     // A stale translation given back unchanged was looked at and still holds.
-    const stale = render(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
+    const stale = rendered(config).stale.get(locale) ?? new Map<string, StaleTranslation>();
     const kept = unchanged.filter((key) => stale.has(key));
-    const { catalog } = generate(config, { accept: new Map([[locale, new Set(kept)]]) });
+    const { catalog } = generate(config, { accept: new Map([[locale, new Set(kept)]]), partial: true });
     out(
       `prosebook: imported ${written.length} translation(s) into ${locale}${kept.length > 0 ? `, and accepted ${kept.length} stale one(s) as still right` : ''}`,
     );
@@ -437,7 +472,7 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
 }
 
 function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport): number {
-  const { catalog } = render(config);
+  const { catalog } = rendered(config, report);
   const result = scan(config.scan.dirs, config.scan.extensions, config.scan.attributes, config.root, [config.out]);
   for (const h of result.hardcoded)
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text' : `${h.where}=`} "${h.text}"`);
@@ -462,7 +497,7 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
         ? '. `prosebook extract` moves the text into the catalog; mark a deliberate line `prosebook-ignore`.'
         : ''),
   );
-  return strict && result.hardcoded.length + unused.length > 0 ? 1 : 0;
+  return strict && result.hardcoded.length + unused.length > 0 ? 1 : errorsIn(catalog).length > 0 ? 1 : 0;
 }
 
 async function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): Promise<number> {

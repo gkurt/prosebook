@@ -72,6 +72,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `presets.ts`: kinds, surfaces, the strict preset's word lists.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
+  `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
+  servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,
+  fix or import is checked for the errors it brings (`checkEdit` in `entry.ts`), not those already there.
   `entryLocator` finds an entry's line, reading each file once.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.

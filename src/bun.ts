@@ -31,8 +31,9 @@ import {
   areaFilesPath,
   areaModule,
   areasNamed,
-  lazyAreas,
   beside,
+  brokenIn,
+  type Groups,
   HOT_INDEX,
   HOT_SET,
   hotLocale,
@@ -40,15 +41,15 @@ import {
   inAreas,
   installInspector,
   keeper,
+  lazyAreas,
   membersOf,
+  type Prune,
   prunedModule,
   scanSources,
   splitIndex,
   unseenMessage,
   watchCatalog,
   withAreaFiles,
-  type Groups,
-  type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
@@ -97,11 +98,14 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
     name: 'prosebook',
     async setup(build) {
       const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
-      let generated = generate(config);
+      const building = 'entrypoints' in build.config;
+      const dev = !building && process.env.NODE_ENV !== 'production';
+      // In dev a broken entry is left out and said, so the rest of the catalog is still served.
+      let generated = generate(config, { partial: dev });
+      if (dev && brokenIn(generated) !== undefined) console.error(brokenIn(generated));
       // The generated modules, by path as Bun gives it.
       const filter = new RegExp(`^${folderPattern(config.out)}[\\\\/][^\\\\/]+\\.[jt]s$`);
       const nameOf = (path: string) => basename(path).replace(/\.[jt]s$/, '');
-      const building = 'entrypoints' in build.config;
       const split = options.split === true;
       if (building && split && build.config.splitting !== true)
         throw new Error('prosebook: `split` needs `splitting: true` in Bun.build, or every area ships in the entry chunk');
@@ -116,12 +120,12 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
         kept = keeper(refs, options.keep);
       }
-      const dev = !building && process.env.NODE_ENV !== 'production';
       const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
       if (dev) {
         watchCatalog(config, () => {
           try {
-            generated = generate(config);
+            generated = generate(config, { partial: true });
+            if (brokenIn(generated) !== undefined) console.error(brokenIn(generated));
           } catch (e) {
             console.error(describe(e));
           }

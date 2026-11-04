@@ -8,11 +8,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
-import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type Message } from './catalog.ts';
+import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { writingGuide } from './guide.ts';
-import { readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
+import { keepUnread, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
 import { SYNTAX_NAME } from './syntax.ts';
@@ -177,10 +177,16 @@ export interface Generated {
   entries: Map<string, Entry[]>;
 }
 
-/** Everything `generate` writes, in memory: the modules, native files, the schema, the writing guide. */
-export function render(config: ResolvedConfig, accept?: Map<string, Set<string> | true>): Generated {
-  const catalog = loadCatalog(config);
-  const { lock, stale } = reconcile(catalog, readLock(config.lock), accept);
+/**
+ * Everything `generate` writes, in memory: the modules, native files, the schema, the writing guide.
+ * With `partial`, a broken entry is left out and the rest rendered (see `loadCatalog`).
+ */
+export function render(config: ResolvedConfig, accept?: Map<string, Set<string> | true>, options: LoadOptions = {}): Generated {
+  const catalog = loadCatalog(config, undefined, options);
+  const previous = readLock(config.lock);
+  const { lock, stale } = reconcile(catalog, previous, accept);
+  // A broken entry's translations weren't read: keep what the lock knew of them until they are.
+  if (catalog.problems.some((p) => p.severity === 'error')) keepUnread(lock, previous);
   const locales = localesOf(catalog, config);
   const entries = localeEntries(catalog, config, stale);
   const ts = config.language === 'ts';
@@ -260,8 +266,8 @@ export function writeFiles(files: Map<string, string>, check = false): string[] 
 
 export function generate(
   config: ResolvedConfig,
-  options: { check?: boolean; accept?: Map<string, Set<string> | true> } = {},
+  options: { check?: boolean; accept?: Map<string, Set<string> | true> } & LoadOptions = {},
 ): Generated & { changed: string[] } {
-  const generated = render(config, options.accept);
+  const generated = render(config, options.accept, options);
   return { ...generated, changed: writeFiles(generated.files, options.check) };
 }

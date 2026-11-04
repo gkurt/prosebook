@@ -69,7 +69,16 @@ export interface Catalog {
   messages: Message[];
   /** The translated locales found under `locales`, without the source. */
   locales: string[];
+  /** Errors among them only when loaded `partial`: each broken entry or translation is left out. */
   problems: Problem[];
+}
+
+export interface LoadOptions {
+  /**
+   * Leave out each broken entry and translation, and an unreadable file's, rather than throw: the
+   * errors ride along in `problems`, so the rest of the catalog can still be generated and checked.
+   */
+  partial?: boolean;
 }
 
 export class CatalogError extends Error {
@@ -90,15 +99,18 @@ export const KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-
 const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow', 'comment', 'remove']);
 
 /**
- * Loads and checks the catalog. Throws a `CatalogError` when anything is an error; warnings ride along.
- * `unsaved` holds file contents by absolute path to read in place of what is on disk, so an edit can be
- * checked before it is written; a translation file in it that isn't on disk yet is read too.
+ * Loads and checks the catalog. Throws a `CatalogError` when anything is an error, unless `partial`;
+ * warnings ride along. `unsaved` holds file contents by absolute path to read in place of what is on
+ * disk, so an edit can be checked before it is written; a translation file in it that isn't on disk
+ * yet is read too.
  */
-export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string, string>): Catalog {
+export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string, string>, options: LoadOptions = {}): Catalog {
   const read = (path: string) => unsaved?.get(resolve(path)) ?? readFileSync(path, 'utf8');
   const problems: Problem[] = [];
   const error = (message: string, file?: string, key?: string) => problems.push({ severity: 'error', file, key, message });
   const byKey = new Map<string, Message>();
+  // Keys whose entry is broken: their translations are left out with them, not reported as unused.
+  const broken = new Set<string>();
   const rel = (path: string) => relative(config.root, path).replaceAll('\\', '/');
 
   if (!existsSync(config.catalog)) {
@@ -124,7 +136,10 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
         continue;
       }
       const message = readEntry(key, area, at, value, config, (m) => error(m, at, key));
-      if (!message) continue;
+      if (!message) {
+        broken.add(key);
+        continue;
+      }
       byKey.set(key, message);
       // Asked of whoever edits next, often an agent, which finds them among the warnings of every run.
       const warn = (m: string) => problems.push({ severity: 'warn', file: at, key, message: m });
@@ -134,8 +149,8 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
   }
 
   const created = [...(unsaved?.keys() ?? [])].filter((path) => !existsSync(path));
-  const locales = readLocales(config, byKey, problems, rel, read, created);
-  if (problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
+  const locales = readLocales(config, byKey, broken, problems, rel, read, created);
+  if (options.partial !== true && problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };
 }
 
@@ -219,6 +234,7 @@ function readEntry(
 function readLocales(
   config: ResolvedConfig,
   byKey: Map<string, Message>,
+  broken: Set<string>,
   problems: Problem[],
   rel: (p: string) => string,
   read: (path: string) => string,
@@ -250,6 +266,7 @@ function readLocales(
       const error = (message: string, key?: string) => problems.push({ severity: 'error', file, key, message });
       for (const [key, value] of Object.entries(readEntries(read(path), error))) {
         const message = byKey.get(key);
+        if (message === undefined && broken.has(key)) continue;
         if (message === undefined) {
           problems.push({ severity: 'warn', file, key, message: 'no such key in the catalog, so this translation is unused' });
           continue;

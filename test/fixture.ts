@@ -8,6 +8,13 @@ import { parseMessage } from '#src/tools/icu.ts';
 import { parseMf2 } from '#src/tools/mf2.ts';
 
 const TMP = join(import.meta.dir, '.tmp');
+const CLI = join(import.meta.dir, '..', 'src', 'cli.ts');
+
+/** Runs the `prosebook` command from source on the project at `root`. */
+export function cli(root: string, ...args: string[]) {
+  const proc = Bun.spawnSync(['bun', '--conditions=prosebook@dev', CLI, ...args, '--root', root]);
+  return { code: proc.exitCode, stdout: proc.stdout.toString(), stderr: proc.stderr.toString() };
+}
 let counter = 0;
 
 /** A project on disk holding `files`, and its resolved config. */

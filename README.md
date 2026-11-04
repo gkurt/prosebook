@@ -768,6 +768,12 @@ prosebook migrate  # rewrite the catalog in ICU MessageFormat (1) or MessageForm
 prosebook check    # generate --check, lint and status --strict, for CI
 ```
 
+**A broken entry** (a message that doesn't parse, a missing field, a translation whose placeholders
+drifted) is reported with its fix and left out, and every command carries on with the rest: `generate`
+writes the other entries and fails, `lint`, `scan` and `status` check them and fail, so `check` fails
+too. A dev server says it and serves the rest. Several people, or agents, editing one catalog don't
+hold each other up, and an edit, a fix or an import is refused only for the problems it brings itself.
+
 **Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace. It
 reads the message format too:
 

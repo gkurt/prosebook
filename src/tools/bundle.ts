@@ -10,6 +10,7 @@ import { existsSync, readFileSync, watch } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import type { Generated } from './generate.ts';
@@ -61,6 +62,16 @@ export function scanSources(config: ResolvedConfig, strict: boolean): SourceScan
 }
 
 /** Calls `change` once a burst of edits to the catalog or its translations settles. Returns the stop. */
+/**
+ * What a dev server says of a catalog generated `partial`: its broken entries, which are left out
+ * while the rest is served, or nothing when there are none.
+ */
+export function brokenIn(generated: Generated): string | undefined {
+  const errors = generated.catalog.problems.filter((p) => p.severity === 'error');
+  if (errors.length === 0) return undefined;
+  return `${new CatalogError(errors).message}\nThose entries are left out until they're fixed; the rest is served.`;
+}
+
 export function watchCatalog(config: ResolvedConfig, change: () => void): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const watchers = [config.catalog, config.locales]

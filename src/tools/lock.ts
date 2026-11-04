@@ -100,3 +100,19 @@ export function reconcile(catalog: Catalog, previous: Lock, accept: Map<string, 
   }
   return { lock, stale };
 }
+
+/**
+ * Copies into `lock` what `previous` held of translations it has none of, with the source each was
+ * made from: for a catalog loaded with broken entries left out, whose lock would otherwise forget them.
+ */
+export function keepUnread(lock: Lock, previous: Lock): void {
+  for (const [locale, keys] of Object.entries(previous.translations)) {
+    for (const [key, anchor] of Object.entries(keys)) {
+      const here = (lock.translations[locale] ??= {});
+      if (key in here) continue;
+      here[key] = anchor;
+      const source = anchor.split(':')[0]!;
+      if (previous.sources[source] !== undefined) lock.sources[source] = previous.sources[source];
+    }
+  }
+}

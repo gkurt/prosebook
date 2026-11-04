@@ -4,9 +4,7 @@ import { join } from 'node:path';
 
 import { exportOf, generate, importTranslations, render } from 'prosebook/tools';
 
-import { fixture } from './fixture.ts';
-
-const CLI = join(import.meta.dir, '..', 'src', 'cli.ts');
+import { cli, fixture } from './fixture.ts';
 
 const CATALOG = `cart.title:
   kind: name
@@ -48,11 +46,6 @@ const exported = (config: ReturnType<typeof project>, locale: string, format: 'x
   const { catalog, stale } = render(config);
   return exportOf(config, catalog, stale.get(locale) ?? new Map(), locale, format, all);
 };
-
-function cli(root: string, ...args: string[]) {
-  const proc = Bun.spawnSync(['bun', '--conditions=prosebook@dev', CLI, ...args, '--root', root]);
-  return { code: proc.exitCode, stdout: proc.stdout.toString(), stderr: proc.stderr.toString() };
-}
 
 const read = (config: { root: string }, file: string) => readFileSync(join(config.root, file), 'utf8');
 

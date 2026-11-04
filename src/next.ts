@@ -32,6 +32,7 @@ import {
   areaModule,
   areasOf,
   beside,
+  brokenIn,
   fileSpecifiers,
   HOT_SET,
   inAreas,
@@ -39,12 +40,12 @@ import {
   keeper,
   lazyAreas,
   membersOf,
+  type Prune,
   prunedModule,
   scanSources,
   splitIndex,
   unseenMessage,
   watchCatalog,
-  type Prune,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
@@ -112,7 +113,9 @@ export function withProsebook<C extends object>(
     const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
     if (config.language === 'ts' && config.importExtension === '.js')
       throw new Error("prosebook: Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config");
-    const generated = generate(config);
+    // In dev a broken entry is left out and said, so the rest of the catalog is still served.
+    const generated = generate(config, { partial: phase === DEV });
+    if (phase === DEV && brokenIn(generated) !== undefined) console.error(brokenIn(generated));
     if (phase === DEV) {
       watch(config, options);
       if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET, options));
@@ -179,8 +182,10 @@ function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
   watching.add(config.catalog);
   watchCatalog(config, () => {
     try {
-      const generated = generate(config);
+      const generated = generate(config, { partial: true });
       if (options.split === true) writeAreas(config, generated);
+      const broken = brokenIn(generated);
+      if (broken !== undefined) return console.error(broken);
       console.info(`prosebook: regenerated ${relative(config.root, config.out).replaceAll('\\', '/')}`);
     } catch (e) {
       console.error(describe(e));

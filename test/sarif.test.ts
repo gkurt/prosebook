@@ -3,9 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
-import { fixture } from './fixture.ts';
-
-const CLI = join(import.meta.dir, '..', 'src', 'cli.ts');
+import { cli, fixture } from './fixture.ts';
 
 type Log = {
   version: string;
@@ -23,11 +21,6 @@ type Log = {
     }[];
   }[];
 };
-
-function cli(root: string, ...args: string[]) {
-  const proc = Bun.spawnSync(['bun', '--conditions=prosebook@dev', CLI, ...args, '--root', root]);
-  return { code: proc.exitCode, stdout: proc.stdout.toString(), stderr: proc.stderr.toString() };
-}
 
 function run(root: string, ...args: string[]) {
   const { code, stdout, stderr } = cli(root, ...args, '--format', 'sarif');
@@ -110,11 +103,14 @@ describe('--format sarif', () => {
     expect(strict.log.runs[0]!.results.map((r) => r.level)).toEqual(['error']);
   });
 
-  test('a catalog that fails to load is reported at the entry, and the log is still written', () => {
+  test('a broken entry is reported at the entry, and the rest is still linted', () => {
     const config = fixture({ 'copy/catalog/cart.yaml': CATALOG, 'copy/locales/de.yaml': 'cart.title: Ihr Warenkorb\ncart.empty: "{n}"\n' });
     const { code, log } = run(config.root, 'lint');
     expect(code).toBe(1);
-    expect(results(log)).toEqual(['catalog error copy/locales/de.yaml:2 differs from the source: unknown {n}']);
+    expect(results(log)).toEqual([
+      'catalog error copy/locales/de.yaml:2 differs from the source: unknown {n}',
+      'whitespace error copy/catalog/cart.yaml:10 cart.empty: no leading, trailing or doubled spaces',
+    ]);
   });
 
   test('is refused by a command it does not apply to', () => {
