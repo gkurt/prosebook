@@ -540,6 +540,7 @@ One file per area, `copy/catalog/<area>.yaml`. A key's first segment names its f
 | ---------- | ------------------------------------------------------------------------------------------------------------------- |
 | `en`       | The message, in ICU MessageFormat or MessageFormat 2. The field is named after `source` in the config.              |
 | `context`  | One sentence telling a translator where the string appears. Required by default.                                    |
+| `closed`   | Select arguments that take only the arms they name: `closed: [mode]` types `mode` as `'dark' \| 'light'`.           |
 | `args`     | What each placeholder holds, one line each, and what a tag wraps. Required for every placeholder when `context` is. |
 | `kind`     | What sort of string it is: `name`, `action`, `description`, `state`. The lint holds each to its budget.             |
 | `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                                         |
@@ -588,6 +589,8 @@ en: '{n, plural, =0 {No files} one {# file} other {# files}}' # n: number
 en: '{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}'
 en: '{mode, select, dark {Dark} other {Light}}' # mode: 'dark' | (string & {})
 en: '{on, select, true {On} other {Off}}' # on: boolean
+# with `closed: [mode]` on the entry: mode: 'dark' | 'light', so a misspelled or unhandled value fails
+en: '{mode, select, dark {Dark} light {Light} other {Light}}'
 en: '{size, number, ::.0 unit/megabyte}' # 1.4 MB
 en: '{total, number, ::currency/EUR}' # €9.00
 en: '{when, date, medium} at {when, time, short}' # Oct 28, 2026 at 2:05 PM

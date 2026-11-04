@@ -49,7 +49,7 @@ describe('catalog checks', () => {
       'copy/catalog/app.yaml app: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml App.Title: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml other.thing: a key in app.yaml starts with "app."',
-      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, fragment, allow, comment, remove, en',
+      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, closed, fragment, allow, comment, remove, en',
       'copy/catalog/app.yaml app.typo: context is required (`require` in the config)',
     ]);
   });
@@ -91,6 +91,25 @@ describe('catalog checks', () => {
     const problems = problemsOf({ 'copy/catalog/app.yaml': `app.a:\n${entry('{type, select, application/pdf {PDF} other {File}}')}` });
     expect(problems).toEqual([
       'copy/catalog/app.yaml app.a: names a select arm "application/pdf": an arm\'s name is letters, digits and _, so write it application_pdf and map the value to it in code, or write the catalog in MF2, which quotes it: |application/pdf|',
+    ]);
+  });
+
+  test('a closed select takes only its arms, in the source and in every translation', () => {
+    const config = fixture(
+      {
+        'copy/catalog/app.yaml': [
+          'app.mode:\n  closed: [mode]\n  en: "{mode, select, dark {Dark} light {Light} other {Light}}"',
+          'app.bad:\n  closed: [count]\n  en: "{count, number} {x}"',
+        ].join('\n'),
+        'copy/locales/de.yaml': 'app.mode: "{mode, select, dark {Dunkel} dim {Gedimmt} other {Hell}}"\n',
+      },
+      { require: [] },
+    );
+    const catalog = loadCatalog(config, undefined, { partial: true });
+    expect(catalog.messages.find((m) => m.key === 'app.mode')?.args).toEqual(new Map([['mode', '"dark" | "light"']]));
+    expect(catalog.problems.map((p) => `${p.file} ${p.key}: ${p.message}`)).toEqual([
+      'copy/catalog/app.yaml app.bad: closed.count is not a select with arms of its own in this message',
+      'copy/locales/de.yaml app.mode: differs from the source: {mode} selects on "dim", which no closed arm of the source names',
     ]);
   });
 

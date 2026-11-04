@@ -11,7 +11,17 @@ import { join, relative, resolve } from 'node:path';
 import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
 
 import type { ResolvedConfig } from './config.ts';
-import { argsOf, formatProblems, formatsOf, staticLiteral, tagsOf, takesText, type MessageFormatElement } from './icu.ts';
+import {
+  argsOf,
+  armsOf,
+  closedType,
+  formatProblems,
+  formatsOf,
+  staticLiteral,
+  tagsOf,
+  takesText,
+  type MessageFormatElement,
+} from './icu.ts';
 import { readMessage } from './syntax.ts';
 
 export interface Translation {
@@ -37,6 +47,8 @@ export interface Message {
   allow: Map<string, string>;
   /** A change someone asked for, left for whoever edits the entry next, and deleted once it is made. */
   comment?: string;
+  /** Select arguments that take only the arms they name, which their type says. */
+  closed: string[];
   /** Asked to go: the entry, its translations and the code that reads it. */
   remove: boolean;
   /** The source message, in ICU MessageFormat. */
@@ -96,7 +108,7 @@ export class CatalogError extends Error {
  */
 export const KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)+$/;
 
-const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'fragment', 'allow', 'comment', 'remove']);
+const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'closed', 'fragment', 'allow', 'comment', 'remove']);
 
 /**
  * Loads and checks the catalog. Throws a `CatalogError` when anything is an error, unless `partial`;
@@ -210,6 +222,7 @@ function readEntry(
   if (config.require.includes('context'))
     for (const name of args.keys()) if (!argDocs.has(name)) fail(`args.${name} is missing: say what the placeholder holds`);
 
+  const closed = closedArgs(entry.closed, args, fail);
   const tags = tagsOf(ast);
   for (const name of argDocs.keys())
     if (!args.has(name) && !tags.includes(name)) fail(`args.${name} is neither a placeholder nor a tag of this message`);
@@ -225,6 +238,7 @@ function readEntry(
     argDocs,
     fragment: entry.fragment === true,
     allow: stringMap(entry, 'allow', fail),
+    closed,
     comment,
     remove: entry.remove === true,
     text,
@@ -300,19 +314,46 @@ function readLocales(
   return [...files.keys()];
 }
 
+/**
+ * `closed: [mode]`: each a select's argument, whose type becomes the arms it names, so a call site
+ * can't pass a value no arm was written for. `args` is given the closed types in place.
+ */
+function closedArgs(value: unknown, args: Map<string, string>, fail: (m: string) => void): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
+    fail('closed is a list of select arguments: closed: [mode]');
+    return [];
+  }
+  for (const name of value) {
+    const type = args.get(name);
+    if (type === undefined || armsOf(type).length === 0) fail(`closed.${name} is not a select with arms of its own in this message`);
+    else args.set(name, closedType(type));
+  }
+  return value;
+}
+
 /** How a translation's placeholders or tags differ from the source, or nothing. */
 function driftFrom(message: Message, ast: MessageFormatElement[]): string | undefined {
   const args = argsOf(ast);
   const missing = [...message.args.keys()].filter((a) => !args.has(a));
   const extra = [...args.keys()].filter((a) => !message.args.has(a));
+  // A closed argument's translation selects among the source's arms, and on no other.
+  const source = (a: string) => (message.closed.includes(a) ? `${message.args.get(a)!} | (string & {})` : message.args.get(a)!);
   const retyped = [...args]
-    .filter(([a, type]) => message.args.has(a) && message.args.get(a) !== type && !(takesText(type) && takesText(message.args.get(a)!)))
+    .filter(([a, type]) => message.args.has(a) && source(a) !== type && !(takesText(type) && takesText(source(a))))
     .map(([a]) => a);
+  const unnamed = message.closed.flatMap((a) => {
+    const arms = new Set(armsOf(source(a)));
+    return armsOf(args.get(a) ?? '')
+      .filter((arm) => !arms.has(arm))
+      .map((arm) => `{${a}} selects on "${arm}", which no closed arm of the source names`);
+  });
   const tags = tagsOf(ast);
   const parts = [
     missing.length > 0 ? `missing {${missing.join('}, {')}}` : '',
     extra.length > 0 ? `unknown {${extra.join('}, {')}}` : '',
     retyped.length > 0 ? `{${retyped.join('}, {')}} used as another type` : '',
+    ...unnamed,
     tags.join() === message.tags.join()
       ? ''
       : `tags are <${tags.join('>, <') || 'none'}>, the source has <${message.tags.join('>, <') || 'none'}>`,

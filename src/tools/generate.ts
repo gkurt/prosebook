@@ -149,6 +149,11 @@ export function catalogSchema(config: ResolvedConfig): object {
       },
       context: { type: 'string', description: 'One sentence telling a translator where the string appears and what it answers to.' },
       args: { type: 'object', description: 'What each placeholder holds.', additionalProperties: { type: 'string' } },
+      closed: {
+        type: 'array',
+        description: "Select arguments that take only the arms they name: a call site can't pass another value.",
+        items: { type: 'string' },
+      },
       fragment: { type: 'boolean', description: 'Completes something beside it rather than standing as a sentence.' },
       comment: { type: 'string', description: 'A change asked of whoever edits the entry next. Make it, then delete the comment.' },
       remove: { type: 'boolean', description: 'Asks for the entry to go: delete it, its translations and the code that reads it.' },

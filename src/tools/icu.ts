@@ -43,6 +43,18 @@ const OPEN = ' | (string & {})';
 /** A type that takes any string: a bare placeholder's, or a select's, which `other` keeps open. */
 export const takesText = (type: string) => type === 'string' || type.endsWith(OPEN);
 
+/** The arms a select's type names, `dark` and `light` in `"dark" | "light" | (string & {})`. */
+export const armsOf = (type: string): string[] =>
+  type.endsWith(OPEN)
+    ? type
+        .slice(0, -OPEN.length)
+        .split(' | ')
+        .map((arm) => JSON.parse(arm) as string)
+    : [];
+
+/** A select's type taking only the arms it names, for an argument the entry says is `closed`. */
+export const closedType = (type: string) => type.slice(0, -OPEN.length);
+
 /**
  * ICU argument types, as TypeScript. A bare `{x}` is a string: a number spliced in raw is printed by
  * `String()`, which knows no locale, so a quantity says `{x, number}` and the type is what asks for it.

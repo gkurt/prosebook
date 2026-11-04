@@ -115,6 +115,13 @@
           "type": "string"
         }
       },
+      "closed": {
+        "type": "array",
+        "description": "Select arguments that take only the arms they name: a call site can't pass another value.",
+        "items": {
+          "type": "string"
+        }
+      },
       "fragment": {
         "type": "boolean",
         "description": "Completes something beside it rather than standing as a sentence."
