@@ -334,6 +334,20 @@ function eachRun(
   }
 }
 
+/**
+ * The total of a ratio, `{used} of {total} tokens`: what it counts is a whole, which is one only as
+ * the ratio's other side is, and "1 of 1 tokens" is rare enough to leave to `allow`.
+ */
+function isTotal(run: MessageFormatElement[], i: number): boolean {
+  const before = run[i - 1];
+  const part = run[i - 2];
+  return (
+    before?.type === TYPE.literal &&
+    /^\s+of\s+$/.test(before.value) &&
+    (part?.type === TYPE.number || part?.type === TYPE.argument || part?.type === TYPE.pound)
+  );
+}
+
 /** A plain placeholder named as a count. A number placeholder is one whatever its name. */
 const COUNT_NAME = /^(?:n|num|count|total|amount|quantity)$|(?:count|total)$/i;
 
@@ -508,23 +522,22 @@ export const CORE_RULES = {
     description: 'A count followed by a plural noun, `{count} files`, is a plural, or it reads "1 files". English.',
     recommended: 'warn',
     check: ({ ast }) => {
-      const said: Report[] = [];
+      // By message, so the same words in each arm of a select are one finding.
+      const said = new Map<string, Report>();
       eachRun(ast, (run, counted) =>
         run.forEach((el, i) => {
           if (el.type !== TYPE.number && el.type !== TYPE.argument) return;
           if (counted.has(el.value) || (el.type === TYPE.argument && !COUNT_NAME.test(el.value))) return;
+          if (isTotal(run, i)) return;
           const next = run[i + 1];
           const word = next?.type === TYPE.literal ? /^\s+(\p{L}+)(?![\p{L}'])/u.exec(next.value)?.[1] : undefined;
           const one = word === undefined ? undefined : singularOf(word);
-          if (word !== undefined && one !== undefined) {
-            said.push({
-              message: `${el.value} is followed by "${word}", which reads "1 ${word}": make it a plural with a "# ${one}" arm`,
-              match: word,
-            });
-          }
+          if (word === undefined || one === undefined) return;
+          const message = `${el.value} is followed by "${word}", which reads "1 ${word}": make it a plural with a "# ${one}" arm`;
+          said.set(message, { message, match: word });
         }),
       );
-      return said;
+      return [...said.values()];
     },
   },
   'plural-one': {

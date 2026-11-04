@@ -442,6 +442,8 @@ describe('lint', () => {
       'app.j': '{name} files it, {gender, select, female {her own.} other {their own.}}',
       'app.k': '{rate, number} kbps, {count} fps, {total} IDs',
       'app.l': '{count, plural, =0 {Nothing to upload} other {Uploading # files…}}',
+      'app.m': '{used, number} of {window, number} tokens',
+      'app.n': '{mode, select, a {{count} files here} other {{count} files there}}',
     });
     expect(findings(yaml)).toEqual([
       'app.a [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
@@ -453,6 +455,7 @@ describe('lint', () => {
       'app.g [formatted-by-hand] "%" is typed after rate: format it as a percent, which takes the fraction (0.5 for 50%)',
       'app.h [formatted-by-hand] "10,000" groups its digits the English way: make it a placeholder formatted as a number',
       'app.k [plural-count] total is followed by "IDs", which reads "1 IDs": make it a plural with a "# ID" arm',
+      'app.n [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
     ]);
   });
 
