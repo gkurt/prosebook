@@ -33,6 +33,11 @@ export interface Register {}
 
 export type RegisteredMessages = Register extends { messages: infer M extends MessageShapes } ? M : MessageShapes;
 export type RegisteredLocale = Register extends { locale: infer L extends string } ? L : string;
+/**
+ * A key of the catalog, as a string: for a prop, a map or a parameter that holds one, so it type-checks
+ * as a key at every read. `MessageKey<M>` is a key of another catalog's `Messages`.
+ */
+export type MessageKey<M extends MessageShapes = RegisteredMessages> = Extract<keyof M, string>;
 /** Tags the provider renders unless a call site says otherwise. */
 export type DefaultTags = Register extends { tags: infer T extends string } ? T : never;
 

@@ -9,6 +9,8 @@ import type {
   Helpers,
   DevHooks,
   MessageShapes,
+  RegisteredLocale,
+  RegisteredMessages,
   RichKey,
   RichParam,
   Values,
@@ -104,6 +106,12 @@ export interface CopyOptions<L extends string> {
 }
 
 /** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
+/**
+ * A copy's `t`, for a function that reads messages it is handed: `(t: Translate) => t('cart.title')`.
+ * Every binding's reader has the same one.
+ */
+export type Translate<M extends MessageShapes = RegisteredMessages, L extends string = RegisteredLocale> = Copy<M, L>['t'];
+
 export interface Copy<M extends MessageShapes = MessageShapes, L extends string = string> {
   /** The locale messages are coming back in. */
   readonly locale: L;

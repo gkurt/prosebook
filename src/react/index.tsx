@@ -9,9 +9,7 @@ import { createContext, Fragment, isValidElement, use, useMemo, useSyncExternalS
 
 import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
-import type { RegisteredLocale, RegisteredMessages, TagFn } from '#src/runtime/types.ts';
-
-type M = RegisteredMessages;
+import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
 /** `Copy`, with `rich` returning a `ReactNode`. */
 export type ReactCopy = BoundCopy<ReactNode>;
@@ -76,13 +74,13 @@ function keyed(parts: unknown[]): (string | ReactNode)[] {
   );
 }
 
-export type TextProps<K extends Extract<keyof M, string>> = Props<K, ReactNode>;
+export type TextProps<K extends MessageKey> = Props<K, ReactNode>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
  * tags through the provider's renderers and any given in `values`.
  */
-export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>) {
+export function Text<K extends MessageKey>(props: TextProps<K>) {
   const copy = useCopy();
   const values = (props as { values?: object }).values;
   return <>{copy.rich(props.id as never, values as never)}</>;

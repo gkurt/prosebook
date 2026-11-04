@@ -605,6 +605,17 @@ declare module 'prosebook' {
 }
 ```
 
+**Keys and readers as types.** `MessageKey` is any key of the catalog, for a prop, a map or a
+parameter that holds one, and `Translate` is a copy's `t`, for a function handed one: each checks as
+a read does.
+
+```ts
+import type { MessageKey, Translate } from 'prosebook';
+
+const STATUS: Record<Status, MessageKey> = { started: 'run.started', done: 'run.done' };
+const summary = (t: Translate, run: Run) => t(STATUS[run.status]);
+```
+
 ### MessageFormat 2
 
 Set `messageFormat: 2` and the catalog and its translations are written in

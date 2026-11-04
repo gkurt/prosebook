@@ -27,9 +27,7 @@ import {
 
 import { bindCopy, type BoundCopy, type LooseTextProps } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
-import type { RegisteredLocale, RegisteredMessages, TagFn } from '#src/runtime/types.ts';
-
-type M = RegisteredMessages;
+import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
 /** `Copy`, with `rich` returning a `VNode`, whose reads re-render what calls them. */
 export type VueCopy = BoundCopy<VNodeChild, VNode>;
@@ -91,7 +89,7 @@ export function useLocale(): ComputedRef<RegisteredLocale> {
 /** A slot per tag: each gets what the tag wraps as `chunks`, a `VNode` to render with `<component :is="chunks" />`. */
 export type TextSlots = { [tag: string]: Slot<{ chunks: VNode }> | undefined };
 
-export type TextProps<K extends Extract<keyof M, string>> = LooseTextProps<K, VNodeChild>;
+export type TextProps<K extends MessageKey> = LooseTextProps<K, VNodeChild>;
 
 /**
  * A message in a template: `<Text id="cart.items" :values="{ count }" />`. Its tags render through
@@ -114,4 +112,4 @@ export const Text = defineComponent(
     };
   },
   { name: 'Text', props: ['id', 'values'] },
-) as unknown as <K extends Extract<keyof M, string>>(props: TextProps<K>, context: { slots: TextSlots }) => VNode;
+) as unknown as <K extends MessageKey>(props: TextProps<K>, context: { slots: TextSlots }) => VNode;

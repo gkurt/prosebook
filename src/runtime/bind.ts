@@ -3,7 +3,7 @@
  * provider's tag renderers under each rich read's own.
  */
 import type { Copy } from './copy.ts';
-import type { MessageShape, RegisteredLocale, RegisteredMessages, RichKey, RichParam, TagFn } from './types.ts';
+import type { MessageKey, MessageShape, RegisteredLocale, RegisteredMessages, RichKey, RichParam, TagFn } from './types.ts';
 
 type M = RegisteredMessages;
 
@@ -86,11 +86,11 @@ type NoValues<S extends MessageShape> = {} extends S['args'] & { [T in S['tags']
  * A `<Text>`'s props where the call site renders every tag the provider doesn't: `values` is needed
  * once the message takes arguments or wraps text in a tag.
  */
-export type TextProps<K extends Extract<keyof M, string>, N> = { id: K } & (NoValues<M[K]> extends true
+export type TextProps<K extends MessageKey, N> = { id: K } & (NoValues<M[K]> extends true
   ? { values?: M[K]['args'] & { [T in M[K]['tags']]?: TagFn<N> } }
   : { values: RichParam<M[K], N>[0] });
 
 /** A `<Text>`'s props where tags may come from elsewhere (slots, snippets): `values` holds arguments, and tags if you like. */
-export type LooseTextProps<K extends Extract<keyof M, string>, N> = { id: K } & ({} extends M[K]['args']
+export type LooseTextProps<K extends MessageKey, N> = { id: K } & ({} extends M[K]['args']
   ? { values?: M[K]['args'] & { [T in M[K]['tags']]?: TagFn<N> } }
   : { values: M[K]['args'] & { [T in M[K]['tags']]?: TagFn<N> } });

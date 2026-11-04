@@ -5,7 +5,7 @@
  */
 import { expect, test } from 'bun:test';
 
-import { createCopy, defineCatalog } from 'prosebook';
+import { createCopy, defineCatalog, type MessageKey, type Translate } from 'prosebook';
 
 type Messages = {
   'a.plain': { args: {}; tags: never };
@@ -35,6 +35,16 @@ export function typed() {
   copy.rich('a.link');
   // @ts-expect-error: only messages with tags are read rich
   copy.rich('a.plain');
+
+  // A key held in a map, and a `t` handed to a function, check as they would at a read.
+  const labels: Record<'on' | 'off', MessageKey<Messages>> = { on: 'a.plain', off: 'a.link' };
+  // @ts-expect-error: not a key
+  const wrong: MessageKey<Messages> = 'a.nope';
+  const title = (t: Translate<Messages>) => t(labels.on) + t('a.count', { n: 2 });
+  title(copy.t);
+  // @ts-expect-error: the argument is required
+  const untitled = (t: Translate<Messages>) => t('a.count');
+  void [wrong, untitled];
 }
 
 test('the type checks above compile', () => {

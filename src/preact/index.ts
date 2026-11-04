@@ -8,9 +8,7 @@ import { useContext, useEffect, useMemo, useState } from 'preact/hooks';
 
 import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
-import type { RegisteredLocale, RegisteredMessages, TagFn } from '#src/runtime/types.ts';
-
-type M = RegisteredMessages;
+import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
 /** `Copy`, with `rich` returning a `VNode`. */
 export type PreactCopy = BoundCopy<ComponentChildren, VNode>;
@@ -85,13 +83,13 @@ function keyed(parts: unknown[]): ComponentChildren[] {
   );
 }
 
-export type TextProps<K extends Extract<keyof M, string>> = Props<K, ComponentChildren>;
+export type TextProps<K extends MessageKey> = Props<K, ComponentChildren>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
  * tags through the provider's renderers and any given in `values`.
  */
-export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>): VNode {
+export function Text<K extends MessageKey>(props: TextProps<K>): VNode {
   const copy = useCopy();
   const values = (props as { values?: object }).values;
   return copy.rich(props.id as never, values as never);

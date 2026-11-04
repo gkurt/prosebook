@@ -9,9 +9,7 @@ import { createComponent, createContext, createMemo, createSignal, onCleanup, us
 
 import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
-import type { RegisteredLocale, RegisteredMessages, TagFn } from '#src/runtime/types.ts';
-
-type M = RegisteredMessages;
+import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
 /** `Copy`, with `rich` returning a `JSX.Element`, whose reads are tracked. */
 export type SolidCopy = BoundCopy<JSX.Element>;
@@ -54,13 +52,13 @@ export function useLocale(): Accessor<RegisteredLocale> {
   return () => reader.locale;
 }
 
-export type TextProps<K extends Extract<keyof M, string>> = Props<K, JSX.Element>;
+export type TextProps<K extends MessageKey> = Props<K, JSX.Element>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
  * tags through the provider's renderers and any given in `values`.
  */
-export function Text<K extends Extract<keyof M, string>>(props: TextProps<K>): JSX.Element {
+export function Text<K extends MessageKey>(props: TextProps<K>): JSX.Element {
   const copy = useCopy();
   // An accessor is something JSX renders, and runs again when the message or its values change.
   return createMemo(() => copy.rich(props.id as never, (props as { values?: object }).values as never)) as unknown as JSX.Element;
