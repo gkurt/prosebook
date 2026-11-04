@@ -431,6 +431,9 @@ function planFile(path: string, ctx: Context): FilePlan {
 
     const markup: string[] = [];
     let message = nodes.map(piece).join('').trim();
+    // A run of spaces, placeholders and punctuation is layout, not words: `{children}` beside an icon.
+    const words = message.replace(/\{[^}]*\}|<\/?[\w-]+>|'[{}<]'/g, '');
+    if (!LETTER.test(words)) return;
     if (markup.length > 0) {
       const at = position(first.start);
       plan.warnings.push(
@@ -439,9 +442,7 @@ function planFile(path: string, ctx: Context): FilePlan {
       return;
     }
     if (/^en\b/.test(ctx.config.source)) message = draftPlurals(message);
-    // A run of spaces, placeholders and punctuation is layout, not words.
-    const words = message.replace(/\{[^}]*\}|<\/?[\w-]+>|'[{}<]'/g, '');
-    if (!LETTER.test(words) || (values.size === 0 && looksLikeCode(message))) return;
+    if (values.size === 0 && looksLikeCode(message)) return;
     // The whitespace at either end stays in the code as it was: a space still renders as one, and a
     // line break still renders as nothing.
     const start = first.type === 'JSXText' ? first.start + (/^\s*/.exec(first.value as string)?.[0].length ?? 0) : first.start;

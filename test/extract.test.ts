@@ -44,6 +44,10 @@ export function Profile({ user, items }: { user: { name: string }; items: string
 }
 `;
 
+const TSCONFIG = JSON.stringify({
+  compilerOptions: { strict: true, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler', noEmit: true },
+});
+
 describe('prosebook extract', () => {
   test('the rewritten component renders exactly what the hardcoded one did', async () => {
     const config = fixture(
@@ -150,6 +154,23 @@ describe('prosebook extract', () => {
     applyExtract(config, await planExtract(config, [join(config.root, 'src', 'Count.tsx')]));
     expect(readFileSync(join(config.catalog, 'count.yaml'), 'utf8')).toContain('    "n": "TODO: what `n` holds"');
     expect(loadCatalog(config).messages.map((m) => m.text)).toEqual(['You have {n} files']);
+  });
+
+  test('markup with no words beside it is no sentence, and says nothing', async () => {
+    const config = fixture({
+      'tsconfig.json': TSCONFIG,
+      'src/Button.tsx': [
+        "import type { ReactNode } from 'react';",
+        'export const Button = ({ children, icon }: { children: ReactNode; icon: ReactNode }) => (',
+        '  <button>',
+        '    {icon} {children}',
+        '  </button>',
+        ');',
+      ].join('\n'),
+    });
+    const [file] = (await planExtract(config, [join(config.root, 'src', 'Button.tsx')])).files;
+    expect(file!.extractions).toEqual([]);
+    expect(file!.warnings).toEqual([]);
   });
 
   test('an area is named after the file, or its folder for an index', async () => {
