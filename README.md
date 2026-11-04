@@ -600,9 +600,14 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag: an element i
 
 A placeholder holds a number, a name or something a person typed, never a translated fragment: a
 word that changes with the sentence belongs in a `plural` or `select` arm. A part that is there only
-sometimes, ", as reviewer" after a name, makes two sentences: two entries, the code choosing
-(`role ? t('task.assigned-as', { name, role }) : t('task.assigned', { name })`), so a translator
-writes each whole.
+sometimes, ", as reviewer" after a name, makes two sentences. Two entries, the code choosing
+(`role ? t('task.assigned-as', { name, role }) : t('task.assigned', { name })`), let a translator
+write each whole. In one entry, a select's `null` arm says what an absent value shows, and the
+argument may be left out, `null` or `undefined` (`role?: string | null`):
+
+```yaml
+en: 'Assigned to {name}{role, select, null {} other {, as {role}}}' # t('task.assigned', { name })
+```
 
 A bare `{n}` is typed `string`, so a number has to say how it's shown: `String()` knows no locale,
 and `{n, number}` writes 1,234 in English and 1.234 in German. A number that names something rather

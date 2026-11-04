@@ -12,6 +12,7 @@ import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions,
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { writingGuide } from './guide.ts';
+import { isNullish } from './icu.ts';
 import { keepUnread, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
@@ -81,7 +82,8 @@ function shapeOf(m: Message): string {
       held === undefined ? undefined : sentence(held),
       m.argFormats.has(name) ? `Formatted as ${m.argFormats.get(name)}.` : undefined,
     ].filter(Boolean);
-    return `${said.length > 0 ? doc([said.join(' ')], '      ') : ''}      readonly ${prop(name)}: ${type};`;
+    // An argument a `null` arm handles may be left out.
+    return `${said.length > 0 ? doc([said.join(' ')], '      ') : ''}      readonly ${prop(name)}${isNullish(type) ? '?' : ''}: ${type};`;
   });
   return `{\n    args: {\n${fields.join('\n')}\n    };\n    tags: ${tags};\n  }`;
 }

@@ -15,6 +15,7 @@ import {
   argsOf,
   armsOf,
   closedType,
+  openType,
   formatProblems,
   formatsOf,
   staticLiteral,
@@ -338,7 +339,7 @@ function driftFrom(message: Message, ast: MessageFormatElement[]): string | unde
   const missing = [...message.args.keys()].filter((a) => !args.has(a));
   const extra = [...args.keys()].filter((a) => !message.args.has(a));
   // A closed argument's translation selects among the source's arms, and on no other.
-  const source = (a: string) => (message.closed.includes(a) ? `${message.args.get(a)!} | (string & {})` : message.args.get(a)!);
+  const source = (a: string) => (message.closed.includes(a) ? openType(message.args.get(a)!) : message.args.get(a)!);
   const retyped = [...args]
     .filter(([a, type]) => message.args.has(a) && source(a) !== type && !(takesText(type) && takesText(source(a))))
     .map(([a]) => a);

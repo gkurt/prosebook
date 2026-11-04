@@ -58,7 +58,8 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
       return pick(arms, category);
     },
     s(value, arms) {
-      return pick(arms, String(value));
+      // A value that isn't there picks the `null` arm, where the message has one.
+      return pick(arms, value === null || value === undefined ? 'null' : String(value));
     },
     t(values: Values, tag, children) {
       const render = values[tag];

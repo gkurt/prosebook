@@ -39,21 +39,30 @@ function dateFields(skeleton: string): Intl.DateTimeFormatOptions {
 }
 
 const OPEN = ' | (string & {})';
+/** What a select with a `null` arm also takes: a value that isn't there, which that arm says. */
+const NULLISH = ' | null | undefined';
+
+export const isNullish = (type: string) => type.endsWith(NULLISH);
+const baseOf = (type: string) => (isNullish(type) ? type.slice(0, -NULLISH.length) : type);
+const withNullish = (base: string, nullish: boolean) => (nullish ? `${base}${NULLISH}` : base);
 
 /** A type that takes any string: a bare placeholder's, or a select's, which `other` keeps open. */
-export const takesText = (type: string) => type === 'string' || type.endsWith(OPEN);
+export const takesText = (type: string) => baseOf(type) === 'string' || baseOf(type).endsWith(OPEN);
 
 /** The arms a select's type names, `dark` and `light` in `"dark" | "light" | (string & {})`. */
 export const armsOf = (type: string): string[] =>
-  type.endsWith(OPEN)
-    ? type
+  baseOf(type).endsWith(OPEN)
+    ? baseOf(type)
         .slice(0, -OPEN.length)
         .split(' | ')
         .map((arm) => JSON.parse(arm) as string)
     : [];
 
 /** A select's type taking only the arms it names, for an argument the entry says is `closed`. */
-export const closedType = (type: string) => type.slice(0, -OPEN.length);
+export const closedType = (type: string) => withNullish(baseOf(type).slice(0, -OPEN.length), isNullish(type));
+
+/** A closed select's type open again, as its message alone types it. */
+export const openType = (type: string) => withNullish(`${baseOf(type)}${OPEN}`, isNullish(type));
 
 /**
  * ICU argument types, as TypeScript. A bare `{x}` is a string: a number spliced in raw is printed by
@@ -72,10 +81,12 @@ function argType(el: MessageFormatElement): string | undefined {
     case TYPE.time:
       return 'Date | number';
     case TYPE.select: {
-      const named = Object.keys(el.options).filter((o) => o !== 'other');
+      // A `null` arm says what an absent value shows: `{role, select, null {} other {, as {role}}}`.
+      const nullish = 'null' in el.options;
+      const named = Object.keys(el.options).filter((o) => o !== 'other' && o !== 'null');
       // `{on, select, true {On} other {Off}}` selects on a boolean, which the runtime reads as its text.
-      if (named.length > 0 && named.every((o) => o === 'true' || o === 'false')) return 'boolean';
-      return named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')}${OPEN}` : 'string';
+      if (named.length > 0 && named.every((o) => o === 'true' || o === 'false')) return withNullish('boolean', nullish);
+      return withNullish(named.length > 0 ? `${named.map((o) => JSON.stringify(o)).join(' | ')}${OPEN}` : 'string', nullish);
     }
     case TYPE.literal:
     case TYPE.pound:
@@ -145,9 +156,13 @@ export function walk(elements: MessageFormatElement[], visit: (el: MessageFormat
  */
 function unionOf(a: string, b: string): string | undefined {
   if (a === b) return a;
-  if (!takesText(a) || !takesText(b)) return undefined;
-  const arms = [...new Set([a, b].flatMap((t) => (t === 'string' ? [] : t.slice(0, -OPEN.length).split(' | '))))];
-  return arms.length === 0 ? 'string' : `${arms.join(' | ')}${OPEN}`;
+  // The `null` arm of one use makes the argument optional for all of them.
+  const nullish = isNullish(a) || isNullish(b);
+  const [x, y] = [baseOf(a), baseOf(b)];
+  if (x === y) return withNullish(x, nullish);
+  if (!takesText(x) || !takesText(y)) return undefined;
+  const arms = [...new Set([x, y].flatMap((t) => (t === 'string' ? [] : t.slice(0, -OPEN.length).split(' | '))))];
+  return withNullish(arms.length === 0 ? 'string' : `${arms.join(' | ')}${OPEN}`, nullish);
 }
 
 export function argsOf(elements: MessageFormatElement[], clash: (name: string) => void = () => {}): Map<string, string> {

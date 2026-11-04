@@ -20,7 +20,7 @@ import {
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { todoOf } from '#src/tools/todo.ts';
-import { fixture } from './fixture.ts';
+import { copyOf, fixture } from './fixture.ts';
 
 const problemsOf = (files: Record<string, string>, config = {}) => {
   try {
@@ -92,6 +92,25 @@ describe('catalog checks', () => {
     expect(problems).toEqual([
       'copy/catalog/app.yaml app.a: names a select arm "application/pdf": an arm\'s name is letters, digits and _, so write it application_pdf and map the value to it in code, or write the catalog in MF2, which quotes it: |application/pdf|',
     ]);
+  });
+
+  test("a select's null arm says what an absent value shows, and makes the argument optional", async () => {
+    const config = fixture(
+      { 'copy/catalog/task.yaml': 'task.assigned: "Assigned to {name}{role, select, null {} other {, as {role}}}"\n' },
+      { require: [] },
+    );
+    const { catalog, files } = generate(config);
+    expect(catalog.messages[0]!.args).toEqual(
+      new Map([
+        ['name', 'string'],
+        ['role', 'string | null | undefined'],
+      ]),
+    );
+    expect(files.get(join(config.out, 'index.ts'))).toContain('readonly role?: string | null | undefined;');
+    const copy = copyOf({ en: { 'task.assigned': catalog.messages[0]!.text } });
+    expect(copy.t('task.assigned', { name: 'Ada' })).toBe('Assigned to Ada');
+    expect(copy.t('task.assigned', { name: 'Ada', role: null })).toBe('Assigned to Ada');
+    expect(copy.t('task.assigned', { name: 'Ada', role: 'reviewer' })).toBe('Assigned to Ada, as reviewer');
   });
 
   test('a closed select takes only its arms, in the source and in every translation', () => {
