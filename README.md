@@ -1021,7 +1021,8 @@ profile.hi-read-the-terms:
 ```
 
 - Text becomes `<Text>`, which needs no hook, so it works in class components and in callbacks too.
-  A readable attribute becomes `t('…')`. extract adds `const { t } = useCopy()` to the component,
+  A readable attribute becomes `t('…')`, a template one with its values (``aria-label={`Open ${name}`}``
+  is `t('…', { name })`), and each text a ternary or a fallback in it picks, `t('…')` in place. extract adds `const { t } = useCopy()` to the component,
   joins an existing `useCopy()` call, or uses `copy.t` where the component already binds a `t` of its
   own. It adds the imports too.
 - The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`), or its folder's for an
@@ -1041,6 +1042,14 @@ profile.hi-read-the-terms:
 - Whitespace renders exactly as before. Code-like text (`form.json()`, `src/index.ts`, `us-west-2`, a
   list of hosts, a shell command), text in `<code>`, `<pre>` and `<kbd>` and components named for them
   (`<Kbd>`), and lines marked `prosebook-ignore` stay where they are; `scan` skips them too.
+
+**Words code picks.** `{n} {n === 1 ? 'file' : 'files'}` becomes one plural. Standing alone, as in
+`<button>{pending ? 'Saving…' : 'Save'}</button>` or `{name ?? 'Guest'}`, each word an expression can
+pick becomes an entry, `<Text>` in its place. Inside a sentence it would leave fragments ("It takes",
+"the team's connectors."), so the sentence stays as it is, with a warning to make it a select or an
+entry per case; so does one whose placeholder would hold words the catalog should: another message
+(`{t('…')}`), a lookup (`{LABELS[kind]}`), a list joined in English (`.join(' and ')`) or a case
+changed in code (`.toLowerCase()`).
 
 **Typed placeholders.** extract asks the project's TypeScript (7 or later, found through the nearest
 `tsconfig.json`) what each expression holds:

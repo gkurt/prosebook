@@ -17,7 +17,7 @@ import { CatalogError, KEY_PATTERN, loadCatalog, SCHEMA_LINE } from './catalog.t
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage, TYPE, type MessageFormatElement } from './icu.ts';
 import { singularOf } from './lint.ts';
-import { isNonProse, looksLikeCode } from './scan.ts';
+import { isNonProse, looksLikeCode, shownLiterals } from './scan.ts';
 import { writeMessage } from './syntax.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
 
@@ -312,11 +312,68 @@ function formattedNumber(expr: Node): { value: Node; style: string } | undefined
   return { value, style: digits.value === 0 ? ', integer' : `, ::.${'0'.repeat(digits.value)}` };
 }
 
+/**
+ * `n === 1 ? 'file' : 'files'`: a plural written in code, which the message can hold as a plural. Its
+ * count, and what it says for one and for the rest.
+ */
+function pluralTernary(expr: Node): { count: Node; one: string; other: string } | undefined {
+  if (expr.type !== 'ConditionalExpression' || expr.test?.type !== 'BinaryExpression') return undefined;
+  const { operator, left, right } = expr.test as Node;
+  const isOne = (n: Node) => n.type === 'Literal' && n.value === 1;
+  const count = isOne(right) ? left : isOne(left) ? right : undefined;
+  if (count === undefined || !['===', '==', '!==', '!='].includes(operator as string)) return undefined;
+  const yes = literalText(expr.consequent as Node);
+  const no = literalText(expr.alternate as Node);
+  if (yes === undefined || no === undefined) return undefined;
+  return operator.startsWith('!') ? { count, one: no, other: yes } : { count, one: yes, other: no };
+}
+
+const CASE_CHANGES = new Set(['toLowerCase', 'toUpperCase', 'toLocaleLowerCase', 'toLocaleUpperCase']);
+
+/**
+ * Why a placeholder can't hold this value, where its text is words the catalog should hold: another
+ * message, a word looked up in a map, a list joined in English, or words whose case code changes.
+ */
+function splicedText(expr: Node): string | undefined {
+  let inner = expr;
+  while (inner.type === 'TSNonNullExpression' || inner.type === 'ChainExpression') inner = inner.expression as Node;
+  if (inner.type === 'CallExpression') {
+    const callee = inner.callee as Node;
+    const name =
+      callee.type === 'Identifier'
+        ? callee.name
+        : callee.type === 'MemberExpression' && !callee.computed
+          ? callee.property?.name
+          : undefined;
+    if (name === 't' || name === 'rich')
+      return 'is a message read into another, which a translator sees in pieces: make the sentence one entry';
+    if (name === 'join') return 'joins a list in code, which reads as English only: give it to copy.list(), or make the sentence a plural';
+    if (CASE_CHANGES.has(name as string))
+      return "changes the case of words in code, which other languages don't share: write them as the sentence needs";
+  }
+  if (
+    inner.type === 'MemberExpression' &&
+    inner.computed &&
+    !(inner.property?.type === 'Literal' && typeof inner.property.value === 'number')
+  )
+    return 'looks words up in a map, which a translator never sees: make the sentence a select over the key, or an entry per case';
+  return undefined;
+}
+
 /** The text of a string literal, or of a template with no placeholders. */
 function literalText(expr: Node): string | undefined {
   if (expr.type === 'Literal' && typeof expr.value === 'string') return expr.value;
   if (expr.type === 'TemplateLiteral' && expr.expressions.length === 0) return expr.quasis[0].value.cooked as string;
   return undefined;
+}
+
+/** A placeholder's name from its expression: the variable, or the property it reads. */
+function nameOf(expr: Node): string {
+  let inner = expr;
+  while (inner.type === 'TSNonNullExpression' || inner.type === 'ChainExpression') inner = inner.expression as Node;
+  if (inner.type === 'Identifier') return inner.name as string;
+  if (inner.type === 'MemberExpression' && !inner.computed && inner.property?.type === 'Identifier') return inner.property.name as string;
+  return 'value';
 }
 
 function elementName(el: Node): string | undefined {
@@ -427,6 +484,20 @@ function planFile(path: string, ctx: Context): FilePlan {
       if (run.length > 0) extractRun(run, parentName);
       run = [];
     };
+    // Words code picks, `{ok ? 'fine' : 'broken'}`: beside other words they would leave fragments, so
+    // the sentence stays as it is; standing alone, each word it can pick is an entry.
+    const pickers = children.filter(picksWords);
+    if (pickers.length > 0 && children.some((c) => !pickers.includes(c) && inlineable(c) && hasWords(c))) {
+      for (const p of pickers) {
+        const at = position(p.start);
+        plan.warnings.push(
+          `${file}:${at.line}:${at.column} ${code.slice(p.start, p.end)} picks words in code, which a translator can't see: make the sentence a select, or an entry per case; left as it is`,
+        );
+      }
+      for (const c of children) if (inlineable(c)) consumed.add(c);
+      return;
+    }
+    for (const p of pickers) extractPicked(p.expression as Node, parentName);
     for (const child of children) {
       if (!inlineable(child)) {
         flush();
@@ -436,6 +507,33 @@ function planFile(path: string, ctx: Context): FilePlan {
       run.push(child);
     }
     flush();
+  };
+
+  const picksWords = (child: Node) =>
+    child.type === 'JSXExpressionContainer' &&
+    !inlineable(child) &&
+    shownLiterals(child.expression as Node).some((l) => LETTER.test(literalText(l) ?? ''));
+
+  const hasWords = (node: Node): boolean =>
+    node.type === 'JSXText'
+      ? LETTER.test(node.value as string)
+      : node.type === 'JSXElement'
+        ? (node.children as Node[]).some(hasWords)
+        : node.type === 'JSXExpressionContainer' && LETTER.test(literalText(node.expression as Node) ?? '');
+
+  /** Each word an expression standing alone can pick, `pending ? 'Saving…' : 'Save'`, as an entry of its own. */
+  const extractPicked = (expr: Node, parentName: string | undefined) => {
+    const role = (parentName !== undefined ? ROLES[parentName] : undefined) ?? [undefined, undefined];
+    for (const literal of shownLiterals(expr)) {
+      const text = literalText(literal);
+      if (text === undefined || !LETTER.test(text) || looksLikeCode(text) || ignored(literal.start)) continue;
+      const message = inSyntax(ctx.config, escapeIcu(text.trim()));
+      const { key, reused } = entryFor(message, {}, role, where(parentName));
+      const replacement = `<Text id=${JSON.stringify(key)} />`;
+      plan.edits.push({ start: literal.start, end: literal.end, text: replacement });
+      plan.extractions.push({ file, ...position(literal.start), key, message, reused, where: 'text', replacement });
+      needText = true;
+    }
   };
 
   /**
@@ -451,7 +549,8 @@ function planFile(path: string, ctx: Context): FilePlan {
 
   const inlineable = (child: Node): boolean => {
     if (child.type === 'JSXText') return true;
-    if (child.type === 'JSXExpressionContainer') return simple(child.expression as Node);
+    if (child.type === 'JSXExpressionContainer')
+      return simple(child.expression as Node) || pluralTernary(child.expression as Node) !== undefined;
     if (child.type === 'JSXElement') {
       const name = elementName(child);
       if (name === undefined || child.openingElement.selfClosing || !isInline(name)) return false;
@@ -514,19 +613,41 @@ function planFile(path: string, ctx: Context): FilePlan {
       const expr = node.expression as Node;
       const literal = literalText(expr);
       if (literal !== undefined) return escapeIcu(literal);
+      const plural = pluralTernary(expr);
+      if (plural !== undefined) {
+        const arm = (s: string) => escapeIcu(s).replaceAll('#', "'#'");
+        return `{${argName(plural.count)}, plural, one {${arm(plural.one)}} other {${arm(plural.other)}}}`;
+      }
+      const spliced = splicedText(expr);
+      if (spliced !== undefined) refused.push(`{${code.slice(expr.start, expr.end)}} ${spliced}`);
       // A number formatted into a string by hand is the number, formatted by the message instead.
       const counted = formattedNumber(expr);
       if (counted !== undefined) {
         const kind = ctx.kinds.get(`${counted.value.start}:${counted.value.end}`) ?? syntaxKind(counted.value);
         if (kind === undefined || kind === 'number' || kind === 'unknown') return `{${argName(counted.value)}, number${counted.style}}`;
       }
-      const kind = ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr);
+      // What a plural in the sentence counts is a number wherever the sentence shows it.
+      const kind = counts.has(code.slice(expr.start, expr.end))
+        ? 'number'
+        : (ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr));
       if (kind === 'node') markup.push(code.slice(expr.start, expr.end));
       return `{${argName(expr)}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
     };
 
     const markup: string[] = [];
-    const joined = nodes.map(piece).join('');
+    const refused: string[] = [];
+    const counts = new Set<string>();
+    const countsIn = (n: Node) => {
+      const plural = n.type === 'JSXExpressionContainer' ? pluralTernary(n.expression as Node) : undefined;
+      if (plural !== undefined) counts.add(code.slice(plural.count.start, plural.count.end));
+      if (n.type === 'JSXElement') (n.children as Node[]).forEach(countsIn);
+    };
+    nodes.forEach(countsIn);
+    const joined = nodes
+      .map(piece)
+      .join('')
+      // `{n} {n === 1 ? 'file' : 'files'}` counts in one plural: `# file`, `# files`.
+      .replace(/\{(\w+), number\} \{\1, plural, one \{([^{}]*)\} other \{([^{}]*)\}\}/g, '{$1, plural, one {# $2} other {# $3}}');
     // JSX text's own spaces at the ends stay in the code (below); a literal's go beside the <Text>.
     const lead = first.type === 'JSXText' ? '' : /^\s*/.exec(joined)![0];
     const trail = last.type === 'JSXText' ? '' : /\s*$/.exec(joined)![0];
@@ -534,6 +655,11 @@ function planFile(path: string, ctx: Context): FilePlan {
     // A run of spaces, placeholders and punctuation is layout, not words: `{children}` beside an icon.
     const words = message.replace(/\{[^}]*\}|<\/?[\w-]+>|'[{}<]'/g, '');
     if (!LETTER.test(words)) return;
+    if (refused.length > 0) {
+      const at = position(first.start);
+      plan.warnings.push(`${file}:${at.line}:${at.column} ${refused.join('; ')}; this sentence was left as it is`);
+      return;
+    }
     if (markup.length > 0) {
       const at = position(first.start);
       plan.warnings.push(
@@ -565,9 +691,62 @@ function planFile(path: string, ctx: Context): FilePlan {
     const name = attr.name?.type === 'JSXIdentifier' ? (attr.name.name as string) : '';
     if (!ctx.config.scan.attributes.includes(name) || attr.value === null) return;
     const value = attr.value as Node;
-    const text = value.type === 'JSXExpressionContainer' ? literalText(value.expression as Node) : literalText(value);
-    if (text === undefined || !LETTER.test(text) || looksLikeCode(text) || ignored(attr.start)) return;
-    const at = position(value.start);
+    const expr = value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value;
+    // What the attribute says: its text, a template's words around its placeholders, or each text a
+    // ternary or a fallback picks. Each is the node it replaces, and the message with its values.
+    const said: { node: Node; text: string; message: string; values: [string, string][]; args: Record<string, string> }[] = [];
+    const whole = literalText(expr);
+    if (whole !== undefined) {
+      said.push({ node: value, text: whole, message: escapeIcu(whole), values: [], args: {} });
+    } else if (expr.type === 'TemplateLiteral') {
+      const template = templateMessage(expr);
+      if (template !== undefined) said.push({ node: expr, ...template });
+    } else {
+      for (const literal of shownLiterals(expr)) {
+        const text = literalText(literal);
+        if (text !== undefined) said.push({ node: literal, text, message: escapeIcu(text), values: [], args: {} });
+      }
+    }
+    for (const one of said) {
+      if (!LETTER.test(one.text) || looksLikeCode(one.text) || ignored(one.node.start)) continue;
+      extractSaid(attr, element, name, one);
+    }
+  };
+
+  /** A template's words with a placeholder for each value, as `t()` takes them; nothing where a value isn't simple. */
+  const templateMessage = (template: Node) => {
+    const quasis = template.quasis as { value: { cooked: string } }[];
+    const exprs = template.expressions as Node[];
+    if (!exprs.every(simple)) return undefined;
+    const values: [string, string][] = [];
+    const args: Record<string, string> = {};
+    let message = escapeIcu(quasis[0]!.value.cooked);
+    exprs.forEach((e, i) => {
+      const source = code.slice(e.start, e.end);
+      let name = nameOf(e);
+      for (let n = 2; values.some(([v]) => v === name); n++) name = `${nameOf(e)}${n}`;
+      values.push([name, source]);
+      args[name] = `TODO: what \`${source}\` holds`;
+      const kind = ctx.kinds.get(`${e.start}:${e.end}`) ?? syntaxKind(e);
+      message += `{${name}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}${escapeIcu(quasis[i + 1]!.value.cooked)}`;
+    });
+    return { text: code.slice(template.start + 1, template.end - 1), message, values, args };
+  };
+
+  const extractSaid = (
+    attr: Node,
+    element: Node,
+    name: string,
+    {
+      node,
+      text,
+      message: said,
+      values,
+      args,
+    }: { node: Node; text: string; message: string; values: [string, string][]; args: Record<string, string> },
+  ) => {
+    const value = attr.value as Node;
+    const at = position(node.start);
     const fn = components.findLast((c) => c.isComponent)?.fn;
     if (fn === undefined || fn.body?.type !== 'BlockStatement') {
       plan.warnings.push(
@@ -591,10 +770,13 @@ function planFile(path: string, ctx: Context): FilePlan {
     ];
     const component = components.at(-1)?.name;
     const context = `${component ? `In ${component}` : `In ${file}`}, the ${name} of a <${tag}>.`;
-    const message = inSyntax(ctx.config, escapeIcu(text));
-    const { key, reused } = entryFor(message, {}, [kind, surface], context, suffix);
-    const replacement = `{${call}(${JSON.stringify(key)})}`;
-    plan.edits.push({ start: value.start, end: value.end, text: replacement });
+    const message = inSyntax(ctx.config, said);
+    const { key, reused } = entryFor(message, args, [kind, surface], context, suffix);
+    const props = values.map(([n, source]) => `${n}: ${source}`);
+    const read = `${call}(${JSON.stringify(key)}${props.length > 0 ? `, { ${props.join(', ')} }` : ''})`;
+    // The attribute's whole value is `{t(…)}`; a part of its expression is the call alone.
+    const replacement = node === value ? `{${read}}` : read;
+    plan.edits.push({ start: node.start, end: node.end, text: replacement });
     plan.extractions.push({ file, ...at, key, message, reused, where: name, replacement });
   };
 
@@ -708,6 +890,8 @@ function jsxExpressions(file: string, code: string): Span[] {
       const counted = formattedNumber(node.expression as Node);
       if (counted !== undefined) spans.push({ start: counted.value.start, end: counted.value.end });
     }
+    // A template's values, which an attribute's message takes as placeholders.
+    if (node.type === 'TemplateLiteral') for (const e of node.expressions as Node[]) spans.push({ start: e.start, end: e.end });
 
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {

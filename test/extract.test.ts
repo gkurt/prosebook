@@ -339,6 +339,56 @@ describe('prosebook extract', () => {
     expect(file!.extractions.map((x) => x.message)).toEqual(['Fit to view']);
   });
 
+  test('words code picks become entries where they stand alone, and leave a sentence as it is where they would split it', async () => {
+    const PICKS = [
+      "const LABELS: Record<string, string> = { a: 'apples' };",
+      'export function Picks({ n, pending, ok, x, name, kind, takes, t }: { n: number; pending: boolean; ok: boolean; x: string | null; name: string; kind: string; takes: string[]; t: (k: string) => string }) {',
+      '  return (',
+      '    <div>',
+      "      <p>{n} {n === 1 ? 'file' : 'files'} left</p>",
+      "      <button type=\"button\">{pending ? 'Saving…' : 'Save'}</button>",
+      "      <span>{x ?? 'None'}</span>",
+      "      <p>Status: {ok ? 'fine' : 'broken'}.</p>",
+      '      <p>It takes {LABELS[kind]}, the team’s connectors.</p>',
+      "      <p>It takes {takes.join(' and ')} now.</p>",
+      "      <p>Read {t('a.b')} first.</p>",
+      '      <a href="#x" aria-label={`Open ${name}`} title={ok ? \'Opens it\' : undefined}>Go</a>',
+      '    </div>',
+      '  );',
+      '}',
+    ].join('\n');
+    const config = fixture({ 'src/Before.tsx': PICKS, 'src/After.tsx': PICKS });
+    const plan = await planExtract(config, [join(config.root, 'src', 'After.tsx')], { area: 'picks', types: false });
+    const [file] = plan.files;
+    expect(file!.extractions.map((x) => `${x.message} → ${x.replacement}`)).toEqual([
+      '{n, plural, one {# file} other {# files}} left → <Text id="picks.files-left" values={{ n: n }} />',
+      'Saving… → <Text id="picks.saving" />',
+      'Save → <Text id="picks.save" />',
+      'None → <Text id="picks.none" />',
+      // The component binds a t of its own, so the copy's is copy.t.
+      'Open {name} → copy.t("picks.open-aria", { name: name })',
+      'Opens it → copy.t("picks.opens-it-tooltip")',
+      'Go → <Text id="picks.go" />',
+    ]);
+    expect(file!.warnings.map((w) => w.replace(/^\S+ /, ''))).toEqual([
+      "{ok ? 'fine' : 'broken'} picks words in code, which a translator can't see: make the sentence a select, or an entry per case; left as it is",
+      '{LABELS[kind]} looks words up in a map, which a translator never sees: make the sentence a select over the key, or an entry per case; this sentence was left as it is',
+      "{takes.join(' and ')} joins a list in code, which reads as English only: give it to copy.list(), or make the sentence a plural; this sentence was left as it is",
+      "{t('a.b')} is a message read into another, which a translator sees in pieces: make the sentence one entry; this sentence was left as it is",
+    ]);
+    applyExtract(config, plan);
+    generate(config);
+    const { catalog } = (await import(join(config.out, 'index.ts'))) as { catalog: Catalog };
+    const props = { n: 1, pending: true, ok: true, x: null, name: 'Ada', kind: 'a', takes: ['a', 'b'], t: (k: string) => k };
+    const render = (Component: ComponentType<typeof props>, p = props) =>
+      renderToStaticMarkup(createElement(CopyProvider, { copy: createCopy(catalog) }, createElement(Component, p)));
+    const { Picks: Before } = (await import(join(config.root, 'src', 'Before.tsx'))) as { Picks: ComponentType<typeof props> };
+    const { Picks: After } = (await import(join(config.root, 'src', 'After.tsx'))) as { Picks: ComponentType<typeof props> };
+    expect(render(After)).toBe(render(Before));
+    const other = { ...props, n: 3, pending: false, ok: false, x: 'Kept' };
+    expect(render(After, other)).toBe(render(Before, other));
+  });
+
   test('markup with no words beside it is no sentence, and says nothing', async () => {
     const config = fixture({
       'tsconfig.json': TSCONFIG,

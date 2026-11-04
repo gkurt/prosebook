@@ -108,7 +108,7 @@ const NOT_APP = /\.(?:test|spec|stories)\.[cm]?[jt]sx?$/;
  * `pending ? 'Saving…' : 'Save'`, the fallback of `x ?? 'None'`, `` `Open ${name}` ``. Not what
  * it passes to calls, which may be keys or code.
  */
-function shownLiterals(node: Node | undefined): Node[] {
+export function shownLiterals(node: Node | undefined): Node[] {
   if (node === undefined) return [];
   if (WRAPPERS.has(node.type)) return shownLiterals(node.expression as Node);
   switch (node.type) {
