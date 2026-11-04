@@ -1104,6 +1104,10 @@ the server learns the page's files as the build ends. A server built on its own 
 page's `Bun.build` before it, and warns without one. Each file is linked from `publicPath`, or `/`,
 where `Bun.serve` serves a page's files.
 
+Under Next, the server can't link them: Turbopack's chunks name no module, so nothing says which
+file holds an area. The page still shows at once, rendered on the server; only hydration waits the
+one request more.
+
 ## Finding a string's entry
 
 In dev, hold Alt (Option on a Mac) and point at text on the page: the inspector outlines the
@@ -1209,9 +1213,3 @@ serves.
 bun run build                      # the examples import prosebook from dist
 bun run --cwd examples/next dev
 ```
-
-## Further
-
-Ideas not built yet, roughly in order of value:
-
-1. **Preloading a split render's areas under Next**: Turbopack's chunks name no module, so nothing says which file holds an area.
