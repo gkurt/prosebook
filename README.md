@@ -70,6 +70,11 @@ import { prosebook } from 'prosebook/vite';
 export default defineConfig({ plugins: [react(), prosebook()] });
 ```
 
+What `generate` writes is checked byte for byte by `generate --check`, so leave it to prosebook:
+keep `src/copy/`, `copy/catalog/catalog.schema.json` and `copy/catalog/WRITING.md` out of your
+formatter and linter (Prettier's `.prettierignore`, oxfmt's `ignorePatterns`, Biome's `files.ignore`),
+or `check` fails on the files they rewrite.
+
 Several apps that share one catalog each point the plugin at it: `prosebook({ root: '../../packages/copy' })`
 reads the config there and resolves its paths from there, so every app generates the same files.
 
