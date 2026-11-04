@@ -630,14 +630,19 @@ declare module 'prosebook' {
 
 **Keys and readers as types.** `MessageKey` is any key of the catalog, for a prop, a map or a
 parameter that holds one, and `Translate` is a copy's `t`, for a function handed one: each checks as
-a read does.
+a read does. A map of labels other modules read holds keys, not text, so it is read in the locale of
+the moment it renders, and needs no getter:
 
 ```ts
 import type { MessageKey, Translate } from 'prosebook';
 
 const STATUS: Record<Status, MessageKey> = { started: 'run.started', done: 'run.done' };
+// prosebook-ignore: every key it reads is written in STATUS, which a pruned build keeps
 const summary = (t: Translate, run: Run) => t(STATUS[run.status]);
 ```
+
+Where only one sentence shows the label, a select keeps it there, with no map at all:
+`{status, select, started {Started} done {Done} other {Unknown}}`.
 
 ### MessageFormat 2
 
