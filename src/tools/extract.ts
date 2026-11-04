@@ -129,10 +129,18 @@ const ATTRIBUTE_ROLES: Record<string, [kind: string | undefined, surface: string
   label: ['name', 'label', 'label'],
 };
 
-/** The area a file's strings go in: its name in kebab case, or its folder's for an `index`. */
-export function areaOf(file: string): string {
+/** Names whose capitals sit inside one word, which kebab case would split: `GitHub` is not `git-hub`. */
+const ONE_WORD = ['GitHub', 'GitLab', 'JavaScript', 'TypeScript', 'OAuth', 'PagerDuty', 'YouTube', 'LinkedIn', 'WordPress', 'iOS', 'macOS'];
+
+/**
+ * The area a file's strings go in: its name in kebab case, or its folder's for an `index`. A name in
+ * `nouns` (the config's `properNouns`) or one of a few such brands stays one word.
+ */
+export function areaOf(file: string, nouns: readonly string[] = []): string {
   let name = basename(file, extname(file));
   if (['index', 'page', 'layout', 'route', 'main'].includes(name)) name = basename(dirname(file));
+  for (const noun of [...ONE_WORD, ...nouns].filter((n) => /^[A-Za-z]+$/.test(n) && /.[A-Z]/.test(n)))
+    name = name.replaceAll(noun, `-${noun.toLowerCase()}-`);
   const kebab = name
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
     .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
@@ -142,10 +150,12 @@ export function areaOf(file: string): string {
   return kebab === '' ? 'app' : kebab;
 }
 
-/** A key segment from the words of a message: its first four, plain ASCII, lowercase. */
+/** A key segment from the words of a message: its first four, plain ASCII, lowercase, whole. */
 export function slugOf(message: string): string {
   const words = message
     .replace(/<\/?[\w-]+>|\{[^}]*\}/g, ' ')
+    // `couldn't` is one word, `couldnt`, not `couldn` and a stray `t`.
+    .replace(/(?<=\p{L})['’](?=\p{L})/gu, '')
     .replace(/ı/g, 'i')
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
@@ -659,7 +669,8 @@ export async function planExtract(
           if (kind !== undefined && kind !== 'unknown') kinds.set(`${spans[i]!.start}:${spans[i]!.end}`, kind);
         });
       }
-      files.push(planFile(path, { config, area: options.area ?? areaOf(path), known, entries, kinds }));
+      const area = options.area ?? areaOf(path, config.lint.properNouns);
+      files.push(planFile(path, { config, area, known, entries, kinds }));
     }
     return { files, entries, types: oracle?.source ?? 'syntax' };
   } finally {

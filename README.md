@@ -1025,7 +1025,8 @@ profile.hi-read-the-terms:
   joins an existing `useCopy()` call, or uses `copy.t` where the component already binds a `t` of its
   own. It adds the imports too.
 - The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`), or its folder's for an
-  `index`; `--area` overrides it. The key adds the message's first words, and a suffix for an
+  `index`; `--area` overrides it. A name in `lint.properNouns` stays one word (`GitHubConnect.tsx` →
+  `github-connect`). The key adds the message's first words, and a suffix for an
   attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area
   reuses that key.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →

@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { createCopy, type Catalog } from 'prosebook';
 import { CopyProvider } from 'prosebook/react';
-import { applyExtract, areaOf, generate, loadCatalog, planExtract } from 'prosebook/tools';
+import { applyExtract, areaOf, generate, loadCatalog, planExtract, slugOf } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -214,5 +214,12 @@ describe('prosebook extract', () => {
     expect(areaOf('src/components/CartPanel.tsx')).toBe('cart-panel');
     expect(areaOf('src/routes/settings/index.tsx')).toBe('settings');
     expect(areaOf('src/HTMLViewer.tsx')).toBe('html-viewer');
+    expect(areaOf('src/GitHubConnect.tsx')).toBe('github-connect');
+    expect(areaOf('src/AcmeCorpPanel.tsx', ['AcmeCorp'])).toBe('acmecorp-panel');
+  });
+
+  test("a key is the message's first words, whole", () => {
+    expect(slugOf("The last run couldn't start")).toBe('the-last-run-couldnt');
+    expect(slugOf('The GitHub app’s settings')).toBe('the-github-apps-settings');
   });
 });
