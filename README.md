@@ -817,8 +817,22 @@ writes the other entries and fails, `lint`, `scan` and `status` check them and f
 too. A dev server says it and serves the rest. Several people, or agents, editing one catalog don't
 hold each other up, and an edit, a fix or an import is refused only for the problems it brings itself.
 
-**Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace. It
-reads the message format too:
+**Lint.** `recommended` checks shape: word budgets per kind, periods, bare names, whitespace. The
+shape rules read the entry's `kind`, as the config's kinds define them (these are the defaults), and
+`period` its `surface` too:
+
+| Kind          | Words                                                | `period` (ends with one)                         | `no-period` | Sentence case, `bare-name` |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------ | ----------- | -------------------------- |
+| `name`        | 4                                                    |                                                  | yes         | yes                        |
+| `action`      | 3                                                    |                                                  | yes         | sentence case              |
+| `description` | 2 sentences                                          | always                                           |             |                            |
+| `state`       | 1 sentence (2 on `error`, `empty`, `hint`, `status`) | on `hint`, `status`, `error`, `empty`, `confirm` |             |                            |
+
+A state on any other surface, a `toast` or a `label`, needs no period, and an entry with no kind is
+held to none of these, so an `allow.period` there fails as an exemption it doesn't need. `fragment:
+true` lifts `period` and the sentence rules from a string that completes another.
+
+It reads the message format too:
 
 | Rule                | Catches                                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
