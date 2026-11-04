@@ -94,3 +94,27 @@ test('a server copy asks for the locale, negotiates it, and comes back with its 
   expect([copy.t('a.b' as never, { n: 1234 } as never), copy.t('a.b' as never)]).toEqual(['Warenkorb 1.234', 'Warenkorb {n}']);
   expect(errors).toEqual(['{n} has no value']);
 });
+
+test("useCopy()'s t keeps its identity while the provider re-renders, until the locale changes", async () => {
+  const copy = copyOf({ en: { 'a.title': 'Cart' }, de: { 'a.title': 'Warenkorb' } });
+  const seen: unknown[] = [];
+  function View() {
+    seen.push(useCopy().t);
+    return null;
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const tree = (n: number) => (
+    <CopyProvider copy={copy} key="p">
+      <View key={0} />
+      {n}
+    </CopyProvider>
+  );
+  await act(async () => root.render(tree(1)));
+  await act(async () => root.render(tree(2)));
+  expect(seen.length).toBe(2);
+  expect(seen[1]).toBe(seen[0]);
+  await act(() => copy.setLocale('de'));
+  expect(seen.at(-1)).not.toBe(seen[0]);
+  await act(async () => root.unmount());
+});

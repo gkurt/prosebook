@@ -156,6 +156,10 @@ function Cart({ count }: { count: number }) {
 }
 ```
 
+What `useCopy()` returns keeps its identity until the locale changes (or, in dev, the catalog), so
+`t` can be an effect's dependency or a memo's. Give `tags` as an object that keeps its identity too, a
+module constant or a `useMemo`: a new one on each render makes a new reader with it.
+
 ### In Preact
 
 `prosebook/preact` is the React binding for Preact, written on `preact/hooks`, so it needs no

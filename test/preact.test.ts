@@ -54,3 +54,21 @@ test('in dev, a catalog edit renders again what reads it, keeping the locale', a
   expect(host.innerHTML).toBe('Dein Warenkorb');
   await act(() => render(null, host));
 });
+
+test("useCopy()'s t keeps its identity while the provider renders again, until the locale changes", async () => {
+  const copy = copyOf({ en: { 'a.title': 'Cart' }, de: { 'a.title': 'Warenkorb' } });
+  const seen: unknown[] = [];
+  function View() {
+    seen.push(useCopy().t);
+    return null;
+  }
+  const host = document.createElement('div');
+  const tree = (n: number) => h(CopyProvider, { copy }, h(View, null), String(n));
+  await act(() => render(tree(1), host));
+  await act(() => render(tree(2), host));
+  expect(seen.length).toBe(2);
+  expect(seen[1]).toBe(seen[0]);
+  await act(() => copy.setLocale('de'));
+  expect(seen.at(-1)).not.toBe(seen[0]);
+  await act(() => render(null, host));
+});

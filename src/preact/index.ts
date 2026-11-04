@@ -21,12 +21,19 @@ const CopyContext = createContext<{ copy: Copy; tags: Tags } | null>(null);
 
 export interface CopyProviderProps {
   copy: Copy;
-  /** Tag renderers every rich read under this provider gets, beside the copy's own. */
+  /**
+   * Tag renderers every rich read under this provider gets, beside the copy's own. Keep the object
+   * stable (a module constant, or `useMemo`): a new one makes every `useCopy()` reader new.
+   */
   tags?: Tags;
   children?: ComponentChildren;
 }
 
-export function CopyProvider({ copy, tags = {}, children }: CopyProviderProps) {
+// One object for every render without tags, so `useCopy()`'s reader keeps its identity: a fresh `{}`
+// each render would rebuild it, and every effect that depends on `t` would run again.
+const NO_TAGS: Tags = Object.freeze({});
+
+export function CopyProvider({ copy, tags = NO_TAGS, children }: CopyProviderProps) {
   const value = useMemo(() => ({ copy, tags }), [copy, tags]);
   return h(CopyContext.Provider, { value }, children);
 }
