@@ -1026,7 +1026,9 @@ profile.hi-read-the-terms:
   own. It adds the imports too.
 - The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`), or its folder's for an
   `index`; `--area` overrides it. A name in `lint.properNouns` stays one word (`GitHubConnect.tsx` →
-  `github-connect`). The key adds the message's first words, and a suffix for an
+  `github-connect`). Two files that would share an area, `routes/notifications.tsx` and
+  `components/Notifications.tsx`, each take their folder's name too (`routes-notifications`), and the
+  report says so. The key adds the message's first words, and a suffix for an
   attribute (`-placeholder`, `-tooltip`, `-aria`). Text identical to an entry already in the area, in the same
   role (its kind and surface), reuses that key: a button's "Search" and a placeholder's are two.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →

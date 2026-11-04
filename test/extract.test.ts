@@ -216,6 +216,29 @@ describe('prosebook extract', () => {
     ]);
   });
 
+  test('two files that would share an area each take their folder too, and say so', async () => {
+    const config = fixture({
+      'src/routes/notifications.tsx': 'export const Page = () => <h1>Notifications</h1>;\n',
+      'src/components/Notifications.tsx': 'export const List = () => <p>Nothing new</p>;\n',
+      'src/components/Cart.tsx': 'export const Cart = () => <p>Your cart</p>;\n',
+    });
+    const paths = ['src/routes/notifications.tsx', 'src/components/Notifications.tsx', 'src/components/Cart.tsx'];
+    const plan = await planExtract(
+      config,
+      paths.map((p) => join(config.root, p)),
+      { types: false },
+    );
+    expect(plan.entries.map((e) => e.key)).toEqual([
+      'routes-notifications.notifications',
+      'components-notifications.nothing-new',
+      'cart.your-cart',
+    ]);
+    expect(plan.files[0]!.warnings).toEqual([
+      "src/routes/notifications.tsx and src/components/Notifications.tsx would share the area notifications, so each takes its folder's name: src/routes/notifications.tsx → routes-notifications, src/components/Notifications.tsx → components-notifications. Pass --area to choose",
+    ]);
+    expect(plan.files[2]!.warnings).toEqual([]);
+  });
+
   test('a label and the hint under it are two entries, where JSX renders them with no space', async () => {
     const config = fixture({
       'src/Init.tsx': [

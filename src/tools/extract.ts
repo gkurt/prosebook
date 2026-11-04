@@ -142,8 +142,11 @@ const ONE_WORD = ['GitHub', 'GitLab', 'JavaScript', 'TypeScript', 'OAuth', 'Page
  * `nouns` (the config's `properNouns`) or one of a few such brands stays one word.
  */
 export function areaOf(file: string, nouns: readonly string[] = []): string {
-  let name = basename(file, extname(file));
-  if (['index', 'page', 'layout', 'route', 'main'].includes(name)) name = basename(dirname(file));
+  const name = basename(file, extname(file));
+  return kebabOf(['index', 'page', 'layout', 'route', 'main'].includes(name) ? basename(dirname(file)) : name, nouns);
+}
+
+function kebabOf(name: string, nouns: readonly string[]): string {
   for (const noun of [...ONE_WORD, ...nouns].filter((n) => /^[A-Za-z]+$/.test(n) && /.[A-Z]/.test(n)))
     name = name.replaceAll(noun, `-${noun.toLowerCase()}-`);
   const kebab = name
@@ -687,6 +690,7 @@ export async function planExtract(
     }
   }
   const entries: NewEntry[] = [];
+  const { areas, warnings } = areasFor(config, paths, options.area);
   const oracle = options.types === false ? undefined : await typescriptOracle(config.root, paths);
   try {
     // One file at a time: each plan sees the entries the ones before it added.
@@ -699,13 +703,42 @@ export async function planExtract(
           if (kind !== undefined && kind !== 'unknown') kinds.set(`${spans[i]!.start}:${spans[i]!.end}`, kind);
         });
       }
-      const area = options.area ?? areaOf(path, config.lint.properNouns);
-      files.push(planFile(path, { config, area, known, entries, kinds }));
+      const plan = planFile(path, { config, area: areas.get(path)!, known, entries, kinds });
+      plan.warnings.unshift(...(warnings.get(path) ?? []));
+      files.push(plan);
     }
     return { files, entries, types: oracle?.source ?? 'syntax' };
   } finally {
     await oracle?.close();
   }
+}
+
+/**
+ * Each file's area: `--area`'s, or its own. Two files that would share one, `routes/notifications.tsx`
+ * and `components/Notifications.tsx`, would mix two features' keys in one file, so each takes its
+ * folder's name too, and says so.
+ */
+function areasFor(config: ResolvedConfig, paths: string[], given: string | undefined) {
+  const nouns = config.lint.properNouns;
+  const areas = new Map(paths.map((p) => [p, given ?? areaOf(p, nouns)]));
+  const warnings = new Map<string, string[]>();
+  if (given !== undefined) return { areas, warnings };
+  const byArea = new Map<string, string[]>();
+  for (const [path, area] of areas) byArea.set(area, [...(byArea.get(area) ?? []), path]);
+  const rel = (p: string) => relative(config.root, p).replaceAll('\\', '/');
+  for (const [area, shared] of byArea) {
+    if (shared.length < 2) continue;
+    const named = shared.map((p) => `${kebabOf(basename(dirname(p)), nouns)}-${area}`);
+    if (new Set(named).size < named.length) continue;
+    shared.forEach((p, i) => areas.set(p, named[i]!));
+    const list = shared.map((p, i) => `${rel(p)} → ${named[i]}`).join(', ');
+    for (const p of shared) {
+      warnings.set(p, [
+        `${shared.map(rel).join(' and ')} would share the area ${area}, so each takes its folder's name: ${list}. Pass --area to choose`,
+      ]);
+    }
+  }
+  return { areas, warnings };
 }
 
 /** Applies a plan: rewrites the files and appends the new entries to their area's catalog file. */
