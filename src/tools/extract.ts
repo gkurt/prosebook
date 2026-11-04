@@ -258,6 +258,13 @@ function bindingsIn(root: Node, deep = true): Set<string> {
   return names;
 }
 
+/** The text of a string literal, or of a template with no placeholders. */
+function literalText(expr: Node): string | undefined {
+  if (expr.type === 'Literal' && typeof expr.value === 'string') return expr.value;
+  if (expr.type === 'TemplateLiteral' && expr.expressions.length === 0) return expr.quasis[0].value.cooked as string;
+  return undefined;
+}
+
 function elementName(el: Node): string | undefined {
   const name = el.openingElement?.name as Node | undefined;
   return name?.type === 'JSXIdentifier' ? (name.name as string) : undefined;
@@ -374,8 +381,11 @@ function planFile(path: string, ctx: Context): FilePlan {
   };
 
   const extractRun = (run: Node[], parentName: string | undefined) => {
-    // Whitespace-only text at either end stays where it is, so the layout around the run is unchanged.
-    const blank = (n: Node) => n.type === 'JSXText' && jsxText(n.value as string).trim() === '';
+    // Whitespace at either end stays where it is, so the layout around the run is unchanged: text,
+    // and `{' '}`, which is how a space is written before a line break.
+    const blank = (n: Node) =>
+      (n.type === 'JSXText' && jsxText(n.value as string).trim() === '') ||
+      (n.type === 'JSXExpressionContainer' && literalText(n.expression as Node)?.trim() === '');
     const from = run.findIndex((n) => !blank(n));
     if (from === -1) return;
     const nodes = run.slice(from, run.findLastIndex((n) => !blank(n)) + 1);
@@ -422,15 +432,19 @@ function planFile(path: string, ctx: Context): FilePlan {
         return `<${tag}>${(node.children as Node[]).map(piece).join('')}</${tag}>`;
       }
       const expr = node.expression as Node;
-      if (expr.type === 'Literal' && typeof expr.value === 'string') return escapeIcu(expr.value);
-      if (expr.type === 'TemplateLiteral' && expr.expressions.length === 0) return escapeIcu(expr.quasis[0].value.cooked as string);
+      const literal = literalText(expr);
+      if (literal !== undefined) return escapeIcu(literal);
       const kind = ctx.kinds.get(`${expr.start}:${expr.end}`) ?? syntaxKind(expr);
       if (kind === 'node') markup.push(code.slice(expr.start, expr.end));
       return `{${argName(expr)}${kind === 'number' ? ', number' : kind === 'date' ? ', date, medium' : ''}}`;
     };
 
     const markup: string[] = [];
-    let message = nodes.map(piece).join('').trim();
+    const joined = nodes.map(piece).join('');
+    // JSX text's own spaces at the ends stay in the code (below); a literal's go beside the <Text>.
+    const lead = first.type === 'JSXText' ? '' : /^\s*/.exec(joined)![0];
+    const trail = last.type === 'JSXText' ? '' : /\s*$/.exec(joined)![0];
+    let message = joined.trim();
     // A run of spaces, placeholders and punctuation is layout, not words: `{children}` beside an icon.
     const words = message.replace(/\{[^}]*\}|<\/?[\w-]+>|'[{}<]'/g, '');
     if (!LETTER.test(words)) return;
@@ -453,7 +467,8 @@ function planFile(path: string, ctx: Context): FilePlan {
     const role = parentName !== undefined ? ROLES[parentName] : undefined;
     const { key, reused } = entryFor(message, argDocs, role ?? [undefined, undefined], where(parentName));
     const props = [...values].map(([name, source]) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: ${source}`);
-    const replacement = `<Text id=${JSON.stringify(key)}${props.length > 0 ? ` values={{ ${props.join(', ')} }}` : ''} />`;
+    const space = (s: string) => (s === '' ? '' : `{${JSON.stringify(s)}}`);
+    const replacement = `${space(lead)}<Text id=${JSON.stringify(key)}${props.length > 0 ? ` values={{ ${props.join(', ')} }}` : ''} />${space(trail)}`;
     plan.edits.push({ start, end, text: replacement });
     for (const n of nodes) consumed.add(n);
     plan.extractions.push({ file, ...position(start), key, message, reused, where: 'text', replacement });
@@ -464,14 +479,7 @@ function planFile(path: string, ctx: Context): FilePlan {
     const name = attr.name?.type === 'JSXIdentifier' ? (attr.name.name as string) : '';
     if (!ctx.config.scan.attributes.includes(name) || attr.value === null) return;
     const value = attr.value as Node;
-    let text: string | undefined;
-    if (value.type === 'Literal' && typeof value.value === 'string') {
-      text = value.value;
-    } else if (value.type === 'JSXExpressionContainer') {
-      const expr = value.expression as Node;
-      if (expr.type === 'Literal' && typeof expr.value === 'string') text = expr.value;
-      if (expr.type === 'TemplateLiteral' && expr.expressions.length === 0) text = expr.quasis[0].value.cooked as string;
-    }
+    const text = value.type === 'JSXExpressionContainer' ? literalText(value.expression as Node) : literalText(value);
     if (text === undefined || !LETTER.test(text) || looksLikeCode(text) || ignored(attr.start)) return;
     const at = position(value.start);
     const fn = components.findLast((c) => c.isComponent)?.fn;

@@ -156,6 +156,43 @@ describe('prosebook extract', () => {
     expect(loadCatalog(config).messages.map((m) => m.text)).toEqual(['You have {n} files']);
   });
 
+  test('the spaces around a run render as before: a {" "} before a line break, and a literal\'s own', async () => {
+    const SPACES = [
+      'const Branch = ({ name }: { name: string }) => <code>{name}</code>;',
+      'export function Pull({ branch, n, files }: { branch: string; n: number; files: string[] }) {',
+      '  return (',
+      '    <div>',
+      '      <p>',
+      "        from{' '}",
+      '        <Branch name={branch} />',
+      '      </p>',
+      '      <p>',
+      "        in {n}{' '}",
+      '        {files.map((f) => <b key={f}>{f}</b>)}',
+      '      </p>',
+      "      <p>{'Merged '}<Branch name={branch} /></p>",
+      '    </div>',
+      '  );',
+      '}',
+    ].join('\n');
+    const config = fixture({ 'src/Before.tsx': SPACES, 'src/After.tsx': SPACES });
+    const plan = await planExtract(config, [join(config.root, 'src', 'After.tsx')], { area: 'pull', types: false });
+    expect(plan.files[0]!.extractions.map((x) => `${x.message} → ${x.replacement}`)).toEqual([
+      'from → <Text id="pull.from" />',
+      'in {n} → <Text id="pull.in" values={{ n: n }} />',
+      'Merged → <Text id="pull.merged" />{" "}',
+    ]);
+    applyExtract(config, plan);
+    generate(config);
+    const { catalog } = (await import(join(config.out, 'index.ts'))) as { catalog: Catalog };
+    const props = { branch: 'main', n: 3, files: ['a.ts'] };
+    const render = (Component: ComponentType<typeof props>) =>
+      renderToStaticMarkup(createElement(CopyProvider, { copy: createCopy(catalog) }, createElement(Component, props)));
+    const { Pull: Before } = (await import(join(config.root, 'src', 'Before.tsx'))) as { Pull: ComponentType<typeof props> };
+    const { Pull: After } = (await import(join(config.root, 'src', 'After.tsx'))) as { Pull: ComponentType<typeof props> };
+    expect(render(After)).toBe(render(Before));
+  });
+
   test('markup with no words beside it is no sentence, and says nothing', async () => {
     const config = fixture({
       'tsconfig.json': TSCONFIG,
