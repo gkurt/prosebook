@@ -329,7 +329,8 @@ describe('native targets', () => {
           Object.keys(args).length === 0 ? member : `${member}(${callArgs(args, swiftLiteral, (n) => camel(wordsOf(n))).join(', ')})`;
         return `print(Copy.${leading(camel(wordsOf(locale)))}.${call})`;
       });
-      writeFileSync(join(dir, 'main.swift'), `${lines.join('\n')}\n`);
+      // Imports are per file, and outside Apple's platforms nothing brings `Date` in unasked.
+      writeFileSync(join(dir, 'main.swift'), `import Foundation\n\n${lines.join('\n')}\n`);
       for (const [path, content] of render(config).files) if (path.endsWith('.swift')) writeFileSync(path, content);
       run('swiftc', ['-warnings-as-errors', 'Copy.swift', 'main.swift', '-o', EXE], dir);
       expect(linesOf(run(join(dir, EXE), [], dir))).toEqual(await expected(config));
