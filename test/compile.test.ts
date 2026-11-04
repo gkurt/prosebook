@@ -21,6 +21,13 @@ describe('compiled messages', () => {
     expect(say('{a}{b}', { a: 1, b: 'x' })).toBe('1x');
   });
 
+  test('a number that names something, a line or an ID, is written without grouping', () => {
+    expect(say('Line {n, number, ::group-off}', { n: 12345 })).toBe('Line 12345');
+    expect(say('Line {n, number, ::group-off}', { n: 12345 }, 'de')).toBe('Line 12345');
+    expect(say('{n, number, integer} runs', { n: 12345.6 })).toBe('12,346 runs');
+    expect(say('{n, number, ::integer-width/*0000 group-off}', { n: 42 })).toBe('0042');
+  });
+
   test('plural: exact matches, categories, # and offset', () => {
     const m = '{n, plural, =0 {none} one {# item} other {# items}}';
     expect(say(m, { n: 0 })).toBe('none');

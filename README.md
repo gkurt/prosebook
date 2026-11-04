@@ -590,6 +590,12 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag: an element i
 A placeholder holds a number, a name or something a person typed, never a translated fragment: a
 word that changes with the sentence belongs in a `plural` or `select` arm.
 
+A bare `{n}` is typed `string`, so a number has to say how it's shown: `String()` knows no locale,
+and `{n, number}` writes 1,234 in English and 1.234 in German. A number that names something rather
+than counts it, a line, a port, an ID, says `{line, number, ::group-off}` (1234 everywhere), and
+`::integer-width/*0000 group-off` pads it (0042); `{n, number, integer}` rounds to a whole number. In
+MF2 these are `{$line :integer useGrouping=never}` and `minimumIntegerDigits=4`.
+
 An argument can be used more than once where the uses agree: a select's argument can also be printed
 (`{tool, select, shell {Shell} other {{tool}}}`), and two selects on one argument take the arms of
 both. A number and a select on one argument can't agree, and fail. A skeleton's `j` is the
