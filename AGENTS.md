@@ -142,7 +142,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
-  `scan.ts`: hardcoded JSX text, key references, and `unseenReads`: reads whose key a pruned build
+  `scan.ts`: hardcoded text, key references, and `unseenReads`. Hardcoded text is JSX's, what its
+  expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
+  in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
+  and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
   can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding). A `.vue`
   or `.svelte` file is read as its script blocks and the expressions in its markup, each parsed apart
   at its offset, so lines and `prosebook-ignore` hold; Vite reads such a file whole, not the parts its
@@ -150,9 +153,13 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its
-  test renders a component before and after and compares the HTML; keep that passing.
-- `src/tools/types.ts`: what kind of value a JSX expression holds, from TypeScript 7's `unstable/async`
-  API (an optional peer) or, without it, from the expression's syntax. Not `unstable/sync`: under Bun on
+  tests render a component before and after and compare the HTML; keep them passing. It refuses a run
+  rather than write a fragment (a pick in code beside words, `splicedText`'s placeholders), reuses a key
+  only for the same role, and fills `extract.shared`. Its contexts are `TODO:` drafts, which
+  `loadCatalog` warns of until rewritten.
+- `src/tools/types.ts`: what kind of value a JSX expression holds and whether it may be null, and what
+  a component takes as `children`, from TypeScript 7's `unstable/async` API (an optional peer, whose
+  `TypeFlags` are numbered unlike TypeScript 5's) or, without it, from the expression's syntax. Not `unstable/sync`: under Bun on
   Linux and macOS it throws, and CI runs there.
 - `src/tools/bundle.ts`: what the bundler integrations share: `keeper`, the unseen reads that are a
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
