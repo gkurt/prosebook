@@ -383,10 +383,25 @@ function planFile(path: string, ctx: Context): FilePlan {
       run = [];
     };
     for (const child of children) {
-      if (inlineable(child)) run.push(child);
-      else flush();
+      if (!inlineable(child)) {
+        flush();
+        continue;
+      }
+      if (startsBlock(child, run.at(-1))) flush();
+      run.push(child);
     }
     flush();
+  };
+
+  /**
+   * An inline element glued to the word before it that opens with a capital, as a label's hint is
+   * written, `Init commands` and a line break before `<span>A bash script…</span>`: JSX renders no
+   * space there, which no sentence would be written with, so it is a block of its own.
+   */
+  const startsBlock = (child: Node, before: Node | undefined) => {
+    if (child.type !== 'JSXElement' || before?.type !== 'JSXText') return false;
+    const first = (child.children as Node[]).find((c) => c.type === 'JSXText' && jsxText(c.value as string).trim() !== '');
+    return /[\p{L}\d]$/u.test(jsxText(before.value as string)) && first !== undefined && /^\s*\p{Lu}/u.test(jsxText(first.value as string));
   };
 
   const inlineable = (child: Node): boolean => {

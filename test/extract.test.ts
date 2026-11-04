@@ -216,6 +216,28 @@ describe('prosebook extract', () => {
     ]);
   });
 
+  test('a label and the hint under it are two entries, where JSX renders them with no space', async () => {
+    const config = fixture({
+      'src/Init.tsx': [
+        'export function Init() {',
+        '  return (',
+        '    <label>',
+        '      Init commands',
+        '      <span className="hint">A bash script run as the sandbox starts.</span>',
+        '    </label>',
+        '  );',
+        '}',
+        'export const Terms = () => <p>Read the <span>Terms</span> first.</p>;',
+      ].join('\n'),
+    });
+    const [file] = (await planExtract(config, [join(config.root, 'src', 'Init.tsx')], { types: false })).files;
+    expect(file!.extractions.map((x) => x.message)).toEqual([
+      'Init commands',
+      'A bash script run as the sandbox starts.',
+      'Read the <span>Terms</span> first.',
+    ]);
+  });
+
   test('a key is reused for the same words in the same role only', async () => {
     const config = fixture({
       'copy/catalog/find.yaml': [
