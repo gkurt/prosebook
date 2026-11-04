@@ -59,9 +59,6 @@ const ANY_OR_UNKNOWN = 3;
 const NUMBER_LIKE = 67648 | 4224;
 const STRING_LIKE = 12583968;
 const UNION = 134217728;
-const NULLABLE = 12;
-/** SignatureKind.Call. */
-const CALL = 0;
 const OBJECT = 1048576;
 
 /**
@@ -104,10 +101,10 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
   };
 
   const nullable = async (type: Type): Promise<boolean> => {
-    if ((type.flags & NULLABLE) !== 0) return true;
+    if ((type.flags & ts.TypeFlags.Nullable) !== 0) return true;
     if ((type.flags & UNION) === 0) return false;
     const members = (await (type as Type & { getTypes(): Promise<readonly Type[] | undefined> }).getTypes()) ?? [];
-    return members.some((m) => (m.flags & NULLABLE) !== 0);
+    return members.some((m) => (m.flags & ts.TypeFlags.Nullable) !== 0);
   };
 
   /** Each span's node in `file`, with the checker of its project; nothing where the file is in none. */
@@ -149,7 +146,7 @@ export async function typescriptOracle(root: string, files: readonly string[]): 
       return Promise.all(
         found.types.map(async (type) => {
           if (type === undefined) return undefined;
-          const [signature] = await checker.getSignaturesOfType(type, CALL);
+          const [signature] = await checker.getSignaturesOfType(type, ts.SignatureKind.Call);
           const props = signature === undefined ? undefined : await checker.getParameterType(signature, 0);
           const children = props === undefined ? undefined : await checker.getPropertyOfType(props, 'children');
           return children === undefined ? undefined : classify(checker, await checker.getTypeOfSymbol(children));
