@@ -81,8 +81,20 @@ export function save() {
 });
 
 test('code-like tokens are not prose', () => {
-  expect(['form.json()', 'src/index.ts', 'snake_case', 'a::b', 'x=1'].filter((t) => !looksLikeCode(t))).toEqual([]);
-  expect(['Done.', 'Hello world', 'e-mail', 'Save!', 'fieldspec'].filter(looksLikeCode)).toEqual([]);
+  const code = ['form.json()', 'src/index.ts', 'snake_case', 'a::b', 'x=1', 'us-west-2', 'api.example.com\n*.example.org'];
+  const commands = ['sudo apt-get update && sudo apt-get install -y postgresql-client', 'npm install --save-dev x', '$ ls'];
+  expect([...code, ...commands].filter((t) => !looksLikeCode(t))).toEqual([]);
+  const prose = [
+    'Done.',
+    'Hello world',
+    'e-mail',
+    'Save!',
+    'fieldspec',
+    'Wait 5-10 minutes',
+    'Settings > General',
+    'Visit example.com today',
+  ];
+  expect(prose.filter(looksLikeCode)).toEqual([]);
 });
 
 describe('key references', () => {

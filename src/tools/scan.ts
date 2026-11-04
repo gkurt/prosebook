@@ -78,17 +78,28 @@ export function whereOf(h: Hardcoded): string {
 
 type Node = { type: string; start: number; end: number; [field: string]: unknown };
 
+/** A token of code: a path, a call, an identifier with an underscore, a dotted name or a glob, or an ID such as `us-west-2`. */
+const codeToken = (token: string) => /[/()_=<>{}[\].*]|::/.test(token) || (/^[\w-]+$/.test(token) && /\d/.test(token) && /-/.test(token));
+
 /**
- * Text that reads as code rather than prose: one token holding a path, a call, an identifier with an
- * underscore or a dotted name, as in `form.json()` or `src/index.ts`. Trailing punctuation doesn't
- * count, so `Done.` is still prose.
+ * Text that reads as code rather than prose, as in `form.json()`, `src/index.ts`, `us-west-2` or a
+ * list of hosts: tokens that are each code, or a shell command, which runs one after another (`&&`)
+ * or takes a flag (`-y`). Trailing punctuation doesn't count, so `Done.` is still prose.
  */
 export function looksLikeCode(text: string): boolean {
-  const token = text.trim().replace(/[.!?:,…]+$/, '');
-  return token !== '' && !/\s/.test(token) && /[/()_=<>{}[\].]|::/.test(token);
+  const tokens = text
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.replace(/[.!?:,…]+$/, ''))
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  if (tokens.every(codeToken)) return true;
+  return /(?:^|\s)(?:&&|\|\|)(?=\s)/.test(text) || /(?:^|\s)--?[a-z][\w-]*(?=\s|$)/.test(text) || /^\s*(?:sudo|\$)\s/.test(text);
 }
 
+/** Elements whose text is code, keys or markup, not prose: `<kbd>`, and components named for them, `<Kbd>`. */
 const NON_PROSE_ELEMENTS = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path']);
+export const isNonProse = (name: string) => NON_PROSE_ELEMENTS.has(name.toLowerCase());
 /** Tests and stories hold text a person never reads in the app: fixtures, expectations. */
 const NOT_APP = /\.(?:test|spec|stories)\.[cm]?[jt]sx?$/;
 
@@ -195,7 +206,7 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     let prose = inProse;
     if (node.type === 'JSXElement') {
       const opening = node.openingElement as Node & { name: Node & { name?: string } };
-      if (opening.name.type === 'JSXIdentifier' && NON_PROSE_ELEMENTS.has(opening.name.name ?? '')) prose = false;
+      if (opening.name.type === 'JSXIdentifier' && isNonProse(opening.name.name ?? '')) prose = false;
     }
     if (node.type === 'JSXText' && prose) report(node, node.value as string, 'text');
     if (node.type === 'JSXExpressionContainer' && prose) reportShown(node.expression as Node, 'text');

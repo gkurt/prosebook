@@ -17,7 +17,7 @@ import { CatalogError, KEY_PATTERN, loadCatalog, SCHEMA_LINE } from './catalog.t
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage } from './icu.ts';
 import { singularOf } from './lint.ts';
-import { looksLikeCode } from './scan.ts';
+import { isNonProse, looksLikeCode } from './scan.ts';
 import { writeMessage } from './syntax.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueKind } from './types.ts';
 
@@ -71,7 +71,6 @@ export interface ExtractPlan {
 }
 
 const MODULE = 'prosebook/react';
-const NON_PROSE = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path', 'Text']);
 const LETTER = /\p{L}/u;
 
 /** Elements that sit inside a sentence, and so become a tag in its message rather than ending it. */
@@ -571,7 +570,7 @@ ${indent}const copy = useCopy();`);
           if (attr.value?.type === 'JSXExpressionContainer') visit(attr.value as Node, attr);
         }
       }
-      if (name === undefined || !NON_PROSE.has(name)) {
+      if (name === undefined || (name !== 'Text' && !isNonProse(name))) {
         extractChildren(node, node.children as Node[]);
         for (const child of node.children as Node[]) if (!consumed.has(child)) visit(child, node);
       }

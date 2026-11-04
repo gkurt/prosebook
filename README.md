@@ -1031,8 +1031,9 @@ profile.hi-read-the-terms:
   reuses that key.
 - `kind` and `surface` come from the element where it's clear (`<button>` → action, `<h2>` →
   heading, `placeholder` → placeholder). `context` names the component and the element.
-- Whitespace renders exactly as before. Code-like tokens (`form.json()`, `src/index.ts`), text in
-  `<code>` and `<pre>`, and lines marked `prosebook-ignore` stay where they are.
+- Whitespace renders exactly as before. Code-like text (`form.json()`, `src/index.ts`, `us-west-2`, a
+  list of hosts, a shell command), text in `<code>`, `<pre>` and `<kbd>` and components named for them
+  (`<Kbd>`), and lines marked `prosebook-ignore` stay where they are; `scan` skips them too.
 
 **Typed placeholders.** extract asks the project's TypeScript (7 or later, found through the nearest
 `tsconfig.json`) what each expression holds:

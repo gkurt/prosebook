@@ -193,6 +193,24 @@ describe('prosebook extract', () => {
     expect(render(After)).toBe(render(Before));
   });
 
+  test('a key, an example value or a command is not copy', async () => {
+    const config = fixture({
+      'src/Bar.tsx': [
+        'const Kbd = ({ children }: { children: string }) => <kbd>{children}</kbd>;',
+        'export const Bar = () => (',
+        '  <div>',
+        '    <p>Fit to view <Kbd>F</Kbd></p>',
+        '    <input placeholder="us-west-2" />',
+        '    <textarea placeholder="sudo apt-get update && sudo apt-get install -y jq" />',
+        "    <textarea placeholder={'api.example.com\\n*.example.org'} />",
+        '  </div>',
+        ');',
+      ].join('\n'),
+    });
+    const [file] = (await planExtract(config, [join(config.root, 'src', 'Bar.tsx')], { types: false })).files;
+    expect(file!.extractions.map((x) => x.message)).toEqual(['Fit to view']);
+  });
+
   test('markup with no words beside it is no sentence, and says nothing', async () => {
     const config = fixture({
       'tsconfig.json': TSCONFIG,
