@@ -1,45 +1,17 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A server render links the files of the areas it reads\n\nUnder Vite, a split client's lazy locales are listed in the server build's catalog, and `createCopy`'s new `preload` is handed each file the render reads from, once: `preload: (href) => preloadModule(href, { as: 'script' })` under React, so the browser fetches German beside the route's code rather than after it.\n"
-    filename: preload-area-files.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Guidelines, and a writing guide for an agent to read before it writes\n\nA lint rule of `type: 'guideline'` is advice no pattern can check. `generate` writes `copy/catalog/WRITING.md` with what each kind and surface is for, the guidelines, and any checked rule marked `guide: true`, and `generate --check` fails once it is stale. Set `guide` to move it, or `false` for none. A guideline whose `on.locale` reads a translation's locale is said in that locale's `todo --prompt` too.\n"
+    filename: writing-guide.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A split build loads a lazy locale's areas in one file per chunk\n\nAreas the bundler puts in one chunk share a file in each lazy locale, so a route reading three areas loads German in one request, not three. Which areas share a chunk is read from the imports under `scan.dirs`, under Vite, Bun and Next alike.\n"
-    filename: area-groups.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Bindings for Preact, Vue, Svelte and Solid\n\n`prosebook/preact`, `prosebook/vue`, `prosebook/svelte` and `prosebook/solid` each give the copy to components the framework's way, update what reads a message when the locale changes, and render rich messages as the framework's own elements: Vue's `<Text>` takes tags as slots, and Svelte's as snippets.\n\n### Strict pruning reads `.vue` and `.svelte` files\n\nA build fails on a read whose key it can't see in a Vue template or Svelte markup as it does in a script, and `scan` finds keys there; `.vue` and `.svelte` join `scan.extensions`' defaults.\n\n### `useCopy()` in React reads the registered catalog's keys\n\n`useCopy().t` and the other plain reads are typed by `Register` as `rich` already was, so a misspelled key there is a type error.\n"
-    filename: framework-bindings.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Dates in Rust, Swift and Kotlin\n\nA `{when, date}` or `{when, time}` message now generates native code, with each format taken apart from `Intl` and checked against it as number formats are: a `Date` in Swift and a `java.time.Instant` in Kotlin, shown in the device's time zone, and in Rust a `DateTime` of the clock's fields, made with `DateTime::from_unix(seconds, offset)`.\n\n### Apple plurals in a `.stringsdict`\n\nThe `apple` target writes a message with a plural to a `.stringsdict` beside its `.strings` table, each plural a variable with its count as `%lld`, instead of failing `generate`.\n"
-    filename: native-dates-stringsdict.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook export`: a locale's entries as XLIFF 2.0 or JSON, for translation tools\n\n`export <locale> [file]` writes what `todo` lists, or every entry with `--all`, with each entry's context, kind, surface and placeholders as XLIFF notes. `import` takes the tool's XLIFF or JSON back, checked as a reply is: a translation of a source that has changed since the export is left out, and a stale one given back unchanged is accepted once the tool has moved it on from `initial`.\n"
-    filename: exchange-formats.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Every catalog file starts with its schema line\n\n`generate` adds `# yaml-language-server: $schema=./catalog.schema.json` to a catalog file that doesn't start with it, since an editor finds the schema only through that line, and `generate --check` and `check` fail on such a file, saying why. A file that names a schema of its own on its first line keeps it.\n"
-    filename: catalog-schema-line.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Splitting by area: a lazy route brings its own messages\n\nWith `prosebook({ split: true })`, the Vite, Bun and Next integrations ship each area's messages beside the code that reads them, and a lazy locale loads area by area, so a lazy route loads only its own messages and renders in the reader's language from its first frame. A key read before its area loaded is reported through `onError`.\n"
-    filename: split-by-area.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A server render links the files of the areas it reads, under Bun too\n\nA split `Bun.build` lists each lazy locale's files in the server's catalog, so `createCopy`'s `preload` is handed them as under Vite: in a full-stack build from the page built beside the server, and in a server's own build from the page's build before it.\n"
+    filename: preload-area-files-bun.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - preload-area-files.md
-      - area-groups.md
-      - framework-bindings.md
-      - native-dates-stringsdict.md
-      - exchange-formats.md
-      - catalog-schema-line.md
-      - split-by-area.md
+      - writing-guide.md
+      - preload-area-files-bun.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-preact
-    updated: false
   - id: npm:example-bun
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-vue
     updated: false
   - id: npm:example-svelte
     updated: false
@@ -47,16 +19,24 @@ core:packages:
     updated: false
   - id: npm:example-tanstack-start
     updated: false
+  - id: npm:example-vue
+    updated: false
   - id: npm:example-node
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-preact
   - id: npm:example-bun
-  - id: npm:example-next
-  - id: npm:example-solid
-  - id: npm:example-vue
   - id: npm:example-svelte
   - id: npm:example-vite
   - id: npm:example-tanstack-start
+  - id: npm:example-vue
   - id: npm:example-node
+  - id: npm:example-solid
+  - id: npm:example-next
+  - id: npm:example-preact
