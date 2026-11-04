@@ -379,7 +379,16 @@ describe('prosebook extract', () => {
     applyExtract(config, plan);
     generate(config);
     const { catalog } = (await import(join(config.out, 'index.ts'))) as { catalog: Catalog };
-    const props = { n: 1, pending: true, ok: true, x: null, name: 'Ada', kind: 'a', takes: ['a', 'b'], t: (k: string) => k };
+    const props = {
+      n: 1,
+      pending: true,
+      ok: true,
+      x: null as string | null,
+      name: 'Ada',
+      kind: 'a',
+      takes: ['a', 'b'],
+      t: (k: string) => k,
+    };
     const render = (Component: ComponentType<typeof props>, p = props) =>
       renderToStaticMarkup(createElement(CopyProvider, { copy: createCopy(catalog) }, createElement(Component, p)));
     const { Picks: Before } = (await import(join(config.root, 'src', 'Before.tsx'))) as { Picks: ComponentType<typeof props> };
