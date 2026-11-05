@@ -4,7 +4,7 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import type { DevHooks } from 'prosebook';
 import { entryLocation, loadCatalog } from 'prosebook/tools';
 
-import { keyAt } from '#src/inspector.ts';
+import { keyAt, rangeOf } from '#src/inspector.ts';
 import { record, type Reads } from '#src/reads.ts';
 import { copyOf, fixture } from './fixture.ts';
 
@@ -74,6 +74,25 @@ describe('finding the key under the pointer', () => {
     expect(keyAt(body.querySelector('h1')!, undefined, reads)?.read.key).toBe('cart.title');
     expect(keyAt(body.querySelector('input')!, undefined, reads)?.read.key).toBe('cart.search');
     expect(keyAt(body.querySelector('span')!, undefined, reads)).toBeUndefined();
+  });
+
+  test('a text beside others in one element is found where it stands, across its elements', () => {
+    document.body.innerHTML = '<p>Ready. <span>Read <a href="#">the terms</a>.</span> Cart</p>';
+    const p = document.querySelector('p')!;
+    const hit = keyAt(p, { node: p.lastChild!, offset: 2 }, reads);
+    expect(hit?.read.key).toBe('cart.title');
+    expect(hit?.at).toEqual({ start: 23, end: 27 });
+    expect(rangeOf(p, hit!.at!).toString()).toBe('Cart');
+    const terms = keyAt(document.querySelector('a')!, { node: textIn('a'), offset: 2 }, reads);
+    expect(terms?.element.tagName).toBe('SPAN');
+    expect(rangeOf(p, { start: 7, end: 22 }).toString()).toBe('Read the terms.');
+    expect(rangeOf(terms!.element, terms!.at!).toString()).toBe('Read the terms.');
+  });
+
+  test('without a caret, the space around a whole text is left out', () => {
+    document.body.innerHTML = '<h1>  Cart \n</h1>';
+    const h1 = document.querySelector('h1')!;
+    expect(rangeOf(h1, keyAt(h1, undefined, reads)!.at!).toString()).toBe('Cart');
   });
 
   test('the oldest texts are forgotten first', () => {

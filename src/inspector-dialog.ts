@@ -77,13 +77,13 @@ legend { font-size: 12px; font-weight: 500; color: var(--muted); padding: 0 0 4p
 .findings button.say:hover { text-decoration: underline; }
 .findings .rule { font: 11px/1.4 ui-monospace, monospace; color: var(--muted); }
 .findings button.fix { padding: 2px 8px; font-size: 12px; }
-.status { color: var(--muted); }
-.status.ok { color: var(--ok); }
 button {
   font: 500 13px/1 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--fg); background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer;
 }
 button.primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+button.primary:disabled { cursor: progress; }
+button.primary.saved { background: #15803d; border-color: #15803d; }
 button.link { border: 0; padding: 7px 0; color: var(--muted); text-decoration: underline; background: transparent; }
 button.close { border: 0; padding: 2px 6px; font-size: 18px; color: var(--muted); background: transparent; }
 button.remove[aria-pressed='true'] { color: var(--err); border-color: currentColor; }
@@ -123,7 +123,6 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   closeOpen = close;
 
   const problems = el('ul', { className: 'problems' });
-  const status = el('span', { className: 'status' });
   const body = el('div', { className: 'body' });
   const tabs = {
     fields: el('button', { type: 'button', textContent: 'Fields' }),
@@ -371,14 +370,19 @@ export async function openDialog(options: DialogOptions): Promise<void> {
   body.addEventListener('input', check);
   body.addEventListener('change', check);
 
+  // The button says how saving goes, so the footer's row keeps its width.
   const save = async () => {
-    status.className = 'status';
-    status.textContent = 'Checking…';
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    saveButton.textContent = 'Checking…';
     const saved = await send(true);
-    status.textContent = '';
-    if (saved === undefined) return;
-    status.className = 'status ok';
-    status.textContent = 'Saved';
+    if (saved === undefined) {
+      saveButton.disabled = false;
+      saveButton.textContent = 'Save';
+      return;
+    }
+    saveButton.classList.add('saved');
+    saveButton.textContent = 'Saved';
     setTimeout(close, 600);
   };
 
@@ -421,7 +425,7 @@ export async function openDialog(options: DialogOptions): Promise<void> {
     body,
     all,
     problems,
-    el('footer', {}, openFile, el('span', { className: 'grow' }), status, removeButton, cancel, saveButton),
+    el('footer', {}, openFile, el('span', { className: 'grow' }), removeButton, cancel, saveButton),
   );
   // Keys typed here are the dialog's: the app's shortcuts don't see them.
   for (const type of ['keydown', 'keyup', 'keypress'] as const) host.addEventListener(type, (e) => e.stopPropagation());

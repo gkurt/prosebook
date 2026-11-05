@@ -25,6 +25,8 @@ export interface Hit {
   others: number;
   /** The innermost element holding all of the text. */
   element: Element;
+  /** Where the text is in the element's, or nothing for an attribute's. */
+  at?: { start: number; end: number };
 }
 
 const ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt', 'value'];
@@ -42,8 +44,8 @@ export function keyAt(target: Element, caret: Caret | undefined, reads: Reads): 
     const at = caret === undefined ? undefined : offsetIn(el, caret);
     for (const [said, seen] of reads) {
       if (said.length <= (best?.text.length ?? 0)) continue;
-      if (at === undefined ? text.trim() === said.trim() : covers(text, said, at))
-        best = { text: said, read: seen[0]!, others: seen.length - 1, element: el };
+      const found = at === undefined ? whole(text, said) : covering(text, said, at);
+      if (found !== undefined) best = { text: said, read: seen[0]!, others: seen.length - 1, element: el, at: found };
     }
     if (best !== undefined || el !== target) continue;
     for (const name of ATTRIBUTES) {
@@ -55,10 +57,54 @@ export function keyAt(target: Element, caret: Caret | undefined, reads: Reads): 
   return best;
 }
 
-/** Whether an occurrence of `said` in `text` holds the character at `at`. */
-function covers(text: string, said: string, at: number): boolean {
+/** The occurrence of `said` in `text` holding the character at `at`. */
+function covering(text: string, said: string, at: number): Hit['at'] {
   const start = text.indexOf(said, Math.max(0, at - said.length + 1));
-  return start !== -1 && start <= at;
+  return start === -1 || start > at ? undefined : { start, end: start + said.length };
+}
+
+/** The text without the space around it, when that is what was said. */
+function whole(text: string, said: string): Hit['at'] {
+  if (text.trim() !== said.trim()) return undefined;
+  const start = text.length - text.trimStart().length;
+  return { start, end: start + text.trim().length };
+}
+
+/** The range of the element's text between two indexes in it. */
+export function rangeOf(el: Element, { start, end }: { start: number; end: number }): Range {
+  const range = el.ownerDocument.createRange();
+  range.selectNodeContents(el);
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const length = node.textContent?.length ?? 0;
+    if (start >= offset && start < offset + length) range.setStart(node, start - offset);
+    if (end > offset && end <= offset + length) {
+      range.setEnd(node, end - offset);
+      break;
+    }
+    offset += length;
+  }
+  return range;
+}
+
+/**
+ * The boxes a range's text takes on screen, one per line: a range across elements has a rect for each
+ * element and each piece of text, which overlap.
+ */
+function linesOf(range: Range): DOMRect[] {
+  const lines: DOMRect[] = [];
+  for (const r of [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0).sort((a, b) => a.top - b.top)) {
+    const line = lines.find((l) => Math.min(l.bottom, r.bottom) - Math.max(l.top, r.top) > Math.min(l.height, r.height) / 2);
+    if (line === undefined) {
+      lines.push(DOMRect.fromRect(r));
+      continue;
+    }
+    const left = Math.min(line.left, r.left);
+    const top = Math.min(line.top, r.top);
+    Object.assign(line, { x: left, y: top, width: Math.max(line.right, r.right) - left, height: Math.max(line.bottom, r.bottom) - top });
+  }
+  return lines;
 }
 
 /** The caret's index in the element's text, or nothing when the caret is outside it. */
@@ -117,21 +163,22 @@ export function install({ base }: InspectorOptions): void {
   // The browser's own reads win where both came to the same text: they are the more recent.
   const known = () => (served.size === 0 ? reads : new Map([...served, ...reads]));
 
-  const box = document.createElement('div');
+  // A box per line of the text found, the label on the first.
+  const layer = document.createElement('div');
   const label = document.createElement('div');
-  box.append(label);
-  Object.assign(box.style, {
-    position: 'fixed',
-    display: 'none',
-    zIndex: '2147483647',
-    pointerEvents: 'none',
-    boxSizing: 'border-box',
-    outline: '2px solid #7c3aed',
-    background: 'rgb(124 58 237 / 0.08)',
-  });
+  Object.assign(layer.style, { position: 'fixed', inset: '0', display: 'none', zIndex: '2147483647', pointerEvents: 'none' });
+  const lineBox = () => {
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      position: 'fixed',
+      boxSizing: 'border-box',
+      outline: '2px solid #7c3aed',
+      background: 'rgb(124 58 237 / 0.08)',
+    });
+    return box;
+  };
   Object.assign(label.style, {
-    position: 'absolute',
-    left: '-2px',
+    position: 'fixed',
     padding: '1px 6px',
     font: '12px/1.5 ui-monospace, monospace',
     whiteSpace: 'nowrap',
@@ -147,18 +194,33 @@ export function install({ base }: InspectorOptions): void {
     return target === null ? undefined : keyAt(target, caretAt(x, y), known());
   };
   const hide = () => {
-    box.style.display = 'none';
+    layer.style.display = 'none';
   };
   const show = () => {
     frame = 0;
     const hit = pointer === undefined ? undefined : hitAt(pointer.x, pointer.y);
     if (hit === undefined) return hide();
-    const r = hit.element.getBoundingClientRect();
-    Object.assign(box.style, { display: 'block', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    // Below the box when there is no room above it.
-    Object.assign(label.style, r.top < 24 ? { top: '100%', bottom: '' } : { top: '', bottom: '100%' });
+    // Only the text's own lines, as an element may hold other strings beside it.
+    const lines = hit.at === undefined ? [] : linesOf(rangeOf(hit.element, hit.at));
+    if (lines.length === 0) lines.push(hit.element.getBoundingClientRect());
+    layer.replaceChildren(
+      ...lines.map((r) => {
+        const box = lineBox();
+        Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+        return box;
+      }),
+      label,
+    );
+    const first = lines[0]!;
+    // Below the first line when there is no room above it.
+    Object.assign(label.style, {
+      left: `${first.left - 2}px`,
+      top: first.top < 24 ? `${first.bottom + 2}px` : '',
+      bottom: first.top < 24 ? '' : `${innerHeight - first.top + 2}px`,
+    });
     label.textContent = `${hit.read.key} · ${hit.read.locale}${hit.others > 0 ? ` (+${hit.others} with this text)` : ''}`;
-    if (!box.isConnected) document.body.append(box);
+    layer.style.display = 'block';
+    if (!layer.isConnected) document.body.append(layer);
   };
   const update = (e: MouseEvent | KeyboardEvent) => {
     if (!e.altKey) return hide();
