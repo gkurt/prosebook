@@ -82,7 +82,7 @@ test('init writes a catalog that generates, with nothing for scan to report', ()
   expect(cli(root, 'init').code).toBe(0);
   expect(read(root, 'copy/catalog/app.yaml')).toContain('# app.title:');
   expect(cli(root, 'generate').code).toBe(0);
-  expect(cli(root, 'scan').stdout).toContain('0 hardcoded string(s), 0 unused key(s)');
+  expect(cli(root, 'scan').stdout).toContain('0 hardcoded string(s), 0 formatted in code, 0 unused key(s)');
 });
 
 test("scan and check report a read whose key a pruned build can't see", () => {
