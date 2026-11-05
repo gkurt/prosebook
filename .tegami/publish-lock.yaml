@@ -1,38 +1,62 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The pseudo-locale stays out of production\n\nA build through `prosebook/vite`, `prosebook/next` or `prosebook/bun` (and Bun's server run with `NODE_ENV=production`) leaves the `pseudo` locale out of `catalog.locales` and ships none of its messages, so a locale switcher built from `copy.locales` no longer offers `en-XA` to users. Dev keeps it, and `generate` still writes its module.\n"
-    filename: pseudo-dev-only.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook rename`: a key, or a whole area, renamed everywhere it is written\n\n`prosebook rename cart.checkout pay.button --write` renames the key and the keys under it in the catalog (moving each entry to its new area's file), in every translation, in the lock, so stale translations stay stale, and in every string literal in the code that names it. A read through a prefix moves with a renamed area; one that may reach a renamed key otherwise is named for renaming by hand. A dry run without `--write`.\n"
+    filename: rename.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Named formats: a number or date format named once in the config, shown the same everywhere\n\n`formats: { number: { price: { style: 'currency', currency: 'EUR' } }, date: { receipt: { dateStyle: 'medium', timeStyle: 'short' } } }` lets a message say `{total, number, price}` (`{$total :number format=price}` in MF2) and code say `copy.number(total, 'price')` or `copy.date(when, 'receipt')`, with the names typed. `formats.locales` shows a format differently in a locale or language. The writing guide lists the formats, and the `named-format` lint warns of a message that writes out a named format's options rather than its name.\n"
+    filename: named-formats.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook diff`: the copy a change makes, for review\n\n`prosebook diff origin/main` lists each entry added, removed, renamed or changed since a git revision, its source as a word diff, the translations it changed, those it left stale or missing, and the lint's findings on the words it wrote. `--format markdown` writes it for a pull request's comment; API.md has a workflow that posts it and keeps it up to date.\n"
+    filename: copy-diff.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `duplicate`: two entries saying the same words in the same role\n\nA warning on every entry after the first that says what another says, as the same kind on the same surface, naming the one to read instead (or, with `extract.shared`, to move there). Turn it off with `rules: { duplicate: 'off' }`.\n"
+    filename: duplicate-rule.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The pseudo-locale pads each message to the length a translation reaches\n\n`⟦Šááṽéé ·⟧`: a short label doubles, as \"Save\" does in German, and a long sentence grows by a third, so the pseudo-locale finds the layouts that clip a translation.\n"
+    filename: pseudo-padding.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Translations are held to their language's punctuation\n\n`quotes` (German „…“, French « », per CLDR, set per locale with `lint.quotes`), `french-spacing` (no-break spaces before `; ! ? :` and inside guillemets), `inverted-marks` (Spanish ¿ and ¡) and `full-width` (，。？！ after Chinese and Japanese text). All but `inverted-marks` are fixed by `prosebook lint --fix`. A lint plugin's `match` may now be a regular expression, and its rules see the whole `catalog`.\n"
+    filename: punctuation-per-language.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `plural-forms`: a plural writes every form its locale counts in\n\nA Polish translation with only `one` and `other` now fails the lint, naming `few` and `many`, where it used to fall back to `other` and say \"5 pliki\". So does a German one with no `one` arm. `plural-unused-form` warns of an arm whose form the locale never picks, such as English `zero` (write `=0`) or `few` (write the count, `=4`). MessageFormat 2 messages are read by the variant keys written, not the arms `*` fills in.\n"
+    filename: plural-forms.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - pseudo-dev-only.md
+      - rename.md
+      - named-formats.md
+      - copy-diff.md
+      - duplicate-rule.md
+      - pseudo-padding.md
+      - punctuation-per-language.md
+      - plural-forms.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-bun
-    updated: false
   - id: npm:example-preact
     updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-solid
     updated: false
   - id: npm:example-vue
     updated: false
   - id: npm:example-next
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-node
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-solid
-  - id: npm:example-bun
   - id: npm:example-preact
-  - id: npm:example-svelte
-  - id: npm:example-node
-  - id: npm:example-vite
-  - id: npm:example-tanstack-start
+  - id: npm:example-solid
   - id: npm:example-vue
   - id: npm:example-next
+  - id: npm:example-bun
+  - id: npm:example-tanstack-start
+  - id: npm:example-vite
+  - id: npm:example-svelte
+  - id: npm:example-node
