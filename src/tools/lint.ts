@@ -216,7 +216,7 @@ export interface Readings {
   skeleton: string;
 }
 
-function readings(message: MessageFormatElement[]): Readings {
+export function readings(message: MessageFormatElement[]): Readings {
   const literal = staticLiteral(message);
   const ast = literal === undefined ? message : ([{ type: TYPE.literal, value: literal }] as MessageFormatElement[]);
   const arms = new Set<string>();

@@ -139,6 +139,7 @@ prosebook export de de.xlf    # XLIFF 2.0 or JSON for a translation tool
 ```bash
 prosebook lint      # the words against the writing rules (--fix)
 prosebook scan      # hardcoded text, and keys no code reads
+prosebook find "Save" # the entries that say it already, before adding one
 prosebook extract   # move hardcoded JSX text into the catalog
 prosebook check     # all of it, for CI (--format sarif for code scanning)
 ```

@@ -273,6 +273,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   being a rename. Stale locales come from `reconcile` over the working lock, findings from `lint`,
   kept to the locales whose words the change wrote. Text in `git diff --word-diff`'s notation, or
   Markdown for a pull request's comment, opening with `REVIEW_MARKER` and every cell escaped.
+- `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)
+  and their key past its area, which the writing guide tells writers to run before adding one.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's
   YAML block (`snippetOf` and the comments above it) cut from its file and written, rekeyed, to its new
   area's, in every locale; the lock's anchors moved with it, and string literals naming a key, or a

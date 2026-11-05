@@ -11,7 +11,7 @@ The full reference. For an overview, see the [README](README.md).
   [MessageFormat 2](#messageformat-2)
 - [Translations](#translations): [Stale](#stale-translations) · [With a model](#translating-with-a-model) ·
   [Translation tools](#translation-tools) · [Pseudo-locale](#pseudo-locale)
-- [CLI](#cli): [Lint](#lint) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Rename](#rename) · [Diff](#diff)
+- [CLI](#cli): [Lint](#lint) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Find](#find) · [Rename](#rename) · [Diff](#diff)
 - [Builds](#builds): [Pruning](#pruning) · [Splitting](#splitting)
 - [Inspector](#inspector)
 - [Native targets](#native-targets): [Rust, Swift, Kotlin](#rust-swift-kotlin) · [Android](#android-resources) ·
@@ -646,6 +646,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                        |
 | `diff [base]`            | The copy changed since a git revision (`--format markdown`).                            |
 | `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                 |
+| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).      |
 | `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                               |
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status` and `check` take `--format sarif`.
@@ -864,6 +865,17 @@ profile.hi-read-the-terms:
   number before a plural noun a plural. Without it, the syntax decides.
 - Code-like text, `<code>`, `<pre>`, `<kbd>` and `prosebook-ignore` lines stay.
 - Draft contexts and args are warnings in `generate` and `check` until rewritten.
+
+### Find
+
+```text
+$ prosebook find "check out" --kind action
+prosebook: 1 entry says "check out" as kind action: read it rather than adding another
+  cart.checkout (action, action): Check out  copy/catalog/cart.yaml:37
+```
+
+The entries saying those words, the closest first: every arm of a message is read, without case or punctuation, and the words of
+a key past its area. The writing guide tells whoever writes next to run it before adding an entry.
 
 ### Rename
 

@@ -6,6 +6,8 @@ Read this before adding or changing an entry in the catalog. It says what the li
 
 Every string a person reads is an entry in `copy/catalog/<area>.yaml`, in English, read from the code by its key. A key's first segment names its file: `cart.items` lives in `cart.yaml`. An entry holds the message under `en`, in ICU MessageFormat, a `context` sentence saying where it appears, and under `args` what each placeholder holds. Give it a `kind` and a `surface` from the lists below.
 
+Before adding an entry, look for one that says it already: `prosebook find "Save changes" --kind action --surface action`. Read the one it names rather than adding another, unless it means something else there.
+
 ## Kinds
 
 - `name`: Identifies a thing so it can be found again. One to four words, a noun phrase, no period.

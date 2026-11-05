@@ -80,6 +80,8 @@ export function writingGuide(config: ResolvedConfig): string {
         : ` Words several features say, \`Cancel\` and \`Loading…\`, are one entry in \`${config.extract.shared}.yaml\`: read that one rather than adding another.`
     }`,
     '',
+    'Before adding an entry, look for one that says it already: `prosebook find "Save changes" --kind action --surface action`. Read the one it names rather than adding another, unless it means something else there.',
+    '',
     '## Kinds',
     '',
     ...Object.entries(config.kinds).map(([name, kind]) => `- ${code(name)}: ${kind.doc}`),

@@ -8,11 +8,12 @@ import { dirname, extname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { scanSources, watchCatalog } from './tools/bundle.ts';
-import { CatalogError, entryLocator, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
+import { CatalogError, entryLocator, loadCatalog, previewOf, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
+import { findEntries } from './tools/find.ts';
 import { generate, render } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 import { changeOf, type StaleTranslation } from './tools/lock.ts';
@@ -53,6 +54,8 @@ Commands:
   diff [base]             The copy changed since a git revision (HEAD by default): each entry's words
                           as a word diff, the translations it left stale, and the lint's findings on
                           them  (--format markdown: for a pull request's comment)
+  find <words>            The entries saying those words, to read one before adding another
+                          (--kind, --surface: only entries in that role)
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
   check                   generate --check, lint and status --strict together, for CI, and warns
@@ -103,6 +106,8 @@ async function main(argv: string[]): Promise<number> {
       unsafe: { type: 'boolean' },
       prompt: { type: 'boolean' },
       area: { type: 'string' },
+      kind: { type: 'string' },
+      surface: { type: 'string' },
       format: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -169,6 +174,8 @@ async function main(argv: string[]): Promise<number> {
         return runDiff(config, rest[0] ?? 'HEAD', values.format === 'markdown');
       case 'rename':
         return runRename(config, rest[0], rest[1], values.write === true);
+      case 'find':
+        return runFind(config, rest.join(' '), values.kind, values.surface);
       case 'check': {
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
@@ -511,6 +518,33 @@ function runDiff(config: ResolvedConfig, base: string, markdown: boolean): numbe
     return 1;
   }
   out(markdown ? reviewMarkdown(review) : reviewText(review));
+  return 0;
+}
+
+function runFind(config: ResolvedConfig, query: string, kind?: string, surface?: string): number {
+  if (query.trim() === '') {
+    err('Usage: prosebook find <words> [--kind <kind>] [--surface <surface>]');
+    return 1;
+  }
+  const catalog = loadCatalog(config, undefined, { partial: true });
+  const found = findEntries(catalog.messages, query, { kind, surface });
+  const role = [kind && `kind ${kind}`, surface && `surface ${surface}`].filter(Boolean).join(', ');
+  if (found.length === 0) {
+    out(`prosebook: no entry says "${query}"${role ? ` as ${role}` : ''}: add one`);
+    return 0;
+  }
+  const locate = entryLocator(config.root);
+  const exact = found.filter((f) => f.exact).length;
+  out(
+    exact > 0
+      ? `prosebook: ${exact} entr${exact === 1 ? 'y says' : 'ies say'} "${query}"${role ? ` as ${role}` : ''}: read ${exact === 1 ? 'it' : 'one'} rather than adding another`
+      : `prosebook: no entry says "${query}" exactly; the closest:`,
+  );
+  for (const { message: m } of found) {
+    const { line } = locate(m.file, m.key, undefined, config.source);
+    const as = [m.kind, m.surface].filter(Boolean).join(', ');
+    out(`  ${m.key}${as ? ` (${as})` : ''}: ${previewOf(m)}  ${m.file}:${line}`);
+  }
   return 0;
 }
 
