@@ -11,8 +11,9 @@ import { formatIn } from '#src/runtime/formats.ts';
 
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
+import { apart, entriesSaying } from './duplicates.ts';
 import { categoriesOf, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
-import type { KindRule, Severity } from './presets.ts';
+import { byLocale, FULL_WIDTH, QUOTED, type KindRule, type Severity } from './presets.ts';
 
 /** What a rule is given about one message in one locale. */
 export interface RuleContext {
@@ -70,6 +71,11 @@ export interface Report {
    * text's. For a regular expression, a replacement as `String.replace` takes it (`$1`).
    */
   fix?: string;
+  /**
+   * Findings that are one problem across entries, which the text output says once, at `key`'s entry:
+   * `duplicate`'s group. Each entry still has its own finding, for its exemption and for SARIF.
+   */
+  group?: { key: string; message: string };
 }
 
 /** A replacement in a message's text, by offset. */
@@ -174,6 +180,8 @@ export interface Finding {
   at?: { start: number; end: number };
   /** The edits that fix it, at every place the match stands. */
   fix?: Edit[];
+  /** The problem it is part of, said once for every entry in it (`Report.group`), at `key` in `file`. */
+  group?: { key: string; file: string; message: string };
 }
 
 /** Stands in for a placeholder in a reading, which no prose rule reads. */
@@ -474,46 +482,9 @@ function countedWords(arm: MessageFormatElement[], name: string): string[] {
   return phrases.flatMap((phrase) => phrase.match(/\p{L}[\p{L}'’]*/gu) ?? []);
 }
 
-/** The marks the `quotes` rule finds, as pairs: straight, English, German and Polish lower-upper, guillemets and corner brackets. */
-const QUOTED = /"([^"\n]+)"|“([^“”\n]+)”|„([^„“”\n]+)[“”]|«\s?([^«»\n]+?)\s?»|「([^「」\n]+)」|”([^“”\n]+)”/gu;
-
 /** No-break spaces, as French sets them: written as escapes, since an editor shows neither. */
 const NBSP = '\u00A0';
 const NARROW_NBSP = '\u202F';
-
-/** The punctuation written after Chinese and Japanese text in its full-width form, by language. */
-const FULL_WIDTH: Record<string, Record<string, string>> = {
-  zh: { ',': '，', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
-  ja: { ',': '、', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
-};
-
-/** A locale's own entry in a table by locale or language: `de-CH`'s, else `de`'s. */
-function byLocale<T>(table: Record<string, T>, locale: string): T | undefined {
-  const lower = locale.toLowerCase();
-  const own = Object.keys(table).find((l) => l.toLowerCase() === lower);
-  if (own !== undefined) return table[own];
-  const tags = lower.split('-');
-  for (let n = tags.length - 1; n > 0; n--) {
-    const parent = Object.keys(table).find((l) => l.toLowerCase() === tags.slice(0, n).join('-'));
-    if (parent !== undefined) return table[parent];
-  }
-  return undefined;
-}
-
-/** Entries by source text and role, each catalog once: what `duplicate` holds an entry to. */
-const sameWords = new WeakMap<readonly Message[], Map<string, Message[]>>();
-
-const roleOf = (m: Message) => `${m.kind ?? ''}\u0000${m.surface ?? ''}\u0000${m.text}`;
-
-function entriesSaying(catalog: readonly Message[], message: Message): Message[] {
-  let index = sameWords.get(catalog);
-  if (index === undefined) {
-    index = new Map();
-    for (const m of catalog) if (!m.remove) index.set(roleOf(m), [...(index.get(roleOf(m)) ?? []), m]);
-    sameWords.set(catalog, index);
-  }
-  return index.get(roleOf(message)) ?? [];
-}
 
 const an = (word = 'string') => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
 
@@ -770,15 +741,21 @@ export const CORE_RULES = {
         const kind = el.type === TYPE.number ? 'number' : 'date';
         const shown = shownAs(el, locale);
         if (shown === undefined) return;
-        for (const name of Object.keys(config.formats[kind] ?? {})) {
-          const options = formatIn(config.formats, kind, name, locale)!;
-          if (shownAs(el, locale, options) !== shown) continue;
-          const written =
-            config.messageFormat === 2
-              ? `{$${el.value} :${kind === 'number' ? 'number' : 'datetime'} format=${name}}`
-              : `{${el.value}, ${el.type === TYPE.time ? 'time' : kind}, ${name}}`;
-          said.add(`${el.value} is formatted as formats.${kind}.${name} is: name it, ${written}, so it changes when the format does`);
-        }
+        // Two formats may show alike in one locale and apart in another, so a placeholder gets one finding naming each.
+        const names = Object.keys(config.formats[kind] ?? {}).filter(
+          (name) => shownAs(el, locale, formatIn(config.formats, kind, name, locale)) === shown,
+        );
+        if (names.length === 0) return;
+        const written = names.map((name) =>
+          config.messageFormat === 2
+            ? `{$${el.value} :${kind === 'number' ? 'number' : 'datetime'} format=${name}}`
+            : `{${el.value}, ${el.type === TYPE.time ? 'time' : kind}, ${name}}`,
+        );
+        const formats = listOf(
+          names.map((name) => `formats.${kind}.${name}`),
+          'or',
+        );
+        said.add(`${el.value} is formatted as ${formats} is: name it, ${listOf(written, 'or')}, so it changes when the format does`);
       });
       return [...said];
     },
@@ -925,13 +902,28 @@ export const CORE_RULES = {
     check: ({ message, catalog, config }) => {
       if (message.remove) return [];
       const same = entriesSaying(catalog, message);
-      const first = same[0];
+      // An exempt entry is still checked, so an exemption it no longer needs is found.
+      if (apart(message)) return same.length > 1 ? [`says what ${same.find((m) => m !== message)!.key} says, in the same role`] : [];
+      const group = same.filter((m) => !apart(m));
+      const first = group[0];
       if (first === undefined || first === message) return [];
       const shared = config.extract.shared;
+      const across = group.some((m) => m.area !== first.area) && shared !== undefined;
+      const others = group.slice(1).map((m) => m.key);
       return [
-        first.area !== message.area && shared !== undefined
-          ? `says what ${first.key} says, in the same role: move one into ${shared}.*, read it in both places, and remove the other`
-          : `says what ${first.key} says, in the same role: read ${first.key} where this is read, and remove this entry`,
+        {
+          message: across
+            ? `says what ${first.key} says, in the same role: move one into ${shared}.*, read it in both places, and remove the other`
+            : `says what ${first.key} says, in the same role: read ${first.key} where this is read, and remove this entry`,
+          group: {
+            key: first.key,
+            message: `${others.length === 1 ? `${others[0]} says` : `${others.length} entries say`} this in the same role: ${
+              across
+                ? `move it into ${shared}.*, read it in their places, and remove them`
+                : `read ${first.key} in their places, and remove them`
+            }${others.length === 1 ? '' : ` (${listOf(others)})`}; prosebook lint --fix --unsafe merges them`,
+          },
+        },
       ];
     },
   },
@@ -1204,8 +1196,9 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
         fired.add(name);
         if (message.allow.has(name)) continue;
         for (const s of said) {
-          const { message: text, match, fix } = typeof s === 'string' ? { message: s } : s;
+          const { message: text, match, fix, group } = typeof s === 'string' ? { message: s } : s;
           const finding: Finding = { key: message.key, file, locale, rule: name, severity, message: text };
+          if (group !== undefined) finding.group = { ...group, file: catalog.find((m) => m.key === group.key)?.file ?? file };
           if (match !== undefined && match !== '') {
             literals ??= literalsIn(ast, written);
             const places = placesOf(match, literals);

@@ -105,6 +105,45 @@ describe('rename', () => {
     expect(problems('cart', 'cart.old')).toEqual(['cart.old is under cart, which moves with it: rename it in two steps']);
   });
 
+  test('lint --fix --unsafe merges each group of duplicates into one entry, in shared where it spans areas', () => {
+    const config = fixture(
+      {
+        'prosebook.config.json': '{ "require": [], "extract": { "shared": "common" } }',
+        'copy/catalog/app.yaml': [
+          SCHEMA_LINE,
+          'app.save:\n  kind: action\n  en: Save',
+          'app.store:\n  kind: action\n  en: Save',
+          'app.accept:\n  kind: action\n  en: Accept',
+          'app.take:\n  kind: action\n  en: Accept',
+          '',
+        ].join('\n'),
+        'copy/catalog/editor.yaml': `${SCHEMA_LINE}\neditor.save:\n  kind: action\n  en: Save\n`,
+        // Only one entry of the first group is translated, which the kept one takes; the second differs.
+        'copy/locales/de.yaml': 'editor.save: Speichern\napp.accept: Annehmen\napp.take: Übernehmen\n',
+        'src/App.tsx': "export const App = ({ t }) => [t('app.store'), t('editor.save'), t('app.save'), t('app.take')];\n",
+      },
+      { require: [], extract: { shared: 'common' } },
+    );
+    generate(config);
+    const lint = cli(config.root, 'lint');
+    // One line for the group, at the entry it keeps.
+    expect(lint.stderr).toContain(
+      'app.save: [duplicate] 2 entries say this in the same role: move it into common.*, read it in their places, and remove them (app.store and editor.save); prosebook lint --fix --unsafe merges them',
+    );
+    expect(lint.stderr).not.toContain('app.store: [duplicate]');
+
+    const merged = cli(config.root, 'lint', '--fix', '--unsafe');
+    expect(merged.stdout).toContain('merged app.store, editor.save into common.save');
+    expect(merged.stderr).toContain('left app.accept, app.take apart: their de translations differ');
+    expect(read(config.root, 'copy/catalog/common.yaml')).toBe(`${SCHEMA_LINE}\ncommon.save:\n  kind: action\n  en: Save\n`);
+    expect(existsSync(join(config.root, 'copy/catalog/editor.yaml'))).toBe(false);
+    expect(read(config.root, 'copy/catalog/app.yaml')).not.toContain('Save');
+    expect(read(config.root, 'copy/locales/de.yaml')).toBe('common.save: Speichern\napp.accept: Annehmen\napp.take: Übernehmen\n');
+    expect(read(config.root, 'src/App.tsx')).toContain("[t('common.save'), t('common.save'), t('common.save'), t('app.take')]");
+    expect(Object.keys(readLock(config.lock).translations['de'] ?? {})).toContain('common.save');
+    expect(cli(config.root, 'lint', '--unsafe').stderr).toContain('--unsafe goes with --fix');
+  });
+
   test('the command is a dry run until --write, then regenerates', () => {
     const config = shop();
     const dry = cli(config.root, 'rename', 'cart.items', 'cart.count');

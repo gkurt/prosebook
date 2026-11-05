@@ -162,7 +162,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `quotes` through `lint.quotes` over `DEFAULT_QUOTES` (`presets.ts`); they match with regular
   expressions, which a `Report` may give as its `match`, its `fix` expanded from the match's groups.
   `duplicate` compares entries through the context's `catalog`, which `lint` takes apart from the
-  messages it lints, so the inspector's one entry is still held to the rest. `named-format` compares
+  messages it lints, so the inspector's one entry is still held to the rest; its groups are
+  `duplicates.ts`'s, and each finding carries its group (`Report.group`), which the CLI's text says once. `named-format` compares
   what each formatter resolves to in the locale with each named format's, so it finds only true twins. No-break spaces are
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, and `unseenReads`. Hardcoded text is JSX's, what its
@@ -275,7 +276,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   area's, in every locale; the lock's anchors moved with it, and string literals naming a key, or a
   prefix under the one renamed, rewritten in the code (`scan.ts`'s literal reading, not calls). Checked
   through `checkEdit` before anything is written; `loadCatalog` reads a catalog file the rename would
-  create, as it does a translation file.
+  create, as it does a translation file. `planMerge` is `lint --fix --unsafe`'s merge of each
+  `duplicate` group, through the same moves and code rewrite (`rewriteCode`, here without a prefix).
 
 `site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
 push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so

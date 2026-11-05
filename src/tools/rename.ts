@@ -13,8 +13,9 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 import { isMap, isScalar, parseDocument } from 'yaml';
 
-import { KEY_PATTERN, loadCatalog, withSchemaLine, type Problem } from './catalog.ts';
+import { KEY_PATTERN, loadCatalog, withSchemaLine, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
+import { duplicateGroups } from './duplicates.ts';
 import { checkEdit, contentOf, snippetOf } from './entry.ts';
 import { readLock, serializeLock } from './lock.ts';
 import { sourceFiles } from './scan.ts';
@@ -91,7 +92,7 @@ export function planRename(config: ResolvedConfig, from: string, to: string): Re
   }
   if (relocked) plan.files.set(config.lock, serializeLock(lock));
 
-  renameInCode(config, from, to, plan);
+  rewriteCode(config, plan, { from, to });
   return plan;
 }
 
@@ -118,6 +119,91 @@ export function applyRename(plan: RenamePlan): void {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, content);
   }
+}
+
+export interface MergePlan extends RenamePlan {
+  /** Each group merged: the key read in their places, and the keys that go. */
+  merged: { into: string; removed: string[] }[];
+  /** Groups left as they are, and why. */
+  skipped: { keys: string[]; why: string }[];
+}
+
+/**
+ * `prosebook lint --fix --unsafe`: each `duplicate` group made one entry. The first stays, moved into
+ * `extract.shared` where the group spans areas; the others go, with their translations, and the code
+ * naming them reads the one kept. Unsafe, since words alike may still be translated apart: a group
+ * whose translations already differ in some locale is left, and a translation only another entry
+ * has is kept. A read through a key prefix can't be followed, so it is named, as a rename names it.
+ */
+export function planMerge(config: ResolvedConfig): MergePlan {
+  const plan: MergePlan = { keys: new Map(), files: new Map(), code: [], prefixed: [], problems: [], merged: [], skipped: [] };
+  const catalog = loadCatalog(config, undefined, { partial: true });
+  const taken = new Set(catalog.messages.map((m) => m.key));
+  const shared = config.extract.shared;
+  const unsaved = new Map<string, string>();
+  const rel = (path: string) => relative(config.root, path).replaceAll('\\', '/');
+  // Per locale, the key whose translation the kept entry takes, for its anchor in the lock.
+  const anchored: { into: string; keys: string[]; from: Map<string, string> }[] = [];
+  for (const group of duplicateGroups(catalog.messages)) {
+    const [kept, ...rest] = group as [Message, ...Message[]];
+    const keys = group.map((m) => m.key);
+    const across = shared !== undefined && rest.some((m) => m.area !== kept.area);
+    const into = across ? `${shared}.${kept.key.slice(kept.area.length + 1)}` : kept.key;
+    if (into !== kept.key && taken.has(into)) {
+      plan.skipped.push({ keys, why: `${into} is an entry already: merge them by hand` });
+      continue;
+    }
+    const locales = [...new Set(group.flatMap((m) => [...m.translations.keys()]))];
+    const differ = locales.filter((l) => new Set(group.flatMap((m) => m.translations.get(l)?.text ?? [])).size > 1);
+    if (differ.length > 0) {
+      plan.skipped.push({ keys, why: `their ${differ.join(', ')} translations differ: merge them by hand, or exempt one` });
+      continue;
+    }
+    taken.add(into);
+    const area = into.slice(0, into.indexOf('.'));
+    moveEntry(config, unsaved, kept.file, rel(join(config.catalog, `${area}.yaml`)), kept.key, into, true);
+    const from = new Map<string, string>();
+    for (const l of locales) {
+      const owner = group.find((m) => m.translations.has(l))!;
+      const t = owner.translations.get(l)!;
+      from.set(l, owner.key);
+      const folder = resolve(config.root, t.file, '..');
+      const target = folder === resolve(config.locales) ? t.file : rel(join(folder, `${area}.yaml`));
+      moveEntry(config, unsaved, t.file, target, owner.key, into, false);
+      for (const m of rest) if (m !== owner && m.translations.has(l)) removeEntry(config, unsaved, m.translations.get(l)!.file, m.key);
+    }
+    for (const m of rest) removeEntry(config, unsaved, m.file, m.key);
+    for (const key of keys) if (key !== into) plan.keys.set(key, into);
+    plan.merged.push({ into, removed: rest.map((m) => m.key) });
+    anchored.push({ into, keys, from });
+  }
+  if (plan.merged.length === 0) return plan;
+  const { problems } = checkEdit(config, unsaved);
+  if (problems.length > 0) {
+    plan.problems.push(...problems);
+    return plan;
+  }
+  for (const [path, content] of unsaved) plan.files.set(path, emptied(config, path, content) ? null : content);
+
+  const lock = readLock(config.lock);
+  for (const [locale, anchors] of Object.entries(lock.translations)) {
+    for (const { into, keys, from } of anchored) {
+      const anchor = anchors[from.get(locale) ?? into];
+      for (const key of keys) delete anchors[key];
+      if (anchor !== undefined) anchors[into] = anchor;
+    }
+  }
+  plan.files.set(config.lock, serializeLock(lock));
+  rewriteCode(config, plan);
+  return plan;
+}
+
+/** An entry, with the comments above it, cut from its file. */
+function removeEntry(config: ResolvedConfig, unsaved: Map<string, string>, file: string, key: string): void {
+  const source = contentOf(config, file, unsaved);
+  const block = blockOf(source, key);
+  if (block === undefined) return;
+  unsaved.set(resolve(config.root, file), source.slice(0, block.start) + source.slice(block.end).replace(/^\r?\n/, ''));
 }
 
 /**
@@ -172,31 +258,33 @@ function moveEntry(
  * Every literal naming a renamed key, rewritten. A prefix under `from.` moves with it, so `cart.${id}`
  * becomes `basket.${id}` when `cart` is renamed; one that only may reach a renamed key is named.
  */
-function renameInCode(config: ResolvedConfig, from: string, to: string, plan: RenamePlan): void {
+function rewriteCode(config: ResolvedConfig, plan: RenamePlan, moved?: { from: string; to: string }): void {
   const keys = [...plan.keys.keys()].sort((a, b) => b.length - a.length).map(escape);
   const literal = new RegExp(`(['"\`])(${keys.join('|')})\\1`, 'g');
-  const under = new RegExp(`(['"\`])${escape(from)}\\.((?:[\\w-]+\\.)*)(?=\\1|\\$\\{)`, 'g');
+  const under = moved && new RegExp(`(['"\`])${escape(moved.from)}\\.((?:[\\w-]+\\.)*)(?=\\1|\\$\\{)`, 'g');
   const prefix = /(['"`])([a-z0-9][\w-]*(?:\.[\w-]+)*\.)(?:\1|\$\{)/g;
+  const reaches = (p: string) => (moved ? `${moved.from}.`.startsWith(p) : [...plan.keys.keys()].some((key) => key.startsWith(p)));
   for (const path of sourceFiles(config.scan.dirs, config.scan.extensions, [config.out])) {
     const code = readFileSync(path, 'utf8');
     const file = relative(config.root, path).replaceAll('\\', '/');
     let count = 0;
-    const next = code
-      .replace(literal, (_, quote: string, key: string) => {
+    let next = code.replace(literal, (_, quote: string, key: string) => {
+      count += 1;
+      return `${quote}${plan.keys.get(key)}${quote}`;
+    });
+    if (under !== undefined) {
+      next = next.replace(under, (_, quote: string, rest: string) => {
         count += 1;
-        return `${quote}${plan.keys.get(key)}${quote}`;
-      })
-      .replace(under, (_, quote: string, rest: string) => {
-        count += 1;
-        return `${quote}${to}.${rest}`;
+        return `${quote}${moved!.to}.${rest}`;
       });
+    }
     if (count > 0) {
       plan.files.set(path, next);
       plan.code.push({ file, count });
     }
     for (const m of next.matchAll(prefix)) {
       const p = m[2]!;
-      if (!`${from}.`.startsWith(p)) continue;
+      if (!reaches(p)) continue;
       plan.prefixed.push({ file, line: next.slice(0, m.index).split('\n').length, prefix: p });
     }
   }

@@ -635,7 +635,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | ------------------------ | --------------------------------------------------------------------------------------- |
 | `init`                   | A config and a first catalog file.                                                      |
 | `generate`               | The typed modules (`--check`, `--watch`).                                               |
-| `lint`                   | The words against the writing rules (`--fix`).                                          |
+| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`).                        |
 | `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                   |
 | `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                      |
 | `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                             |
@@ -691,6 +691,12 @@ translators.
 Translations are linted by the rules that hold in any language. Spellings, concepts, contractions, `…`, spacing and punctuation are
 fixable: `prosebook lint --fix` writes them, checking the whole catalog first.
 
+`duplicate` says each group once, at the entry to keep. `prosebook lint --fix --unsafe` also merges each group: the first entry
+stays (moved into `extract.shared` where the group spans areas), the others go with their translations, and every string literal
+naming one reads the kept key. It's unsafe because words alike may be translated apart: a group whose translations differ in a
+locale is left and named, and an entry exempt from `duplicate` is never merged. A read through a key prefix is named, to fix by
+hand.
+
 **Exemptions.** Where a rule is wrong about an entry, say why:
 
 ```yaml
@@ -738,8 +744,8 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 - `text.primary` takes every `other` arm, `text.variants` one reading per arm, `text.skeleton` the words every arm carries.
   Placeholders read as `HOLE`.
 - With `on.locale`, a rule also gets `locale`, `ast` and the `source` readings. `catalog` holds every entry.
-- A finding can be `{ message, match, fix }`: `match` (words or a regular expression) is what it points at, `fix` what `--fix`
-  writes.
+- A finding can be `{ message, match, fix, group }`: `match` (words or a regular expression) is what it points at, `fix` what
+  `--fix` writes, and `group` (`{ key, message }`) a problem across entries, said once at `key`.
 - `recommended` and `strict` set the severity under each preset; `guide: true` puts the description in the writing guide.
 
 **Plugins as data**, after [Vale](https://vale.sh)'s rule types, in a `prosebook.config.json` too:

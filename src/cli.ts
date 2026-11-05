@@ -17,7 +17,7 @@ import { generate, render } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 import { changeOf, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
-import { applyRename, planRename } from './tools/rename.ts';
+import { applyRename, planMerge, planRename, type MergePlan } from './tools/rename.ts';
 import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
 import { SarifReport } from './tools/sarif.ts';
 import { isReferenced, scan, sourceFiles, whereOf as hardcodedWhere } from './tools/scan.ts';
@@ -32,7 +32,8 @@ Commands:
   init                    Create a config and a first catalog file
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
   lint                    Check the messages and their translations against the writing rules
-                          (--fix: write the fixes the rules know, such as spellings and …)
+                          (--fix: write the fixes the rules know, such as spellings and …;
+                          --fix --unsafe: also merge each group of duplicate entries into one)
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
@@ -97,6 +98,7 @@ async function main(argv: string[]): Promise<number> {
       all: { type: 'boolean' },
       write: { type: 'boolean' },
       fix: { type: 'boolean' },
+      unsafe: { type: 'boolean' },
       prompt: { type: 'boolean' },
       area: { type: 'string' },
       format: { type: 'string' },
@@ -141,7 +143,7 @@ async function main(argv: string[]): Promise<number> {
         if (values.watch) return watchMode(config);
         return runGenerate(config, values.check === true);
       case 'lint':
-        code = runLint(config, report, values.fix === true);
+        code = runLint(config, report, values.fix === true, values.unsafe === true);
         break;
       case 'status':
         code = runStatus(config, values.strict === true, values.verbose === true, report);
@@ -285,7 +287,11 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   return new Promise(() => {});
 }
 
-function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): number {
+function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsafe = false): number {
+  if (unsafe && !fix) {
+    err('prosebook: --unsafe goes with --fix: prosebook lint --fix --unsafe');
+    return 1;
+  }
   let { catalog } = rendered(config, report);
   let findings = lint(catalog.messages, config);
   if (fix) {
@@ -297,6 +303,20 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
     }
     if (fixed > 0) {
       out(`prosebook: fixed ${fixed} finding(s); run prosebook generate to compile them`);
+      ({ catalog } = rendered(config, report));
+      findings = lint(catalog.messages, config);
+    }
+  }
+  if (unsafe) {
+    const plan = planMerge(config);
+    if (plan.problems.length > 0) {
+      reportProblems(config, plan.problems, report);
+      err('The merges would break the catalog, so nothing was merged.');
+      return 1;
+    }
+    printMerges(plan);
+    if (plan.merged.length > 0) {
+      applyRename(plan);
       ({ catalog } = rendered(config, report));
       findings = lint(catalog.messages, config);
     }
@@ -332,13 +352,32 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false): num
   return errors + broken > 0 ? 1 : 0;
 }
 
+function printMerges(plan: MergePlan): void {
+  for (const { into, removed } of plan.merged) out(`prosebook: merged ${removed.join(', ')} into ${into}`);
+  for (const { keys, why } of plan.skipped) err(`warn  left ${keys.join(', ')} apart: ${why}`);
+  const named = plan.code.reduce((n, c) => n + c.count, 0);
+  if (named > 0) out(`prosebook: rewrote ${named} reference(s) in ${plan.code.length} code file(s)`);
+  for (const { file, line, prefix } of plan.prefixed)
+    err(`warn  ${file}:${line} reads a key through \`${prefix}\`, which may reach a merged one: read the one kept there by hand`);
+}
+
 /** Each finding on its line, placed at its entry's words. */
 function printFindings(config: ResolvedConfig, findings: Finding[]) {
   const locate = entryLocator(config.root);
   const placed = findings.map((f) => ({ ...f, ...locate(f.file, f.key, f.at?.start, config.source) }));
+  // A problem across entries is said once, at the entry it names; SARIF still has a result per entry.
+  const said = new Set<string>();
   for (const f of placed) {
     const severity = f.severity === 'error' ? 'error' : 'warn ';
-    err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
+    if (f.group === undefined) {
+      err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
+      continue;
+    }
+    const { key, file, message } = f.group;
+    if (said.has(`${f.rule}\u0000${key}`)) continue;
+    said.add(`${f.rule}\u0000${key}`);
+    const { line, column } = locate(file, key, undefined, config.source);
+    err(`${severity} ${file}:${line}:${column} ${key}: [${f.rule}] ${message}`);
   }
   return placed;
 }

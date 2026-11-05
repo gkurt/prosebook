@@ -191,3 +191,25 @@ export const DEFAULT_QUOTES: Record<string, readonly [open: string, close: strin
   'zh-HK': ['「', '」'],
   'zh-TW': ['「', '」'],
 };
+
+/** The marks the `quotes` rule finds, as pairs: straight, English, German and Polish lower-upper, guillemets and corner brackets. */
+export const QUOTED = /"([^"\n]+)"|“([^“”\n]+)”|„([^„“”\n]+)[“”]|«\s?([^«»\n]+?)\s?»|「([^「」\n]+)」|”([^“”\n]+)”/gu;
+
+/** The punctuation written after Chinese and Japanese text in its full-width form, by language. */
+export const FULL_WIDTH: Record<string, Record<string, string>> = {
+  zh: { ',': '，', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
+  ja: { ',': '、', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
+};
+
+/** A locale's own entry in a table by locale or language: `de-CH`'s, else `de`'s. */
+export function byLocale<T>(table: Record<string, T>, locale: string): T | undefined {
+  const lower = locale.toLowerCase();
+  const own = Object.keys(table).find((l) => l.toLowerCase() === lower);
+  if (own !== undefined) return table[own];
+  const tags = lower.split('-');
+  for (let n = tags.length - 1; n > 0; n--) {
+    const parent = Object.keys(table).find((l) => l.toLowerCase() === tags.slice(0, n).join('-'));
+    if (parent !== undefined) return table[parent];
+  }
+  return undefined;
+}

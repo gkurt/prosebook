@@ -126,6 +126,12 @@ describe('named formats', () => {
     expect(findings(config(2, '{$t :currency currency=EUR}')).map((f) => f.message)).toEqual([
       't is formatted as formats.number.price is: name it, {$t :number format=price}, so it changes when the format does',
     ]);
+    // Two formats that show alike here: one finding, naming both.
+    const twins = { ...formats, number: { ...formats.number, cost: { style: 'currency', currency: 'EUR' } } } as const;
+    const both = fixture({ 'copy/catalog/app.yaml': 'app.a: "{t, number, ::currency/EUR}"\n' }, { require: [], formats: twins });
+    expect(findings(both).map((f) => f.message)).toEqual([
+      't is formatted as formats.number.price or formats.number.cost is: name it, {t, number, price} or {t, number, cost}, so it changes when the format does',
+    ]);
   });
 });
 
