@@ -1,4 +1,4 @@
-# prosebook
+# <img src="https://gkurt.com/prosebook/icon.svg" width="40" height="40" alt="" align="top"> prosebook
 
 Every string your app shows, in one typed catalog. For React, Preact, Vue, Svelte, Solid and any JavaScript.
 

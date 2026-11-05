@@ -279,6 +279,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so
 keep it in step when the inspector or that catalog changes, and add new features to its list. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
+`site/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
+title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
+renders of it; render them again when it changes.
 
 `examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`) and per
 binding beyond React (`preact`, `vue`, `svelte`, `solid`, each on Vite), each a
