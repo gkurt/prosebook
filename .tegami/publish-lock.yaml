@@ -1,41 +1,41 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `scan.ignore` keeps a scan check out of folders\n\n`{ 'formatted-in-code': ['src/server', '**/*.server.ts'], '*': ['src/admin'] }` leaves code no person reads unreported, by path or glob, one check or all of them. `Intl.DateTimeFormat().resolvedOptions()` is no longer reported as formatting.\n\n### Durations show fractional seconds\n\nA duration format's `fractionalDigits` writes \"4.2s\" where milliseconds wrote \"4s 200ms\".\n"
-    filename: scan-ignore-and-fractional-seconds.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A duration's fraction of a second drops its trailing zeros and counts as a unit\n\nWith `fractionalDigits: 1`, 12 seconds is \"12s\" rather than \"12.0s\", and with the default `units` of 2, 3 minutes 5 seconds is \"3m 5s\" rather than \"3m 5.0s\". Digital keeps every digit, and `fractionalDigits` is 1 to 3.\n"
+    filename: fractional-seconds-trimmed.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - scan-ignore-and-fractional-seconds.md
+      - fractional-seconds-trimmed.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-svelte
+  - id: npm:example-preact
     updated: false
   - id: npm:example-vue
     updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-node
     updated: false
   - id: npm:example-next
     updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-svelte
+    updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-bun
+  - id: npm:example-vite
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-vite
-  - id: npm:example-svelte
-  - id: npm:example-vue
-  - id: npm:example-tanstack-start
-  - id: npm:example-next
-  - id: npm:example-solid
-  - id: npm:example-node
   - id: npm:example-preact
+  - id: npm:example-vue
+  - id: npm:example-node
+  - id: npm:example-next
   - id: npm:example-bun
+  - id: npm:example-tanstack-start
+  - id: npm:example-svelte
+  - id: npm:example-solid
+  - id: npm:example-vite
