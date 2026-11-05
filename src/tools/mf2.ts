@@ -29,7 +29,10 @@ import {
   asElement,
   DURATION,
   durationOptions,
+  ENTRY,
+  entryOf,
   extensionOf,
+  FORM,
   LIST,
   listOptions,
   namedOf,
@@ -103,6 +106,8 @@ const OPTIONS: Record<string, readonly string[]> = {
   // prosebook's own: a list of strings, and a duration in milliseconds, as MF1's `{x, list}` and `{x, duration}`.
   list: ['format', 'type', 'style'],
   duration: ['format', 'style'],
+  // prosebook's own too: another entry's text, a name, said here as MF1's `{app.title, entry}`.
+  'pb:entry': ['form'],
   number: ['format', 'select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
   integer: ['select', 'signDisplay', 'useGrouping', 'minimumIntegerDigits', 'maximumSignificantDigits'],
   currency: [
@@ -590,6 +595,7 @@ function pattern(parts: Model.Pattern, scope: Scope, r: Reading): Element[] {
 }
 
 function element(value: Value, r: Reading): Element {
+  if (value.fn?.name === 'pb:entry') return entryElement(value);
   if (value.kind === 'literal') return { type: TYPE.literal, value: formatLiteral(value, r.locale) };
   const { name, fn, offset } = value;
   const placeholder = placeholderFor(name, fn, r);
@@ -616,6 +622,16 @@ function element(value: Value, r: Reading): Element {
     return asElement(own);
   }
   return { type: TYPE.date, value: name, style: dateStyle(fn), placeholder } as Element;
+}
+
+/** `{|app.title| :pb:entry form=genitive}`: the entry's key is written in the message, as a literal. */
+function entryElement(value: Value): Element {
+  if (value.kind !== 'literal')
+    throw new Error(`{$${value.name} :pb:entry} names an entry by a variable: write its key in the message, {|app.title| :pb:entry}`);
+  const { form } = value.fn!.options;
+  if (form !== undefined && !FORM.test(form))
+    throw new Error(`:pb:entry form=${form} names a form, which is one arm of the name's select: form=genitive`);
+  return asElement({ type: ENTRY, value: value.value, form: form ?? null });
 }
 
 /** A literal with a function is the same in every render, so it is formatted now. */
@@ -863,6 +879,12 @@ function toPattern(elements: Element[], w: Writing, pound?: string): Model.Patte
     else if (value !== '') out.push(value);
   };
   for (const el of elements) {
+    const said = entryOf(el);
+    if (said !== undefined) {
+      const fn = functionRef('pb:entry', said.form === null ? {} : { form: said.form });
+      out.push({ type: 'expression', arg: { type: 'literal', value: said.value }, functionRef: fn });
+      continue;
+    }
     const own = extensionOf(el);
     if (own !== undefined) {
       checkName(own.value);

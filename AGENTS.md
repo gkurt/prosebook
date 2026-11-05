@@ -86,7 +86,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   fix or import is checked for the errors it brings (`checkEdit` in `entry.ts`), not those already there.
   `entryLocator` finds an entry's line, reading each file once. `attachMore` sets each list's `more`, the
   message of the entry its format names, in the locale read or its nearest parent, so the compiler
-  inlines it and no integration resolves one key from another.
+  inlines it and no integration resolves one key from another. `resolveEntries` does the same for
+  `{app.title, entry}`: each reference's `text`, the name in the locale read at the arm its form picks,
+  a name being text and selects alone, so a translation of one may add a select the source lacks.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
   It also reads a style naming a format of the config's as that format's options in the locale read, a
@@ -98,7 +100,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   formatjs reads the message, past ICU's quotes, and `withExtensions` puts back an `ExtensionElement`
   (`LIST`, `DURATION`, type numbers past formatjs's, found with `extensionOf`). Code that doesn't know
   them passes them by, so every writer and target checks for them first: the MF1 and MF2 writers,
-  the compiler, and the native targets, which refuse them.
+  the compiler, and the native targets, which refuse them. `{app.title, entry}` (`ENTRY`, `entryOf`)
+  reads the same way, a key in the argument's place, and only the writers keep it: the compiler, the
+  lint's `readings`, the pseudo-locale and the native targets read the message through `inlined`,
+  each reference its `text`.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
   becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
   `matchTree`'s ranking in step with the spec. An option an argument gives (`currency=$code`, those in
@@ -110,7 +115,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `placeholder` (`placeholderOf`): its `{$name}` fallback and, per `isolate` and `u:dir`, the marks
   isolating it, as the reference `messageformat` package decides. `format=` on `:number`, `:date`,
   `:time` and `:datetime` names a format of the config's, resolved as the function is read (`named`),
-  inherited through `.input`, and whole: no other option may stand beside it but `select`. `mf1.ts`: the tree written as MF1,
+  inherited through `.input`, and whole: no other option may stand beside it but `select`.
+  `:pb:entry`, namespaced as the spec asks of a function of an implementation's own, takes its key as
+  a literal operand. `mf1.ts`: the tree written as MF1,
   which refuses options from arguments. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
@@ -298,7 +305,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   and their key past its area, which the writing guide tells writers to run before adding one.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's
   YAML block (`snippetOf` and the comments above it) cut from its file and written, rekeyed, to its new
-  area's, in every locale; the lock's anchors moved with it, and string literals naming a key, or a
+  area's, in every locale; the lock's anchors moved with it, the messages saying it as an entry
+  (`rewriteReferences`), and string literals naming a key, or a
   prefix under the one renamed, rewritten in the code (`scan.ts`'s literal reading, not calls). Checked
   through `checkEdit` before anything is written; `loadCatalog` reads a catalog file the rename would
   create, as it does a translation file. `planMerge` is `lint --fix --unsafe`'s merge of each

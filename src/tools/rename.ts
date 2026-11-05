@@ -73,6 +73,7 @@ export function planRename(config: ResolvedConfig, from: string, to: string): Re
       moveEntry(config, unsaved, t.file, target, m.key, key, false);
     }
   }
+  rewriteReferences(config, unsaved, catalog.messages, plan.keys);
   const { problems } = checkEdit(config, unsaved);
   if (problems.length > 0) {
     plan.problems.push(...problems);
@@ -178,6 +179,7 @@ export function planMerge(config: ResolvedConfig): MergePlan {
     anchored.push({ into, keys, from });
   }
   if (plan.merged.length === 0) return plan;
+  rewriteReferences(config, unsaved, catalog.messages, plan.keys);
   const { problems } = checkEdit(config, unsaved);
   if (problems.length > 0) {
     plan.problems.push(...problems);
@@ -252,6 +254,29 @@ function moveEntry(
   const target = contentOf(config, to, unsaved);
   const added = target.trim() === '' ? `${renamed}\n` : `${target.replace(/\n*$/, '\n')}${renamed}\n`;
   unsaved.set(resolve(config.root, to), isCatalog ? withSchemaLine(added) : added);
+}
+
+/**
+ * Every message saying a renamed entry, `{app.title, entry}` or MF2's `{|app.title| :pb:entry}`, made to
+ * say it by its new key, in the catalog and every translation, those the move already wrote included.
+ */
+function rewriteReferences(config: ResolvedConfig, unsaved: Map<string, string>, messages: Message[], keys: Map<string, string>): void {
+  const names = [...keys.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(escape)
+    .join('|');
+  const said = new RegExp(String.raw`(\{\s*)(${names})(\s*,\s*entry\b)|(\{\s*\|?)(${names})(\|?\s+:pb:entry\b)`, 'g');
+  const files = new Set([
+    ...messages.flatMap((m) => [m.file, ...[...m.translations.values()].map((t) => t.file)]).map((f) => resolve(config.root, f)),
+    ...unsaved.keys(),
+  ]);
+  for (const file of files) {
+    const source = contentOf(config, file, unsaved);
+    const next = source.replace(said, (_, a?: string, one?: string, b?: string, c?: string, two?: string, d?: string) =>
+      one !== undefined ? `${a}${keys.get(one)}${b}` : `${c}${keys.get(two!)}${d}`,
+    );
+    if (next !== source) unsaved.set(file, next);
+  }
 }
 
 /**

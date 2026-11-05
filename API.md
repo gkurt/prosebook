@@ -600,6 +600,31 @@ rich('cart.terms', { link: (chunks) => <a href="/terms">{chunks}</a> });
 
 A tag keeps a sentence with a link inside it as one entry, so a translator can move the link.
 
+### Names in other messages
+
+```yaml
+# copy/catalog/app.yaml
+app.title:
+  kind: name
+  en: Corner Shop
+app.welcome: 'Welcome to {app.title, entry}, {name}.' # MF2: {app.title :pb:entry}
+app.reviews: 'Reviews of {app.title, entry}' # "Reviews of Corner Shop"
+
+# copy/locales/de.yaml
+app.title: '{case, select, genitive {des Eckladens} other {Eckladen}}'
+app.reviews: 'Bewertungen {app.title, entry, genitive}' # MF2: {app.title :pb:entry form=genitive}
+```
+
+- Only an entry of kind `name` can be said, and it is text: selects for its forms, other names, no placeholders or tags.
+- The form picks the arm of that name in each of the name's selects, `other` without one. A name's translation may select on a
+  form its source doesn't have.
+- Each locale says the name in its own words, or its nearest parent's. A message that isn't translated falls back whole, its
+  names with it.
+- Filled in as the catalog loads: the message compiles to the name's text, no key is read for another as the app runs, and
+  native targets write it as text. Lint reads the message with the name in it.
+- A key the catalog lacks, an entry of another kind, a form the name doesn't have and a name saying itself fail `generate`.
+  `prosebook rename` renames the references with the entry.
+
 ### MessageFormat 2
 
 Set `messageFormat: 2`. The types, checks, lint and runtime are the same.
@@ -620,7 +645,7 @@ en: |-
 ```
 
 - Functions: `:string`, `:number`, `:integer`, `:percent`, `:currency`, `:unit`, `:offset`, `:date`, `:time`, `:datetime` (still a
-  draft in the spec, followed as the `messageformat` package does).
+  draft in the spec, followed as the `messageformat` package does), and prosebook's `:list`, `:duration` and `:pb:entry`.
 - `.match` selects as MF2 does: an exact number beats its category, and a number matches as shown (`1.0` is `other`).
   `:integer` matches the value rounded, `:percent` times 100.
 - **Text direction.** In right-to-left locales each placeholder is wrapped in isolation marks. `u:dir=ltr` picks a direction;
@@ -964,7 +989,8 @@ prosebook rename cart.checkout pay.button   # and cart.checkout.hint with it
 prosebook rename cart basket                 # an area: cart.yaml becomes basket.yaml
 ```
 
-Renames in the catalog, every translation, the lock and every string literal naming the key under `scan.dirs`. A read through a
+Renames in the catalog, every translation, the lock, every message [saying it](#names-in-other-messages) and every string literal
+naming the key under `scan.dirs`. A read through a
 prefix moves with an area (``t(`cart.${id}`)``); one that only may reach a renamed key is named, to rename by hand. A dry run
 unless `--write`, checked first, then regenerated.
 

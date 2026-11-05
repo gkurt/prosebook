@@ -6,6 +6,7 @@
 import { CatalogError, type Catalog, type Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { ResolvedConfig } from '#src/tools/config.ts';
+import { inlined } from '#src/tools/icu.ts';
 import { androidResources } from './android.ts';
 import { appleStrings } from './apple.ts';
 import { kotlinFile } from './kotlin.ts';
@@ -19,11 +20,13 @@ export function nativeFiles(
   config: ResolvedConfig,
   catalog: Catalog,
   locales: string[],
-  entries: Map<string, Entry[]>,
+  written: Map<string, Entry[]>,
   banner: string,
 ): Map<string, string> {
   const files = new Map<string, string>();
   const problems: Problem[] = [];
+  // An entry said in a message is its text, which every target writes as it writes the rest.
+  const entries = new Map([...written].map(([locale, list]) => [locale, list.map(([key, ast]): Entry => [key, inlined(ast)])]));
   for (const target of config.native) {
     try {
       if (target.language === 'android' || target.language === 'apple') {

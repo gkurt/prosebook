@@ -58,15 +58,58 @@ export function extensionOf(el: MessageFormatElement): ExtensionElement | undefi
   return type === LIST || type === DURATION ? (el as unknown as ExtensionElement) : undefined;
 }
 
-export const asElement = (el: ExtensionElement) => el as unknown as MessageFormatElement;
+export const asElement = (el: ExtensionElement | EntryReference) => el as unknown as MessageFormatElement;
 
-const EXTENSION = /\{\s*([^\s{},#<>']+)\s*,\s*(list|duration)\s*(?:,\s*([^{}]*?))?\s*\}/y;
+/**
+ * `{app.title, entry}` (MF2's `{|app.title| :pb:entry}`): another entry's text said here, which only a
+ * name may be. Its `form` picks an arm of the name's selects (`{app.title, entry, genitive}`). The
+ * catalog sets `text` as it loads, the name in the locale read, so the compiler and every target
+ * write it out as text (`inlined`) and nothing reads one key for another as the app runs.
+ */
+export const ENTRY = 102;
+
+export interface EntryReference {
+  type: typeof ENTRY;
+  /** The key of the entry said. */
+  value: string;
+  form: string | null;
+  text?: string;
+}
+
+export function entryOf(el: MessageFormatElement): EntryReference | undefined {
+  return (el as { type: number }).type === ENTRY ? (el as unknown as EntryReference) : undefined;
+}
+
+/** An arm's name, which a form is. */
+export const FORM = /^\w+$/;
+
+/** The message with each entry it says written as that entry's text, and literals beside each other joined. */
+export function inlined(ast: MessageFormatElement[]): MessageFormatElement[] {
+  const out: MessageFormatElement[] = [];
+  for (const el of ast) {
+    const said = entryOf(el);
+    const next: MessageFormatElement =
+      said !== undefined
+        ? { type: TYPE.literal, value: said.text ?? `{${said.value}}` }
+        : el.type === TYPE.select || el.type === TYPE.plural
+          ? { ...el, options: Object.fromEntries(Object.entries(el.options).map(([k, o]) => [k, { ...o, value: inlined(o.value) }])) }
+          : el.type === TYPE.tag
+            ? { ...el, children: inlined(el.children) }
+            : el;
+    const last = out.at(-1);
+    if (next.type === TYPE.literal && last?.type === TYPE.literal) out[out.length - 1] = { ...last, value: last.value + next.value };
+    else out.push(next);
+  }
+  return out;
+}
+
+const EXTENSION = /\{\s*([^\s{},#<>']+)\s*,\s*(list|duration|entry)\s*(?:,\s*([^{}]*?))?\s*\}/y;
 const STAND_IN = '__prosebook_';
 
 type StandIn = { name: string; kind: string; style: string | undefined };
 
 /**
- * The message with each list and duration placeholder written as a plain one formatjs reads, which
+ * The message with each list, duration and entry placeholder written as a plain one formatjs reads, which
  * `withExtensions` puts back. Quoted text is passed by, as ICU quotes: an apostrophe before a brace,
  * `#`, `|` or a tag's `<` opens a quote, and `''` is an apostrophe.
  */
@@ -111,6 +154,11 @@ function withExtensions(
     elements.map((el) => {
       if (el.type === TYPE.argument && el.value.startsWith(STAND_IN)) {
         const { name, kind, style } = found[Number(el.value.slice(STAND_IN.length))]!;
+        if (kind === 'entry') {
+          if (style !== undefined && !FORM.test(style))
+            throw new Error(`{${name}, entry, ${style}} names a form, which is one arm of the name's select: {${name}, entry, genitive}`);
+          return asElement({ type: ENTRY, value: name, form: style ?? null });
+        }
         const options = style === undefined ? undefined : formatIn(formats, kind === 'list' ? 'list' : 'duration', style, locale);
         return asElement({
           type: kind === 'list' ? LIST : DURATION,

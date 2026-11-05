@@ -17,6 +17,7 @@ import {
   DURATION,
   durationOptions,
   extensionOf,
+  inlined,
   LIST,
   listOptions,
   numberOptions,
@@ -131,7 +132,9 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string 
   }
 }
 
-function message(ast: MessageFormatElement[], hoisted: Hoisted): string {
+function message(written: MessageFormatElement[], hoisted: Hoisted): string {
+  // An entry said in the message is its text, so one saying only names and words is still a string.
+  const ast = inlined(written);
   const literal = staticLiteral(ast);
   if (literal !== undefined) return JSON.stringify(literal);
   return `(a, h) => ${nodes(ast, hoisted, null)}`;

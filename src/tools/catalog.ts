@@ -18,6 +18,7 @@ import {
   argsOf,
   armsOf,
   closedType,
+  entryOf,
   extensionOf,
   LIST,
   openType,
@@ -177,6 +178,7 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
   }
 
   const locales = readLocales(config, byKey, broken, problems, rel, read, created);
+  resolveEntries(config, byKey, locales, problems);
   attachMore(config, byKey, locales, problems);
   if (options.partial !== true && problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };
@@ -329,6 +331,97 @@ function readLocales(
   return [...files.keys()];
 }
 
+/** A message in each locale it is written in, with the file it is written in. */
+function readingsOf(config: ResolvedConfig, message: Message): { locale: string; ast: MessageFormatElement[]; file: string }[] {
+  return [
+    { locale: config.source, ast: message.ast, file: message.file },
+    ...[...message.translations].map(([locale, t]) => ({ locale, ast: t.ast, file: t.file })),
+  ];
+}
+
+/**
+ * `{app.title, entry}`: a name said in another message. Each reference is given the name's text in
+ * the locale the message is read in, or the nearest one translating it, its selects at the arm the
+ * reference's form names (`other` without one), so the compiler and every target write it as text.
+ * Only a name may be said, and it is text alone: a placeholder would have to come from a call site
+ * that can't see it. One that can't be resolved shows as `{app.title}`, beside its error.
+ */
+function resolveEntries(config: ResolvedConfig, byKey: Map<string, Message>, locales: string[], problems: Problem[]): void {
+  const error = (key: string, file: string, message: string) => problems.push({ severity: 'error', file, key, message });
+  const all = [config.source, ...locales];
+  const said = new Set<string>();
+
+  const textOf = (key: string, locale: string, form: string | null, from: string[]): string | Error => {
+    const name = byKey.get(key);
+    if (name === undefined)
+      return new Error(`{${key}, entry} names no entry: say a name the catalog has (prosebook find finds one by its words)`);
+    if (name.kind !== 'name') {
+      const kind = name.kind ?? 'unset';
+      return new Error(
+        `{${key}, entry} says an entry of kind ${kind}: only a name can be said in another message, so write its words here`,
+      );
+    }
+    if (from.includes(key))
+      return new Error(`{${key}, entry} says itself, through ${[...from, key].join(' → ')}: write the words in one of them`);
+    said.add(key);
+    const found = chainOf(locale, all, config.source).find((l) => l === config.source || name.translations.has(l)) ?? config.source;
+    const ast = found === config.source ? name.ast : name.translations.get(found)!.ast;
+    let text = '';
+    let picked = false;
+    const forms = new Set<string>();
+    const visit = (elements: MessageFormatElement[]): Error | undefined => {
+      for (const el of elements) {
+        const inner = entryOf(el);
+        if (inner !== undefined) {
+          const got = textOf(inner.value, locale, inner.form, [...from, key]);
+          if (got instanceof Error) return got;
+          text += got;
+        } else if (el.type === TYPE.literal) {
+          text += el.value;
+        } else if (el.type === TYPE.select) {
+          for (const arm of Object.keys(el.options)) if (arm !== 'other') forms.add(arm);
+          const arm = form === null ? undefined : el.options[form];
+          if (arm !== undefined) picked = true;
+          const failed = visit((arm ?? el.options.other!).value);
+          if (failed !== undefined) return failed;
+        }
+        // Anything else is reported on the name itself, below.
+      }
+      return undefined;
+    };
+    const failed = visit(ast);
+    if (failed !== undefined) return failed;
+    if (form !== null && !picked) {
+      const has = forms.size > 0 ? `: ${[...forms].join(', ')}` : ', only its one text';
+      return new Error(`{${key}, entry, ${form}} asks for a form ${key} doesn't have in ${found}${has}`);
+    }
+    return text;
+  };
+
+  for (const message of byKey.values()) {
+    for (const { locale, ast, file } of readingsOf(config, message)) {
+      walk(ast, (el) => {
+        const ref = entryOf(el);
+        if (ref === undefined) return;
+        const text = textOf(ref.value, locale, ref.form, [message.key]);
+        if (text instanceof Error) error(message.key, file, text.message);
+        ref.text = text instanceof Error ? `{${ref.value}}` : text;
+      });
+    }
+  }
+
+  for (const key of said) {
+    const name = byKey.get(key)!;
+    for (const { ast, file } of readingsOf(config, name)) {
+      walk(ast, (el) => {
+        const what = el.type === TYPE.tag ? `<${el.value}>` : el.type === TYPE.pound ? '#' : 'value' in el ? `{${el.value}}` : undefined;
+        if (what === undefined || el.type === TYPE.select || el.type === TYPE.literal || entryOf(el) !== undefined) return;
+        error(key, file, `is said in other messages ({${key}, entry}), so it is text, with selects for its forms: leave out ${what}`);
+      });
+    }
+  }
+}
+
 /**
  * A list whose format has `max` says its rest with the entry `more` names, given `{count}`. That
  * entry's message, in the locale the list is read in or the nearest one translating it, is set on the
@@ -339,11 +432,7 @@ function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales
     problems.push({ severity: 'error', file: message.file, key: message.key, message: text });
   const checked = new Set<string>();
   for (const message of byKey.values()) {
-    const readings: [string, MessageFormatElement[]][] = [
-      [config.source, message.ast],
-      ...[...message.translations].map(([l, t]): [string, MessageFormatElement[]] => [l, t.ast]),
-    ];
-    for (const [locale, ast] of readings) {
+    for (const { locale, ast } of readingsOf(config, message)) {
       walk(ast, (el) => {
         const own = extensionOf(el);
         const key = own?.type === LIST ? (own.options as ListFormatOptions | undefined)?.more : undefined;
@@ -413,7 +502,9 @@ function leastCounts(value: unknown, ast: MessageFormatElement[], fail: (m: stri
 function driftFrom(message: Message, ast: MessageFormatElement[]): string | undefined {
   const args = argsOf(ast);
   const missing = [...message.args.keys()].filter((a) => !args.has(a));
-  const extra = [...args.keys()].filter((a) => !message.args.has(a));
+  // A name's translation may select among forms its language has and the source's doesn't: a case.
+  const forms = (a: string) => message.kind === 'name' && armsOf(args.get(a)!).length > 0;
+  const extra = [...args.keys()].filter((a) => !message.args.has(a) && !forms(a));
   // A closed argument's translation selects among the source's arms, and on no other.
   const source = (a: string) => (message.closed.includes(a) ? openType(message.args.get(a)!) : message.args.get(a)!);
   const retyped = [...args]

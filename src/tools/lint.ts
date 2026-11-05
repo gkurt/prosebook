@@ -12,7 +12,7 @@ import { formatIn } from '#src/runtime/formats.ts';
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { apart, entriesSaying } from './duplicates.ts';
-import { categoriesOf, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { categoriesOf, inlined, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 import { asWritten, fixed, HOLE, literalsIn, placesOf, takesInHole, type Literal } from './places.ts';
 import { byLocale, FULL_WIDTH, QUOTED, type KindRule, type Severity } from './presets.ts';
 
@@ -218,7 +218,9 @@ export interface Readings {
   skeleton: string;
 }
 
-export function readings(message: MessageFormatElement[]): Readings {
+export function readings(written: MessageFormatElement[]): Readings {
+  // A name the message says is read as its text, as the reader sees it.
+  const message = inlined(written);
   const literal = staticLiteral(message);
   const ast = literal === undefined ? message : ([{ type: TYPE.literal, value: literal }] as MessageFormatElement[]);
   const arms = new Set<string>();

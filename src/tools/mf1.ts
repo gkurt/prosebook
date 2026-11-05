@@ -7,7 +7,7 @@
 import { isDateElement, isNumberElement, isTimeElement, parse, TYPE } from '@formatjs/icu-messageformat-parser';
 import type { DateElement, DateTimeSkeleton, NumberElement, NumberSkeleton, TimeElement } from '@formatjs/icu-messageformat-parser';
 
-import { extensionOf, LIST, namedOf, selectionOf, type MessageFormatElement } from './icu.ts';
+import { entryOf, extensionOf, LIST, namedOf, selectionOf, type MessageFormatElement } from './icu.ts';
 import type { Mf2DateSkeleton, Mf2Function, Mf2NumberSkeleton } from './mf2.ts';
 
 type Element = MessageFormatElement;
@@ -25,6 +25,8 @@ const CATEGORY_ORDER = ['zero', 'one', 'two', 'few', 'many', 'other'];
 function print(elements: Element[], inPlural: boolean): string {
   return elements
     .map((el, i) => {
+      const said = entryOf(el);
+      if (said !== undefined) return said.form === null ? `{${said.value}, entry}` : `{${said.value}, entry, ${said.form}}`;
       const own = extensionOf(el);
       if (own !== undefined) {
         const kind = own.type === LIST ? 'list' : 'duration';

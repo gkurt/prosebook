@@ -4,7 +4,7 @@
  * a glance which text is hardcoded (it is plain), which is clipped (a bracket is missing), and which
  * splices fragments together (brackets inside brackets).
  */
-import { TYPE, type MessageFormatElement } from './icu.ts';
+import { inlined, TYPE, type MessageFormatElement } from './icu.ts';
 
 const PLAIN = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const ACCENTED = Array.from('áƀçðéƒĝĥíĵķļɱñóþǫŕšţúṽŵẋýžÁƁÇÐÉƑĜĤÍĴĶĻṀÑÓÞǪŔŠŢÚṼŴẊÝŽ');
@@ -66,7 +66,9 @@ function padding(ast: MessageFormatElement[], pseudo: MessageFormatElement[]): s
   return missing < 2 ? '' : ` ${'·'.repeat(missing - 1)}`;
 }
 
-export function pseudoAst(ast: MessageFormatElement[]): MessageFormatElement[] {
+export function pseudoAst(written: MessageFormatElement[]): MessageFormatElement[] {
+  // A name the message says is accented with the rest of its text.
+  const ast = inlined(written);
   const out: MessageFormatElement[] = [];
   const pseudo = transform(ast);
   const end = { type: TYPE.literal, value: `${padding(ast, pseudo)}⟧` };

@@ -115,8 +115,9 @@ en: 'By checking out you agree to our <link>terms</link>.'
 ```
 
 Each placeholder's type comes from the message: `n: number`, `mode: 'dark' | (string & {})`, `when: Date | number`, `tools: readonly string[]`. Set
-`messageFormat: 2` to write [MessageFormat 2](API.md#messageformat-2) instead, and name formats used across the app once in
-the config with [named formats](API.md#named-formats).
+`messageFormat: 2` to write [MessageFormat 2](API.md#messageformat-2) instead, name formats used across the app once in
+the config with [named formats](API.md#named-formats), and say a name in other messages with
+[`{app.title, entry}`](API.md#names-in-other-messages).
 
 ## Translating
 
