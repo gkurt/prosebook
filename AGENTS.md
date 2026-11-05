@@ -277,7 +277,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 
 `site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
 push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so
-keep it in step when the inspector or that catalog changes, and add new features to its list. The copy
+keep it in step when the inspector or that catalog changes. Its feature grid is eight cards, each linking to
+its section of API.md, as the README's bullets are; a new feature joins the "Also" line under it. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
 `site/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are

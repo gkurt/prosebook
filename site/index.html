@@ -305,16 +305,23 @@
         color: var(--muted);
         font-size: 15px;
       }
-      .features .new h3::after {
-        content: 'New';
-        font: 600 11px/1 var(--sans);
-        letter-spacing: 0.04em;
+      .features h3 a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .features h3 a:hover {
         color: var(--accent);
-        background: var(--accent-soft);
-        border-radius: 999px;
-        padding: 4px 8px;
-        margin-left: 8px;
-        vertical-align: 4px;
+      }
+      .more {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .more a {
+        color: var(--ink);
+      }
+      .more a:hover {
+        color: var(--accent);
       }
 
       /* In-context demo */
@@ -819,6 +826,7 @@
         <a class="mark" href="./"><img src="icon.svg" width="28" height="28" alt="" />prose<span>book</span></a>
         <nav>
           <a href="#in-context">In context</a>
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md">Docs</a>
           <a href="https://github.com/gkurt/prosebook">GitHub</a>
         </nav>
       </div>
@@ -831,7 +839,7 @@
         </p>
         <div class="actions">
           <a class="btn primary" href="#in-context">Try it on the page</a>
-          <a class="btn" href="https://github.com/gkurt/prosebook">Read the docs on GitHub</a>
+          <a class="btn" href="https://github.com/gkurt/prosebook/blob/main/API.md">Read the docs</a>
         </div>
       </header>
 
@@ -869,105 +877,72 @@
         </p>
         <div class="features">
           <article>
-            <h3>Typed</h3>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#types">Typed</a></h3>
             <p>
               A missing key, a misspelled key or a missing argument is a type error. Completing a key shows its English text and context.
             </p>
           </article>
           <article>
-            <h3>Compiled</h3>
-            <p>Each message, in ICU MessageFormat or MessageFormat 2, becomes a plain function. No parser ships, no <code>eval</code>.</p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#messages">Compiled</a></h3>
+            <p>
+              Each message, in ICU MessageFormat or MessageFormat 2, becomes a plain function. No parser ships, no <code>eval</code>, and
+              the runtime is about 2.5 KB gzipped.
+            </p>
           </article>
           <article>
-            <h3>Checked</h3>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#translations">Checked</a></h3>
             <p>
               Placeholders that drift between the source and a translation fail the build. A translation whose source changed is marked
               stale.
             </p>
           </article>
           <article>
-            <h3>Pruned</h3>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#builds">Pruned and split</a></h3>
             <p>
-              A Vite, Next.js or Bun build ships only the messages the code names, and fails on a read whose key it can't see. Keys built
-              from data still count.
-            </p>
-          </article>
-          <article class="new">
-            <h3>Split</h3>
-            <p>
-              With Vite, Bun or Next, each area's messages ship beside the code that reads them, so a lazy route brings its own, already in
-              the reader's language on its first render.
-            </p>
-          </article>
-          <article class="new">
-            <h3>Written well</h3>
-            <p>
-              An optional lint holds the words to a writing guide: word budgets per kind, periods, sentence case, banned filler, and
-              <code>{count} files</code> outside a plural, in the source and its translations. Each translation writes every plural form its
-              language needs and quotes and spaces as that language does, and two entries saying the same thing are flagged. Plugins add
-              your own rules, scoped by kind, surface and locale. Guidelines no rule can check go in a generated <code>WRITING.md</code>,
-              for your coding agent to read before it writes.
-            </p>
-          </article>
-          <article class="new">
-            <h3>Named formats</h3>
-            <p>
-              Name a number or date format once in the config, <code>price</code> or <code>receipt</code>, and every message and
-              <code>copy.date(when, 'receipt')</code> shows it the same way. One edit changes it everywhere, and a locale can show it its
-              own way.
+              Vite, Next.js and Bun builds ship only the messages the code reads, and a lazy route brings its own, in the reader's language
+              from its first render.
             </p>
           </article>
           <article>
-            <h3>Extracted</h3>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#lint">Written well</a></h3>
             <p>
-              <code>prosebook extract</code> moves hardcoded JSX text into the catalog, whole sentences with their links, and rewrites the
-              component.
-            </p>
-          </article>
-          <article class="new">
-            <h3>Reviewed</h3>
-            <p>
-              <code>prosebook diff origin/main</code> shows a pull request's copy as words, not YAML: each change as a word diff, the
-              translations it left stale, and the lint's findings, as a comment a workflow keeps up to date.
-            </p>
-          </article>
-          <article class="new">
-            <h3>Renamed</h3>
-            <p>
-              <code>prosebook rename</code> moves a key, or a whole area, through the catalog, every translation, the lock and the code that
-              reads it.
-            </p>
-          </article>
-          <article class="new">
-            <h3>In context</h3>
-            <p>
-              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page, or to leave a comment or a mark for
-              removal for your coding agent. The page updates without reloading.
+              A lint holds the words to a writing guide: word budgets, periods, case, plural forms and each language's punctuation. What no
+              rule can check goes in a <code>WRITING.md</code> for your coding agent.
             </p>
           </article>
           <article>
-            <h3>Pseudo-locale</h3>
-            <p><code>⟦Ýóóúúŕ çááŕţ ·····⟧</code> shows hardcoded text, clipped text and sentences spliced from fragments at a glance.</p>
-          </article>
-          <article class="new">
-            <h3>Any framework</h3>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#inspector">In context</a></h3>
             <p>
-              React, Preact, Vue, Svelte and Solid each get a binding that updates what reads a message when the locale changes, and turns
-              tags into their own elements, snippets or slots.
+              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page. The page updates without reloading.
             </p>
           </article>
-          <article class="new">
-            <h3>Native too</h3>
+          <article>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#bindings">Any framework</a></h3>
             <p>
-              The same catalog generates Rust, Swift and Kotlin for a tray, a menu bar or a CLI, with plurals, numbers and dates that say
-              what the browser says, and the string resources Android and Apple read.
+              React, Preact, Vue, Svelte and Solid each get a binding that updates what reads a message when the locale changes, and renders
+              tags as elements, snippets or slots.
+            </p>
+          </article>
+          <article>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#native-targets">Native too</a></h3>
+            <p>
+              The same catalog generates Rust, Swift and Kotlin, with plurals, numbers and dates that say what the browser says, and the
+              string resources Android and Apple read.
             </p>
           </article>
         </div>
+        <p class="more">
+          Also:
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#named-formats">Named formats</a> ·
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#extract">Extract</a> ·
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#rename">Rename</a> ·
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#diff">Diff in pull requests</a> ·
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#pseudo-locale">Pseudo-locale</a>
+        </p>
       </section>
 
       <section class="block" id="in-context">
-        <p class="eyebrow">New in dev</p>
+        <p class="eyebrow">In dev</p>
         <h2>Point at a string, land on its entry.</h2>
         <p class="intro">
           Hold <kbd class="alt-key">Alt</kbd> and point at text in your running app, under Vite, Next.js or Bun: prosebook outlines the
@@ -1033,9 +1008,10 @@
           <div>
             <h3>Your editor, or none</h3>
             <p>
-              Alt-click opens the entry through Vite's own <code>/__open-in-editor</code>. Alt-right-click edits it in a dialog on the page,
-              as fields or as YAML, checked before it's written. Lint's findings show under each text as you type, with a fix where there is
-              one. A comment or a mark for removal goes into the entry, for the next edit, or your agent, to act on.
+              Alt-click opens the entry in the editor your dev server already opens, under Vite, Next.js or Bun. Alt-right-click edits it in
+              a dialog on the page, as fields or as YAML, checked before it's written. Lint's findings show under each text as you type,
+              with a fix where there is one. A comment or a mark for removal goes into the entry, for the next edit, or your agent, to act
+              on.
             </p>
           </div>
         </div>
@@ -1109,6 +1085,11 @@ plugins: [react(), prosebook()]</pre>
 &lt;CopyProvider copy={copy}&gt;…</pre>
           </div>
         </div>
+        <p class="more">
+          Next.js and Bun take one line each, and every framework its own binding: see
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#integrations">Integrations</a> and
+          <a href="https://github.com/gkurt/prosebook/blob/main/API.md#bindings">Bindings</a>.
+        </p>
       </section>
 
       <footer>
