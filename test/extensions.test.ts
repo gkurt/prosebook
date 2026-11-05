@@ -145,18 +145,25 @@ describe('durations', () => {
     expect(durationParts(-65_000)).toEqual({ parts: { minutes: -1, seconds: -5 } });
   });
 
-  test('with fractionalDigits, the milliseconds are the seconds’ fraction, rounded to its last digit', () => {
+  test('with fractionalDigits, the seconds’ fraction is a unit, rounded to its last digit', () => {
     const tenths = { fractionalDigits: 1 };
     const folded = { milliseconds: 'numeric' };
     expect(durationParts(4_237, tenths)).toEqual({ parts: { seconds: 4, milliseconds: 200 }, display: folded });
-    expect(durationParts(180_250, tenths)).toEqual({ parts: { minutes: 3, milliseconds: 300 }, display: folded });
+    expect(durationParts(200, tenths)).toEqual({ parts: { milliseconds: 200 }, display: folded });
+    // Minutes and seconds are two units already, so the fraction is left out.
+    expect(durationParts(180_250, tenths)).toEqual({ parts: { minutes: 3 }, display: folded });
+    expect(durationParts(185_250, { ...tenths, units: 3 })).toEqual({
+      parts: { minutes: 3, seconds: 5, milliseconds: 300 },
+      display: folded,
+    });
     // 59.96 seconds to the tenth is a minute.
     expect(durationParts(59_960, tenths)).toEqual({ parts: { minutes: 1 }, display: folded });
-    expect(durationParts(3_725_400, tenths)).toEqual({ parts: { hours: 1, minutes: 2 }, display: folded });
     expect(durationParts(-1_250, { fractionalDigits: 2 })).toEqual({ parts: { seconds: -1, milliseconds: -250 }, display: folded });
     expect(durationParts(0, tenths)).toEqual({ parts: { seconds: 0 }, display: { ...folded, secondsDisplay: 'always' } });
-    // Digital writes milliseconds as a fraction already.
-    expect(durationParts(4_237, { style: 'digital', fractionalDigits: 1 })).toEqual({ parts: { seconds: 4, milliseconds: 200 } });
+    // Digital writes milliseconds as a fraction already, and shows every unit.
+    expect(durationParts(185_437, { style: 'digital', fractionalDigits: 2 })).toEqual({
+      parts: { minutes: 3, seconds: 5, milliseconds: 440 },
+    });
   });
 
   test('a duration formats as its locale writes one, in either syntax', () => {
@@ -171,11 +178,20 @@ describe('durations', () => {
   });
 
   test('a format with fractionalDigits shows tenths of a second, in messages and in code', () => {
+    const tenths = (took: number, locale = 'en') => render(1, '{took, duration, tenths}', locale, { took });
     expect(render(1, 'Took {took, duration, tenths}', 'en', { took: 4_237 })).toBe('Took 4.2s');
-    expect(render(1, '{took, duration, tenths}', 'en', { took: 180_250 })).toBe('3m 0.3s');
-    expect(render(1, '{took, duration, tenths}', 'en', { took: 0 })).toBe('0.0s');
-    expect(render(1, '{took, duration, tenths}', 'de', { took: 4_237 })).toBe('4,2 Sek.');
+    expect([12_000, 12_040, 200, 0, 185_250, 3_725_400].map((took) => tenths(took))).toEqual([
+      '12s',
+      '12s',
+      '0.2s',
+      '0s',
+      '3m 5s',
+      '1h 2m',
+    ]);
+    expect(tenths(4_237, 'de')).toBe('4,2 Sek.');
+    // A clock keeps its width.
     expect(render(1, '{took, duration, stopwatch}', 'en', { took: 185_437 })).toBe('0:03:05.44');
+    expect(render(1, '{took, duration, stopwatch}', 'en', { took: 185_000 })).toBe('0:03:05.00');
     expect(render(2, '{$took :duration format=tenths}', 'en', { took: 4_237 })).toBe('4.2s');
     const copy = createCopy(defineCatalog({ source: 'en', locales: ['en'], messages: {}, loaders: {}, formats }));
     expect(copy.duration(4_237, 'tenths' as never)).toBe('4.2s');
@@ -183,7 +199,8 @@ describe('durations', () => {
 
   test('fractionalDigits is checked with the units around it', () => {
     const refused = (duration: Record<string, unknown>) => () => fixture({}, { formats: { duration: { took: duration } } });
-    expect(refused({ fractionalDigits: 4 })).toThrow('fractionalDigits is how many digits of a second are shown, 0 to 3');
+    expect(refused({ fractionalDigits: 4 })).toThrow('fractionalDigits is the most digits of a second shown, 1 to 3');
+    expect(refused({ fractionalDigits: 0 })).toThrow("for none, set smallest: 'seconds'");
     expect(refused({ fractionalDigits: 1, smallest: 'milliseconds' })).toThrow('remove smallest');
     expect(refused({ fractionalDigits: 1, largest: 'milliseconds' })).toThrow('largest is seconds or larger');
   });

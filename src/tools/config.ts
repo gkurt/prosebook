@@ -446,9 +446,9 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
     if (units !== undefined && !whole(units)) return 'units is how many units are shown, 1 or more';
     const { fractionalDigits: digits } = value;
     if (digits !== undefined) {
-      // A duration is milliseconds, so a fourth digit would always be 0.
-      if (typeof digits !== 'number' || !Number.isInteger(digits) || digits < 0 || digits > 3)
-        return 'fractionalDigits is how many digits of a second are shown, 0 to 3';
+      // A duration is milliseconds, so a fourth digit would always be 0; no digit at all is `smallest: 'seconds'`.
+      if (typeof digits !== 'number' || !Number.isInteger(digits) || digits < 1 || digits > 3)
+        return `fractionalDigits is the most digits of a second shown, 1 to 3; for none, set smallest: 'seconds'`;
       if (smallest !== undefined && smallest !== 'seconds')
         return `fractionalDigits shows the milliseconds as the seconds' fraction, so the seconds are the smallest unit: remove smallest`;
       if (largest === 'milliseconds') return `fractionalDigits shows the seconds' fraction, so largest is seconds or larger`;

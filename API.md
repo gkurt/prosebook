@@ -572,7 +572,7 @@ formats: {
   },
   duration: {
     compact: { style: 'narrow', smallest: 'seconds' }, // "3m 5s"; largest, smallest, units (2)
-    tenths: { style: 'narrow', fractionalDigits: 1 }, // "4.2s"
+    tenths: { style: 'narrow', fractionalDigits: 1 }, // "4.2s", "12s", "3m 5s"
   },
   locales: { de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } } },
 },
@@ -607,8 +607,9 @@ copy.duration(took, 'compact');
 - A list format's `max` shows that many items and says the rest with the entry `more` names, given `{count}`, as the last item,
   in each locale's words; `max` and `more` go together, and only in a named format. The entry is kept in every build.
 - A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
-  many it shows from the largest it reaches. `fractionalDigits` (0 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
-  where milliseconds would show "4s 200ms", rounded to its last digit; the seconds are its smallest unit.
+  many it shows from the largest it reaches. `fractionalDigits` (1 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
+  where milliseconds would show "4s 200ms", rounded to its last digit and without trailing zeros ("12s"). The fraction is one of
+  the `units`, so with 2, "3m 5s" shows none; `units: 3` shows "3m 5.2s". Digital keeps every digit, "0:03:05.40".
 - The `named-format` lint warns of a message that spells out a named format's options.
 
 ### Tags

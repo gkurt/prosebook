@@ -63,8 +63,10 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   take names from; `Register`'s `formats` names them for the types. Lists and durations have options of
   prosebook's own beside `Intl`'s: a list's `max` and `more` (the entry saying the rest, which `moreKeys`
   keeps in builds), a duration's `largest`, `smallest`, `units` and `fractionalDigits`, which `durationParts`
-  reads; it hands back the `Intl` options a duration adds (`display`): 0 shown in the smallest unit, and
-  `milliseconds: 'numeric'`, which is how `Intl.DurationFormat` writes them as the seconds' fraction.
+  reads, the fraction a unit of its own after the seconds (tenths of one, say), so `units` counts it; it
+  hands back the `Intl` options a duration adds (`display`): 0 shown in the smallest unit, and
+  `milliseconds: 'numeric'`, which is how `Intl.DurationFormat` writes them as the seconds' fraction, with
+  its `fractionalDigits` unset, so it trims the zeros, except in digital, a clock keeping its width.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
