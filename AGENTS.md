@@ -79,6 +79,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
+  `loadConfig` imports a config file anew once it changed (a query for Node, `require.cache` for Bun),
+  so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
   `presets.ts`: kinds, surfaces, the strict preset's word lists.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
@@ -212,7 +214,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   Linux and macOS it throws, and CI runs there.
 - `src/tools/bundle.ts`: what the bundler integrations share: `keeper`, the unseen reads that are a
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
-  the code reading it, the pruned locale module, the catalog watcher, and the dev code appended to the
+  the code reading it, the pruned locale module, the catalog watcher (`watchCatalog`, which loads the
+  config again when its file changes, for the CLI's `--watch`, Next and Bun), and the dev code appended to the
   generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
   A build leaves the pseudo-locale out (`withoutPseudo`) and loads `buildIndex` in place of the
   generated index, which lists every locale `generated` holds; the split index and areas read the same.
@@ -232,7 +235,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 - `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
   are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
-  apps that share a catalog. In dev it makes the generated modules accept their own updates (the index
+  apps that share a catalog. In dev an edit to the config file restarts the server, as Vite does for
+  its own, except beside the Astro integration's plugin (`ASTRO_PLUGIN`): `astro.ts` names the files
+  to Astro (`addWatchFile`), whose restart does more than Vite's. In dev it makes the generated modules accept their own updates (the index
   reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
   first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
   HTML too. It serves the inspector's endpoints and opens an entry by redirecting to Vite's

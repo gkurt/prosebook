@@ -2,7 +2,8 @@
  * `prosebook/config`: where the catalog lives, what an entry may say about itself, and how strictly
  * its words are checked. Written as `prosebook.config.ts` (or `.js`, `.mjs`, `.json`) at the project root.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -234,14 +235,26 @@ export const CONFIG_FILES = [
   'prosebook.config.json',
 ];
 
-/** Finds and reads the config at `root`, or the defaults when there is none. */
+// A module is imported once per process, so a config file changed since is imported anew: Node keys
+// its modules by URL, the query included; Bun by path, ignoring the query, and drops one deleted from
+// `require.cache`. The modules the file imports stay as first loaded.
+const modules = createRequire(import.meta.url).cache;
+const imported = new Map<string, number>();
+
+/**
+ * Finds and reads the config at `root`, or the defaults when there is none. A config file is read as
+ * it is now, so a dev server that loads it again after an edit gets the edit.
+ */
 export async function loadConfig(root: string, inline?: ProsebookConfig): Promise<ResolvedConfig> {
   if (inline) return resolveConfig(root, inline);
   for (const name of CONFIG_FILES) {
     const path = join(root, name);
     if (!existsSync(path)) continue;
     if (name.endsWith('.json')) return resolveConfig(root, JSON.parse(readFileSync(path, 'utf8')) as ProsebookConfig);
-    const mod = (await import(pathToFileURL(path).href)) as { default?: ProsebookConfig };
+    const modified = statSync(path).mtimeMs;
+    if (imported.get(path) !== modified) delete modules[path];
+    imported.set(path, modified);
+    const mod = (await import(`${pathToFileURL(path).href}?t=${modified}`)) as { default?: ProsebookConfig };
     return resolveConfig(root, mod.default ?? {});
   }
   return resolveConfig(root, {});

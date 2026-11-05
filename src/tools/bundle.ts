@@ -6,7 +6,7 @@
  * loaders and Bun's `onLoad` hand over a locale module before the code that reads it has been seen,
  * so they read the source under `scan.dirs` first (`scanSources`) and load the locale already pruned.
  */
-import { existsSync, readFileSync, watch } from 'node:fs';
+import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +14,7 @@ import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
-import type { ResolvedConfig } from './config.ts';
+import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
 import { catalogLiteral, type Generated } from './generate.ts';
 import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type KeyRefs, type Reads, type UnseenRead } from './scan.ts';
 
@@ -96,23 +96,65 @@ export function brokenIn(generated: Generated): string | undefined {
   return `${new CatalogError(errors).message}\nThose entries are left out until they're fixed; the rest is served.`;
 }
 
-/** Calls `change` once a burst of edits to the catalog or its translations settles. Returns the stop. */
-export function watchCatalog(config: ResolvedConfig, change: () => void): () => void {
+/**
+ * Calls `change` once a burst of edits to the catalog, its translations or the config file settles,
+ * with the config as it then reads: loaded again after an edit to its file, unless it was given
+ * `inline`. A config that fails to load goes to `fail`, and the last one stays. Returns the stop.
+ */
+export function watchCatalog(
+  config: ResolvedConfig,
+  inline: ProsebookConfig | undefined,
+  change: (config: ResolvedConfig) => void,
+  fail: (e: unknown) => void,
+): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const watchers = [config.catalog, config.locales]
-    .filter((dir) => existsSync(dir))
-    .map((dir) =>
-      watch(dir, { recursive: true }, (_event, file) => {
-        if (file === null || !file.endsWith('.yaml')) return;
-        clearTimeout(timer);
-        timer = setTimeout(change, 50);
-      }),
-    );
+  let reload = false;
+  let dirs: FSWatcher[] = [];
+  const settle = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void run(), 50);
+  };
+  const run = async () => {
+    if (reload) {
+      reload = false;
+      try {
+        config = await loadConfig(config.root, inline);
+      } catch (e) {
+        return fail(e);
+      }
+      watchDirs();
+    }
+    change(config);
+  };
+  // Again after a reload, which may have moved them.
+  const watchDirs = () => {
+    for (const w of dirs) w.close();
+    dirs = [config.catalog, config.locales]
+      .filter((dir) => existsSync(dir))
+      .map((dir) => watch(dir, { recursive: true }, (_event, file) => file?.endsWith('.yaml') === true && settle()));
+  };
+  watchDirs();
+  // The folder, not the file, so a config file written in place of another is seen too.
+  const own =
+    inline === undefined
+      ? watch(config.root, (_event, file) => {
+          if (file === null || !CONFIG_FILES.includes(file)) return;
+          reload = true;
+          settle();
+        })
+      : undefined;
   return () => {
     clearTimeout(timer);
-    for (const w of watchers) w.close();
+    for (const w of dirs) w.close();
+    own?.close();
   };
 }
+
+/**
+ * The Astro integration's own Vite plugin, beside the Vite plugin. Astro restarts for an edit to the
+ * config file itself, as its restart does more than Vite's, so the Vite plugin doesn't where it is.
+ */
+export const ASTRO_PLUGIN = 'prosebook:astro';
 
 /** The dev hooks and the inspector, imported first by the index in the browser, or by a page that holds no copy. */
 export const DEV = 'virtual:prosebook/dev';

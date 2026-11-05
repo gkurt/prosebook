@@ -135,6 +135,10 @@ Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (B
 | `split`   | `false`    | [Split](#splitting) each locale by area.                                                                     |
 | `inspect` | `true`     | The [inspector](#inspector), in dev.                                                                         |
 
+In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, Bun and `generate --watch` regenerate with
+the new config, but keep the paths (`catalog`, `locales`, `out`) they started with: restart them after moving one. A module the
+config file imports is read once per process.
+
 ## Runtime
 
 ### `createCopy`

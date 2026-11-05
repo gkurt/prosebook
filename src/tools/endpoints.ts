@@ -25,16 +25,16 @@ export interface EndpointOptions {
   reads?: Reads;
 }
 
-/** Answers the inspector's requests, and nothing for any other path. */
+/** Answers the inspector's requests, and nothing for any other path, under the config `config` gives then. */
 export function inspectorEndpoints(
-  config: ResolvedConfig | Promise<ResolvedConfig>,
+  config: () => ResolvedConfig | Promise<ResolvedConfig>,
   { base = '/', open, reads }: EndpointOptions,
 ): (req: Request) => Promise<Response | undefined> {
   return async (req) => {
     const url = new URL(req.url);
     if (url.pathname === `${base}__prosebook/reads`) return Response.json(reads === undefined ? [] : [...reads]);
-    if (url.pathname === `${base}__prosebook/open`) return openEntry(await config, url, open);
-    if (url.pathname === `${base}__prosebook/entry`) return entry(await config, req, url);
+    if (url.pathname === `${base}__prosebook/open`) return openEntry(await config(), url, open);
+    if (url.pathname === `${base}__prosebook/entry`) return entry(await config(), req, url);
     return undefined;
   };
 }

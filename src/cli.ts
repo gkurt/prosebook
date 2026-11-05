@@ -282,17 +282,29 @@ function runGenerate(config: ResolvedConfig, check: boolean, report?: SarifRepor
 }
 
 function watchMode(config: ResolvedConfig): Promise<number> {
+  const failed = (e: unknown) => {
+    if (e instanceof CatalogError) reportProblems(config, e.problems);
+    else err(String(e));
+  };
   const regenerate = () => {
     saidErrors = false;
     try {
       runGenerate(config, false);
     } catch (e) {
-      if (e instanceof CatalogError) reportProblems(config, e.problems);
-      else err(String(e));
+      failed(e);
     }
   };
   regenerate();
-  watchCatalog(config, regenerate);
+  // An edit to the config regenerates with the edit.
+  watchCatalog(
+    config,
+    undefined,
+    (next) => {
+      config = next;
+      regenerate();
+    },
+    failed,
+  );
   out('prosebook: watching the catalog for changes');
   return new Promise(() => {});
 }

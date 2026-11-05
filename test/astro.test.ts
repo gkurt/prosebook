@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { build, dev } from 'astro';
@@ -95,3 +95,20 @@ test('in dev, every page gets the inspector, what the server read reaches it, an
   // Once the server is gone, nothing in the process records reads any more.
   expect((globalThis as { __PROSEBOOK_READ__?: unknown }).__PROSEBOOK_READ__).toBeUndefined();
 });
+
+test('in dev, an edit to the config file restarts the server with it', async () => {
+  const { root } = fixture({ ...site([]), 'prosebook.config.mjs': 'export default { require: [] };\n' });
+  const index = join(root, 'src/copy/index.ts');
+  const server = await dev({ ...config(root, { server: { port: 0 } }), integrations: [prosebook()] });
+  try {
+    expect(readFileSync(index, 'utf8')).not.toContain('price');
+    const file = join(root, 'prosebook.config.mjs');
+    writeFileSync(file, "export default { require: [], formats: { number: { price: { style: 'currency', currency: 'EUR' } } } };\n");
+    // A file changed within the clock's resolution would read as the module already imported.
+    utimesSync(file, new Date(Date.now() + 10_000), new Date(Date.now() + 10_000));
+    for (let i = 0; i < 100 && !readFileSync(index, 'utf8').includes('price'); i++) await Bun.sleep(50);
+    expect(readFileSync(index, 'utf8')).toContain('price');
+  } finally {
+    await server.stop();
+  }
+}, 20_000);

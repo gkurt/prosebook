@@ -12,13 +12,14 @@
  * not the HTML the server wrote. So a generated module's update on the server reloads the page,
  * once the server has dropped what it ran, as Astro does for its own.
  */
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { AstroIntegration } from 'astro';
 import type { EnvironmentModuleNode, Plugin } from 'vite';
 
-import { DEV } from './tools/bundle.ts';
-import { loadConfig } from './tools/config.ts';
+import { ASTRO_PLUGIN, DEV } from './tools/bundle.ts';
+import { CONFIG_FILES, loadConfig } from './tools/config.ts';
 import { prosebook as vitePlugin, type ProsebookPluginOptions } from './vite.ts';
 
 export type { ProsebookPluginOptions as ProsebookIntegrationOptions };
@@ -27,8 +28,11 @@ export function prosebook(options: ProsebookPluginOptions = {}): AstroIntegratio
   return {
     name: 'prosebook',
     hooks: {
-      'astro:config:setup': ({ command, updateConfig, injectScript }) => {
+      'astro:config:setup': ({ command, config, updateConfig, injectScript, addWatchFile }) => {
         updateConfig({ vite: { plugins: [vitePlugin(options), reloadOnEdit(options)] } });
+        // Astro restarts for these as for its own config: the dev server whole, with the edit.
+        const root = resolve(fileURLToPath(config.root), options.root ?? '.');
+        if (options.config === undefined) for (const name of CONFIG_FILES) addWatchFile(join(root, name));
         if (command === 'dev' && options.inspect !== false) injectScript('page', `import ${JSON.stringify(DEV)};`);
       },
     },
@@ -47,7 +51,7 @@ interface Runner {
 function reloadOnEdit(options: ProsebookPluginOptions): Plugin {
   let out = '';
   return {
-    name: 'prosebook:astro',
+    name: ASTRO_PLUGIN,
     apply: 'serve',
     async configResolved(resolved) {
       const config = await loadConfig(options.root === undefined ? resolved.root : resolve(resolved.root, options.root), options.config);

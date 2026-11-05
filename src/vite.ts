@@ -26,13 +26,14 @@
  * launches.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Plugin } from 'vite';
 
 import {
   AREA,
+  ASTRO_PLUGIN,
   areaFilesOf,
   areaFilesPath,
   areaModule,
@@ -61,7 +62,7 @@ import {
 import { CatalogError, type EntryLocation } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
-import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
+import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
 import { inspectorEndpoints, nodeMiddleware, redirect, serverReads } from './tools/endpoints.ts';
 import { generate, writeFiles, type Generated } from './tools/generate.ts';
 import { keyRefs, SFC, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
@@ -113,6 +114,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   let building = false;
   let base = '/';
   let viteRoot = '';
+  let configRoot = '';
+  let restarts = true;
   let kept: (key: string) => boolean = () => true;
   let refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
   const reads = new Map<string, Reads>();
@@ -121,7 +124,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   const placeholders: { locale: string; areas?: string[] }[] = [];
   let groups: Groups = new Map();
   const shipped = { total: 0, kept: 0 };
-  let stopReads: (() => void) | undefined;
+  // One per server: on a restart Vite makes the new server before closing the old, both through this
+  // plugin when Vite was handed it inline rather than reading it from a config file, so a close stops the oldest.
+  const stopReads: (() => void)[] = [];
 
   const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 
@@ -150,7 +155,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       building = resolved.command === 'build';
       base = resolved.base;
       viteRoot = resolved.root;
-      config = await loadConfig(options.root === undefined ? resolved.root : resolve(resolved.root, options.root), options.config);
+      configRoot = options.root === undefined ? resolved.root : resolve(resolved.root, options.root);
+      restarts = !resolved.plugins.some((p) => p.name === ASTRO_PLUGIN);
+      config = await loadConfig(configRoot, options.config);
     },
 
     resolveId(id) {
@@ -179,9 +186,18 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
 
     configureServer(server) {
       const dirs = [normalize(config.catalog), normalize(config.locales)];
-      server.watcher.add(dirs);
+      // The config is loaded by this plugin, not imported by Vite's, so Vite doesn't restart for it itself.
+      const configFiles = options.config === undefined && restarts ? CONFIG_FILES.map((name) => normalize(join(configRoot, name))) : [];
+      server.watcher.add([...dirs, ...configFiles]);
       const onChange = (file: string) => {
         const path = normalize(file);
+        if (configFiles.includes(path)) {
+          const logger = server.config.logger;
+          logger.info(`prosebook: ${relative(viteRoot, path).replaceAll('\\', '/')} changed, restarting the server`, { timestamp: true });
+          // Vite says itself why a restart failed, and keeps the server it had.
+          server.restart().catch((e: unknown) => logger.error(describe(e), { timestamp: true }));
+          return;
+        }
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
         try {
           generated = generate(config, { partial: true });
@@ -207,13 +223,13 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         redirect(`${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`);
       // A server render (Astro's, a framework's first frame) runs here, in this process.
       const served = serverReads();
-      stopReads = served.stop;
-      server.middlewares.use(nodeMiddleware(inspectorEndpoints(config, { base, open: editor, reads: served.reads })));
+      stopReads.push(served.stop);
+      server.middlewares.use(nodeMiddleware(inspectorEndpoints(() => config, { base, open: editor, reads: served.reads })));
     },
 
     // In dev, once the server closes.
     closeBundle() {
-      stopReads?.();
+      stopReads.shift()?.();
     },
 
     load(id, loadOptions) {

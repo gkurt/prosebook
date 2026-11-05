@@ -95,9 +95,10 @@ const loaderPath = beside(import.meta.url, 'next-loader');
 const inspectorPath = beside(import.meta.url, 'inspector');
 
 // Next loads its config more than once in a process; one watcher and one inspector server per catalog
-// is enough.
+// is enough. Each catalog's config as last loaded, by its folder at start, for the inspector to read.
 const watching = new Set<string>();
 const serving = new Map<string, Promise<number>>();
+const latest = new Map<string, ResolvedConfig>();
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -114,6 +115,7 @@ export function withProsebook<C extends object>(
     const resolved = typeof next === 'function' ? await next(phase, context) : next;
     if (phase !== DEV && phase !== BUILD) return resolved;
     const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
+    latest.set(config.catalog, config);
     if (config.language === 'ts' && config.importExtension === '.js')
       throw new Error("prosebook: Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config");
     // In dev a broken entry is left out and said, so the rest of the catalog is still served.
@@ -166,7 +168,7 @@ function withRewrite<C extends object>(resolved: C, port: number): C {
 function serveInspector(config: ResolvedConfig, base: string): Promise<number> {
   let port = serving.get(config.catalog);
   if (port !== undefined) return port;
-  const handle = inspectorEndpoints(config, {
+  const handle = inspectorEndpoints(() => latest.get(config.catalog) ?? config, {
     open: ({ file, line, column }) =>
       redirect(`${base}__nextjs_launch-editor?${new URLSearchParams({ file, line1: String(line), column1: String(column) })}`),
   });
@@ -186,20 +188,29 @@ function serveInspector(config: ResolvedConfig, base: string): Promise<number> {
   return port;
 }
 
+/** Regenerates on each edit, with the config as it then reads; the rules keep the paths it named at start. */
 function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
-  if (watching.has(config.catalog)) return;
-  watching.add(config.catalog);
-  watchCatalog(config, () => {
-    try {
-      const generated = generate(config, { partial: true });
-      if (options.split === true) writeAreas(config, generated);
-      const broken = brokenIn(generated);
-      if (broken !== undefined) return console.error(broken);
-      console.info(`prosebook: regenerated ${relative(config.root, config.out).replaceAll('\\', '/')}`);
-    } catch (e) {
-      console.error(describe(e));
-    }
-  });
+  const key = config.catalog;
+  if (watching.has(key)) return;
+  watching.add(key);
+  const fail = (e: unknown) => console.error(describe(e));
+  watchCatalog(
+    config,
+    options.config,
+    (next) => {
+      latest.set(key, next);
+      try {
+        const generated = generate(next, { partial: true });
+        if (options.split === true) writeAreas(next, generated);
+        const broken = brokenIn(generated);
+        if (broken !== undefined) return console.error(broken);
+        console.info(`prosebook: regenerated ${relative(next.root, next.out).replaceAll('\\', '/')}`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+    fail,
+  );
 }
 
 /**

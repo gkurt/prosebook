@@ -100,7 +100,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
   return {
     name: 'prosebook',
     async setup(build) {
-      const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
+      let config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
       const building = 'entrypoints' in build.config;
       const dev = !building && process.env.NODE_ENV !== 'production';
       // In dev a broken entry is left out and said, so the rest of the catalog is still served. Out
@@ -127,14 +127,22 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       }
       const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
       if (dev) {
-        watchCatalog(config, () => {
-          try {
-            generated = generate(config, { partial: true });
-            if (brokenIn(generated) !== undefined) console.error(brokenIn(generated));
-          } catch (e) {
-            console.error(describe(e));
-          }
-        });
+        // An edit to the config regenerates with it; the paths it names stay as they were at start.
+        const fail = (e: unknown) => console.error(describe(e));
+        watchCatalog(
+          config,
+          options.config,
+          (next) => {
+            config = next;
+            try {
+              generated = generate(config, { partial: true });
+              if (brokenIn(generated) !== undefined) console.error(brokenIn(generated));
+            } catch (e) {
+              fail(e);
+            }
+          },
+          fail,
+        );
       }
 
       const groups = building && split ? areaGroups(config, generated, options.keep) : new Map<string, string>();
@@ -245,7 +253,9 @@ export interface InspectorRoutesOptions {
  * only: they read and write the catalog.
  */
 export function inspector(options: InspectorRoutesOptions = {}): Record<string, (req: Request) => Promise<Response>> {
-  const handle = inspectorEndpoints(loadConfig(resolve(options.root ?? process.cwd()), options.config), {
+  const root = resolve(options.root ?? process.cwd());
+  // Loaded per request, so an edit is checked by the config as it is now.
+  const handle = inspectorEndpoints(() => loadConfig(root, options.config), {
     open: ({ file, line, column }) => {
       try {
         Bun.openInEditor(file, { line, column });

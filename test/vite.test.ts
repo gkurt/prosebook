@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { build, createServer } from 'vite';
@@ -217,7 +217,7 @@ test('in dev, a split catalog serves each area its generated locales whole, impo
   });
   const plugin = prosebook({ config: { require: [] }, split: true });
   type Hook = (...args: unknown[]) => unknown;
-  await (plugin.configResolved as Hook)({ command: 'serve', base: '/', root: config.root });
+  await (plugin.configResolved as Hook)({ command: 'serve', base: '/', root: config.root, plugins: [] });
   (plugin.buildStart as Hook).call({});
   const transform = (code: string, id: string, ssr = false) =>
     ((plugin.transform as { handler: Hook }).handler(code, join(config.root, id).replaceAll('\\', '/'), { ssr }) as { code: string } | null)
@@ -362,3 +362,46 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     await server.close();
   }
 });
+
+test('in dev, an edit to the config file restarts the server, and later catalog edits generate with the new config', async () => {
+  const config = fixture({
+    'prosebook.config.mjs': 'export default { require: [] };\n',
+    'copy/catalog/app.yaml': `${SCHEMA_LINE}\napp.a: A\n`,
+    'index.html': '<html><head></head><body></body></html>',
+  });
+  const read = (path: string) => readFileSync(join(config.root, path), 'utf8');
+  const until = async (done: () => boolean) => {
+    for (let i = 0; i < 250 && !done(); i++) await Bun.sleep(20);
+    expect(done()).toBe(true);
+  };
+  const said: string[] = [];
+  const quiet = () => {};
+  const customLogger = {
+    info: (m: string) => said.push(m),
+    warn: quiet,
+    warnOnce: quiet,
+    error: quiet,
+    clearScreen: quiet,
+    hasErrorLogged: () => false,
+    hasWarned: false,
+  };
+  const server = await createServer({ root: config.root, customLogger, configFile: false, server: { port: 0 }, plugins: [prosebook()] });
+  try {
+    await server.listen();
+    expect(read('src/copy/index.ts')).not.toContain('price');
+    const file = join(config.root, 'prosebook.config.mjs');
+    writeFileSync(file, "export default { require: [], formats: { number: { price: { style: 'currency', currency: 'EUR' } } } };\n");
+    // A file changed within the clock's resolution would read as the module already imported.
+    utimesSync(file, new Date(Date.now() + 10_000), new Date(Date.now() + 10_000));
+    await until(() => said.includes('server restarted.'));
+    expect(read('src/copy/index.ts')).toContain('price');
+    // The new server's watcher is still reading the folder, so the edit is handed to it.
+    const catalog = join(config.root, 'copy/catalog/app.yaml');
+    writeFileSync(catalog, `${SCHEMA_LINE}\napp.a: Edited\n`);
+    server.watcher.emit('change', catalog);
+    expect(read('src/copy/en.ts')).toContain('Edited');
+    expect(read('src/copy/index.ts')).toContain('price');
+  } finally {
+    await server.close();
+  }
+}, 20_000);

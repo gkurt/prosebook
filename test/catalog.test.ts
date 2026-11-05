@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -19,6 +19,7 @@ import {
   type Plugin,
 } from 'prosebook/tools';
 
+import { watchCatalog } from '#src/tools/bundle.ts';
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { todoOf } from '#src/tools/todo.ts';
 import { cli, copyOf, fixture } from './fixture.ts';
@@ -909,4 +910,28 @@ test('the schema offers the key: message shorthand only where no field is requir
   expect(shorthand([])).toBe(true);
   expect(shorthand(['context'])).toBe(false);
   expect(shorthand(['context', 'kind'])).toBe(false);
+});
+
+test('a config file edited is read again, and the catalog watcher regenerates with it', async () => {
+  const { root } = fixture({ 'prosebook.config.ts': "export default { source: 'en' };\n" });
+  const file = join(root, 'prosebook.config.ts');
+  // Written apart in time, as an edit is: a module changed within the clock's resolution reads as the same.
+  const edit = (content: string, seconds: number) => {
+    writeFileSync(file, content);
+    utimesSync(file, seconds, seconds);
+  };
+  edit("export default { source: 'en' };\n", 1_000_000);
+  expect((await loadConfig(root)).source).toBe('en');
+  edit("export default { source: 'de' };\n", 1_000_100);
+  expect((await loadConfig(root)).source).toBe('de');
+
+  const seen: string[] = [];
+  const stop = watchCatalog(await loadConfig(root), undefined, (config) => seen.push(config.source), String);
+  try {
+    edit("export default { source: 'fr' };\n", 1_000_200);
+    for (let i = 0; i < 100 && seen.length === 0; i++) await Bun.sleep(20);
+    expect(seen.at(-1)).toBe('fr');
+  } finally {
+    stop();
+  }
 });
