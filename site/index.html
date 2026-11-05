@@ -282,35 +282,61 @@
         margin: 14px 0 32px;
       }
 
-      /* Features */
-      .features {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 1px;
-        background: var(--line);
+      /* What works with it */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        list-style: none;
+        padding: 0;
+        margin: -48px 0 80px;
+      }
+      .chips a {
+        display: block;
+        padding: 4px 12px;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        overflow: hidden;
-      }
-      .features article {
+        border-radius: 999px;
         background: var(--raised);
-        padding: 22px 22px 24px;
-      }
-      .features h3 {
-        font-size: 21px;
-        margin-bottom: 8px;
-      }
-      .features p {
-        margin: 0;
         color: var(--muted);
-        font-size: 15px;
+        font-size: 14px;
+        text-decoration: none;
       }
-      .features h3 a {
+      .chips a:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .chips .sep {
+        width: 1px;
+        height: 20px;
+        margin: 0 4px;
+        background: var(--line);
+      }
+
+      /* Features, each shown */
+      .shows {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px 16px;
+        margin-top: 32px;
+      }
+      .shows h3 {
+        font-size: 21px;
+        margin-bottom: 10px;
+      }
+      .shows h3 a {
         color: inherit;
         text-decoration: none;
       }
-      .features h3 a:hover {
+      .shows h3 a:hover {
         color: var(--accent);
+      }
+      .shows pre {
+        white-space: pre-wrap;
+        font-size: 13px;
+      }
+      .x {
+        color: var(--err);
       }
       .more {
         margin: 16px 0 0;
@@ -737,42 +763,10 @@
         padding: 2px 8px;
         font-size: 12px;
       }
-      .facts {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 24px;
-        margin-top: 28px;
-      }
-      .facts h3 {
-        font-size: 19px;
-        margin-bottom: 6px;
-      }
-      .facts p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 15px;
-      }
 
       /* Translators */
-      .split {
-        display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-        gap: 40px;
-        align-items: start;
-      }
-      .split ul {
-        padding: 0;
-        margin: 20px 0 0;
-        list-style: none;
-        display: grid;
-        gap: 14px;
-      }
-      .split li {
-        color: var(--muted);
-      }
-      .split li strong {
-        color: var(--ink);
-        font-weight: 600;
+      .block .pair {
+        margin: 32px 0 0;
       }
       .add {
         color: var(--ok);
@@ -806,13 +800,9 @@
       @media (max-width: 860px) {
         .pair,
         .demo,
-        .split,
-        .steps,
-        .facts {
+        .shows,
+        .steps {
           grid-template-columns: minmax(0, 1fr);
-        }
-        .split {
-          gap: 24px;
         }
         .hero {
           padding-top: 32px;
@@ -833,10 +823,7 @@
 
       <header class="hero">
         <h1>Every string your app shows, in one typed catalog.</h1>
-        <p class="lede">
-          UX writers keep a product's words in one document, the copy deck. prosebook makes it the source of truth: each string lives in
-          YAML with the context a translator needs, and the code holds only keys.
-        </p>
+        <p class="lede">The words live in YAML, beside the context a translator needs. The code holds only keys.</p>
         <div class="actions">
           <a class="btn primary" href="#in-context">Try it on the page</a>
           <a class="btn" href="https://github.com/gkurt/prosebook/blob/main/API.md">Read the docs</a>
@@ -859,7 +846,6 @@
           <header>src/Cart.tsx</header>
           <pre><span class="w">const</span> { t } = useCopy();
 
-<span class="c">// A missing key or argument is a type error.</span>
 &lt;p&gt;{t(<span class="s">'cart.items'</span>, { count })}&lt;/p&gt;
 <span class="c">// "3 items in your cart."</span>
 
@@ -868,67 +854,77 @@
         </div>
       </div>
 
+      <ul class="chips" aria-label="Works with">
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#react">React</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#preact">Preact</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#vue">Vue</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#svelte">Svelte</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#solid">Solid</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#plain-javascript">JavaScript</a></li>
+        <li class="sep" aria-hidden="true"></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#vite">Vite</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#nextjs">Next.js</a></li>
+        <li><a href="https://github.com/gkurt/prosebook/blob/main/API.md#bun">Bun</a></li>
+      </ul>
+
       <section class="block">
         <p class="eyebrow">What you get</p>
         <h2>Words you can change without touching code, checked like code.</h2>
-        <p class="intro">
-          <code>prosebook generate</code> compiles the catalog into typed modules, one per locale. Everything a parser would do in the
-          browser happens at build time instead.
-        </p>
-        <div class="features">
+        <div class="shows">
           <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#types">Typed</a></h3>
-            <p>
-              A missing key, a misspelled key or a missing argument is a type error. Completing a key shows its English text and context.
-            </p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#types">A wrong key doesn't compile</a></h3>
+            <div class="code">
+              <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
+t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs { count }</span>
+t(<span class="s">'cart.items'</span>, { count }); <span class="c">// "3 items in your cart."</span></pre>
+            </div>
           </article>
           <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#messages">Compiled</a></h3>
-            <p>
-              Each message, in ICU MessageFormat or MessageFormat 2, becomes a plain function. No parser ships, no <code>eval</code>, and
-              the runtime is about 2.5 KB gzipped.
-            </p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#messages">Compiled, never parsed</a></h3>
+            <div class="code">
+              <header>src/copy/en.ts, generated</header>
+              <pre><span class="s">"cart.title"</span>: <span class="s">"Cart"</span>,
+<span class="s">"cart.total"</span>: (a, h) =&gt; [<span class="s">"Total: "</span>, h.n(a.amount, o2) ?? h.e(<span class="s">"{amount}"</span>)],
+<span class="s">"cart.terms"</span>: (a, h) =&gt; [<span class="s">"By checking out you agree to our "</span>, h.t(a, <span class="s">"link"</span>, <span class="s">"terms of sale"</span>), <span class="s">"."</span>],</pre>
+            </div>
           </article>
           <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#translations">Checked</a></h3>
-            <p>
-              Placeholders that drift between the source and a translation fail the build. A translation whose source changed is marked
-              stale.
-            </p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#translations">Translations can't drift</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook check
+<span class="x">error</span> copy/locales/de/cart.yaml cart.items: differs from the source: missing {count}; unknown {anzahl}</pre>
+            </div>
           </article>
           <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#builds">Pruned and split</a></h3>
-            <p>
-              Vite, Next.js and Bun builds ship only the messages the code reads, and a lazy route brings its own, in the reader's language
-              from its first render.
-            </p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#lint">Held to a writing guide</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook lint
+<span class="x">error</span> cart.remove: [plural-count] count is followed by "items", which reads "1 items": make it a plural with a "# item" arm
+<span class="x">error</span> cart.total: [formatted-by-hand] "€" is typed before amount: format it as a currency, which puts the symbol where the locale does</pre>
+            </div>
           </article>
           <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#lint">Written well</a></h3>
-            <p>
-              A lint holds the words to a writing guide: word budgets, periods, case, plural forms and each language's punctuation. What no
-              rule can check goes in a <code>WRITING.md</code> for your coding agent.
-            </p>
-          </article>
-          <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#inspector">In context</a></h3>
-            <p>
-              In dev, Alt-click any string to open its entry, or Alt-right-click to edit it on the page. The page updates without reloading.
-            </p>
-          </article>
-          <article>
-            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#bindings">Any framework</a></h3>
-            <p>
-              React, Preact, Vue, Svelte and Solid each get a binding that updates what reads a message when the locale changes, and renders
-              tags as elements, snippets or slots.
-            </p>
+            <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#builds">Only what the code reads ships</a></h3>
+            <div class="code">
+              <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
+<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span>
+
+t(item.key);
+<span class="x">// ✗ 1 read(s) whose key the build can't see, so their
+//   messages would be pruned and the key shown instead</span></pre>
+            </div>
           </article>
           <article>
             <h3><a href="https://github.com/gkurt/prosebook/blob/main/API.md#native-targets">Native too</a></h3>
-            <p>
-              The same catalog generates Rust, Swift and Kotlin, with plurals, numbers and dates that say what the browser says, and the
-              string resources Android and Apple read.
-            </p>
+            <div class="code">
+              <pre><span class="c">// Rust</span>
+copy.recordings(<span class="k">3</span>) <span class="c">// "3 Aufnahmen"</span>
+<span class="c">// Swift</span>
+copy.trayRecordings(count: <span class="k">3</span>)
+<span class="c">// Kotlin</span>
+copy.trayRecordings(<span class="k">3</span>)
+<span class="c">// and Android's and Apple's string resources</span></pre>
+            </div>
           </article>
         </div>
         <p class="more">
@@ -944,11 +940,7 @@
       <section class="block" id="in-context">
         <p class="eyebrow">In dev</p>
         <h2>Point at a string, land on its entry.</h2>
-        <p class="intro">
-          Hold <kbd class="alt-key">Alt</kbd> and point at text in your running app, under Vite, Next.js or Bun: prosebook outlines the
-          string and names its key. Click to open the entry in your editor, the translation for a translated string or the catalog for one
-          that fell back, or right-click to edit it in a dialog on the page. Try both on the shop below.
-        </p>
+        <p class="intro">In your running app, under Vite, Next.js or Bun. Try it on the shop:</p>
 
         <div class="demo">
           <div class="window">
@@ -990,61 +982,12 @@
             <div class="status" id="status" aria-live="polite">Shift-click opens the catalog entry, even for a translated string.</div>
           </div>
         </div>
-
-        <div class="facts">
-          <div>
-            <h3>No keys in the DOM</h3>
-            <p>
-              In dev the runtime reports each string it hands out, and the text under the pointer is matched back to it. <code>t()</code>,
-              <code>&lt;Text&gt;</code>, rich sentences and attributes all work.
-            </p>
-          </div>
-          <div>
-            <h3>Edits keep your place</h3>
-            <p>
-              Saving a catalog or translation swaps that locale's messages in place. The page keeps its locale, its state and your scroll.
-            </p>
-          </div>
-          <div>
-            <h3>Your editor, or none</h3>
-            <p>
-              Alt-click opens the entry in the editor your dev server already opens, under Vite, Next.js or Bun. Alt-right-click edits it in
-              a dialog on the page, as fields or as YAML, checked before it's written. Lint's findings show under each text as you type,
-              with a fix where there is one. A comment or a mark for removal goes into the entry, for the next edit, or your agent, to act
-              on.
-            </p>
-          </div>
-        </div>
       </section>
 
       <section class="block">
-        <div class="split">
-          <div>
-            <p class="eyebrow">For translators</p>
-            <h2>Know what changed since the last translation.</h2>
-            <ul>
-              <li>
-                <strong>Only text to translate.</strong> A locale file holds <code>key: translation</code>; the context stays in the
-                catalog.
-              </li>
-              <li>
-                <strong>Stale, automatically.</strong> <code>copy/lock.json</code> records the source each translation was made from, and
-                shows the change as a word diff.
-              </li>
-              <li>
-                <strong>Fallback, key by key.</strong> A missing key falls back through its parents (<code>pt-BR</code> → <code>pt</code>)
-                to the source.
-              </li>
-              <li>
-                <strong>Any model, checked.</strong> <code>prosebook todo de --prompt</code> writes the prompt for the model you use, and
-                <code>prosebook import</code> checks its reply before a word is written.
-              </li>
-              <li>
-                <strong>Any translation tool.</strong> <code>prosebook export de de.xlf</code> writes XLIFF 2.0 or JSON with each entry's
-                context, and <code>import</code> takes the tool's file back the same way.
-              </li>
-            </ul>
-          </div>
+        <p class="eyebrow">For translators</p>
+        <h2>Know what changed since the last translation.</h2>
+        <div class="pair">
           <div class="code">
             <header>terminal</header>
             <pre><span class="c">$</span> prosebook status --verbose
@@ -1058,6 +1001,18 @@ de           13/14  92%        1      2
 <span class="c"># en: Add one to cart</span>
 <span class="c"># stale, the source changed: Add {+one +}to cart</span>
 <span class="k">cart.add</span>: In den Warenkorb</pre>
+          </div>
+          <div class="code">
+            <header>terminal</header>
+            <pre><span class="c"># with any model</span>
+<span class="c">$</span> prosebook todo de --prompt | pbcopy
+<span class="c">$</span> prosebook import de reply.md
+
+<span class="c"># with any translation tool</span>
+<span class="c">$</span> prosebook export de de.xlf
+<span class="c">$</span> prosebook import de de.xlf
+
+<span class="c"># every entry checked before it's written</span></pre>
           </div>
         </div>
       </section>
