@@ -18,6 +18,7 @@ import { lint, type Finding } from './tools/lint.ts';
 import { changeOf, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { applyRename, planRename } from './tools/rename.ts';
+import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
 import { SarifReport } from './tools/sarif.ts';
 import { isReferenced, scan, sourceFiles, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
@@ -47,6 +48,9 @@ Commands:
                           (dry run unless --write; --area <name> puts every entry in one area)
   migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
                           (dry run unless --write)
+  diff [base]             The copy changed since a git revision (HEAD by default): each entry's words
+                          as a word diff, the translations it left stale, and the lint's findings on
+                          them  (--format markdown: for a pull request's comment)
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
   check                   generate --check, lint and status --strict together, for CI, and warns
@@ -57,6 +61,7 @@ Options:
   --format <text|sarif>   With lint, scan, status and check: sarif writes a SARIF 2.1.0 log to stdout
                           for code scanning, and the usual text to stderr
   --format <xliff|json>   With export: the file's format (XLIFF by default on stdout)
+  --format <markdown>     With diff: Markdown, for a pull request's comment
   -h, --help              Show this help
 `;
 
@@ -108,6 +113,11 @@ async function main(argv: string[]): Promise<number> {
       err(`prosebook: export writes xliff or json, not "${values.format}"`);
       return 1;
     }
+  } else if (command === 'diff') {
+    if (values.format !== undefined && values.format !== 'text' && values.format !== 'markdown') {
+      err(`prosebook: diff writes text or markdown, not "${values.format}"`);
+      return 1;
+    }
   } else if (values.format !== undefined && values.format !== 'text' && values.format !== 'sarif') {
     err(`prosebook: --format is text or sarif, not "${values.format}"`);
     return 1;
@@ -151,6 +161,8 @@ async function main(argv: string[]): Promise<number> {
         return runExtract(config, rest, values.write === true, values.area);
       case 'migrate':
         return runMigrate(config, rest[0], values.write === true);
+      case 'diff':
+        return runDiff(config, rest[0] ?? 'HEAD', values.format === 'markdown');
       case 'rename':
         return runRename(config, rest[0], rest[1], values.write === true);
       case 'check': {
@@ -448,6 +460,16 @@ function runExport(
   writeFileSync(path, exported.text);
   out(`prosebook: exported ${exported.count} entr${exported.count === 1 ? 'y' : 'ies'} for ${locale} to ${file}`);
   if (locale !== config.source) out(`Translate them, then \`prosebook import ${locale} ${file}\`.`);
+  return 0;
+}
+
+function runDiff(config: ResolvedConfig, base: string, markdown: boolean): number {
+  const review = reviewOf(config, base);
+  if ('problem' in review) {
+    err(`prosebook: ${review.problem}`);
+    return 1;
+  }
+  out(markdown ? reviewMarkdown(review) : reviewText(review));
   return 0;
 }
 

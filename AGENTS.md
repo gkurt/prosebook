@@ -252,6 +252,12 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   translations from `todo`'s YAML filled in, leaving out each entry its own file reports. A finding's `match` is found in the
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
+- `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,
+  translations and lock are read out of git (`ls-tree`, `show`) into a temporary folder and loaded with
+  this project's config; entries are compared by key, a key gone and one come with the same words
+  being a rename. Stale locales come from `reconcile` over the working lock, findings from `lint`,
+  kept to the locales whose words the change wrote. Text in `git diff --word-diff`'s notation, or
+  Markdown for a pull request's comment, opening with `REVIEW_MARKER` and every cell escaped.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's
   YAML block (`snippetOf` and the comments above it) cut from its file and written, rekeyed, to its new
   area's, in every locale; the lock's anchors moved with it, and string literals naming a key, or a

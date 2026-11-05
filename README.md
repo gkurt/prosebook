@@ -1184,6 +1184,62 @@ It is a dry run, listing the keys and the files, unless `--write`. The catalog i
 checked first, as an edit is, and a new key that is already an entry, or isn't a key, writes
 nothing. Then it regenerates.
 
+## Reviewing copy in pull requests
+
+A pull request that changes copy shows it as YAML, between keys and quotes. `prosebook diff` shows
+the words: each entry added, removed, renamed or changed since a git revision, its source as a word
+diff, the translations it changed, the ones it left stale and the locales it is still missing from,
+and what the lint says of the words it wrote.
+
+```text
+$ prosebook diff origin/main
+prosebook: 3 entries changed since origin/main: 2 changed, 1 added. 1 translation now stale.
+
+changed  cart.checkout: [-Check out-]{+Pay now+}
+         stale in de: their translations were made from the text before
+changed  cart.title: Your cart
+  de     [-Warenkorb-]{+Einkaufswagen+}
+added    cart.total: {+Total: {sum, number, ::currency/EUR}+}
+         not yet translated in de
+```
+
+The base is `HEAD` when none is given, so `prosebook diff` alone is the copy you haven't committed.
+A key gone and one come with the same words is read as a rename. `--format markdown` writes it as a
+table for a pull request's comment, which a workflow can post and keep up to date:
+
+```yaml
+# .github/workflows/copy.yml
+name: Copy review
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the base branch, to compare with
+      - uses: actions/setup-node@v7
+      - run: npm ci
+      - run: npx prosebook diff origin/${{ github.base_ref }} --format markdown > copy.md
+      - name: Post the review, or update the one posted before
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+        run: |
+          marker='<!-- prosebook diff -->'
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@copy.md
+          else gh pr comment "$PR" --body-file copy.md; fi
+```
+
+The comment starts with `<!-- prosebook diff -->`, which is how the step finds it again. A pull
+request from a fork gets a token that can't comment: run the diff there and post it from a
+`workflow_run` workflow, as this repository's release preview does.
+
 ## Pruning
 
 The Vite plugin replaces each locale module in a build with only the messages some module

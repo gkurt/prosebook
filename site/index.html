@@ -888,9 +888,10 @@
             <h3>Written well</h3>
             <p>
               An optional lint holds the words to a writing guide: word budgets per kind, periods, sentence case, banned filler, and
-              <code>{count} files</code> outside a plural, in the source and its translations. Plugins add your own rules, scoped by kind,
-              surface and locale. Guidelines no rule can check go in a generated <code>WRITING.md</code>, for your coding agent to read
-              before it writes.
+              <code>{count} files</code> outside a plural, in the source and its translations. Each translation writes every plural form its
+              language needs and quotes and spaces as that language does, and two entries saying the same thing are flagged. Plugins add
+              your own rules, scoped by kind, surface and locale. Guidelines no rule can check go in a generated <code>WRITING.md</code>,
+              for your coding agent to read before it writes.
             </p>
           </article>
           <article>
@@ -898,6 +899,20 @@
             <p>
               <code>prosebook extract</code> moves hardcoded JSX text into the catalog, whole sentences with their links, and rewrites the
               component.
+            </p>
+          </article>
+          <article class="new">
+            <h3>Reviewed</h3>
+            <p>
+              <code>prosebook diff origin/main</code> shows a pull request's copy as words, not YAML: each change as a word diff, the
+              translations it left stale, and the lint's findings, as a comment a workflow keeps up to date.
+            </p>
+          </article>
+          <article class="new">
+            <h3>Renamed</h3>
+            <p>
+              <code>prosebook rename</code> moves a key, or a whole area, through the catalog, every translation, the lock and the code that
+              reads it.
             </p>
           </article>
           <article class="new">
