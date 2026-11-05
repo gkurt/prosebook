@@ -228,9 +228,12 @@
       /* Code */
       .pair {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 16px;
         margin: 8px 0 72px;
+      }
+      .pair pre {
+        white-space: pre-wrap;
       }
       .code {
         background: var(--code-bg);
@@ -836,11 +839,12 @@
           <pre><span class="k">cart.items</span>:
   <span class="k">kind</span>: state
   <span class="k">surface</span>: status
-  <span class="k">context</span>: Under the cart heading, counts what is in the cart.
+  <span class="k">context</span>: Under the cart heading, counts its items.
   <span class="k">args</span>:
     <span class="k">count</span>: how many items are in the cart
   <span class="k">en</span>: <span class="s">'{count, plural, =0 {Your cart is empty.}
-    one {# item in your cart.} other {# items in your cart.}}'</span></pre>
+    one {# item in your cart.}
+    other {# items in your cart.}}'</span></pre>
         </div>
         <div class="code">
           <header>src/Cart.tsx</header>
