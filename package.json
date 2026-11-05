@@ -47,6 +47,7 @@
     "src",
     "schema",
     "README.md",
+    "API.md",
     "LICENSE"
   ],
   "type": "module",

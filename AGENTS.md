@@ -309,5 +309,7 @@ builds, which Bun would otherwise resolve to their server builds, and compiles `
 
 ## Documentation
 
-When changing user-facing APIs, update README.md and AGENTS.md in the same change. Documentation must
-not go stale.
+When changing user-facing APIs, update API.md and AGENTS.md in the same change. Documentation must
+not go stale. API.md is the full reference, each feature an example and short notes. README.md is the
+overview, kept short: a new feature gets a line there at most, linking to its section of API.md. How
+something works inside belongs here, not in either. CONTRIBUTING.md is the same workflow for people.
