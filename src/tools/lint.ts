@@ -1090,9 +1090,19 @@ export function applies(rule: RuleBase, message: Message, locale: string, source
   );
 }
 
+/** The severity a set of them gives a rule: its own, else its plugin's, `voice/*` for `voice/no-intent`. */
+export function severityIn(set: Record<string, Severity> | undefined, name: string): Severity | undefined {
+  const slash = name.indexOf('/');
+  return set?.[name] ?? (slash < 0 ? undefined : set?.[`${name.slice(0, slash)}/*`]);
+}
+
+/** Whether a key of `lint.rules` or `lint.areas` names a rule, or with `<plugin>/*` every rule of a plugin. */
+export const namesRule = (name: string, rules: Record<string, unknown>): boolean =>
+  name in rules || (name.endsWith('/*') && Object.keys(rules).some((r) => r.startsWith(name.slice(0, -1))));
+
 /** A rule's severity for an entry: its area's, where `lint.areas` sets one. */
 export const severityOf = (config: ResolvedConfig, name: string, message: Message): Severity | undefined =>
-  config.lint.areas[message.area]?.[name] ?? config.lint.rules[name]?.severity;
+  severityIn(config.lint.areas[message.area], name) ?? config.lint.rules[name]?.severity;
 
 /** `text` with the edits made, leaving out any that overlaps one before it. */
 export function applyEdits(text: string, edits: Edit[]): string {

@@ -385,6 +385,9 @@ describe('lint', () => {
     expect(() => fixture({}, { lint: { rules: { 'house/no-we': 'warn' } } })).toThrow('lint.rules.house/no-we is not a rule');
     expect(() => fixture({}, { lint: { plugins: [house, house] } })).toThrow('"house" is added twice');
     expect(() => fixture({}, { lint: { plugins: [{ name: 'my/house', rules: {} }] } })).toThrow('is not a plugin name');
+    expect(() => fixture({}, { lint: { plugins: [{ name: 'voice', rules: {} }] } })).toThrow(`"voice" is prosebook's own`);
+    expect(() => fixture({}, { lint: { rules: { 'house/*': 'off' } } })).toThrow('lint.rules.house/* is not a rule');
+    expect(() => fixture({}, { lint: { areas: { native: { 'house/*': 'off' } } } })).toThrow('lint.areas.native.house/* is not a rule');
   });
 
   // As a JSON config would carry it: no code, so nothing type-checked.

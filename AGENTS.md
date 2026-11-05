@@ -81,7 +81,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
   `loadConfig` imports a config file anew once it changed (a query for Node, `require.cache` for Bun),
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
-  `presets.ts`: kinds, surfaces, the strict preset's word lists.
+  `presets.ts`: kinds, surfaces, the strict preset's word lists, and `VOICE`, the built-in `voice` plugin: guidelines
+  against the habits of generated copy, on only for an English source.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
   servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,
@@ -173,7 +174,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   the same matchers (`listed`, `outOfCase`) as the data rules; the format rules (`plural-count`,
   `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
-  `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
+  `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`); there and in
+  `lint.rules`, `<plugin>/*` sets every rule of a plugin, a rule's own name winning (`severityIn`).
   `places.ts` finds a finding's match again in the written text, which readings lose: in the
   literals (`literalsIn`), or, for a string taking in a `HOLE`, in the whole text with `HOLE` as any
   placeholder's syntax (`WRITTEN_HOLE`). `asWritten` gives the text found, which `{match}` shows.

@@ -152,7 +152,8 @@ error copy/locales/de/cart.yaml:4:1 cart.add: [source-ending] the source ends wi
 ```
 
 Add your own rules as code or as data, scoped by kind, surface, area and locale. What no rule can check goes in
-`copy/catalog/WRITING.md`, generated for a coding agent to read before it writes. See [Lint](API.md#lint).
+`copy/catalog/WRITING.md`, generated for a coding agent to read before it writes, with [guidelines against the habits of
+generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 
 ## And more
 

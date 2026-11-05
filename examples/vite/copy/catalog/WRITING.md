@@ -35,6 +35,11 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 
 ## Guidelines
 
+- A label over a value names the field, as a noun: `Reporter`, not `Reported by`; `Members`, not `People in this team`.
+- Use the word the app, or the platform it runs on, has for a thing, not an everyday paraphrase: `Get notified`, not `Hear of your notifications`.
+- A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.
+- A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
+- A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
 - In `de`: Address the shopper as du, never Sie.

@@ -1,10 +1,13 @@
 /**
- * The defaults: four kinds of string, the surfaces they sit on, and the word lists of the strict lint preset.
+ * The defaults: four kinds of string, the surfaces they sit on, the word lists of the strict lint preset,
+ * and the voice guidelines.
  *
  * The kinds are the four any UI writing guide comes down to. A name identifies, an action says what
  * pressing it does, a description adds what the name cannot carry, a state reports what is true.
  * Each carries a budget and a grammar, which is what makes a mechanical check of the words possible.
  */
+import type { Plugin } from './lint.ts';
+
 export type Severity = 'error' | 'warn' | 'off';
 
 export interface KindRule {
@@ -158,6 +161,42 @@ export const STRICT_LISTS = {
     whilst: 'while',
     amongst: 'among',
   } as Record<string, string>,
+};
+
+/**
+ * The habits of copy written off the code, as a model or a developer tends to write it, said in the
+ * writing guide so the writer meets them first. Guidelines, not checks: each is a matter of meaning,
+ * which a word list would flag in sound copy as often as it caught. Written for English, so on only
+ * where the source is; `'voice/*': 'off'` turns them all off.
+ */
+export const VOICE: Plugin = {
+  name: 'voice',
+  rules: {
+    'field-names': {
+      type: 'guideline',
+      description: 'A label over a value names the field, as a noun: `Reporter`, not `Reported by`; `Members`, not `People in this team`.',
+    },
+    'own-words': {
+      type: 'guideline',
+      description:
+        'Use the word the app, or the platform it runs on, has for a thing, not an everyday paraphrase: `Get notified`, not `Hear of your notifications`.',
+    },
+    'no-intent': {
+      type: 'guideline',
+      description:
+        "A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.",
+    },
+    'no-instructions': {
+      type: 'guideline',
+      description:
+        'A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.',
+    },
+    'placeholder-values': {
+      type: 'guideline',
+      description:
+        "A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.",
+    },
+  },
 };
 
 /**

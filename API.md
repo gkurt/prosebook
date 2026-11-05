@@ -497,6 +497,28 @@ Before writing or changing UI copy, read copy/catalog/WRITING.md.
 Claude Code reads it with `@copy/catalog/WRITING.md` in CLAUDE.md. Set `guide` to write it elsewhere, `guide: false` for none. A
 checked rule is in it when it says `guide: true`.
 
+#### Voice guidelines
+
+The guide also says five guidelines against the habits of copy written off the code, as an agent tends to write it:
+
+| Rule                       | Says                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `voice/field-names`        | A label over a value is a noun: `Reporter`, not `Reported by`                            |
+| `voice/own-words`          | The app's or the platform's word, not a paraphrase: `Get notified`, not `Hear of…`       |
+| `voice/no-intent`          | Things don't want, know, say or tell: `Runs on new issues`, not `The workflow takes in…` |
+| `voice/no-instructions`    | A control names what it does: `Replay`, not `Click this if you want to replay`           |
+| `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` comes to `Sales's usage`   |
+
+They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught. They're
+written in English, so they're on only where the source is. Turn them all off, or one, or in an area:
+
+```ts
+lint: {
+  rules: { 'voice/*': 'off', 'voice/no-intent': 'warn' }, // <plugin>/* sets every rule of a plugin, a rule's own name wins
+  areas: { marketing: { 'voice/*': 'off' } },
+},
+```
+
 ## Messages
 
 ### ICU MessageFormat
@@ -859,6 +881,7 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
   `--fix` writes, and `group` (`{ key, message }`) a problem across entries, said once at `key`. A `match` taking in a `HOLE`
   points at the placeholder too, and has no fix, since a fix can't write the placeholder back.
 - `recommended` and `strict` set the severity under each preset; `guide: true` puts the description in the writing guide.
+  `lint.rules` and `lint.areas` set one rule's (`house/error-says-what-to-do`) or every rule's of the plugin (`house/*`).
 
 **Plugins as data**, after [Vale](https://vale.sh)'s rule types, in a `prosebook.config.json` too:
 

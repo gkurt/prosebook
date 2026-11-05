@@ -10,9 +10,19 @@ import { pathToFileURL } from 'node:url';
 import type { Formats, FormatTable } from '#src/runtime/formats.ts';
 
 import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
-import { compileRule, CORE_RULES, REASON_NAME, reasonProblem, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
+import {
+  compileRule,
+  CORE_RULES,
+  namesRule,
+  REASON_NAME,
+  reasonProblem,
+  severityIn,
+  type CheckRule,
+  type CoreRule,
+  type Plugin,
+} from './lint.ts';
 import type { Isolate } from './mf2.ts';
-import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
+import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, VOICE, type KindRule, type Severity } from './presets.ts';
 
 export type { KindRule, Severity };
 export {
@@ -60,6 +70,7 @@ export interface LintConfig extends WordLists {
   extends?: 'recommended' | 'strict' | 'none';
   /** Rules of your own, as `<plugin>/<rule>`. Each takes the severity it gives itself under `extends`. */
   plugins?: Plugin[];
+  /** Severities by rule, over `extends`; `<plugin>/*` sets every rule of a plugin: `'voice/*': 'off'`. */
   rules?: RuleSeverities;
   /** Severities for one area's entries (a key's first segment) over `rules`: `{ native: { 'sentence-case': 'off' } }`. */
   areas?: Record<string, RuleSeverities>;
@@ -265,11 +276,11 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
-  const rules = lintRules(lint);
+  const rules = lintRules(lint, config.source ?? 'en');
   const catalog = at(config.catalog ?? 'copy/catalog');
   for (const [area, severities] of Object.entries(lint.areas ?? {})) {
     for (const name of Object.keys(severities))
-      if (!(name in rules)) throw new Error(`lint.areas.${area}.${name} is not a rule: name one of ${Object.keys(rules).join(', ')}`);
+      if (!namesRule(name, rules)) throw new Error(`lint.areas.${area}.${name} ${notARule(rules)}`);
   }
   return {
     root,
@@ -470,24 +481,40 @@ function checkedQuotes(quotes: Record<string, readonly [string, string]>): Recor
   return { ...DEFAULT_QUOTES, ...quotes };
 }
 
-function lintRules(lint: LintConfig): ResolvedConfig['lint']['rules'] {
+function lintRules(lint: LintConfig, source: string): ResolvedConfig['lint']['rules'] {
   const base = lint.extends ?? 'recommended';
   const all: [string, CheckRule][] = Object.entries(CORE_RULES);
   const seen = new Set<string>();
-  for (const plugin of lint.plugins ?? []) {
+  for (const plugin of [VOICE, ...(lint.plugins ?? [])]) {
     if (!/^[a-z][a-z0-9-]*$/i.test(plugin.name))
       throw new Error(`lint.plugins: "${plugin.name}" is not a plugin name: use letters, digits and dashes`);
-    if (seen.has(plugin.name)) throw new Error(`lint.plugins: "${plugin.name}" is added twice: remove one`);
+    if (seen.has(plugin.name)) {
+      throw new Error(
+        plugin.name === VOICE.name
+          ? `lint.plugins: "${VOICE.name}" is prosebook's own: name yours otherwise`
+          : `lint.plugins: "${plugin.name}" is added twice: remove one`,
+      );
+    }
     seen.add(plugin.name);
     for (const [name, rule] of Object.entries(plugin.rules)) {
       const full = `${plugin.name}/${name}`;
       all.push([full, compileRule(full, rule)]);
     }
   }
-  const preset = (rule: CheckRule): Severity =>
-    base === 'none' ? 'off' : base === 'strict' ? (rule.strict ?? 'error') : (rule.recommended ?? 'off');
-  const rules = Object.fromEntries(all.map(([name, rule]) => [name, { rule, severity: lint.rules?.[name] ?? preset(rule) }]));
-  for (const name of Object.keys(lint.rules ?? {}))
-    if (!(name in rules)) throw new Error(`lint.rules.${name} is not a rule: name one of ${Object.keys(rules).join(', ')}`);
+  // The voice guidelines are written in English, for a source written in it.
+  const english = source.split('-')[0]!.toLowerCase() === 'en';
+  const preset = (name: string, rule: CheckRule): Severity =>
+    base === 'none' || (!english && name.startsWith(`${VOICE.name}/`))
+      ? 'off'
+      : base === 'strict'
+        ? (rule.strict ?? 'error')
+        : (rule.recommended ?? 'off');
+  const rules = Object.fromEntries(
+    all.map(([name, rule]) => [name, { rule, severity: severityIn(lint.rules, name) ?? preset(name, rule) }]),
+  );
+  for (const name of Object.keys(lint.rules ?? {})) if (!namesRule(name, rules)) throw new Error(`lint.rules.${name} ${notARule(rules)}`);
   return rules;
 }
+
+const notARule = (rules: Record<string, unknown>) =>
+  `is not a rule: name one of ${Object.keys(rules).join(', ')}, or every rule of a plugin as <plugin>/*`;

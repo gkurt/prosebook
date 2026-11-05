@@ -12,7 +12,7 @@ import { durationParts, type DurationFormatOptions, type ListFormatOptions } fro
 import { shownItems } from '#src/runtime/helpers.ts';
 
 import type { ResolvedConfig } from './config.ts';
-import { languageName, type CheckRule } from './lint.ts';
+import { languageName, severityIn, type CheckRule } from './lint.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
@@ -118,7 +118,7 @@ export function writingGuide(config: ResolvedConfig): string {
   if (guided.length > 0) {
     out.push('', '## Guidelines', '');
     for (const [name, { rule }] of guided) {
-      const offIn = Object.entries(config.lint.areas).flatMap(([area, set]) => (set[name] === 'off' ? [area] : []));
+      const offIn = Object.entries(config.lint.areas).flatMap(([area, set]) => (severityIn(set, name) === 'off' ? [area] : []));
       const scope = scopeOf(rule, offIn);
       out.push(`- ${scope === undefined ? '' : `${scope}: `}${rule.description}`);
     }

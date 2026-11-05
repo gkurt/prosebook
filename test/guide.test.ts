@@ -49,7 +49,7 @@ describe('the writing guide', () => {
   });
 
   test('it says what each kind and surface is for, and leaves what the lint checks to the lint', () => {
-    const guide = writingGuide(fixture({}, { lint: { extends: 'strict', concepts: { tablet: 'device' } } }));
+    const guide = writingGuide(fixture({}, { lint: { extends: 'strict', concepts: { tablet: 'device' }, rules: { 'voice/*': 'off' } } }));
     expect(guide).toContain('- `name`: Identifies a thing');
     expect(guide).toContain('- `error`: Says what failed.');
     expect(guide).toContain('An entry holds the message under `en`, in ICU MessageFormat, a `context` sentence');
@@ -66,6 +66,30 @@ describe('the writing guide', () => {
     expect(guide).toContain('- On `toast`, in `cart.*`: A toast is read in passing: 40 characters at most.');
     expect(guide).not.toContain('Turned off.');
     expect(guide).not.toContain('Checked, and not said.');
+  });
+
+  test('it says the voice guidelines for an English source, which voice/* turns off together', () => {
+    const lines = (lint: object, source?: string) =>
+      writingGuide(fixture({}, { source, lint }))
+        .split('\n')
+        .filter((l) => /`(?:Reporter|Get notified|Runs on new issues|Replay|Sales's usage)`/.test(l));
+    expect(lines({})).toEqual([
+      expect.stringMatching(/^- A label over a value names the field/),
+      expect.stringMatching(/^- Use the word the app/),
+      expect.stringMatching(/^- A thing doesn't want/),
+      expect.stringMatching(/^- A control names what it does/),
+      expect.stringMatching(/^- A message reads right with every value/),
+    ]);
+    expect(lines({ extends: 'strict' })).toHaveLength(5);
+    expect(lines({}, 'en-GB')).toHaveLength(5);
+    expect(lines({ rules: { 'voice/*': 'off' } })).toEqual([]);
+    expect(lines({ rules: { 'voice/*': 'off', 'voice/no-intent': 'warn' } })).toEqual([expect.stringMatching(/^- A thing doesn't want/)]);
+    expect(lines({ areas: { native: { 'voice/*': 'off' } } })).toEqual(
+      Array.from({ length: 5 }, () => expect.stringMatching(/^- Not in `native\.\*`: /)),
+    );
+    // Written in English, they leave a source in another language alone unless asked for.
+    expect(lines({}, 'de')).toEqual([]);
+    expect(lines({ rules: { 'voice/own-words': 'warn' } }, 'de')).toHaveLength(1);
   });
 
   test('a guideline finds nothing in the lint', () => {
