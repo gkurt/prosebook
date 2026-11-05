@@ -1,154 +1,38 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `plural-count` says each finding once, and passes a ratio's total\n\nThe same words in each arm of a select are one finding, and `{used, number} of {window, number} tokens` no longer asks for a plural, since the noun counts a whole.\n"
-    filename: plural-count-once.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `init`'s example entries are comments\n\nThe catalog `init` writes shows its example entries as comments to write yours after, so `scan` no longer reports them as unused keys straight away.\n"
-    filename: init-commented.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `scan` reads what JSX expressions render, notices and label maps\n\nBoth arms of a ternary, a `??` or `||` fallback and a template's words are found in JSX text and readable attributes, as are the text given to `scan.calls` (`toast`, `alert`, `confirm`) and, in components, the values of `scan.properties` (`label`, `title`, `description`, `placeholder`, `header`). `scan()` and `hardcodedText()` in `prosebook/tools` take the scan options as one object.\n"
-    filename: scan-expressions.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` keeps two features' files out of one area\n\nTwo files that would share an area, `routes/notifications.tsx` and `components/Notifications.tsx`, each take their folder's name too, and the report says so.\n"
-    filename: extract-area-clash.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` writes what type-checks\n\nInside a component whose `children` are typed `string`, text becomes `{t('…')}` rather than a `<Text>` it can't take, and a value that may be `null` is given `?? ''`, which renders as React rendered the null.\n"
-    filename: extract-text-children.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `args` describes a tag too\n\n`args.link` on a message with `<link>` says what the tag wraps, for the translator's notes in `todo` and `export` and for the key's doc comment, rather than failing.\n"
-    filename: tag-docs.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` reads a number made text in code as the number\n\n`{c.toLocaleString()} nodes` becomes a plural of `c`, and `frameMs.toFixed(2)` becomes `{frameMs, number, ::.00}`, rather than a string placeholder; and a message that starts with a plural is keyed by its words, not `other`.\n"
-    filename: extract-formatted-numbers.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `useCopy()` keeps its identity while the provider renders again\n\nIn React and Preact, a `CopyProvider` without `tags` no longer makes every `useCopy()` reader new on each render, so `t` is safe as an effect's dependency until the locale changes.\n"
-    filename: stable-use-copy.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A select on `true` and `false` takes a boolean\n\n`{on, select, true {On} other {Off}}` types `on` as `boolean`, so a call site passes `true` rather than the text `'true'` or a stand-in such as `'yes'`.\n"
-    filename: boolean-select.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A broken entry no longer stops every command\n\n`generate`, `lint`, `scan`, `status` and the dev servers report a broken entry or translation with its fix, leave it out, and carry on with the rest of the catalog; each command still fails while it is broken. An edit, a lint fix or an import is refused only for problems it brings itself.\n"
-    filename: broken-entry-left-out.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `generate` says the files are current\n\nRun after a dev server has regenerated, it says the generated files are current rather than that nothing changed.\n"
-    filename: generate-current.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` says nothing of markup with no words beside it\n\n`{icon} {children}` is no sentence, so it no longer warns that `{children}` holds markup.\n"
-    filename: extract-quiet-markup.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `scan` and `extract` leave keys, example values and commands alone\n\nText in `<Kbd>` and other components named for `<kbd>`, `<code>` and `<pre>`, and an ID such as `us-west-2`, a list of hosts or a shell command, are no longer taken for copy.\n"
-    filename: extract-non-copy.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` keeps a label and its hint apart\n\nA label's text followed on the next line by `<span>A sentence…</span>`, which JSX renders with no space between, becomes two entries rather than one message with a tag.\n"
-    filename: extract-label-hint.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `extract`'s contexts are drafts, listed until finished\n\nA new entry's context says it is a draft and where extract found the string, and `generate` and `check` warn of every context and argument doc still starting with `TODO`. Placeholders are named for what they hold: `files.length` is `filesCount`, `PREVIEW_EVENTS` is `previewEvents`, `formatBytes(size)` is `size`.\n"
-    filename: extract-drafts.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A `detail` surface, and reasons named once\n\nA state on the new default surface `detail`, a row's detail line, a reading or a count, needs no period. `lint.reasons` holds reasons many exemptions share, which `allow` names (`period: card-detail`), so each is written and reviewed once; a name the config doesn't hold fails.\n"
-    filename: detail-surface-reasons.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` reads a component's `title` as its heading\n\n`title` on a component (`<NavCard title=\"Billing\" />`) is a heading it shows, keyed `-title`, where an element's stays a tooltip; and a name that runs to a sentence is drafted as a description, which its word budget holds.\n"
-    filename: extract-title-role.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A shared area for the words every feature says\n\n`extract: { shared: 'common' }` gives `Cancel`, `Loading…` and other words several features say one entry: `extract` reuses one there from any file and writes text another area holds already there, and the writing guide points at it. Without it, `extract` names each string that is now an entry in several areas.\n"
-    filename: extract-shared-area.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `extract` reads the words code picks\n\n`{n === 1 ? 'file' : 'files'}` in a sentence becomes a plural; a ternary or a fallback standing alone becomes an entry per word, and in a readable attribute `t()` in place, as a template attribute becomes `t()` with its values. A sentence that a pick, another message, a lookup, a joined list or a case change would split into fragments is left as it is, with a warning saying how to write it.\n"
-    filename: extract-picked-words.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `formatted-by-hand` finds a unit typed after a number\n\n`{hours, number}h` and `{size, number} MB` are found, with the unit format that writes them as the locale does.\n"
-    filename: unit-by-hand.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A select arm ICU can't name says how to write it\n\n`{type, select, application/pdf {…}}` fails with the name ICU takes and MF2's quoting, rather than the parser's `EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT`.\n"
-    filename: select-arm-names.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A select's argument can also be printed\n\n`{tool, select, shell {Shell} other {{tool}}}` no longer fails as \"used as two different types\", and two selects on one argument take the arms of both.\n"
-    filename: select-argument-printed.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A select's `null` arm says what an absent value shows\n\n`{role, select, null {} other {, as {role}}}` picks `null` for a value that is `null` or `undefined`, and types `role` as optional, so an optional part of a message needs no stand-in value.\n"
-    filename: null-arm.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` names areas and keys in whole words\n\n`GitHubConnect.tsx` is the area `github-connect`, as is any name in `lint.properNouns`, and a key's words keep their apostrophes' letters: `couldnt`, not `couldn`.\n"
-    filename: extract-names.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `closed` selects take only their arms\n\n`closed: [mode]` on an entry types `mode` as the arms its select names, `'dark' | 'light'`, so a misspelled or unhandled value is a type error; `other` stays in the message for the runtime and translation tools, and a translation may not select on an arm the source doesn't name.\n"
-    filename: closed-select.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A read through a `const` map of keys is seen\n\n`t(STATUS[s])` and `<Text id={KINDS[i].label} />` no longer fail a pruned build or need `prosebook-ignore` where `STATUS` and `KINDS` are `const` maps or lists of keys in the same module: every key they can read is written there.\n"
-    filename: key-maps-seen.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` reuses a key only for the same role\n\nThe same words as an aria-label, a placeholder and a button are three entries, since each translates on its own; an entry that names no kind or surface is still reused for any.\n"
-    filename: extract-reuse-role.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `extract` keeps the spaces around a sentence\n\nA `{' '}` before a line break stays in the code, and a literal's own leading or trailing space goes beside the `<Text>`, so `from{' '}<Branch />` no longer renders \"frommain\".\n"
-    filename: extract-spaces.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `scan` and `check` report reads a pruned build can't see\n\n`t(id)` and `<Text id={id} />` are reported where they are, as the bundler plugins would fail the build on them: a warning from `scan` and `check`, an error under `scan --strict`, and `unseen-read` in a SARIF log.\n"
-    filename: unseen-reads-scan.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `MessageKey` and `Translate` types\n\n`MessageKey` is a key of the registered catalog, for a prop or a map that holds one, and `Translate` is a copy's `t`, for a function handed one.\n"
-    filename: message-key-type.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The pseudo-locale stays out of production\n\nA build through `prosebook/vite`, `prosebook/next` or `prosebook/bun` (and Bun's server run with `NODE_ENV=production`) leaves the `pseudo` locale out of `catalog.locales` and ships none of its messages, so a locale switcher built from `copy.locales` no longer offers `en-XA` to users. Dev keeps it, and `generate` still writes its module.\n"
+    filename: pseudo-dev-only.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - plural-count-once.md
-      - init-commented.md
-      - scan-expressions.md
-      - extract-area-clash.md
-      - extract-text-children.md
-      - tag-docs.md
-      - extract-formatted-numbers.md
-      - stable-use-copy.md
-      - boolean-select.md
-      - broken-entry-left-out.md
-      - generate-current.md
-      - extract-quiet-markup.md
-      - extract-non-copy.md
-      - extract-label-hint.md
-      - extract-drafts.md
-      - detail-surface-reasons.md
-      - extract-title-role.md
-      - extract-shared-area.md
-      - extract-picked-words.md
-      - unit-by-hand.md
-      - select-arm-names.md
-      - select-argument-printed.md
-      - null-arm.md
-      - extract-names.md
-      - closed-select.md
-      - key-maps-seen.md
-      - extract-reuse-role.md
-      - extract-spaces.md
-      - unseen-reads-scan.md
-      - message-key-type.md
+      - pseudo-dev-only.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-vue
-    updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-vite
-    updated: false
   - id: npm:example-bun
+    updated: false
+  - id: npm:example-preact
     updated: false
   - id: npm:example-svelte
     updated: false
   - id: npm:example-node
     updated: false
+  - id: npm:example-vite
+    updated: false
   - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-next
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-preact
-  - id: npm:example-next
-  - id: npm:example-vue
   - id: npm:example-solid
-  - id: npm:example-vite
   - id: npm:example-bun
+  - id: npm:example-preact
   - id: npm:example-svelte
   - id: npm:example-node
+  - id: npm:example-vite
   - id: npm:example-tanstack-start
+  - id: npm:example-vue
+  - id: npm:example-next
