@@ -5,7 +5,7 @@ The full reference. For an overview, see the [README](README.md).
 - [Integrations](#integrations): [Vite](#vite) · [Next.js](#nextjs) · [Bun](#bun) · [Options](#integration-options)
 - [Runtime](#runtime): [`createCopy`](#createcopy) · [A copy](#a-copy) · [Locales](#locales) · [Types](#types) · [Errors](#errors)
 - [Bindings](#bindings): [React](#react) · [Preact](#preact) · [Vue](#vue) · [Svelte](#svelte) · [Solid](#solid) ·
-  [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server)
+  [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server) · [In tests](#in-tests)
 - [The catalog](#the-catalog): [Fields](#fields) · [The writing guide](#the-writing-guide)
 - [Messages](#messages): [ICU](#icu-messageformat) · [Named formats](#named-formats) · [Tags](#tags) ·
   [MessageFormat 2](#messageformat-2)
@@ -393,6 +393,31 @@ function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
   return <CopyProvider copy={copy}>{children}</CopyProvider>;
 }
 ```
+
+### In tests
+
+An end-to-end test finds the page's text through the catalog, so a copy edit doesn't break it:
+
+```ts
+// e2e/copy.ts
+import { createCopy } from 'prosebook';
+import { catalog } from '../src/copy/index.ts';
+
+export const copy = createCopy(catalog); // the source locale; await copy.setLocale('de') for another
+```
+
+```ts
+import { copy } from './copy.ts';
+
+test('checks out', async ({ page }) => {
+  await page.getByRole('button', { name: copy.t('cart.checkout') }).click();
+  await expect(page.getByText(copy.t('cart.items', { count: 2 }))).toBeVisible();
+});
+```
+
+- It reads the generated modules on disk, so run `prosebook generate` before the tests, as a build does.
+- A runner that doesn't resolve the index's `./en.js` to `en.ts` runs it with `importExtension: '.ts'`.
+- `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them.
 
 ## The catalog
 
