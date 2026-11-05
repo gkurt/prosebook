@@ -48,6 +48,34 @@ test('a build ships only the messages the code names', async () => {
   expect(js).not.toContain('Unbenutzte Nachricht');
 });
 
+test('a build leaves the pseudo-locale out, which the generated files keep', async () => {
+  const config = fixture({
+    'copy/catalog/app.yaml': 'app.used: Used message\n',
+    'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\n',
+    'index.html': '<script type="module" src="/src/main.ts"></script>',
+    'src/main.ts': [
+      "import { createCopy } from 'prosebook';",
+      "import { catalog } from './copy/index.ts';",
+      "document.body.textContent = createCopy(catalog).t('app.used') + catalog.locales.join();",
+    ].join('\n'),
+  });
+  const outDir = join(config.root, 'dist');
+  await build({
+    root: config.root,
+    logLevel: 'silent',
+    configFile: false,
+    plugins: [prosebook({ config: { require: [], pseudo: 'en-XA' } })],
+    resolve: { alias: [{ find: /^prosebook$/, replacement: join(import.meta.dir, '..', 'src', 'index.ts') }] },
+    build: { outDir, minify: false },
+  });
+  expect(readFileSync(join(config.root, 'src/copy/index.ts'), 'utf8')).toContain('locales: ["en", "de", "en-XA"]');
+  const assets = readdirSync(join(outDir, 'assets'));
+  const js = assets.map((f) => readFileSync(join(outDir, 'assets', f), 'utf8')).join('\n');
+  expect(js).toContain('Benutzte Nachricht');
+  expect(js).not.toContain('en-XA');
+  expect(js).not.toContain('⟦');
+});
+
 test('a split build loads each area with the code that reads it, and each lazy locale by area', async () => {
   const config = fixture({
     'copy/catalog/app.yaml': 'app.title: Shop front\napp.unused: Unused message\n',

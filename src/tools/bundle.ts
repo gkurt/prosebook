@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
-import type { Generated } from './generate.ts';
+import { catalogLiteral, type Generated } from './generate.ts';
 import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type KeyRefs, type Reads, type UnseenRead } from './scan.ts';
 
 /** How a build prunes: `strict` also fails on a read whose key it can't see. */
@@ -61,7 +61,26 @@ export function scanSources(config: ResolvedConfig, strict: boolean): SourceScan
   return { refs, unseen: unseenOf(reads) };
 }
 
-/** Calls `change` once a burst of edits to the catalog or its translations settles. Returns the stop. */
+/**
+ * What a build ships: every locale but the pseudo-locale, which finds layout bugs and hardcoded text
+ * in dev and has no reader in production. Its module is still generated, and `Locale` still names it.
+ */
+export function withoutPseudo(config: ResolvedConfig, generated: Generated): Generated {
+  if (config.pseudo === false || !generated.entries.has(config.pseudo)) return generated;
+  const entries = new Map(generated.entries);
+  entries.delete(config.pseudo);
+  return { ...generated, entries };
+}
+
+/**
+ * The index a build loads in place of the generated one, as JavaScript: the catalog with only the
+ * locales `generated` holds, so a locale `withoutPseudo` left out is neither listed nor imported.
+ */
+export function buildIndex(config: ResolvedConfig, generated: Generated): string {
+  const { imports, literal } = catalogLiteral(config, [...generated.entries.keys()], config.importExtension);
+  return ["import { defineCatalog } from 'prosebook';", ...imports, `export const catalog = defineCatalog(${literal});`, ''].join('\n');
+}
+
 /**
  * What a dev server says of a catalog generated `partial`: its broken entries, which are left out
  * while the rest is served, or nothing when there are none.
@@ -72,6 +91,7 @@ export function brokenIn(generated: Generated): string | undefined {
   return `${new CatalogError(errors).message}\nThose entries are left out until they're fixed; the rest is served.`;
 }
 
+/** Calls `change` once a burst of edits to the catalog or its translations settles. Returns the stop. */
 export function watchCatalog(config: ResolvedConfig, change: () => void): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const watchers = [config.catalog, config.locales]

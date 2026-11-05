@@ -813,7 +813,9 @@ none, and carries no context: give the tool the XLIFF where it reads both.
 
 **Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ⟧` from the source. Switch to it and
 any plain text on screen is hardcoded, a missing bracket is clipped text, and brackets inside
-brackets are a sentence spliced from fragments.
+brackets are a sentence spliced from fragments. It is for dev: a build through the Vite, Next or Bun
+integration leaves it out of `catalog.locales` and doesn't ship its messages, so a locale switcher
+in production never offers it. Its module is still generated, and `Locale` still names it.
 
 ## Checks
 
@@ -1290,7 +1292,7 @@ export default defineConfig({
   messageFormat: 1, // or 2, for Unicode MessageFormat 2
   isolate: 'rtl', // MF2: isolate placeholders in right-to-left locales; 'always', or false
   bundled: [], // locales shipped in the main bundle; the rest load on first use
-  pseudo: false, // or 'en-XA'
+  pseudo: false, // or 'en-XA', in dev only: builds leave it out
   stale: 'use', // or 'fallback'
   language: 'ts', // or 'js'
   importExtension: '.js', // '.ts' for Node's type stripping, '' for bundler resolution

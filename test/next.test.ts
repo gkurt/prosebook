@@ -38,7 +38,7 @@ test('a build hands Turbopack each locale pruned to the messages the code names,
   expect(next.reactStrictMode).toBe(true);
   expect(readFileSync(join(config.root, 'src/copy/index.ts'), 'utf8')).toContain("import m_en from './en';");
   const rules = next.turbopack!.rules!;
-  expect(Object.keys(rules)).toEqual(['en.ts', 'de.ts']);
+  expect(Object.keys(rules)).toEqual(['en.ts', 'de.ts', 'index.ts']);
   const { path } = rules['de.ts']!.condition as { path: RegExp };
   expect(path.test('apps/web/src/copy/de.ts')).toBe(true);
   expect(path.test('src/copy/de.ts')).toBe(true);
@@ -46,6 +46,20 @@ test('a build hands Turbopack each locale pruned to the messages the code names,
   const de = run(rules['de.ts']!);
   expect(de).toContain('Benutzte Nachricht');
   expect(de).not.toContain('Unbenutzte Nachricht');
+});
+
+test('a build leaves the pseudo-locale out of the index, which dev and the generated files keep', async () => {
+  const config: ProsebookNextOptions['config'] = { require: [], importExtension: '', pseudo: 'en-XA' };
+  const { config: resolved, next } = await load('phase-production-build', {}, { config, prune: false });
+  expect(readFileSync(join(resolved.root, 'src/copy/index.ts'), 'utf8')).toContain('locales: ["en", "de", "en-XA"]');
+  const rules = next.turbopack!.rules!;
+  expect(Object.keys(rules)).toEqual(['index.ts']);
+  const index = run(rules['index.ts']!);
+  expect(index).toContain('locales: ["en", "de"]');
+  expect(index).not.toContain('en-XA');
+
+  const dev = await load('phase-development-server', {}, { config, inspect: false });
+  expect(Object.keys(dev.next.turbopack!.rules!)).toContain('en-XA.ts');
 });
 
 const shop = {
@@ -71,8 +85,12 @@ test('a split build writes each area as files, and has the browser load the inde
   expect(readFileSync(join(areas, 'cart.de.js'), 'utf8')).toContain('"cart.title": "Warenkorbseite"');
   expect(readFileSync(join(areas, 'app.js'), 'utf8')).not.toContain('Unused message');
 
-  expect(rules['index.ts']!.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
-  const index = run(rules['index.ts']!);
+  // The server's index whole, the browser's split.
+  const [server, page] = rules['index.ts'] as unknown as [Rule, Rule];
+  expect(server.condition).toEqual({ all: [{ not: 'browser' }, { path: expect.any(RegExp) }] });
+  expect(run(server)).toContain('locales: ["en", "de"]');
+  expect(page.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
+  const index = run(page);
   expect(index).toContain('import "../../node_modules/.prosebook/areas/promo.js";');
   expect(index).toContain('"split":{"id":"src/copy","areas":["app","cart","promo"]}');
 

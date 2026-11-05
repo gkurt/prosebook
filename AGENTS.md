@@ -169,6 +169,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
   the code reading it, the pruned locale module, the catalog watcher, and the dev code appended to the
   generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
+  A build leaves the pseudo-locale out (`withoutPseudo`) and loads `buildIndex` in place of the
+  generated index, which lists every locale `generated` holds; the split index and areas read the same.
   And splitting, which every integration shares: `splitIndex`, `areaModule` (its build `inline`
   given by each bundler: Vite's placeholders, Bun's and Next's pruned code), `areasNamed`,
   `importingAreas`, each writing imports through `Specifiers`: `VIRTUAL` for Vite's and Bun's virtual

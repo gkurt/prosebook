@@ -3,8 +3,9 @@
  *
  * Generates when the plugin is set up. Given to `Bun.build`, it ships only the messages the code
  * names: Bun loads a locale module before it has seen the code that reads it, so the keys come from
- * the source under `scan.dirs` (`tools/bundle.ts`) and each locale loads already pruned. The `bun
- * build` command reads no plugins, so a build that prunes is a script that calls `Bun.build`.
+ * the source under `scan.dirs` (`tools/bundle.ts`) and each locale loads already pruned. The index
+ * loads without the pseudo-locale, which is for dev, as it does under a server run in production. The
+ * `bun build` command reads no plugins, so a build that prunes is a script that calls `Bun.build`.
  *
  * Named in bunfig.toml's `[serve.static] plugins`, it serves `Bun.serve`'s bundler instead, which
  * names no entry points: it regenerates whenever a catalog or translation file changes, and each
@@ -33,6 +34,7 @@ import {
   areasNamed,
   beside,
   brokenIn,
+  buildIndex,
   type Groups,
   HOT_INDEX,
   HOT_SET,
@@ -46,6 +48,7 @@ import {
   type Prune,
   prunedModule,
   scanSources,
+  withoutPseudo,
   splitIndex,
   unseenMessage,
   watchCatalog,
@@ -100,8 +103,10 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
       const building = 'entrypoints' in build.config;
       const dev = !building && process.env.NODE_ENV !== 'production';
-      // In dev a broken entry is left out and said, so the rest of the catalog is still served.
-      let generated = generate(config, { partial: dev });
+      // In dev a broken entry is left out and said, so the rest of the catalog is still served. Out
+      // of dev, the pseudo-locale is left out.
+      let generated: Generated = generate(config, { partial: dev });
+      if (!dev) generated = withoutPseudo(config, generated);
       if (dev && brokenIn(generated) !== undefined) console.error(brokenIn(generated));
       // The generated modules, by path as Bun gives it.
       const filter = new RegExp(`^${folderPattern(config.out)}[\\\\/][^\\\\/]+\\.[jt]s$`);
@@ -132,12 +137,16 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         });
       }
 
+      const groups = building && split ? areaGroups(config, generated, options.keep) : new Map<string, string>();
+      const serverIndex = building && split ? linkAreaFiles(build, config, () => generated, groups) : (index: string) => index;
+
       build.onLoad({ filter }, (args) => {
         const name = nameOf(args.path);
         if (name === 'index' && split && client(args)) {
           const index = splitIndex(config, generated, options.keep);
           return { contents: building ? index : HOT_SET + inspector + index + HOT_INDEX, loader: 'js' };
         }
+        if (name === 'index' && !dev) return { contents: serverIndex(buildIndex(config, generated)), loader: 'js' };
         const entries = generated.entries.get(name);
         if (building) return entries === undefined || prune === false ? undefined : { contents: prunedModule(entries, kept), loader: 'js' };
         const loader = args.path.endsWith('.ts') ? 'ts' : 'js';
@@ -146,8 +155,6 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       });
       if (!split) return;
 
-      const groups = building ? areaGroups(config, generated, options.keep) : new Map<string, string>();
-      if (building) linkAreaFiles(build, config, () => generated, groups, client);
       // `cart`, or in a build `cart/de`, a lazy locale's part of the group `cart` leads.
       build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({ path: path.slice(AREA.length), namespace: NAMESPACE }));
       build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
@@ -182,21 +189,16 @@ const NO_PAGE = 'prosebook: no split page build to link area files from: build t
  * Bun's metafile names the modules in each file it writes, known only once the build ends. A server's
  * index holds a placeholder, filled in the written file: in a full-stack build, from the page built
  * beside it; in a server's own build, from the page's build before it, which wrote its files down.
+ * Returns what puts the placeholder in a server's index.
  */
 function linkAreaFiles(
   build: PluginBuilder,
   config: ResolvedConfig,
   generated: () => Generated,
   groups: Groups,
-  client: (args: object) => boolean,
-): void {
+): (index: string) => string {
   build.config.metafile = true;
   let server = false;
-  build.onLoad({ filter: new RegExp(`^${folderPattern(config.out)}[\\\\/]index\\.[jt]s$`) }, (args) => {
-    if (client(args)) return undefined;
-    server = true;
-    return { contents: withAreaFiles(readFileSync(args.path, 'utf8'), PLACEHOLDER), loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
-  });
   build.onEnd((result) => {
     if (!result.success || result.metafile === undefined) return;
     // Bun serves a page's files, and imports them, from `publicPath`, or beside the page.
@@ -225,6 +227,10 @@ function linkAreaFiles(
       if (filled !== code) writeFileSync(output.path, filled);
     }
   });
+  return (index) => {
+    server = true;
+    return withAreaFiles(index, PLACEHOLDER);
+  };
 }
 
 export interface InspectorRoutesOptions {

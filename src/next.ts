@@ -8,7 +8,8 @@
  * they were in. `next build` ships only the messages the code names: each locale module is handed to a
  * Turbopack loader (`next-loader.ts`) that returns it pruned. Turbopack loads a module before it has
  * seen the code that reads it, so the keys come from the source under `scan.dirs` (`tools/bundle.ts`),
- * read here once, and each pruned module travels to the loader as its options.
+ * read here once, and each pruned module travels to the loader as its options. The index travels too,
+ * without the pseudo-locale, which is for dev.
  *
  * In dev the browser's index also starts the inspector (`inspector.ts`). Its endpoints can't be a
  * route of the app without a file in it, so a server of their own answers them on a local port, and a
@@ -33,6 +34,7 @@ import {
   areasOf,
   beside,
   brokenIn,
+  buildIndex,
   fileSpecifiers,
   HOT_SET,
   inAreas,
@@ -43,6 +45,7 @@ import {
   type Prune,
   prunedModule,
   scanSources,
+  withoutPseudo,
   splitIndex,
   unseenMessage,
   watchCatalog,
@@ -125,18 +128,24 @@ export function withProsebook<C extends object>(
       const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base);
       return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
     }
-    const prune = options.prune ?? 'strict';
-    if (prune === false && options.split !== true) return resolved;
-    return withRules(resolved, buildRules(config, generated, prune, options));
+    return withRules(resolved, buildRules(config, withoutPseudo(config, generated), options.prune ?? 'strict', options));
   };
+}
+
+/** Rules by glob: where several share one, each in a list, in order. */
+function rulesOf(entries: [string, unknown][]): Rules {
+  const all: Rules = {};
+  for (const [glob, rule] of entries) all[glob] = glob in all ? [all[glob], rule].flat() : rule;
+  return all;
 }
 
 /** The app's rules and ours: where both have one for a glob, theirs first, then ours, in a list. */
 function withRules<C extends object>(resolved: C, rules: Rules): C {
   const turbopack = (resolved as { turbopack?: { rules?: Rules } }).turbopack;
-  const all: Rules = { ...turbopack?.rules };
-  for (const [glob, rule] of Object.entries(rules)) all[glob] = glob in all ? [all[glob], rule].flat() : rule;
-  return { ...resolved, turbopack: { ...turbopack, rules: all } };
+  return {
+    ...resolved,
+    turbopack: { ...turbopack, rules: rulesOf([...Object.entries(turbopack?.rules ?? {}), ...Object.entries(rules)]) },
+  };
 }
 
 /** Sends `/__prosebook/*` to the inspector's server, before any of the app's own rewrites. */
@@ -197,10 +206,11 @@ function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
  * A rule per generated module: matched by its file name, then by its path, which Turbopack gives from
  * its own root, so only the end is known.
  */
-function rule(config: ResolvedConfig, name: string, options: LoaderOptions, browser = false): [string, unknown] {
+function rule(config: ResolvedConfig, name: string, options: LoaderOptions, side?: 'browser' | 'server'): [string, unknown] {
   const file = `${name}.${config.language === 'ts' ? 'ts' : 'js'}`;
   const path = { path: new RegExp(`(?:^|/)${escape(join(relative(config.root, config.out), file).replaceAll('\\', '/'))}$`) };
-  return [file, { condition: browser ? { all: ['browser', path] } : path, loaders: [{ loader: loaderPath, options }] }];
+  const condition = side === undefined ? path : { all: [side === 'browser' ? 'browser' : { not: 'browser' }, path] };
+  return [file, { condition, loaders: [{ loader: loaderPath, options }] }];
 }
 
 /**
@@ -208,11 +218,15 @@ function rule(config: ResolvedConfig, name: string, options: LoaderOptions, brow
  * copy exists, and each locale updates the copies.
  */
 function hotRules(config: ResolvedConfig, generated: Generated, prepend: string, options: ProsebookNextOptions): Rules {
-  const locales = [...generated.entries.keys()].map((locale) => rule(config, locale, { locale }, true));
+  const locales = [...generated.entries.keys()].map((locale) => rule(config, locale, { locale }, 'browser'));
   if (options.split === true) return Object.fromEntries([...locales, ...splitRules(config, generated, options, prepend)]);
-  return Object.fromEntries([rule(config, 'index', { prepend }, true), ...locales]);
+  return Object.fromEntries([rule(config, 'index', { prepend }, 'browser'), ...locales]);
 }
 
+/**
+ * Each locale pruned, and the index without the pseudo-locale, which `generated` no longer holds: with
+ * `split`, the browser's index is split and the server's whole.
+ */
 function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, options: ProsebookNextOptions): Rules {
   let kept: (key: string) => boolean = () => true;
   if (prune !== false) {
@@ -222,7 +236,9 @@ function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, 
   }
   const locales =
     prune === false ? [] : [...generated.entries].map(([locale, entries]) => rule(config, locale, { code: prunedModule(entries, kept) }));
-  return Object.fromEntries([...locales, ...(options.split === true ? splitRules(config, generated, options, '', kept) : [])]);
+  const index = { code: buildIndex(config, generated) };
+  if (options.split !== true) return rulesOf([...locales, rule(config, 'index', index)]);
+  return rulesOf([...locales, rule(config, 'index', index, 'server'), ...splitRules(config, generated, options, '', kept)]);
 }
 
 /** Where a split catalog's area files go: out of the app's source, where Turbopack takes them for a dependency's. */
@@ -270,7 +286,7 @@ function splitRules(
     config,
     'index',
     { code: prepend + splitIndex(config, generated, options.keep, fileSpecifiers(config.out, areasDir(config))) },
-    true,
+    'browser',
   );
   const areas = [...lazyAreas(generated, options.keep)];
   if (areas.length === 0) return [index];

@@ -4,7 +4,8 @@
  * Generates on start and again whenever a catalog or translation file changes, so dev never runs on
  * stale modules and a broken entry shows in the error overlay. A build ships only the messages the
  * code names: each locale module is swapped for its messages less the keys no module references
- * (see `tools/scan.ts` for how a reference is found, and why it errs towards keeping).
+ * (see `tools/scan.ts` for how a reference is found, and why it errs towards keeping). It loads the
+ * index without the pseudo-locale, which is for dev, so production neither lists nor ships it.
  *
  * With `split`, a client's catalog has no messages of its own: each module naming an area's keys
  * imports a module for that area, which the bundler places beside it, and which registers the area
@@ -38,6 +39,7 @@ import {
   areasNamed,
   beside,
   brokenIn,
+  buildIndex,
   type Groups,
   HOT_INDEX,
   HOT_SET,
@@ -49,6 +51,7 @@ import {
   lazyAreas,
   membersOf,
   type Prune,
+  withoutPseudo,
   splitIndex,
   unseenMessage,
   unseenOf,
@@ -158,7 +161,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     buildStart() {
       try {
         // In dev a broken entry is left out and said, so the rest of the catalog is still served.
-        generated = generate(config, { partial: !building });
+        const all = generate(config, { partial: !building });
+        generated = building ? withoutPseudo(config, all) : all;
       } catch (e) {
         this.error(describe(e));
       }
@@ -214,10 +218,13 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         return areaModule(config, generated, area, building ? (l) => placeholder(l, [area]) : undefined, undefined, groups);
       }
       if (splitting(loadOptions?.ssr) && isIndex(id)) return splitIndex(config, generated!, options.keep);
-      if (building && options.split === true && loadOptions?.ssr === true && isIndex(id)) {
+      if (building && generated !== undefined && isIndex(id)) {
+        const index = buildIndex(config, generated);
+        if (options.split !== true) return index;
         const path = areaFilesPath(viteRoot);
-        if (existsSync(path)) return withAreaFiles(readFileSync(id.split('?', 1)[0]!, 'utf8'), readFileSync(path, 'utf8').trim());
+        if (existsSync(path)) return withAreaFiles(index, readFileSync(path, 'utf8').trim());
         this.warn('no split client build to link area files from: build the client before the server, or `preload` is handed nothing');
+        return index;
       }
       if (!building || prune === false || generated === undefined) return null;
       const locale = localeOf(id);

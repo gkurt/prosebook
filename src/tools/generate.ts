@@ -114,7 +114,8 @@ const REGISTER = `declare module 'prosebook' {
   }
 }`;
 
-function catalogLiteral(config: ResolvedConfig, locales: string[], ext: string): { imports: string[]; literal: string } {
+/** The catalog `defineCatalog` is given, and the imports of the locales that ship with it. */
+export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: string): { imports: string[]; literal: string } {
   const eager = locales.filter((l) => l === config.source || config.bundled.includes(l));
   const lazy = locales.filter((l) => !eager.includes(l));
   const ident = (l: string) => `m_${l.replace(/\W/g, '_')}`;

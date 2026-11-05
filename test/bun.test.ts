@@ -22,7 +22,7 @@ const files = {
 };
 
 /** What `Bun.build` writes, joined, or the error it fails with. */
-async function build(extra: Record<string, string> = {}, prune?: 'loose') {
+async function build(extra: Record<string, string> = {}, prune?: 'loose', pseudo?: string) {
   const config = fixture({ ...files, ...extra });
   try {
     const result = await Bun.build({
@@ -30,7 +30,7 @@ async function build(extra: Record<string, string> = {}, prune?: 'loose') {
       outdir: join(config.root, 'dist'),
       target: 'bun',
       conditions: ['prosebook@dev'],
-      plugins: [prosebook({ root: config.root, config: { require: [] }, prune })],
+      plugins: [prosebook({ root: config.root, config: { require: [], pseudo }, prune })],
     });
     return { config, js: result.outputs.map((o) => readFileSync(o.path, 'utf8')).join('\n') };
   } catch (e) {
@@ -45,6 +45,13 @@ test('a build generates first and ships only the messages the code names', async
   expect(js).toContain('Benutzte Nachricht');
   expect(js).not.toContain('Unused message');
   expect(js).not.toContain('Unbenutzte Nachricht');
+});
+
+test('a build leaves the pseudo-locale out, which the generated files keep', async () => {
+  const { config, js } = await build({}, undefined, 'en-XA');
+  expect(readFileSync(join(config.root, 'src/copy/index.ts'), 'utf8')).toContain('locales: ["en", "de", "en-XA"]');
+  expect(js).toContain('Benutzte Nachricht');
+  expect(js).not.toContain('en-XA');
 });
 
 test('a strict build fails on a read whose key it cannot see', async () => {
