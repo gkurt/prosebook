@@ -13,6 +13,7 @@ import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { apart, entriesSaying } from './duplicates.ts';
 import { categoriesOf, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { asWritten, fixed, HOLE, literalsIn, placesOf, takesInHole, type Literal } from './places.ts';
 import { byLocale, FULL_WIDTH, QUOTED, type KindRule, type Severity } from './presets.ts';
 
 /** What a rule is given about one message in one locale. */
@@ -23,6 +24,8 @@ export interface RuleContext {
   locale: string;
   /** The message in that locale. */
   ast: MessageFormatElement[];
+  /** The message in that locale as its file writes it, where `asWritten` finds a match. */
+  written: string;
   /** The shape the message's kind is held to, when it names a kind the config defines. */
   kind: KindRule | undefined;
   /** The message in that locale, as prose. */
@@ -62,8 +65,9 @@ export interface CheckRule extends RuleBase {
 export interface Report {
   message: string;
   /**
-   * The words the finding is about, as a reading has them: found in the message's text, in any case.
-   * A regular expression finds its places itself, in the text between placeholders.
+   * The words the finding is about, as a reading has them: found in the message's text, in any case,
+   * a `HOLE` in them as the placeholder written there (and then with no fix). A regular expression
+   * finds its places itself, in the text between placeholders.
    */
   match?: string | RegExp;
   /**
@@ -97,7 +101,7 @@ export interface ExistenceRule extends RuleBase {
   type: 'existence';
   /** Words or phrases, matched whole and in any case. `{match}` is the one listed. */
   words?: string[];
-  /** `{match}` is the text matched. */
+  /** `{match}` is the text matched, as the message writes it: `{team}’s` for `${HOLE}'s`. */
   patterns?: string[];
   ignoreCase?: boolean;
   message: string;
@@ -141,7 +145,7 @@ export interface ConditionalRule extends RuleBase {
   when?: string;
   require: string;
   ignoreCase?: boolean;
-  /** `{match}` is the text `when` matched. */
+  /** `{match}` is the text `when` matched, as the message writes it. */
   message: string;
 }
 
@@ -184,8 +188,6 @@ export interface Finding {
   group?: { key: string; file: string; message: string };
 }
 
-/** Stands in for a placeholder in a reading, which no prose rule reads. */
-export const HOLE = '\u2063';
 /** Tags whose content is code or a literal the reader types, not prose. */
 const VERBATIM_TAGS = new Set(['code', 'mono', 'kbd', 'keycap', 'nums']);
 
@@ -971,9 +973,13 @@ export function compileRule(name: string, rule: Rule): CheckRule {
       const message = said(rule.message);
       return {
         ...base,
-        check: ({ text }) => {
-          const matched = patterns.flatMap((p) => text.variants.map((v) => p.exec(v)?.[0]).find((m) => m !== undefined) ?? []);
-          return [...new Set([...listed(text.variants, list), ...matched])].map((match) => ({ message: fill(message, { match }), match }));
+        check: (context) => {
+          const { variants } = context.text;
+          const matched = patterns.flatMap((p) => variants.map((v) => p.exec(v)?.[0]).find((m) => m !== undefined) ?? []);
+          return [...new Set([...listed(variants, list), ...matched])].map((match) => ({
+            message: fill(message, { match: list.includes(match) ? match : asWritten(match, context) }),
+            match,
+          }));
         },
       };
     }
@@ -1037,10 +1043,10 @@ export function compileRule(name: string, rule: Rule): CheckRule {
       const message = said(rule.message);
       return {
         ...base,
-        check: ({ text }) => {
-          for (const v of text.variants) {
+        check: (context) => {
+          for (const v of context.text.variants) {
             const match = when === undefined ? '' : when.exec(v)?.[0];
-            if (match !== undefined && !required.test(v)) return [fill(message, { match })];
+            if (match !== undefined && !required.test(v)) return [fill(message, { match: match === '' ? '' : asWritten(match, context) })];
           }
           return [];
         },
@@ -1086,74 +1092,6 @@ export function applies(rule: RuleBase, message: Message, locale: string, source
 export const severityOf = (config: ResolvedConfig, name: string, message: Message): Severity | undefined =>
   config.lint.areas[message.area]?.[name] ?? config.lint.rules[name]?.severity;
 
-interface Literal {
-  start: number;
-  value: string;
-}
-
-/**
- * Where the message's literals are written in its text, each looked for after the one before. A
- * literal escaped in the text (`''`, `\{`) isn't written as read, so it has no place, and nor does a
- * finding in it.
- */
-function literalsIn(ast: MessageFormatElement[], text: string): Literal[] {
-  const found: Literal[] = [];
-  let from = 0;
-  walk(ast, (el) => {
-    if (el.type !== TYPE.literal || el.value === '') return;
-    // MF2's `.match` is read into arms in another order than they are written, so look from the top too.
-    const next = text.indexOf(el.value, from);
-    const start = next === -1 ? text.indexOf(el.value) : next;
-    if (start === -1) return;
-    found.push({ start, value: el.value });
-    from = start + el.value.length;
-  });
-  return found;
-}
-
-/**
- * Every place `match` stands in the literals: a string in any case, whole where it starts or ends
- * with a letter; a regular expression as it matches.
- */
-function placesOf(match: string | RegExp, literals: Literal[]): Place[] {
-  const pattern =
-    typeof match === 'string' ? wordsPattern(match) : new RegExp(match.source, match.flags.includes('g') ? match.flags : `${match.flags}g`);
-  const places = new Map<number, Place>();
-  for (const { start, value } of literals) {
-    for (const m of value.matchAll(pattern))
-      if (m[0] !== '') places.set(start + m.index, { start: start + m.index, end: start + m.index + m[0].length, groups: [...m] });
-  }
-  return [...places.values()].sort((a, b) => a.start - b.start);
-}
-
-/** Where a match stands in the text, and what it matched, groups first to last after the whole. */
-interface Place {
-  start: number;
-  end: number;
-  groups: (string | undefined)[];
-}
-
-function wordsPattern(match: string): RegExp {
-  const body = match
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/ /g, '\\s+')
-    .replace(/'/g, "['’]");
-  const before = /^[\p{L}\p{N}]/u.test(match) ? '(?<![\\p{L}\\p{N}])' : '';
-  const after = /[\p{L}\p{N}]$/u.test(match) ? '(?![\\p{L}\\p{N}])' : '';
-  return new RegExp(`${before}${body}${after}`, 'giu');
-}
-
-/** What a fix writes over the text it replaces: in that text's case, or as a regular expression's replacement. */
-function fixed({ groups }: Place, match: string | RegExp, fix: string): string {
-  if (typeof match === 'string') return inCaseOf(groups[0]!, fix);
-  // Expanded from the match as it was made: run again on the text it matched, a lookaround would fail.
-  return fix.replace(/\$(&|\d)/g, (_, group: string) => (group === '&' ? groups[0]! : (groups[Number(group)] ?? '')));
-}
-
-/** A fix in the case of what it replaces: "Colour" becomes "Color". */
-const inCaseOf = (found: string, fix: string) =>
-  /^\p{Lu}/u.test(found) && /^\p{Ll}/u.test(fix) ? fix.charAt(0).toUpperCase() + fix.slice(1) : fix;
-
 /** `text` with the edits made, leaving out any that overlaps one before it. */
 export function applyEdits(text: string, edits: Edit[]): string {
   let out = '';
@@ -1181,7 +1119,7 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
     const fired = new Set<string>();
     for (const { locale, ast, written, file } of locales) {
       const text = locale === config.source ? source : readings(ast);
-      const context: RuleContext = { message, locale, ast, kind, text, source, catalog, config };
+      const context: RuleContext = { message, locale, ast, written, kind, text, source, catalog, config };
       let literals: Literal[] | undefined;
       for (const [name, { rule }] of rules) {
         const severity = severityOf(config, name, message)!;
@@ -1201,9 +1139,10 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
           if (group !== undefined) finding.group = { ...group, file: catalog.find((m) => m.key === group.key)?.file ?? file };
           if (match !== undefined && match !== '') {
             literals ??= literalsIn(ast, written);
-            const places = placesOf(match, literals);
+            const places = placesOf(match, literals, written);
             if (places.length > 0) finding.at = { start: places[0]!.start, end: places[0]!.end };
-            if (places.length > 0 && fix !== undefined)
+            // A fix over a placeholder would have to write the placeholder back, which it can't name.
+            if (places.length > 0 && fix !== undefined && !takesInHole(match))
               finding.fix = places.map((p) => ({ start: p.start, end: p.end, text: fixed(p, match, fix) }));
           }
           findings.push(finding);

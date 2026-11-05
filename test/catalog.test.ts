@@ -8,6 +8,7 @@ import {
   catalogSchema,
   definePlugin,
   generate,
+  HOLE,
   lint,
   loadCatalog,
   loadConfig,
@@ -444,6 +445,52 @@ describe('lint', () => {
       'app.d [style/toast-budget] 20 characters at most, and this is 23',
       'app.f [style/title-case] "team" is out of title case: change it, or add it to exceptions if it is a name',
       'app.g [style/undo-on-delete] "Delete" says whether it can be undone',
+    ]);
+  });
+
+  test('a match taking in a placeholder is named and placed as the message writes it', () => {
+    const canvas = definePlugin({
+      name: 'canvas',
+      rules: {
+        'no-possessive-name': {
+          type: 'existence',
+          description: 'A name filled in never takes ’s.',
+          recommended: 'error',
+          patterns: [`${HOLE}'s\\b`],
+          message: '"{match}" puts ’s after a placeholder',
+        },
+        'no-trailing-name': {
+          description: 'A fix that would drop the placeholder.',
+          recommended: 'error',
+          check: ({ text }) => (text.primary.endsWith(` ${HOLE}`) ? [{ message: 'ends on a name', match: `by ${HOLE}`, fix: 'by' }] : []),
+        },
+      },
+    });
+    const yaml = [
+      'app.a:\n  kind: description\n  context: A chart.\n  args:\n    team: The team.\n  en: "{team}’s usage"',
+      'app.b:\n  kind: description\n  context: A chart.\n  en: Edge Delta’s usage',
+      'app.c:\n  kind: description\n  context: A tip.\n  en: "Clear <code>npm</code>’s cache"',
+      'app.d:\n  kind: description\n  context: A byline.\n  args:\n    name: Who wrote it.\n  en: "Written by {name}"',
+    ].join('\n');
+    const shown = (files: Record<string, string>, config = {}) => {
+      const rules = { 'canvas/no-possessive-name': 'error', 'canvas/no-trailing-name': 'error' } as const;
+      const loaded = fixture(files, { lint: { extends: 'none', plugins: [canvas], rules }, ...config });
+      return lint(loadCatalog(loaded).messages, loaded).map(
+        (f) => `${f.key} ${f.message} ${JSON.stringify(f.at)} ${JSON.stringify(f.fix ?? null)}`,
+      );
+    };
+    expect(shown({ 'copy/catalog/app.yaml': yaml })).toEqual([
+      'app.a "{team}’s" puts ’s after a placeholder {"start":0,"end":8} null',
+      'app.c "<code>npm</code>’s" puts ’s after a placeholder {"start":6,"end":24} null',
+      'app.d ends on a name {"start":8,"end":17} null',
+    ]);
+    const mf2 = [
+      'app.a:\n  kind: description\n  context: A chart.\n  args:\n    team: The team.\n  en: "{$team}’s usage"',
+      'app.c:\n  kind: description\n  context: A tip.\n  en: "Clear {#code}npm{/code}’s cache"',
+    ].join('\n');
+    expect(shown({ 'copy/catalog/app.yaml': mf2 }, { messageFormat: 2 })).toEqual([
+      'app.a "{$team}’s" puts ’s after a placeholder {"start":0,"end":9} null',
+      'app.c "{#code}npm{/code}’s" puts ’s after a placeholder {"start":6,"end":25} null',
     ]);
   });
 

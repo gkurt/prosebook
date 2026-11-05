@@ -48,7 +48,6 @@ export {
   compileRule,
   CORE_RULES,
   definePlugin,
-  HOLE,
   lint,
   phrase,
   sentences,
@@ -70,6 +69,7 @@ export {
   type RuleContext,
   type SubstitutionRule,
 } from './lint.ts';
+export { asWritten, HOLE } from './places.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
 export { changeOf, emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';

@@ -16,7 +16,6 @@ import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, type Kin
 export type { KindRule, Severity };
 export {
   definePlugin,
-  HOLE,
   phrase,
   sentences,
   words,
@@ -33,6 +32,7 @@ export {
   type RuleContext,
   type SubstitutionRule,
 } from './lint.ts';
+export { asWritten, HOLE } from './places.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */

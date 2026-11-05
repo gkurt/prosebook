@@ -821,10 +821,12 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 ```
 
 - `text.primary` takes every `other` arm, `text.variants` one reading per arm, `text.skeleton` the words every arm carries.
-  Placeholders read as `HOLE`.
+  Placeholders read as `HOLE`, and `’` as `'` in `variants`. `asWritten(match, context)` is a match as the message writes it
+  (`{team}’s` for `${HOLE}'s`), which is what `{match}` shows in a data rule's message.
 - With `on.locale`, a rule also gets `locale`, `ast` and the `source` readings. `catalog` holds every entry.
 - A finding can be `{ message, match, fix, group }`: `match` (words or a regular expression) is what it points at, `fix` what
-  `--fix` writes, and `group` (`{ key, message }`) a problem across entries, said once at `key`.
+  `--fix` writes, and `group` (`{ key, message }`) a problem across entries, said once at `key`. A `match` taking in a `HOLE`
+  points at the placeholder too, and has no fix, since a fix can't write the placeholder back.
 - `recommended` and `strict` set the severity under each preset; `guide: true` puts the description in the writing guide.
 
 **Plugins as data**, after [Vale](https://vale.sh)'s rule types, in a `prosebook.config.json` too:
