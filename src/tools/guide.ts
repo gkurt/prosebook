@@ -34,11 +34,22 @@ function scopeOf({ on }: CheckRule, offIn: string[]): string | undefined {
   return scope.charAt(0).toUpperCase() + scope.slice(1);
 }
 
-const SAMPLE_NUMBER = 1234.5;
+/**
+ * A number with a fraction, a whole one and a negative one under 1: formats that differ only in how
+ * they write a whole amount (`trailingZeroDisplay`) or a negative one (`currencySign: 'accounting'`)
+ * would look alike in the first.
+ */
+const SAMPLE_NUMBERS = [1234.5, 12, -0.25];
 const SAMPLE_DATE = new Date(Date.UTC(2026, 9, 28, 14, 5));
 
 const SAMPLE_ITEMS = ['Ann', 'Bob', 'Cy', 'Dee'];
-const SAMPLE_DURATION = 3_725_400;
+/**
+ * Durations from under a second to over an hour: one alone would show "1h 2m" in most formats, as
+ * rounding takes off the seconds, so a writer couldn't tell which keeps them, or their fraction.
+ */
+const SAMPLE_DURATIONS = [850, 4_237, 185_400, 3_725_400];
+/** Between one sample and the next, where a format is shown with several. */
+const SAMPLES = ' · ';
 const MF2_FUNCTION: Record<string, string> = { number: 'number', date: 'datetime', list: 'list', duration: 'duration' };
 
 /** A list as a format shows it, the rest past `max` named by the entry that says it. */
@@ -47,18 +58,26 @@ function sampleList(locale: string, o: ListFormatOptions): string {
   return new Intl.ListFormat(locale, o).format(shownItems(SAMPLE_ITEMS, o, rest));
 }
 
-function sampleDuration(locale: string, o: DurationFormatOptions): string {
-  const { parts, display } = durationParts(SAMPLE_DURATION, o);
-  // A Node or Bun without `Intl.DurationFormat` says the units it would show.
-  if (typeof Intl.DurationFormat !== 'function') return JSON.stringify(parts);
-  return new Intl.DurationFormat(locale, { ...o, ...display } as Intl.DurationFormatOptions).format(parts);
+/** The sample durations as a format shows them: "850ms · 4.2s · 3m 5s · 1h 2m". */
+function sampleDurations(locale: string, o: DurationFormatOptions): string {
+  const shown = SAMPLE_DURATIONS.map((ms) => {
+    const { parts, display } = durationParts(ms, o);
+    // A Node or Bun without `Intl.DurationFormat` says the units it would show.
+    if (typeof Intl.DurationFormat !== 'function') return JSON.stringify(parts);
+    return new Intl.DurationFormat(locale, { ...o, ...display } as Intl.DurationFormatOptions).format(parts);
+  });
+  return shown.join(SAMPLES);
 }
 
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
 function formatsSection(config: ResolvedConfig): string[] {
   const { number = {}, date = {}, list: lists = {}, duration = {} } = config.formats;
   const rows = [
-    ...Object.entries(number).map(([name, o]) => [name, 'number', new Intl.NumberFormat(config.source, o).format(SAMPLE_NUMBER)]),
+    ...Object.entries(number).map(([name, o]) => [
+      name,
+      'number',
+      SAMPLE_NUMBERS.map((n) => new Intl.NumberFormat(config.source, o).format(n)).join(SAMPLES),
+    ]),
     // In UTC, so the guide is the same wherever it is generated.
     ...Object.entries(date).map(([name, o]) => [
       name,
@@ -66,7 +85,7 @@ function formatsSection(config: ResolvedConfig): string[] {
       new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE),
     ]),
     ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o)]),
-    ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDuration(config.source, o)]),
+    ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDurations(config.source, o)]),
   ];
   if (rows.length === 0) return [];
   const [name, kind] = rows[0]!;

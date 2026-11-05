@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createCopy, createHelpers, defineCatalog, flatten, type Formats } from 'prosebook';
 import { generate, lint, loadCatalog, planMigrate, readMessage, resolveConfig, type ProsebookConfig } from 'prosebook/tools';
 
+import { writingGuide } from '#src/tools/guide.ts';
 import { formatsOf } from '#src/tools/icu.ts';
 import { compiled, fixture } from './fixture.ts';
 
@@ -96,7 +97,20 @@ describe('named formats', () => {
     const index = files.get(join(config.out, 'index.ts'))!;
     expect(index).toContain(`  formats: ${JSON.stringify(formats)},`);
     expect(index).toContain('formats: { number: "price" | "compact"; date: "receipt"; list: never; duration: never };');
-    expect(files.get(config.guide as string)).toContain('- `compact` (number): 1.23K');
+    expect(files.get(config.guide as string)).toContain('- `compact` (number): 1.23K · 12 · -0.25');
+    // Two prices alike at 1,234.50 differ on a whole amount and a negative one.
+    const usd = { style: 'currency', currency: 'USD' } as const;
+    const prices = fixture(
+      {},
+      {
+        formats: { number: { dollars: { ...usd, trailingZeroDisplay: 'stripIfInteger' }, cents: { ...usd, currencySign: 'accounting' } } },
+      },
+    );
+    expect(
+      writingGuide(prices)
+        .split('\n')
+        .filter((l) => l.includes('(number)')),
+    ).toEqual(['- `dollars` (number): $1,234.50 · $12 · -$0.25', '- `cents` (number): $1,234.50 · $12.00 · ($0.25)']);
     // Without formats, nothing of them is written.
     const plain = fixture({ 'copy/catalog/app.yaml': 'app.a: Hi\n' }, { require: [] });
     expect(generate(plain, { check: true }).files.get(join(plain.out, 'index.ts'))).not.toContain('formats');

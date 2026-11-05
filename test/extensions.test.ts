@@ -5,6 +5,7 @@ import { generate, loadCatalog, readMessage, writeMessage, type ProsebookConfig 
 
 import { durationParts } from '#src/runtime/formats.ts';
 import type { Entry } from '#src/tools/compile.ts';
+import { writingGuide } from '#src/tools/guide.ts';
 import { argsOf, formatProblems } from '#src/tools/icu.ts';
 import { cli, compiled, fixture } from './fixture.ts';
 
@@ -195,6 +196,30 @@ describe('durations', () => {
     expect(render(2, '{$took :duration format=tenths}', 'en', { took: 4_237 })).toBe('4.2s');
     const copy = createCopy(defineCatalog({ source: 'en', locales: ['en'], messages: {}, loaders: {}, formats }));
     expect(copy.duration(4_237, 'tenths' as never)).toBe('4.2s');
+  });
+
+  test('the writing guide shows each duration format from under a second to over an hour, so they differ', () => {
+    const config = fixture(
+      {},
+      {
+        formats: {
+          duration: {
+            seconds: { style: 'narrow', smallest: 'seconds' },
+            tenths: { style: 'narrow', fractionalDigits: 1 },
+            precise: { style: 'narrow' },
+          },
+        },
+      },
+    );
+    expect(
+      writingGuide(config)
+        .split('\n')
+        .filter((l) => l.includes('(duration)')),
+    ).toEqual([
+      '- `seconds` (duration): 1s · 4s · 3m 5s · 1h 2m',
+      '- `tenths` (duration): 0.9s · 4.2s · 3m 5s · 1h 2m',
+      '- `precise` (duration): 850ms · 4s 237ms · 3m 5s · 1h 2m',
+    ]);
   });
 
   test('fractionalDigits is checked with the units around it', () => {
