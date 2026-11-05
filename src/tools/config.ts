@@ -4,7 +4,7 @@
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type { Formats, FormatTable } from '#src/runtime/formats.ts';
@@ -193,8 +193,10 @@ export interface ProsebookConfig {
     /**
      * Folders and files a check leaves out, by its name, where what it finds is no person's to read:
      * `{ 'formatted-in-code': ['src/server'] }` for a server's numbers and dates, which a tool reads.
+     * Paths from the config's folder, or globs: `**\/server` for every folder named so, `**\/*.server.ts`.
+     * `*` leaves every check out. Keys the code names still count, so its keys aren't unused.
      */
-    ignore?: { [check in ScanCheck]?: string[] };
+    ignore?: { [check in ScanCheck | '*']?: string[] };
   };
 }
 
@@ -209,6 +211,7 @@ export interface ScanOptions {
   attributes: string[];
   calls: string[];
   properties: string[];
+  /** Paths and globs from the root, with `/`. */
   ignore: Record<ScanCheck, string[]>;
 }
 
@@ -338,18 +341,21 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
-      ignore: scanIgnore(config.scan?.ignore ?? {}, at),
+      ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
     },
   };
 }
 
-/** `scan.ignore`'s paths from the root, each under a check `scan` runs: a JSON config is not type-checked. */
+/**
+ * `scan.ignore`'s paths and globs, each from the root with `/` as `scan` names files, under a check
+ * `scan` runs or `*` for all of them: a JSON config is not type-checked.
+ */
 function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: string) => string): Record<ScanCheck, string[]> {
   for (const check of Object.keys(ignore)) {
-    if (!(SCAN_CHECKS as readonly string[]).includes(check))
-      throw new Error(`scan.ignore.${check} is not a check scan runs file by file: ${SCAN_CHECKS.join(', ')}`);
+    if (check !== '*' && !(SCAN_CHECKS as readonly string[]).includes(check))
+      throw new Error(`scan.ignore.${check} is not a check scan runs file by file: ${SCAN_CHECKS.join(', ')}, or * for all`);
   }
-  const paths = (check: ScanCheck) => (ignore[check] ?? []).map(at);
+  const paths = (check: ScanCheck) => [...(ignore['*'] ?? []), ...(ignore[check] ?? [])].map(at);
   return { 'hardcoded-text': paths('hardcoded-text'), 'formatted-in-code': paths('formatted-in-code') };
 }
 

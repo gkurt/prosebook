@@ -7,7 +7,7 @@
  * errs towards keeping a key, which is the safe direction both for `unused` and for pruning a bundle.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { extname, join, relative } from 'node:path';
+import { extname, join, matchesGlob, relative } from 'node:path';
 
 import { parseSync } from 'oxc-parser';
 
@@ -28,7 +28,7 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
     }
     for (const name of names) {
       const path = join(dir, name);
-      if (isUnder(path, skip)) continue;
+      if (skip.some((s) => path === s || path.startsWith(`${s}/`) || path.startsWith(`${s}\\`))) continue;
       if (statSync(path).isDirectory()) {
         if (!SKIP_DIRS.has(name) && !name.startsWith('.')) visit(path);
       } else if (extensions.includes(extname(name)) && !name.endsWith('.d.ts')) {
@@ -40,9 +40,9 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
   return files.sort();
 }
 
-/** Whether `path` is one of `paths` or in a folder of them. */
-function isUnder(path: string, paths: string[]): boolean {
-  return paths.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}\\`));
+/** Whether a file, named from the root with `/`, is one `patterns` names, or in a folder one names: `src/server`, `**\/*.server.ts`. */
+function isIgnored(file: string, patterns: string[]): boolean {
+  return patterns.some((p) => matchesGlob(file, p) || matchesGlob(file, `${p}/**`));
 }
 
 export interface KeyRefs {
@@ -388,8 +388,8 @@ export function scan(options: ScanOptions, root: string, skip: string[] = [], fo
     if (SFC.test(path)) continue;
     const file = relative(root, path).replaceAll('\\', '/');
     // JSX in .tsx and .jsx; calls and properties in any script.
-    if (!isUnder(path, options.ignore['hardcoded-text'])) hardcoded.push(...hardcodedText(file, code, options));
-    if (!isUnder(path, options.ignore['formatted-in-code'])) formatted.push(...formattedInCode(file, code, formats, locale));
+    if (!isIgnored(file, options.ignore['hardcoded-text'])) hardcoded.push(...hardcodedText(file, code, options));
+    if (!isIgnored(file, options.ignore['formatted-in-code'])) formatted.push(...formattedInCode(file, code, formats, locale));
   }
   return { hardcoded, formatted, refs, files: files.length };
 }

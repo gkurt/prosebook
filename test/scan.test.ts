@@ -128,11 +128,34 @@ test('scan.ignore keeps a check out of a folder', () => {
   };
   expect(formatted({})).toEqual(['src/App.tsx', 'src/server/tools.ts']);
   expect(formatted({ scan: { ignore: { 'formatted-in-code': ['src/server/'] } } })).toEqual(['src/App.tsx']);
+  expect(formatted({ scan: { ignore: { 'formatted-in-code': ['./src/server'] } } })).toEqual(['src/App.tsx']);
   const c = fixture(files, { scan: { ignore: { 'formatted-in-code': ['src/server'] } } });
   expect(scan(c.scan, c.root).hardcoded.map((h) => h.text)).toEqual(['Total']);
   expect(() => fixture({}, { scan: { ignore: { formatted: ['src'] } as never } })).toThrow(
-    'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code',
+    'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code, or * for all',
   );
+});
+
+test('scan.ignore takes globs, and * for every check', () => {
+  const files = {
+    'src/App.tsx': 'export const App = ({ n }) => <p>Total {n.toLocaleString()}</p>;\n',
+    'src/features/billing/server/rows.ts': 'export const rows = (n: number) => n.toLocaleString();\n',
+    'src/features/billing/api.server.ts': 'export const sum = (n: number) => n.toLocaleString();\n',
+    'src/admin/Panel.tsx': "export const Panel = ({ n }) => <p>Raw {n.toLocaleString()} {t('admin.raw')}</p>;\n",
+  };
+  const found = (ignore: NonNullable<ProsebookConfig['scan']>['ignore']) => {
+    const c = fixture(files, { scan: { ignore } });
+    const { hardcoded, formatted, refs } = scan(c.scan, c.root);
+    return { hardcoded: hardcoded.map((h) => h.file), formatted: formatted.map((f) => f.file), refs: [...refs.exact] };
+  };
+  expect(found({ 'formatted-in-code': ['**/server', '**/*.server.ts'] }).formatted).toEqual(['src/App.tsx', 'src/admin/Panel.tsx']);
+  expect(found({ 'formatted-in-code': ['src/features/*'] }).formatted).toEqual(['src/App.tsx', 'src/admin/Panel.tsx']);
+  // Every check leaves the folder, but the keys it names still count.
+  expect(found({ '*': ['src/admin'] })).toEqual({
+    hardcoded: ['src/App.tsx'],
+    formatted: ['src/App.tsx', 'src/features/billing/api.server.ts', 'src/features/billing/server/rows.ts'],
+    refs: ['admin.raw'],
+  });
 });
 
 test('code-like tokens are not prose', () => {

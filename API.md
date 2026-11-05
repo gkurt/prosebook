@@ -952,13 +952,19 @@ src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'c
 `scan` reports them; `scan --strict` fails on them, as on hardcoded text. A formatter only asked its options, as in
 `Intl.DateTimeFormat().resolvedOptions().timeZone`, formats nothing and isn't reported.
 
-Code whose text no person reads, as a server tool's results, leaves a check out by folder or file:
+Code whose text no person reads, as a server tool's results, leaves a check out by folder, file or glob:
 
 ```ts
 scan: {
-  ignore: { 'formatted-in-code': ['src/server'] }, // and 'hardcoded-text'
+  ignore: {
+    'formatted-in-code': ['src/server', '**/*.server.ts'], // and 'hardcoded-text'
+    '*': ['src/admin'], // every check
+  },
 },
 ```
+
+- Paths are from the config's folder; a folder covers everything under it, and `**/server` every folder named so.
+- The keys an ignored file names still count, so they aren't reported unused.
 
 ### SARIF
 
