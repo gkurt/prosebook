@@ -853,14 +853,15 @@ true` lifts `period` and the sentence rules from a string that completes another
 
 It reads the message format too:
 
-| Rule                | Catches                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                                      |
-| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                               |
-| `arm-endings`       | plural or select arms where some end with a stop and some don't                                        |
-| `formatted-by-hand` | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`)  |
-| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round                   |
-| `plural-forms`      | a plural missing a form its locale counts in (Polish's `few` and `many`), or naming one it never picks |
+| Rule                 | Catches                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `plural-count`       | `{count} files` outside a plural, which reads "1 files" (English)                                     |
+| `plural-one`         | a `one` arm that says what `other` says, or writes `1` where `#` belongs                              |
+| `arm-endings`        | plural or select arms where some end with a stop and some don't                                       |
+| `formatted-by-hand`  | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`) |
+| `source-ending`      | a translation that ends with a stop where its source doesn't, or the other way round                  |
+| `plural-forms`       | a plural missing a form its locale counts in (Polish's `few` and `many`)                              |
+| `plural-unused-form` | a plural naming a form its locale never picks, so its arm never shows (English's `zero` or `few`)     |
 
 `plural-forms` is an error. A locale's forms are those `Intl.PluralRules` gives it, and each one a
 whole count up to 1,000 takes is required unless an `=N` arm covers it (`=1` covers English's
@@ -868,11 +869,17 @@ whole count up to 1,000 takes is required unless an `=N` arm covers it (`=1` cov
 says: German writes `one {# Artikel} other {# Artikel}`, so the next translator sees the form was
 thought of. A form only fractions or a million reach (Czech's and French's `many`) isn't required. A
 plural whose only arms are exact numbers and an `other` that never shows the count picks by value,
-and is left alone. English never picks `zero`, not even for 0, so a `zero` arm there is an error
-too: write `=0`.
+and is left alone.
+
+`plural-unused-form` warns of an arm whose form the locale never picks. A form isn't a number:
+English never picks `zero`, not even for 0, nor `few`, so such an arm never shows. A count of its
+own is an exact arm, which any locale may write: `=0 {No files}`, `=4 {A full set}`. The forms are
+those of the `Intl` that runs the lint; one that runs on older Unicode data than your users'
+browsers may not know a form CLDR has added since (French `many`, in CLDR 42), which is a reason
+this one is a warning.
 
 Translations are linted too, by the rules that hold in any language: `whitespace`, `ellipsis`,
-`arm-endings`, `formatted-by-hand`, `source-ending`, `plural-forms`, and `plural-one`'s `#` (not its
+`arm-endings`, `formatted-by-hand`, `source-ending`, `plural-forms`, `plural-unused-form`, and `plural-one`'s `#` (not its
 `one` and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
 finding names the translation's file.
 

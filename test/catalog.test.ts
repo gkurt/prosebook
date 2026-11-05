@@ -20,7 +20,7 @@ import {
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { todoOf } from '#src/tools/todo.ts';
-import { copyOf, fixture } from './fixture.ts';
+import { cli, copyOf, fixture } from './fixture.ts';
 
 const problemsOf = (files: Record<string, string>, config = {}) => {
   try {
@@ -649,7 +649,7 @@ describe('lint', () => {
   };
   const shown = (found: ReturnType<typeof lint>) => found.map((f) => `${f.locale} ${f.key} [${f.rule}] ${f.message}`);
 
-  test("a plural writes every form its locale's counts take, and none it never picks", () => {
+  test("a plural writes every form its locale's counts take, and is warned of one it never picks", () => {
     const found = translated(
       {
         'app.a': '{count, plural, one {# file} other {# files}}',
@@ -657,33 +657,57 @@ describe('lint', () => {
         'app.c': '{count, plural, =0 {Is empty} other {Is full}}',
         'app.d': '{rank, selectordinal, one {#st} other {#th}}',
         'app.e': '{count, plural, =0 {No files} =1 {One file} other {# files}}',
+        // A count of its own is an exact arm, which any locale may write.
+        'app.f': '{count, plural, =4 {A full set} few {A few} one {# file} other {# files}}',
       },
       {
         de: 'app.a: "{count, plural, other {# Dateien}}"\napp.c: "{count, plural, =0 {Leer} other {Voll}}"\napp.e: "{count, plural, =0 {Keine} =1 {Eine Datei} other {# Dateien}}"\n',
         pl: 'app.a: "{count, plural, one {# plik} other {# plików}}"\napp.e: "{count, plural, =0 {Brak} =1 {Jeden plik} other {# plików}}"\n',
       },
     );
-    expect(shown(found.filter((f) => f.rule === 'plural-forms'))).toEqual([
+    const plurals = new Set(['plural-forms', 'plural-unused-form']);
+    expect(shown(found.filter((f) => plurals.has(f.rule)))).toEqual([
       'de app.a [plural-forms] German writes {count} in the forms one and other: add one, even where an arm says what other says',
       'pl app.a [plural-forms] Polish writes {count} in the forms one, few, many and other: add few and many, even where an arm says what other says',
-      'en app.b [plural-forms] English never picks zero for {count}, not even for 0: write =0, or remove the arm',
+      'en app.b [plural-unused-form] English never picks zero for {count}, not even for 0: write =0, or remove the arm',
       'en app.d [plural-forms] English writes {rank} in the ordinal forms one, two, few and other: add two and few, even where an arm says what other says',
       // =1 is the only count Polish's one takes, so the exact arm stands for it.
       'pl app.e [plural-forms] Polish writes {count} in the forms few, many and other: add few and many, even where an arm says what other says',
+      'en app.f [plural-unused-form] English never picks few for {count}: remove the arm, or write the count it is for as an exact arm, =4',
     ]);
+    expect(found.find((f) => f.rule === 'plural-unused-form')?.severity).toBe('warn');
 
-    // MF2 arms every form once * is written, so the forms written are what counts.
-    const match = (one: string, other: string) => `|-\n    .input {$n :number}\n    .match $n\n    one {{${one}}}\n    * {{${other}}}`;
+    // MF2 arms every form once * is written, so the forms written are what counts, in both rules.
+    const match = (variants: string) => `|-\n    .input {$n :number}\n    .match $n\n${variants.replace(/^/gm, '    ')}`;
     const mf2 = fixture(
       {
-        'copy/catalog/app.yaml': `app.a: ${match('{$n} file', '{$n} files')}\n`,
-        'copy/locales/pl.yaml': `app.a: ${match('{$n} plik', '{$n} plików')}\n`,
+        'copy/catalog/app.yaml': `app.a: ${match('4 {{A full set}}\nfew {{A few}}\none {{{$n} file}}\n* {{{$n} files}}')}\n`,
+        'copy/locales/pl.yaml': `app.a: ${match('one {{{$n} plik}}\n* {{{$n} plików}}')}\n`,
       },
       { require: [], messageFormat: 2 },
     );
     expect(shown(lint(loadCatalog(mf2).messages, mf2))).toEqual([
+      'en app.a [plural-unused-form] English never picks few for {n}: remove the arm, or write the count it is for as an exact arm, =4',
       'pl app.a [plural-forms] Polish writes {n} in the forms one, few, many and other: add few and many, even where an arm says what other says',
     ]);
+  });
+
+  test('check prints warnings beside errors, and fails only on errors', () => {
+    const files = {
+      'prosebook.config.json': '{ "require": [] }',
+      'copy/catalog/app.yaml': `${SCHEMA_LINE}\napp.a: "{count, plural, zero {No files} one {# file} other {# files}}"\n`,
+    };
+    const config = fixture(files, { require: [] });
+    generate(config);
+    const warned = cli(config.root, 'check');
+    expect(warned.stderr).toContain('warn  copy/catalog/app.yaml:2:1 app.a: [plural-unused-form] English never picks zero for {count}');
+    expect(warned.code).toBe(0);
+
+    writeFileSync(join(config.catalog, 'app.yaml'), `${SCHEMA_LINE}\napp.a: "{count, plural, other {# files}}"\n`);
+    generate(config);
+    const failed = cli(config.root, 'check');
+    expect(failed.stderr).toContain('error copy/catalog/app.yaml:2:1 app.a: [plural-forms]');
+    expect(failed.code).toBe(1);
   });
 
   test("quotes, French spacing, Spanish's opening marks and full-width punctuation follow each language", () => {

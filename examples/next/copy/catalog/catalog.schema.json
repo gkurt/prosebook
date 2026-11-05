@@ -159,6 +159,7 @@
             "formatted-by-hand",
             "source-ending",
             "plural-forms",
+            "plural-unused-form",
             "quotes",
             "french-spacing",
             "inverted-marks",

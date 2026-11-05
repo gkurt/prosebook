@@ -436,6 +436,29 @@ const listOf = (items: string[], joiner = 'and') =>
  */
 const COUNTS_UP_TO = 1000;
 
+interface PluralForms {
+  el: Extract<MessageFormatElement, { type: TYPE.plural }>;
+  ordinal: boolean;
+  /** The locale's rules, as the plural selects: with an MF2 selector's digit options. */
+  rules: Intl.PluralRules;
+  /** Every form the locale has. */
+  forms: string[];
+  /** The forms the plural's arms name. */
+  written: Set<string>;
+}
+
+/** Calls `visit` on every plural that selects by form, with the forms its locale has and those it writes. */
+function eachPlural(ast: MessageFormatElement[], locale: string, visit: (plural: PluralForms) => void): void {
+  walk(ast, (el) => {
+    if (el.type !== TYPE.plural) return;
+    const selection = selectionOf(el);
+    if (selection?.fn.options.select === 'exact') return;
+    const ordinal = el.pluralType === 'ordinal';
+    const rules = new Intl.PluralRules(locale, { ...selection?.options, type: ordinal ? 'ordinal' : 'cardinal' });
+    visit({ el, ordinal, rules, forms: rules.resolvedOptions().pluralCategories, written: new Set(categoriesOf(el)) });
+  });
+}
+
 /** Whether an arm shows the number it is picked by, as `#` or as the argument itself. */
 function showsCount(arm: MessageFormatElement[], name: string): boolean {
   let shows = false;
@@ -735,28 +758,12 @@ export const CORE_RULES = {
     },
   },
   'plural-forms': {
-    description: "A plural writes every form its locale's counts take, and none the locale never picks.",
+    description: "A plural writes every form its locale's counts take.",
     recommended: 'error',
     on: { locale: 'all' },
     check: ({ ast, locale }) => {
       const said: string[] = [];
-      walk(ast, (el) => {
-        if (el.type !== TYPE.plural) return;
-        const selection = selectionOf(el);
-        if (selection?.fn.options.select === 'exact') return;
-        const ordinal = el.pluralType === 'ordinal';
-        const rules = new Intl.PluralRules(locale, { ...selection?.options, type: ordinal ? 'ordinal' : 'cardinal' });
-        const forms: string[] = rules.resolvedOptions().pluralCategories;
-        const written = new Set(categoriesOf(el));
-        const language = languageName(locale);
-        for (const form of written) {
-          if (forms.includes(form)) continue;
-          said.push(
-            form === 'zero' && !ordinal
-              ? `${language} never picks zero for {${el.value}}, not even for 0: write =0, or remove the arm`
-              : `${language} never picks ${form} for {${el.value}}: remove the arm`,
-          );
-        }
+      eachPlural(ast, locale, ({ el, ordinal, rules, forms, written }) => {
         // Arms that are only exact numbers around an `other` that never shows the count pick by value, not by form.
         if ([...written].every((form) => form === 'other') && !showsCount(el.options['other']?.value ?? [], el.value)) return;
         const exact = new Set(Object.keys(el.options).flatMap((arm) => (arm.startsWith('=') ? [Number(arm.slice(1))] : [])));
@@ -766,8 +773,29 @@ export const CORE_RULES = {
         if (missing.length === 0) return;
         const takes = forms.filter((form) => form === 'other' || reached.has(form));
         said.push(
-          `${language} writes {${el.value}} in the ${ordinal ? 'ordinal ' : ''}forms ${listOf(takes)}: add ${listOf(missing)}, even where an arm says what other says`,
+          `${languageName(locale)} writes {${el.value}} in the ${ordinal ? 'ordinal ' : ''}forms ${listOf(takes)}: add ${listOf(missing)}, even where an arm says what other says`,
         );
+      });
+      return said;
+    },
+  },
+  'plural-unused-form': {
+    description: 'A plural names no form its locale never picks: such an arm never shows. A count of its own is an exact arm, `=4`.',
+    recommended: 'warn',
+    strict: 'warn',
+    on: { locale: 'all' },
+    check: ({ ast, locale }) => {
+      const said: string[] = [];
+      eachPlural(ast, locale, ({ el, ordinal, forms, written }) => {
+        const language = languageName(locale);
+        for (const form of written) {
+          if (forms.includes(form)) continue;
+          said.push(
+            form === 'zero' && !ordinal
+              ? `${language} never picks zero for {${el.value}}, not even for 0: write =0, or remove the arm`
+              : `${language} never picks ${form} for {${el.value}}: remove the arm, or write the count it is for as an exact arm, =4`,
+          );
+        }
       });
       return said;
     },
