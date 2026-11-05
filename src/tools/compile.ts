@@ -14,6 +14,11 @@ import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-mes
 
 import {
   dateOptions,
+  DURATION,
+  durationOptions,
+  extensionOf,
+  LIST,
+  listOptions,
   numberOptions,
   optionArgsOf,
   placeholderOf,
@@ -91,6 +96,14 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string 
     placed(el, name, `h.${helper}(${access(name)}${formatting(options, optionArgsOf(el), hoisted)})`);
   if (isNumberElement(el)) return formatted('n', el.value, numberOptions(el));
   if (isDateElement(el) || isTimeElement(el)) return formatted('d', el.value, dateOptions(el));
+  const own = extensionOf(el);
+  if (own?.type === DURATION) return formatted('u', own.value, durationOptions(own));
+  if (own?.type === LIST) {
+    // The rest of a list past its format's `max` is said by the entry its `more` names, compiled in here.
+    const said = own.more === undefined ? undefined : message(own.more, hoisted);
+    const more = said === undefined ? '' : `, (count) => ${said.startsWith('(') ? `(${said})({ count }, h)` : said}`;
+    return placed(el, own.value, `h.l(${access(own.value)}${hoisted.arg(listOptions(own)) || (more && ', undefined')}${more})`);
+  }
   switch (el.type) {
     case TYPE.literal:
       return JSON.stringify(el.value);

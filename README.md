@@ -110,10 +110,11 @@ en: '{n, plural, one {# file} other {# files}}'
 en: '{mode, select, dark {Dark} other {Light}}'
 en: 'Total: {total, number, ::currency/EUR}'
 en: '{when, date, medium} at {when, time, short}'
+en: 'Ran {tools, list} in {took, duration}' # "Ran grep, sed, and awk in 3 min, 5 sec"
 en: 'By checking out you agree to our <link>terms</link>.'
 ```
 
-Each placeholder's type comes from the message: `n: number`, `mode: 'dark' | (string & {})`, `when: Date | number`. Set
+Each placeholder's type comes from the message: `n: number`, `mode: 'dark' | (string & {})`, `when: Date | number`, `tools: readonly string[]`. Set
 `messageFormat: 2` to write [MessageFormat 2](API.md#messageformat-2) instead, and name formats used across the app once in
 the config with [named formats](API.md#named-formats).
 

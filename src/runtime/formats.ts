@@ -1,15 +1,41 @@
 /**
- * Named formats: a number or date format the config names once (`price`, `receipt`), which a message
- * names in place of its options (`{total, number, price}`) and `copy.number(total, 'price')` names in
- * code, so every page shows the same thing the same way and one edit changes it everywhere.
+ * Named formats: a number, date, list or duration format the config names once (`price`, `receipt`),
+ * which a message names in place of its options (`{total, number, price}`) and `copy.number(total,
+ * 'price')` names in code, so every page shows the same thing the same way and one edit changes it
+ * everywhere.
  */
 
-type OptionsOf = { number: Intl.NumberFormatOptions; date: Intl.DateTimeFormatOptions };
-
-export interface FormatTable {
-  readonly number?: { readonly [name: string]: Intl.NumberFormatOptions };
-  readonly date?: { readonly [name: string]: Intl.DateTimeFormatOptions };
+/** A list as `Intl.ListFormat` joins it, and with `max`, its first items and the entry `more` names for the rest. */
+export interface ListFormatOptions extends Intl.ListFormatOptions {
+  /** The most items shown; the rest are counted by the `more` entry, as a last item: "a, b, and 3 more". */
+  readonly max?: number;
+  /** The key of the entry that says the rest, given their number as `{count}`. A named format's only. */
+  readonly more?: string;
 }
+
+export type DurationUnit = 'days' | 'hours' | 'minutes' | 'seconds' | 'milliseconds';
+
+/** A duration in milliseconds, split into units as `Intl.DurationFormat` writes them: "3 min, 5 sec". */
+export interface DurationFormatOptions {
+  readonly style?: 'long' | 'short' | 'narrow' | 'digital';
+  /** The largest unit a duration is counted in: `hours` writes a day as 24 hours. Days unless said. */
+  readonly largest?: DurationUnit;
+  /** The smallest unit shown, which the duration is rounded to. Milliseconds unless said, seconds when digital. */
+  readonly smallest?: DurationUnit;
+  /** The most units shown, from the largest the duration reaches: 2 writes "1 hr, 2 min", not "1 hr, 2 min, 5 sec". All when digital. */
+  readonly units?: number;
+}
+
+type OptionsOf = {
+  number: Intl.NumberFormatOptions;
+  date: Intl.DateTimeFormatOptions;
+  list: ListFormatOptions;
+  duration: DurationFormatOptions;
+};
+
+export type FormatKind = keyof OptionsOf;
+
+export type FormatTable = { readonly [K in FormatKind]?: { readonly [name: string]: OptionsOf[K] } };
 
 export interface Formats extends FormatTable {
   /**
@@ -20,17 +46,72 @@ export interface Formats extends FormatTable {
 }
 
 /** The options a named format has in `locale`, or nothing where no format has that name. */
-export function formatIn<K extends keyof OptionsOf>(
+export function formatIn<K extends FormatKind>(
   formats: Formats | undefined,
   kind: K,
   name: string,
   locale: string,
 ): OptionsOf[K] | undefined {
   if (formats === undefined) return undefined;
+  // TypeScript can't follow `kind` into the mapped table, so the lookup names the type it reads.
+  const own = (table: FormatTable | undefined) => table?.[kind]?.[name];
   for (let tag = locale; ; tag = tag.slice(0, tag.lastIndexOf('-'))) {
-    const own = formats.locales?.[tag]?.[kind]?.[name];
-    if (own !== undefined) return own;
+    const found = own(formats.locales?.[tag]);
+    if (found !== undefined) return found;
     if (!tag.includes('-')) break;
   }
-  return formats[kind]?.[name];
+  return own(formats);
+}
+
+/** The entries list formats name for their rest, which a build keeps: the copy reads them for `copy.list`. */
+export function moreKeys(formats: Formats | undefined): string[] {
+  const tables = [formats, ...Object.values(formats?.locales ?? {})];
+  return [...new Set(tables.flatMap((t) => Object.values(t?.list ?? {}).flatMap((o) => o.more ?? [])))];
+}
+
+const UNITS: readonly (readonly [DurationUnit, number])[] = [
+  ['days', 86_400_000],
+  ['hours', 3_600_000],
+  ['minutes', 60_000],
+  ['seconds', 1000],
+  ['milliseconds', 1],
+];
+
+/**
+ * Milliseconds as the units `options` shows: from the largest the duration reaches, at most `units`
+ * of them, the last rounded, so 185,400 ms is 3 minutes and 5 seconds and 59,600 ms to the second is
+ * a minute. A duration of nothing is 0 in the smallest unit; `zero` says which, for its display.
+ */
+export function durationParts(
+  ms: number,
+  options: DurationFormatOptions = {},
+): { parts: Partial<Record<DurationUnit, number>>; zero?: DurationUnit } {
+  const digital = options.style === 'digital';
+  const index = (unit: DurationUnit | undefined, or: number) => (unit === undefined ? or : UNITS.findIndex(([u]) => u === unit));
+  const range = UNITS.slice(index(options.largest, 0), index(options.smallest, digital ? 3 : 4) + 1);
+  const units = options.units ?? (digital ? range.length : 2);
+  const sign = ms < 0 ? -1 : 1;
+  let rest = Math.abs(ms);
+  let first = 0;
+  let last = 0;
+  // Rounding may carry into a larger unit (59.6 seconds to the second is a minute), so round until it settles.
+  for (let settled = false; !settled;) {
+    first = Math.max(
+      0,
+      range.findIndex(([, size]) => rest >= size),
+    );
+    if (rest < range.at(-1)![1]) first = range.length - 1;
+    last = Math.min(first + units - 1, range.length - 1);
+    const size = range[last]![1];
+    const rounded = Math.round(rest / size) * size;
+    settled = rounded === rest;
+    rest = rounded;
+  }
+  const parts: Partial<Record<DurationUnit, number>> = {};
+  for (const [unit, size] of range.slice(first, last + 1)) {
+    const n = Math.floor(rest / size);
+    rest -= n * size;
+    if (n !== 0) parts[unit] = sign * n;
+  }
+  return Object.keys(parts).length > 0 ? { parts } : { parts: { [range[last]![0]]: 0 }, zero: range[last]![0] };
 }

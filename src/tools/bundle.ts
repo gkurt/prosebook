@@ -10,6 +10,8 @@ import { existsSync, readFileSync, watch } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { moreKeys, type Formats } from '#src/runtime/formats.ts';
+
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
@@ -20,8 +22,11 @@ import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type Key
 export type Prune = 'strict' | 'loose' | false;
 
 /** Whether a build keeps a key: some module names it, or `keep` lists it, exactly or as `prefix.*`. */
-export function keeper(refs: KeyRefs, keep: string[] = []): (key: string) => boolean {
-  return (key) => isReferenced(key, refs) || keep.some((k) => (k.endsWith('.*') ? key.startsWith(k.slice(0, -1)) : k === key));
+export function keeper(refs: KeyRefs, keep: string[] = [], formats?: Formats): (key: string) => boolean {
+  // `copy.list` reads the entry a list format names for its rest, by the format's name.
+  const more = new Set(moreKeys(formats));
+  return (key) =>
+    more.has(key) || isReferenced(key, refs) || keep.some((k) => (k.endsWith('.*') ? key.startsWith(k.slice(0, -1)) : k === key));
 }
 
 /** The unseen reads that are a copy's: a name only counts once some module binds a reader to it. */

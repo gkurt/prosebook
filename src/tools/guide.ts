@@ -8,6 +8,9 @@
  */
 import { relative } from 'node:path';
 
+import { durationParts, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
+import { shownItems } from '#src/runtime/helpers.ts';
+
 import type { ResolvedConfig } from './config.ts';
 import { languageName, type CheckRule } from './lint.ts';
 import { SYNTAX_NAME } from './syntax.ts';
@@ -34,9 +37,26 @@ function scopeOf({ on }: CheckRule, offIn: string[]): string | undefined {
 const SAMPLE_NUMBER = 1234.5;
 const SAMPLE_DATE = new Date(Date.UTC(2026, 9, 28, 14, 5));
 
+const SAMPLE_ITEMS = ['Ann', 'Bob', 'Cy', 'Dee'];
+const SAMPLE_DURATION = 3_725_400;
+const MF2_FUNCTION: Record<string, string> = { number: 'number', date: 'datetime', list: 'list', duration: 'duration' };
+
+/** A list as a format shows it, the rest past `max` named by the entry that says it. */
+function sampleList(locale: string, o: ListFormatOptions): string {
+  const rest = o.more === undefined ? undefined : () => `… (${o.more} says the rest)`;
+  return new Intl.ListFormat(locale, o).format(shownItems(SAMPLE_ITEMS, o, rest));
+}
+
+function sampleDuration(locale: string, o: DurationFormatOptions): string {
+  const { parts } = durationParts(SAMPLE_DURATION, o);
+  // A Node or Bun without `Intl.DurationFormat` says the units it would show.
+  if (typeof Intl.DurationFormat !== 'function') return JSON.stringify(parts);
+  return new Intl.DurationFormat(locale, o).format(parts);
+}
+
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
 function formatsSection(config: ResolvedConfig): string[] {
-  const { number = {}, date = {} } = config.formats;
+  const { number = {}, date = {}, list: lists = {}, duration = {} } = config.formats;
   const rows = [
     ...Object.entries(number).map(([name, o]) => [name, 'number', new Intl.NumberFormat(config.source, o).format(SAMPLE_NUMBER)]),
     // In UTC, so the guide is the same wherever it is generated.
@@ -45,16 +65,17 @@ function formatsSection(config: ResolvedConfig): string[] {
       'date',
       new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE),
     ]),
+    ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o)]),
+    ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDuration(config.source, o)]),
   ];
   if (rows.length === 0) return [];
   const [name, kind] = rows[0]!;
-  const example =
-    config.messageFormat === 2 ? `{$value :${kind === 'number' ? 'number' : 'datetime'} format=${name}}` : `{value, ${kind}, ${name}}`;
+  const example = config.messageFormat === 2 ? `{$value :${MF2_FUNCTION[kind!]} format=${name}}` : `{value, ${kind}, ${name}}`;
   return [
     '',
     '## Formats',
     '',
-    `A number or date is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
+    `A number, date, list or duration is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
     '',
     ...rows.map(([n, k, shown]) => `- ${code(n!)} (${k}): ${shown}`),
   ];

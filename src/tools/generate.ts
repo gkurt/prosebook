@@ -109,15 +109,15 @@ function typesBlock(catalog: Catalog, locales: string[]): string {
 
 /** The module augmentation that tells `useCopy()`, `<Text>` and `copy.number`'s names the catalog's. */
 function register(config: ResolvedConfig): string {
-  const names = (kind: 'number' | 'date') => {
+  const kinds = ['number', 'date', 'list', 'duration'] as const;
+  const names = (kind: (typeof kinds)[number]) => {
     const named = Object.keys(config.formats[kind] ?? {});
     return named.length > 0 ? named.map(quote).join(' | ') : 'never';
   };
-  const formats =
-    config.formats.number === undefined && config.formats.date === undefined
-      ? ''
-      : `
-    formats: { number: ${names('number')}; date: ${names('date')} };`;
+  const formats = kinds.every((kind) => config.formats[kind] === undefined)
+    ? ''
+    : `
+    formats: { ${kinds.map((kind) => `${kind}: ${names(kind)}`).join('; ')} };`;
   return `declare module 'prosebook' {
   interface Register {
     messages: Messages;

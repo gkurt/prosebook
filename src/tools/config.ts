@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 
 import type { Formats, FormatTable } from '#src/runtime/formats.ts';
 
+import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
 import { compileRule, CORE_RULES, REASON_NAME, reasonProblem, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
 import type { Isolate } from './mf2.ts';
 import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
@@ -360,7 +361,46 @@ const FORMAT_OPTIONS = {
     ],
     builtIn: ['short', 'medium', 'long', 'full'],
   },
+  list: {
+    intl: 'Intl.ListFormat',
+    options: ['type', 'style', 'max', 'more'],
+    builtIn: ['conjunction', 'disjunction', 'unit', 'long', 'short', 'narrow'],
+  },
+  duration: { intl: 'Intl.DurationFormat', options: ['style', 'largest', 'smallest', 'units'], builtIn: DURATION_STYLES },
 } as const;
+
+const KINDS = Object.keys(FORMAT_OPTIONS) as (keyof typeof FORMAT_OPTIONS)[];
+
+/** A format's options `Intl` refuses, or prosebook's own (`max`, `largest`, ...) that make no sense: what is wrong, or nothing. */
+function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string, unknown>): string | undefined {
+  const whole = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n > 0;
+  if (kind === 'list') {
+    const { max, more } = value;
+    if (max !== undefined && !whole(max)) return 'max is a whole number of items, 1 or more';
+    if (more !== undefined && typeof more !== 'string') return 'more is the key of the entry saying the rest: more: common.more';
+    if ((max === undefined) !== (more === undefined))
+      return 'max and more go together: the first max items, and the entry more names for the rest, given {count}';
+  }
+  if (kind === 'duration') {
+    const { largest, smallest, units } = value;
+    const at = (unit: unknown) => DURATION_UNITS.findIndex((u) => u === unit);
+    for (const [key, unit] of Object.entries({ largest, smallest }))
+      if (unit !== undefined && at(unit) === -1) return `${key} is a unit: ${DURATION_UNITS.join(', ')}`;
+    if (largest !== undefined && smallest !== undefined && at(largest) > at(smallest))
+      return `largest is ${DURATION_UNITS[at(largest)]!}, which is smaller than smallest`;
+    if (units !== undefined && !whole(units)) return 'units is how many units are shown, 1 or more';
+  }
+  try {
+    if (kind === 'number') new Intl.NumberFormat('en', value).resolvedOptions();
+    else if (kind === 'date') new Intl.DateTimeFormat('en', value).resolvedOptions();
+    else if (kind === 'list') new Intl.ListFormat('en', value).resolvedOptions();
+    // A Node or Bun without `Intl.DurationFormat` checks only prosebook's options.
+    else if (typeof Intl.DurationFormat === 'function') new Intl.DurationFormat('en', value).resolvedOptions();
+  } catch (e) {
+    return `is refused by ${FORMAT_OPTIONS[kind].intl}: ${(e as Error).message}`;
+  }
+  return undefined;
+}
 
 const FORMAT_NAME = /^[A-Za-z][\w-]*$/;
 
@@ -368,10 +408,10 @@ const FORMAT_NAME = /^[A-Za-z][\w-]*$/;
 function checkedFormats(formats: Formats): Formats {
   const check = (table: FormatTable, at: string, defined?: FormatTable) => {
     for (const kind of Object.keys(table)) {
-      if (kind !== 'number' && kind !== 'date' && !(defined === undefined && kind === 'locales'))
-        throw new Error(`${at}${kind} is not a kind of format: number or date`);
+      if (!(KINDS as string[]).includes(kind) && !(defined === undefined && kind === 'locales'))
+        throw new Error(`${at}${kind} is not a kind of format: ${KINDS.join(', ')}`);
     }
-    for (const kind of ['number', 'date'] as const) {
+    for (const kind of KINDS) {
       const { intl, options, builtIn } = FORMAT_OPTIONS[kind];
       for (const [name, value] of Object.entries(table[kind] ?? {})) {
         const path = `${at}${kind}.${name}`;
@@ -388,12 +428,8 @@ function checkedFormats(formats: Formats): Formats {
           if (!(options as readonly string[]).includes(key))
             throw new Error(`${path}.${key} is not an option of ${intl}, which would ignore it: ${options.join(', ')}`);
         }
-        try {
-          if (kind === 'number') new Intl.NumberFormat('en', value).resolvedOptions();
-          else new Intl.DateTimeFormat('en', value).resolvedOptions();
-        } catch (e) {
-          throw new Error(`${path} is refused by ${intl}: ${(e as Error).message}`, { cause: e });
-        }
+        const refused = refusedOptions(kind, value as Record<string, unknown>);
+        if (refused !== undefined) throw new Error(`${path}${refused.startsWith('is ') ? ' ' : '.'}${refused}`);
       }
     }
   };

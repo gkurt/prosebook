@@ -232,7 +232,7 @@ function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, 
   if (prune !== false) {
     const { refs, unseen } = scanSources(config, prune === 'strict');
     if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
-    kept = keeper(refs, options.keep);
+    kept = keeper(refs, options.keep, config.formats);
   }
   const locales =
     prune === false ? [] : [...generated.entries].map(([locale, entries]) => rule(config, locale, { code: prunedModule(entries, kept) }));

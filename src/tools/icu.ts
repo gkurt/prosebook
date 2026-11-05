@@ -12,14 +12,15 @@ import type {
   TimeElement,
 } from '@formatjs/icu-messageformat-parser';
 
-import { formatIn, type Formats } from '#src/runtime/formats.ts';
+import { formatIn, type DurationFormatOptions, type DurationUnit, type Formats, type ListFormatOptions } from '#src/runtime/formats.ts';
 
 export type { MessageFormatElement };
 export { TYPE };
 
 /** An ICU message as the element tree, each style naming one of `formats` read as that format's options in `locale`. */
 export function parseMessage(text: string, formats?: Formats, locale = 'en'): MessageFormatElement[] {
-  const ast = parse(text, { shouldParseSkeletons: true, requiresOtherClause: true });
+  const { stand, found } = standIns(text);
+  const ast = withExtensions(parse(stand, { shouldParseSkeletons: true, requiresOtherClause: true }), found, formats, locale);
   walk(ast, (el) => {
     if ((isDateElement(el) || isTimeElement(el)) && typeof el.style === 'object' && el.style !== null && el.style.pattern.includes('j'))
       el.style.parsedOptions = localHour(el.style.pattern);
@@ -29,6 +30,138 @@ export function parseMessage(text: string, formats?: Formats, locale = 'en'): Me
     if (style !== undefined) el.style = style as never;
   });
   return ast;
+}
+
+/**
+ * prosebook's placeholders beyond ICU's: `{names, list}`, a list of strings joined as the locale
+ * joins one, and `{took, duration}`, milliseconds in the units the locale writes. Their type numbers
+ * sit past formatjs's, so code that doesn't know them passes them by, and the writers refuse them.
+ */
+export const LIST = 100;
+export const DURATION = 101;
+
+/** A list or duration placeholder. `style` is as written; `options`, where a format is named or MF2 gave them. */
+export interface ExtensionElement {
+  type: typeof LIST | typeof DURATION;
+  value: string;
+  style: string | null;
+  options?: ListFormatOptions | DurationFormatOptions;
+  /** The format of the config's it names. */
+  named?: string;
+  /** For a list whose format has `more`: that entry's message in the locale read, set as the catalog loads. */
+  more?: MessageFormatElement[];
+}
+
+/** The element as a list or duration placeholder, or nothing. */
+export function extensionOf(el: MessageFormatElement): ExtensionElement | undefined {
+  const type = (el as { type: number }).type;
+  return type === LIST || type === DURATION ? (el as unknown as ExtensionElement) : undefined;
+}
+
+export const asElement = (el: ExtensionElement) => el as unknown as MessageFormatElement;
+
+const EXTENSION = /\{\s*([^\s{},#<>']+)\s*,\s*(list|duration)\s*(?:,\s*([^{}]*?))?\s*\}/y;
+const STAND_IN = '__prosebook_';
+
+type StandIn = { name: string; kind: string; style: string | undefined };
+
+/**
+ * The message with each list and duration placeholder written as a plain one formatjs reads, which
+ * `withExtensions` puts back. Quoted text is passed by, as ICU quotes: an apostrophe before a brace,
+ * `#`, `|` or a tag's `<` opens a quote, and `''` is an apostrophe.
+ */
+function standIns(text: string): { stand: string; found: StandIn[] } {
+  const found: StandIn[] = [];
+  let stand = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (c === "'") {
+      if (text[i + 1] === "'") {
+        stand += "''";
+        i++;
+        continue;
+      }
+      if (quoted || /[{}#|<>]/.test(text[i + 1] ?? '')) quoted = !quoted;
+      stand += c;
+      continue;
+    }
+    EXTENSION.lastIndex = i;
+    const m = c === '{' && !quoted ? EXTENSION.exec(text) : null;
+    if (m === null) {
+      stand += c;
+      continue;
+    }
+    stand += `{${STAND_IN}${found.length}}`;
+    const style = m[3]?.trim();
+    found.push({ name: m[1]!, kind: m[2]!, style: style === '' ? undefined : style });
+    i += m[0].length - 1;
+  }
+  return { stand, found };
+}
+
+function withExtensions(
+  ast: MessageFormatElement[],
+  found: StandIn[],
+  formats: Formats | undefined,
+  locale: string,
+): MessageFormatElement[] {
+  if (found.length === 0) return ast;
+  const put = (elements: MessageFormatElement[]): MessageFormatElement[] =>
+    elements.map((el) => {
+      if (el.type === TYPE.argument && el.value.startsWith(STAND_IN)) {
+        const { name, kind, style } = found[Number(el.value.slice(STAND_IN.length))]!;
+        const options = style === undefined ? undefined : formatIn(formats, kind === 'list' ? 'list' : 'duration', style, locale);
+        return asElement({
+          type: kind === 'list' ? LIST : DURATION,
+          value: name,
+          style: style ?? null,
+          ...(options && { options, named: style }),
+        });
+      }
+      if (el.type === TYPE.select || el.type === TYPE.plural)
+        return { ...el, options: Object.fromEntries(Object.entries(el.options).map(([k, o]) => [k, { ...o, value: put(o.value) }])) };
+      if (el.type === TYPE.tag) return { ...el, children: put(el.children) };
+      return el;
+    });
+  return put(ast);
+}
+
+const LIST_WORDS: Record<string, Intl.ListFormatOptions> = {
+  conjunction: { type: 'conjunction' },
+  disjunction: { type: 'disjunction' },
+  unit: { type: 'unit' },
+  long: { style: 'long' },
+  short: { style: 'short' },
+  narrow: { style: 'narrow' },
+};
+export const DURATION_STYLES = ['long', 'short', 'narrow', 'digital'] as const;
+export const DURATION_UNITS: readonly DurationUnit[] = ['days', 'hours', 'minutes', 'seconds', 'milliseconds'];
+
+/** The options a list placeholder joins with. Throws, with the fix, where its style is wrong. */
+export function listOptions(el: ExtensionElement): ListFormatOptions {
+  if (el.options !== undefined) return el.options as ListFormatOptions;
+  if (el.style === null) return {};
+  const words = el.style.split(/\s+/);
+  if (words.some((w) => LIST_WORDS[w] === undefined)) {
+    throw new Error(
+      `{${el.value}} asks for list style "${el.style}": ${Object.keys(LIST_WORDS).join(', ')}, or a format formats.list names`,
+    );
+  }
+  return Object.assign({}, ...words.map((w) => LIST_WORDS[w])) as ListFormatOptions;
+}
+
+/** The options a duration placeholder formats with. Throws, with the fix, where its style is wrong. */
+export function durationOptions(el: ExtensionElement): DurationFormatOptions {
+  if (el.options !== undefined) return el.options;
+  if (el.style === null) return {};
+  const style = DURATION_STYLES.find((s) => s === el.style);
+  if (style === undefined) {
+    throw new Error(
+      `{${el.value}} asks for duration style "${el.style}": ${DURATION_STYLES.join(', ')}, or a format formats.duration names`,
+    );
+  }
+  return { style };
 }
 
 /**
@@ -107,6 +240,8 @@ export const openType = (type: string) => withNullish(`${baseOf(type)}${OPEN}`, 
  * one whose arms are `true` and `false` takes a boolean.
  */
 function argType(el: MessageFormatElement): string | undefined {
+  const own = extensionOf(el);
+  if (own !== undefined) return own.type === LIST ? 'readonly string[]' : 'number';
   switch (el.type) {
     case TYPE.argument:
       return 'string';
@@ -339,6 +474,9 @@ export function formatProblems(ast: MessageFormatElement[]): string[] {
     try {
       if (isNumberElement(el)) numberOptions(el);
       if (isDateElement(el) || isTimeElement(el)) dateOptions(el);
+      const own = extensionOf(el);
+      if (own?.type === LIST) listOptions(own);
+      if (own?.type === DURATION) durationOptions(own);
     } catch (e) {
       found.push((e as Error).message);
     }
@@ -349,7 +487,19 @@ export function formatProblems(ast: MessageFormatElement[]): string[] {
 /** How each number or date argument is formatted, for the generated doc comment: `date medium, time short`. */
 export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
   const formats = new Map<string, string[]>();
+  const add = (name: string, said: string) => {
+    const list = formats.get(name) ?? [];
+    if (!list.includes(said)) list.push(said);
+    formats.set(name, list);
+  };
   walk(ast, (el) => {
+    const own = extensionOf(el);
+    if (own !== undefined) {
+      const kind = own.type === LIST ? 'list' : 'duration';
+      const style = own.named ?? own.style;
+      add(own.value, style === null ? kind : `${kind} \`${style}\``);
+      return;
+    }
     if (!isNumberElement(el) && !isDateElement(el) && !isTimeElement(el)) return;
     const style = el.style;
     if (style === null || style === undefined) return;
@@ -374,9 +524,7 @@ export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
     } else {
       said = `${kind} \`::${style.pattern}\``;
     }
-    const list = formats.get(el.value) ?? [];
-    if (!list.includes(said)) list.push(said);
-    formats.set(el.value, list);
+    add(el.value, said);
   });
   return new Map([...formats].map(([name, list]) => [name, list.join(', ')]));
 }

@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { moreKeys } from './runtime/formats.ts';
 import { scanSources, watchCatalog } from './tools/bundle.ts';
 import { CatalogError, entryLocator, loadCatalog, previewOf, SCHEMA_LINE, whereOf, type Catalog, type Problem } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
@@ -616,7 +617,8 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
   for (const h of result.hardcoded)
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text ' : hardcodedWhere(h)}"${h.text}"`);
   for (const f of result.formatted) err(`${f.file}:${f.line}:${f.column} formatted in code: ${f.code}: read ${f.fix}`);
-  const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
+  const more = new Set(moreKeys(config.formats));
+  const unused = catalog.messages.filter((m) => !more.has(m.key) && !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   const unseen = runUnseen(config, strict ? 'error' : 'warning', report);
   if (report !== undefined) {

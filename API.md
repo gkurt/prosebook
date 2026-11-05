@@ -144,7 +144,8 @@ copy.t('cart.items', { count: 3 }); // "3 items in your cart."
 copy.rich('cart.terms', { link: (chunks) => h('a', chunks) }); // ['By checking out you agree to our ', <a>…</a>, '.']
 copy.number(9, 'price'); // "€9.00", a named format or Intl options
 copy.date(when, { weekday: 'long' });
-copy.list(['a', 'b', 'c']); // "a, b, and c"
+copy.list(['a', 'b', 'c']); // "a, b, and c"; a named format too, with its max and more
+copy.duration(185_400, 'compact'); // "3m 5s": milliseconds, with a named format or options
 copy.relative(-2, 'hour'); // "2 hours ago"
 copy.has(key); // narrows key to a key of the catalog
 await copy.setLocale('de'); // once its messages and its fallbacks' are loaded
@@ -461,6 +462,10 @@ en: '{views, number, ::compact-short}' # 1.4K
 en: '{line, number, ::group-off}' # 1234 in every locale: a number that names, not counts
 en: '{when, date, medium} at {when, time, short}' # Oct 28, 2026 at 2:05 PM
 en: '{when, date, ::yMMMdjmm}' # j: the locale's hour cycle
+en: 'With {names, list}' # names: readonly string[]; "With Ann, Bob, and Cy", "Mit Ann, Bob und Cy"
+en: '{names, list, disjunction}' # "Ann, Bob, or Cy"; conjunction, disjunction, unit and long, short, narrow
+en: 'Took {took, duration}' # took: number of milliseconds; "Took 3 min, 5 sec"
+en: '{took, duration, narrow}' # "3m 5s", "850ms"; long, short, narrow, digital ("0:03:05")
 en: 'By checking out you agree to our <link>terms</link>.' # a tag
 ```
 
@@ -470,6 +475,10 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag
   select on one argument fail.
 - A skeleton the formatter would drop (`::compact-shortt`) fails the build.
 - A select arm's name is letters, digits and `_`. Map a value like `application/pdf` to one in code.
+- `list` and `duration` are prosebook's, beyond ICU: `{names, list}` joins with `Intl.ListFormat`, `{took, duration}` writes
+  milliseconds with `Intl.DurationFormat`, from the largest unit it reaches, two units at most, the last rounded. In MF2,
+  `{$names :list type=disjunction}` and `{$took :duration style=narrow}`. Where a browser lacks `Intl.DurationFormat`, the
+  placeholder's fallback shows and `onError` says why. Native targets refuse both; pass the text formatted in code.
 
 ### Named formats
 
@@ -483,6 +492,12 @@ formats: {
   date: {
     receipt: { dateStyle: 'medium', timeStyle: 'short' },
   },
+  list: {
+    tools: { type: 'unit', max: 3, more: 'common.more' }, // "grep, sed, awk, 2 more"
+  },
+  duration: {
+    compact: { style: 'narrow', smallest: 'seconds' }, // "3m 5s"; largest, smallest, units (2)
+  },
   locales: { de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } } },
 },
 ```
@@ -491,11 +506,21 @@ formats: {
 en: 'Total: {total, number, price}' # €9.00
 en: 'Ordered {when, date, receipt}'
 en: 'Total: {$total :number format=price}' # MF2; :date, :time and :datetime take format= too
+en: 'Used {tools, list, tools}' # {$tools :list format=tools}
+en: 'Took {took, duration, compact}' # {$took :duration format=compact}
+```
+
+```yaml
+common.more:
+  context: Counts the items a list leaves out.
+  en: '{count, plural, other {# more}}'
 ```
 
 ```ts
 copy.number(total, 'price');
 copy.date(when, 'receipt');
+copy.list(tools, 'tools');
+copy.duration(took, 'compact');
 ```
 
 - One change in the config changes every message and call, in every locale.
@@ -503,6 +528,10 @@ copy.date(when, 'receipt');
 - A name can't be a built-in style (`short`, `medium`, `long`, `full`, `integer`, `percent`, `currency`), and options are checked
   as the config loads.
 - In MF2, `format=` stands alone: a variant is another name.
+- A list format's `max` shows that many items and says the rest with the entry `more` names, given `{count}`, as the last item,
+  in each locale's words; `max` and `more` go together, and only in a named format. The entry is kept in every build.
+- A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
+  many it shows from the largest it reaches.
 - The `named-format` lint warns of a message that spells out a named format's options.
 
 ### Tags

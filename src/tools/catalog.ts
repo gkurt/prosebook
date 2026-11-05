@@ -10,11 +10,16 @@ import { join, relative, resolve } from 'node:path';
 
 import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
 
+import type { ListFormatOptions } from '#src/runtime/formats.ts';
+import { chainOf } from '#src/runtime/locale.ts';
+
 import type { ResolvedConfig } from './config.ts';
 import {
   argsOf,
   armsOf,
   closedType,
+  extensionOf,
+  LIST,
   openType,
   formatProblems,
   formatsOf,
@@ -172,6 +177,7 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
   }
 
   const locales = readLocales(config, byKey, broken, problems, rel, read, created);
+  attachMore(config, byKey, locales, problems);
   if (options.partial !== true && problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };
 }
@@ -321,6 +327,45 @@ function readLocales(
     }
   }
   return [...files.keys()];
+}
+
+/**
+ * A list whose format has `max` says its rest with the entry `more` names, given `{count}`. That
+ * entry's message, in the locale the list is read in or the nearest one translating it, is set on the
+ * list for the compiler, so every locale module holds what it says without reading the entry.
+ */
+function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales: string[], problems: Problem[]): void {
+  const error = (message: Message, text: string) =>
+    problems.push({ severity: 'error', file: message.file, key: message.key, message: text });
+  const checked = new Set<string>();
+  for (const message of byKey.values()) {
+    const readings: [string, MessageFormatElement[]][] = [
+      [config.source, message.ast],
+      ...[...message.translations].map(([l, t]): [string, MessageFormatElement[]] => [l, t.ast]),
+    ];
+    for (const [locale, ast] of readings) {
+      walk(ast, (el) => {
+        const own = extensionOf(el);
+        const key = own?.type === LIST ? (own.options as ListFormatOptions | undefined)?.more : undefined;
+        if (own === undefined || key === undefined) return;
+        const more = byKey.get(key);
+        const at = `formats.list.${own.named}.more`;
+        if (more === undefined) {
+          if (locale === config.source)
+            error(message, `{${own.value}} is shown as ${at} says, and the catalog has no ${key}: add it, saying the rest with {count}`);
+          return;
+        }
+        if (!checked.has(key)) {
+          checked.add(key);
+          const others = [...more.args.keys()].filter((a) => a !== 'count');
+          if (others.length > 0 || (more.args.has('count') && more.args.get('count') !== 'number'))
+            error(more, `says the rest of a list (${at}), which gives it {count} alone, a number: say it with {count, plural, …}`);
+        }
+        const chain = chainOf(locale, [config.source, ...locales], config.source);
+        own.more = chain.map((l) => (l === config.source ? more.ast : more.translations.get(l)?.ast)).find((a) => a !== undefined);
+      });
+    }
+  }
 }
 
 /**

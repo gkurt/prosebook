@@ -95,7 +95,7 @@ describe('named formats', () => {
     const { files } = generate(config, { check: true });
     const index = files.get(join(config.out, 'index.ts'))!;
     expect(index).toContain(`  formats: ${JSON.stringify(formats)},`);
-    expect(index).toContain('formats: { number: "price" | "compact"; date: "receipt" };');
+    expect(index).toContain('formats: { number: "price" | "compact"; date: "receipt"; list: never; duration: never };');
     expect(files.get(config.guide as string)).toContain('- `compact` (number): 1.23K');
     // Without formats, nothing of them is written.
     const plain = fixture({ 'copy/catalog/app.yaml': 'app.a: Hi\n' }, { require: [] });
@@ -147,7 +147,21 @@ describe('the formats in the config', () => {
       'formats.date.short: "short" is a style every message knows already, so name the format for what it shows: short-date',
     );
     expect(refused({ date: { '2fa': {} } })).toThrow("formats.date.2fa: a format's name is a letter, then letters, digits, _ and -");
-    expect(refused({ time: {} } as never)).toThrow('formats.time is not a kind of format: number or date');
+    expect(refused({ time: {} } as never)).toThrow('formats.time is not a kind of format: number, date, list, duration');
+    expect(refused({ list: { tools: { max: 3 } } })).toThrow(
+      'formats.list.tools.max and more go together: the first max items, and the entry more names for the rest, given {count}',
+    );
+    expect(refused({ list: { tools: { max: 0, more: 'app.more' } } })).toThrow(
+      'formats.list.tools.max is a whole number of items, 1 or more',
+    );
+    expect(refused({ list: { tools: { type: 'and' as never } } })).toThrow('formats.list.tools is refused by Intl.ListFormat:');
+    expect(refused({ duration: { took: { largest: 'seconds', smallest: 'hours' } } })).toThrow(
+      'formats.duration.took.largest is seconds, which is smaller than smallest',
+    );
+    expect(refused({ duration: { took: { smallest: 'weeks' as never } } })).toThrow(
+      'formats.duration.took.smallest is a unit: days, hours, minutes, seconds, milliseconds',
+    );
+    expect(refused({ duration: { narrow: {} } })).toThrow('formats.duration.narrow: "narrow" is a style every message knows already');
     expect(refused({ number: { price: { style: 'currency', currency: 'EUR' } }, locales: { de: { number: { cost: {} } } } })).toThrow(
       'formats.locales.de.number.cost shows a format no one named: name it under formats.number first',
     );

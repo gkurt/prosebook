@@ -23,12 +23,19 @@ import type {
 } from '@formatjs/icu-messageformat-parser';
 import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
 
-import { formatIn, type Formats } from '#src/runtime/formats.ts';
+import { formatIn, type FormatKind, type Formats } from '#src/runtime/formats.ts';
 
 import {
+  asElement,
+  DURATION,
+  durationOptions,
+  extensionOf,
+  LIST,
+  listOptions,
   namedOf,
   selectionOf,
   walk,
+  type ExtensionElement,
   type MessageFormatElement,
   type NamedStyle,
   type OptionArgs,
@@ -93,6 +100,9 @@ const SIGNIFICANT = ['minimumSignificantDigits', 'maximumSignificantDigits'];
 /** The options each default function takes, from the MF2 spec. */
 const OPTIONS: Record<string, readonly string[]> = {
   string: [],
+  // prosebook's own: a list of strings, and a duration in milliseconds, as MF1's `{x, list}` and `{x, duration}`.
+  list: ['format', 'type', 'style'],
+  duration: ['format', 'style'],
   number: ['format', 'select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
   integer: ['select', 'signDisplay', 'useGrouping', 'minimumIntegerDigits', 'maximumSignificantDigits'],
   currency: [
@@ -320,8 +330,8 @@ function functionOf(ref: Model.FunctionRef, scope: Scope, r: Reading): Mf2Functi
 }
 
 /** The options of the format `format=` names, in the locale read. */
-function namedFormat(fn: string, name: string, r: Reading): Intl.NumberFormatOptions | Intl.DateTimeFormatOptions {
-  const kind = family(fn) as 'number' | 'date';
+function namedFormat(fn: string, name: string, r: Reading): object {
+  const kind = family(fn) as FormatKind;
   const options = formatIn(r.formats, kind, name, r.locale);
   if (options !== undefined) return options;
   const names = Object.keys(r.formats?.[kind] ?? {});
@@ -591,6 +601,20 @@ function element(value: Value, r: Reading): Element {
   if (fn === undefined || fn.name === 'string')
     return { type: TYPE.argument, value: name, placeholder, ...(fn?.dir && { dir: fn.dir }) } as Element;
   if (NUMERIC.has(fn.name)) return { type: TYPE.number, value: name, style: numberStyle(fn), placeholder } as Element;
+  if (fn.name === 'list' || fn.name === 'duration') {
+    const { format, ...options } = fn.options;
+    // Written as MF1's style would be, so `listOptions` and `durationOptions` check it as they check MF1's.
+    const style = (fn.name === 'list' ? [options.type, options.style] : [options.style]).filter((o) => o !== undefined).join(' ');
+    const own: ExtensionElement & { placeholder: Placeholder } = {
+      type: fn.name === 'list' ? LIST : DURATION,
+      value: name,
+      style: style === '' ? null : style,
+      // `namedFormat` read the options from `formats.list` or `formats.duration`, by the function's name.
+      ...(fn.named !== undefined && { options: fn.named as ExtensionElement['options'], named: format }),
+      placeholder,
+    };
+    return asElement(own);
+  }
   return { type: TYPE.date, value: name, style: dateStyle(fn), placeholder } as Element;
 }
 
@@ -598,6 +622,8 @@ function element(value: Value, r: Reading): Element {
 function formatLiteral(value: Extract<Value, { kind: 'literal' }>, locale: string): string {
   const { fn } = value;
   if (fn === undefined || fn.name === 'string') return value.value;
+  if (fn.name === 'list' || fn.name === 'duration')
+    throw new Error(`|${value.value}| :${fn.name} formats a value the message is given: {$value :${fn.name}}`);
   const [option, arg] = Object.entries(fn.args ?? {})[0] ?? [];
   if (option !== undefined) {
     const why = 'a literal is formatted as the message compiles, so its options are literals too';
@@ -837,6 +863,12 @@ function toPattern(elements: Element[], w: Writing, pound?: string): Model.Patte
     else if (value !== '') out.push(value);
   };
   for (const el of elements) {
+    const own = extensionOf(el);
+    if (own !== undefined) {
+      checkName(own.value);
+      out.push({ type: 'expression', arg: variable(own.value), functionRef: extensionFunction(own) });
+      continue;
+    }
     switch (el.type) {
       case TYPE.literal:
         text(el.value);
@@ -923,6 +955,18 @@ function functionRef(name: string, options: Record<string, string> = {}, args: R
 
 function written(fn: Mf2Function): Model.FunctionRef {
   return functionRef(fn.name, { ...fn.options, ...(fn.dir && { 'u:dir': fn.dir }) }, fn.args);
+}
+
+/** A list or duration as `:list` or `:duration`, its format by name or its options as written. */
+function extensionFunction(el: ExtensionElement): Model.FunctionRef {
+  const name = el.type === LIST ? 'list' : 'duration';
+  if (el.named !== undefined) return functionRef(name, { format: el.named });
+  if (el.type === DURATION) {
+    const { style } = durationOptions(el);
+    return functionRef(name, style === undefined ? {} : { style });
+  }
+  const { type, style } = listOptions(el);
+  return functionRef(name, { ...(type && { type }), ...(style && { style }) });
 }
 
 function numberFunction(el: NumberElement): Model.FunctionRef {

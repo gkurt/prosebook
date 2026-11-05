@@ -1,3 +1,4 @@
+import { durationParts, type ListFormatOptions } from './formats.ts';
 import type { Arms, Helpers, Values } from './types.ts';
 
 /** Formatters by options object, then by the options arguments gave, as JSON (`''` for none). */
@@ -15,6 +16,8 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
   const numbers: Formatters<Intl.NumberFormat> = new Map();
   const dates: Formatters<Intl.DateTimeFormat> = new Map();
   const rules: Formatters<Intl.PluralRules>[] = [new Map(), new Map()];
+  const lists: Formatters<Intl.ListFormat> = new Map();
+  const durations: Formatters<Intl.DurationFormat> = new Map();
   let failure: unknown;
 
   function attempt(value: unknown, format: () => string): string | undefined {
@@ -36,6 +39,20 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
     },
     d(value, options, given) {
       return attempt(value, () => formatter(dates, options, given, (o) => new Intl.DateTimeFormat(locale, o)).format(value));
+    },
+    l(value, options, more) {
+      return attempt(value, () =>
+        formatter(lists, options, undefined, (o) => new Intl.ListFormat(locale, o)).format(shownItems(value, options, more)),
+      );
+    },
+    u(value, options) {
+      return attempt(value, () => {
+        // Older browsers have no `Intl.DurationFormat`: the placeholder's fallback shows, and says why.
+        if (typeof Intl.DurationFormat !== 'function') throw new Error('Intl.DurationFormat is not in this browser');
+        const { parts, zero } = durationParts(value, options);
+        const given = zero === undefined ? undefined : { [`${zero}Display`]: 'always' };
+        return formatter(durations, options, given, (o) => new Intl.DurationFormat(locale, o as Intl.DurationFormatOptions)).format(parts);
+      });
     },
     e(fallback) {
       const why = failure instanceof Error ? `could not be formatted: ${failure.message}` : 'has no value';
@@ -67,6 +84,15 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
       return typeof render === 'function' ? (render as (chunks: unknown[]) => unknown)(flatten(children)) : children;
     },
   };
+}
+
+/** A list's items as text, the first `max` of them and the `more` entry saying the rest. */
+export function shownItems(items: Iterable<unknown>, options?: ListFormatOptions, more?: (count: number) => unknown): string[] {
+  const all = Array.from(items, String);
+  const max = options?.max;
+  if (max === undefined || all.length <= max) return all;
+  const rest = all.length - max;
+  return more === undefined ? all.slice(0, max) : [...all.slice(0, max), flatten(more(rest)).join('')];
 }
 
 function formatter<O extends object, F>(cache: Formatters<F>, options: O | undefined, given: O | undefined, make: (o?: O) => F): F {

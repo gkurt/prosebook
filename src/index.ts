@@ -8,7 +8,7 @@
 export { addArea, createCopy, defineCatalog, type Catalog, type Copy, type CopyOptions, type Translate } from './runtime/copy.ts';
 export { acceptedLocales, chainOf, negotiate, preferredLocales } from './runtime/locale.ts';
 export { createHelpers, flatten } from './runtime/helpers.ts';
-export type { Formats, FormatTable } from './runtime/formats.ts';
+export type { DurationFormatOptions, DurationUnit, Formats, FormatTable, ListFormatOptions } from './runtime/formats.ts';
 export type {
   AnyTagFn,
   ArgsParam,
@@ -17,9 +17,11 @@ export type {
   CompiledMessages,
   DateFormatName,
   DefaultTags,
+  DurationFormatName,
   Helpers,
   DevHooks,
   HotHook,
+  ListFormatName,
   MessageKey,
   MessageShape,
   MessageShapes,

@@ -1,5 +1,5 @@
-import { formatIn, type Formats } from './formats.ts';
-import { createHelpers, flatten } from './helpers.ts';
+import { durationParts, formatIn, type DurationFormatOptions, type FormatKind, type Formats, type ListFormatOptions } from './formats.ts';
+import { createHelpers, flatten, shownItems } from './helpers.ts';
 import { chainOf, negotiate } from './locale.ts';
 import type {
   AnyTagFn,
@@ -8,8 +8,10 @@ import type {
   Compiled,
   CompiledMessages,
   DateFormatName,
+  DurationFormatName,
   Helpers,
   DevHooks,
+  ListFormatName,
   MessageShapes,
   NumberFormatName,
   RegisteredLocale,
@@ -117,6 +119,9 @@ export interface CopyOptions<L extends string> {
  */
 export type Translate<M extends MessageShapes = RegisteredMessages, L extends string = RegisteredLocale> = Copy<M, L>['t'];
 
+/** Options, or a format's name where the config names some of that kind. */
+type OrName<O, N extends string> = [N] extends [never] ? O : O | N;
+
 export interface Copy<M extends MessageShapes = MessageShapes, L extends string = string> {
   /** The locale messages are coming back in. */
   readonly locale: L;
@@ -141,8 +146,13 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   number(this: void, value: number | bigint, format?: Intl.NumberFormatOptions | NumberFormatName): string;
   /** Formats a date in the current locale, with `Intl` options or a format the config names (`formats.date`). */
   date(this: void, value: Date | number, format?: Intl.DateTimeFormatOptions | DateFormatName): string;
-  /** Joins items as a list in the current locale: `a, b and c`. */
-  list(this: void, items: Iterable<string>, options?: Intl.ListFormatOptions): string;
+  /**
+   * Joins items as a list in the current locale, `a, b and c`, with `Intl` options or a format the config
+   * names (`formats.list`), whose `max` shows that many and says the rest with the entry its `more` names.
+   */
+  list(this: void, items: Iterable<string>, format?: OrName<ListFormatOptions, ListFormatName>): string;
+  /** Milliseconds as a duration in the current locale, `3 min, 5 sec`, with options or a format the config names (`formats.duration`). */
+  duration(this: void, ms: number, format?: OrName<DurationFormatOptions, DurationFormatName>): string;
   /** `in 3 days`, `2 hours ago`, in the current locale. */
   relative(this: void, value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions): string;
 }
@@ -174,7 +184,10 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   const pending = new Map<string, Promise<void>>();
   const listeners = new Set<() => void>();
   const defaultTags = options.tags ?? {};
-  const formatters = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.RelativeTimeFormat>();
+  const formatters = new Map<
+    string,
+    Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.RelativeTimeFormat | Intl.DurationFormat
+  >();
   const split = catalog.split === undefined ? undefined : registry(catalog.split.id);
   // The key being rendered, which a helper's report names; none while the inspector renders it again.
   let reading: string | undefined;
@@ -326,7 +339,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   }
 
   /** A named format's options in the current locale. The generated types allow only names the config gives. */
-  function named<K extends 'number' | 'date'>(kind: K, name: string) {
+  function named<K extends FormatKind>(kind: K, name: string) {
     const options = formatIn(catalog.formats, kind, name, locale);
     if (options === undefined)
       throw new Error(`prosebook: no ${kind} format is named "${name}": name it under formats.${kind} in the config`);
@@ -377,8 +390,17 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       const opts = typeof format === 'string' ? named('date', format) : format;
       return formatter('d', opts, () => new Intl.DateTimeFormat(locale, opts)).format(value);
     },
-    list(items, opts) {
-      return formatter('l', opts, () => new Intl.ListFormat(locale, opts)).format(items);
+    list(items, format) {
+      const opts = typeof format === 'string' ? named('list', format) : format;
+      const more = opts?.more;
+      const rest = more === undefined ? undefined : (count: number) => render(more, { count });
+      return formatter('l', opts, () => new Intl.ListFormat(locale, opts)).format(shownItems(items, opts, rest));
+    },
+    duration(ms, format) {
+      const opts = typeof format === 'string' ? named('duration', format) : format;
+      const { parts, zero } = durationParts(ms, opts);
+      const all = zero === undefined ? opts : { ...opts, [`${zero}Display`]: 'always' };
+      return formatter('u', all, () => new Intl.DurationFormat(locale, all as Intl.DurationFormatOptions)).format(parts);
     },
     relative(value, unit, opts) {
       return formatter('r', opts, () => new Intl.RelativeTimeFormat(locale, opts)).format(value, unit);

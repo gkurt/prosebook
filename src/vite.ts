@@ -169,7 +169,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       const broken = building ? undefined : brokenIn(generated);
       if (broken !== undefined) this.warn(broken);
       refs = { exact: new Set(), prefixes: new Set() };
-      kept = prune === false ? () => true : keeper(refs, options.keep);
+      kept = prune === false ? () => true : keeper(refs, options.keep, config.formats);
       reads.clear();
       groups = building && options.split === true && generated !== undefined ? areaGroups(config, generated, options.keep) : new Map();
       placeholders.length = 0;

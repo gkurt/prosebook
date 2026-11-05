@@ -46,7 +46,9 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
   None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
-  the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key.
+  the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key. `l`
+  joins a list (`shownItems`: its first `max`, and the compiled `more` message for the rest), `u` writes
+  a duration (`durationParts` splits the milliseconds); both are refused, as `n` is, where `Intl` can't.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
   A copy's layer per locale fills area by area: a catalog that isn't split is one area, `''`; a split
   one (`split`) starts empty and takes each area `addArea` registers, by `split.id` in a registry of
@@ -56,8 +58,10 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
   locale, its own over its parents' over the default. The tools read messages through it, and the generated index
-  ships the table as the catalog's `formats`, which `copy.number` and `copy.date` take names from; `Register`'s
-  `formats` names them for the types.
+  ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list` and `copy.duration`
+  take names from; `Register`'s `formats` names them for the types. Lists and durations have options of
+  prosebook's own beside `Intl`'s: a list's `max` and `more` (the entry saying the rest, which `moreKeys`
+  keeps in builds), a duration's `largest`, `smallest` and `units`, which `durationParts` reads.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
@@ -80,14 +84,21 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
   servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,
   fix or import is checked for the errors it brings (`checkEdit` in `entry.ts`), not those already there.
-  `entryLocator` finds an entry's line, reading each file once.
+  `entryLocator` finds an entry's line, reading each file once. `attachMore` sets each list's `more`, the
+  message of the entry its format names, in the locale read or its nearest parent, so the compiler
+  inlines it and no integration resolves one key from another.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
   It also reads a style naming a format of the config's as that format's options in the locale read, a
   `NamedStyle`: a skeleton to the compiler and the native targets, and its `named` to the writers.
   Argument types are TypeScript text: a select's is its arms and `(string & {})` (`OPEN`), closed by the
   entry's `closed`, a boolean for `true`/`false` arms, and `| null | undefined` with a `null` arm, which
-  the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument.
+  the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument. `{x, list}`
+  and `{x, duration}` are prosebook's, not ICU's: `standIns` writes each as a plain placeholder before
+  formatjs reads the message, past ICU's quotes, and `withExtensions` puts back an `ExtensionElement`
+  (`LIST`, `DURATION`, type numbers past formatjs's, found with `extensionOf`). Code that doesn't know
+  them passes them by, so every writer and target checks for them first: the MF1 and MF2 writers,
+  the compiler, and the native targets, which refuse them.
 - `src/tools/mf2.ts`: MessageFormat 2 read into the same element tree, and the tree written as MF2. `.match`
   becomes nested plural and select elements built per locale so the runtime picks MF2's variant; keep
   `matchTree`'s ranking in step with the spec. An option an argument gives (`currency=$code`, those in

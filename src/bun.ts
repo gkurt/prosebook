@@ -123,7 +123,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       if (building && prune !== false) {
         const { refs, unseen } = scanSources(config, prune === 'strict');
         if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
-        kept = keeper(refs, options.keep);
+        kept = keeper(refs, options.keep, config.formats);
       }
       const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
       if (dev) {

@@ -9,7 +9,17 @@ import { chainOf } from '#src/runtime/locale.ts';
 import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
-import { dateOptions, numberOptions, optionArgsOf, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import {
+  dateOptions,
+  extensionOf,
+  LIST,
+  numberOptions,
+  optionArgsOf,
+  placeholderOf,
+  selectionOf,
+  TYPE,
+  type MessageFormatElement,
+} from '#src/tools/icu.ts';
 import { dateSpec, type DateSpec } from './date.ts';
 import { docText } from './emit.ts';
 import { numberSpec, roundingOf, type NumberSpec, type Rounding } from './number.ts';
@@ -245,6 +255,11 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
     if (isDateElement(el) || isTimeElement(el)) {
       placed(el, el.value, { type: 'date', arg: el.value, format: date(dates, locale, dateOptions(el)) });
       continue;
+    }
+    const own = extensionOf(el);
+    if (own !== undefined) {
+      const what = own.type === LIST ? 'a list, which native code does not join' : 'a duration, which native code does not format';
+      throw new Error(`{${own.value}} is ${what}: pass it as a plain {${own.value}}, written in code, ${LEAVE_OUT}`);
     }
     if (isNumberElement(el)) {
       const fallback = placeholderOf(el, el.value).fallback;

@@ -64,6 +64,10 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
       track();
       return copy.list(items, options);
     },
+    duration(ms, options) {
+      track();
+      return copy.duration(ms, options);
+    },
     relative(value, unit, options) {
       track();
       return copy.relative(value, unit, options);
