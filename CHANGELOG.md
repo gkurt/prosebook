@@ -1,3 +1,33 @@
+## prosebook@0.9.0
+
+### `prosebook rename`: a key, or a whole area, renamed everywhere it is written
+
+`prosebook rename cart.checkout pay.button --write` renames the key and the keys under it in the catalog (moving each entry to its new area's file), in every translation, in the lock, so stale translations stay stale, and in every string literal in the code that names it. A read through a prefix moves with a renamed area; one that may reach a renamed key otherwise is named for renaming by hand. A dry run without `--write`.
+
+### Named formats: a number or date format named once in the config, shown the same everywhere
+
+`formats: { number: { price: { style: 'currency', currency: 'EUR' } }, date: { receipt: { dateStyle: 'medium', timeStyle: 'short' } } }` lets a message say `{total, number, price}` (`{$total :number format=price}` in MF2) and code say `copy.number(total, 'price')` or `copy.date(when, 'receipt')`, with the names typed. `formats.locales` shows a format differently in a locale or language. The writing guide lists the formats, and the `named-format` lint warns of a message that writes out a named format's options rather than its name.
+
+### `prosebook diff`: the copy a change makes, for review
+
+`prosebook diff origin/main` lists each entry added, removed, renamed or changed since a git revision, its source as a word diff, the translations it changed, those it left stale or missing, and the lint's findings on the words it wrote. `--format markdown` writes it for a pull request's comment; API.md has a workflow that posts it and keeps it up to date.
+
+### `duplicate`: two entries saying the same words in the same role
+
+A warning on every entry after the first that says what another says, as the same kind on the same surface, naming the one to read instead (or, with `extract.shared`, to move there). Turn it off with `rules: { duplicate: 'off' }`.
+
+### The pseudo-locale pads each message to the length a translation reaches
+
+`⟦Šááṽéé ·⟧`: a short label doubles, as "Save" does in German, and a long sentence grows by a third, so the pseudo-locale finds the layouts that clip a translation.
+
+### Translations are held to their language's punctuation
+
+`quotes` (German „…“, French « », per CLDR, set per locale with `lint.quotes`), `french-spacing` (no-break spaces before `; ! ? :` and inside guillemets), `inverted-marks` (Spanish ¿ and ¡) and `full-width` (，。？！ after Chinese and Japanese text). All but `inverted-marks` are fixed by `prosebook lint --fix`. A lint plugin's `match` may now be a regular expression, and its rules see the whole `catalog`.
+
+### `plural-forms`: a plural writes every form its locale counts in
+
+A Polish translation with only `one` and `other` now fails the lint, naming `few` and `many`, where it used to fall back to `other` and say "5 pliki". So does a German one with no `one` arm. `plural-unused-form` warns of an arm whose form the locale never picks, such as English `zero` (write `=0`) or `few` (write the count, `=4`). MessageFormat 2 messages are read by the variant keys written, not the arms `*` fills in.
+
 ## prosebook@0.8.0
 
 ### The pseudo-locale stays out of production
