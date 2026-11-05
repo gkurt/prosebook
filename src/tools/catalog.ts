@@ -21,6 +21,8 @@ import {
   staticLiteral,
   tagsOf,
   takesText,
+  TYPE,
+  walk,
   type MessageFormatElement,
 } from './icu.ts';
 import { readMessage } from './syntax.ts';
@@ -50,6 +52,8 @@ export interface Message {
   comment?: string;
   /** Select arguments that take only the arms they name, which their type says. */
   closed: string[];
+  /** The least each plural's count can be, by argument: `sites` is 2 or more. */
+  min: Map<string, number>;
   /** Asked to go: the entry, its translations and the code that reads it. */
   remove: boolean;
   /** The source message, in ICU MessageFormat. */
@@ -109,7 +113,7 @@ export class CatalogError extends Error {
  */
 export const KEY_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)+$/;
 
-const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'closed', 'fragment', 'allow', 'comment', 'remove']);
+const FIELDS = new Set(['kind', 'surface', 'context', 'args', 'closed', 'min', 'fragment', 'allow', 'comment', 'remove']);
 
 /**
  * Loads and checks the catalog. Throws a `CatalogError` when anything is an error, unless `partial`;
@@ -226,6 +230,7 @@ function readEntry(
     for (const name of args.keys()) if (!argDocs.has(name)) fail(`args.${name} is missing: say what the placeholder holds`);
 
   const closed = closedArgs(entry.closed, args, fail);
+  const min = leastCounts(entry.min, ast, fail);
   const tags = tagsOf(ast);
   for (const name of argDocs.keys())
     if (!args.has(name) && !tags.includes(name)) fail(`args.${name} is neither a placeholder nor a tag of this message`);
@@ -242,6 +247,7 @@ function readEntry(
     fragment: entry.fragment === true,
     allow: stringMap(entry, 'allow', fail),
     closed,
+    min,
     comment,
     remove: entry.remove === true,
     text,
@@ -333,6 +339,29 @@ function closedArgs(value: unknown, args: Map<string, string>, fail: (m: string)
     else args.set(name, closedType(type));
   }
   return value;
+}
+
+/**
+ * `min: { sites: 2 }`: the least a plural's count can be, so `plural-forms` asks only for the forms
+ * counts from there reach. English's one is 1 alone, so it isn't asked for; Russian's is 21 too.
+ */
+function leastCounts(value: unknown, ast: MessageFormatElement[], fail: (m: string) => void): Map<string, number> {
+  const min = new Map<string, number>();
+  if (value === undefined) return min;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    fail('min is the least each plural count can be: min: { count: 2 }');
+    return min;
+  }
+  const counted = new Set<string>();
+  walk(ast, (el) => {
+    if (el.type === TYPE.plural) counted.add(el.value);
+  });
+  for (const [name, least] of Object.entries(value)) {
+    if (!counted.has(name)) fail(`min.${name} is not the count of a plural in this message`);
+    else if (typeof least !== 'number' || !Number.isInteger(least) || least < 0) fail(`min.${name} is a whole number: min: { ${name}: 2 }`);
+    else min.set(name, least);
+  }
+  return min;
 }
 
 /** How a translation's placeholders or tags differ from the source, or nothing. */
@@ -521,8 +550,21 @@ export function entryLocator(root: string): (file: string, key?: string, offset?
 }
 
 /** What `args` describes by `name`, as the message writes it: `{count}`, or a tag's `<link>`. */
-export function heldAs(message: Message, name: string): string {
+function heldAs(message: Message, name: string): string {
   return message.args.has(name) ? `{${name}}` : `<${name}>`;
+}
+
+/**
+ * What a translator is told of each placeholder and tag: `args`, and a count's `min`, which decides
+ * the forms their plural needs as much as the words do.
+ */
+export function argNotes(message: Message): [string, string][] {
+  const names = [...new Set([...message.argDocs.keys(), ...message.min.keys()])];
+  return names.map((name) => {
+    const least = message.min.get(name);
+    const said = [message.argDocs.get(name), least === undefined ? undefined : `always ${least} or more`];
+    return [heldAs(message, name), said.filter((s) => s !== undefined).join('; ')];
+  });
 }
 
 /** The source message as a reader sees it with no placeholders filled: for docs and reports. */

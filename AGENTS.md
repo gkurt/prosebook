@@ -154,6 +154,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
+  `plural-forms` asks for the forms counts from the entry's `min` (0 unset) reach, and `plural-one` finds a
+  `one` arm saying what `other` says only where the words after the count (`countedWords`) have a singular.
   `plural-forms` and `plural-unused-form` (`eachPlural`) read the forms from `Intl.PluralRules`, and an MF2 plural's `categories` (set by
   `matchTree`, `categoriesOf` in `icu.ts`), since its tree arms every form once `*` is written. The
   punctuation rules (`quotes`, `french-spacing`, `inverted-marks`, `full-width`) are per language,

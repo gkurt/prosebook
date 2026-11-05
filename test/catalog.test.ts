@@ -49,7 +49,7 @@ describe('catalog checks', () => {
       'copy/catalog/app.yaml app: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml App.Title: a key is dotted lowercase with two segments at least: `area.thing`',
       'copy/catalog/app.yaml other.thing: a key in app.yaml starts with "app."',
-      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, closed, fragment, allow, comment, remove, en',
+      'copy/catalog/app.yaml app.typo: "contxt" is not a field: kind, surface, context, args, closed, min, fragment, allow, comment, remove, en',
       'copy/catalog/app.yaml app.typo: context is required (`require` in the config)',
     ]);
   });
@@ -508,11 +508,15 @@ describe('lint', () => {
       'app.m': '{used, number} of {window, number} tokens',
       'app.n': '{mode, select, a {{count} files here} other {{count} files there}}',
       'app.o': '{hours, number}h {minutes, number}m, {size, number} MB, {name}s',
+      // Nothing after the count has a singular, so one says what other does, as plural-forms asks.
+      'app.p': '{count, plural, one {# failed} other {# failed}}',
+      'app.q': '{count, plural, one {New notifications, # unread} other {New notifications, # unread}}',
+      'app.r': '{count, plural, one {Delete files} other {Delete files}}',
     });
     expect(findings(yaml)).toEqual([
       'app.a [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
       'app.b [plural-count] n is followed by "boxes", which reads "1 boxes": make it a plural with a "# box" arm',
-      'app.c [plural-one] the one and other arms of count say the same: write the singular in one',
+      'app.c [plural-one] the one and other arms of count both write "files": write the singular, "file", in one',
       'app.d [plural-one] the one arm of count writes 1, which one is not in every language: write #, or make the arm =1',
       'app.e [arm-endings] some arms of count end with a stop and some without: end them alike',
       'app.f [formatted-by-hand] "$" is typed before price: format it as a currency, which puts the symbol where the locale does',
@@ -524,6 +528,7 @@ describe('lint', () => {
       'app.o [formatted-by-hand] "h" is typed after hours: format it as a unit, {hours, number, ::unit/hour unit-width-narrow}, which writes it as the locale does',
       'app.o [formatted-by-hand] "m" is typed after minutes: format it as a unit, {minutes, number, ::unit/minute unit-width-narrow}, which writes it as the locale does',
       'app.o [formatted-by-hand] "MB" is typed after size: format it as a unit, {size, number, ::unit/megabyte unit-width-narrow}, which writes it as the locale does',
+      'app.r [plural-one] the one and other arms of count both write "files": write the singular, "file", in one',
     ]);
   });
 
@@ -690,6 +695,32 @@ describe('lint', () => {
       'en app.a [plural-unused-form] English never picks few for {n}: remove the arm, or write the count it is for as an exact arm, =4',
       'pl app.a [plural-forms] Polish writes {n} in the forms one, few, many and other: add few and many, even where an arm says what other says',
     ]);
+  });
+
+  test("a count's min leaves out the forms only smaller counts take, in each locale", () => {
+    const yaml = [
+      'app.sites:\n  min:\n    count: 2\n  en: "{count, plural, other {# sites}}"',
+      'app.bad:\n  min:\n    total: 2\n    count: 1.5\n  en: "{total, number} of {count, plural, one {# site} other {# sites}}"',
+    ].join('\n');
+    const files = {
+      'copy/catalog/app.yaml': yaml,
+      'copy/locales/de.yaml': 'app.sites: "{count, plural, other {# Websites}}"\n',
+      // Russian's one is 21 too, and Polish's few 2 to 4: a minimum of 2 reaches both.
+      'copy/locales/ru.yaml': 'app.sites: "{count, plural, few {# сайта} many {# сайтов} other {# сайта}}"\n',
+      'copy/locales/pl.yaml': 'app.sites: "{count, plural, many {# witryn} other {# witryny}}"\n',
+    };
+    const loaded = loadCatalog(fixture(files, { require: [] }), undefined, { partial: true });
+    expect(loaded.problems.map((p) => `${p.key}: ${p.message}`)).toEqual([
+      'app.bad: min.total is not the count of a plural in this message',
+      'app.bad: min.count is a whole number: min: { count: 2 }',
+    ]);
+    const config = fixture(files, { require: [] });
+    writeFileSync(join(config.catalog, 'app.yaml'), yaml.split('\napp.bad')[0]!);
+    expect(shown(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'plural-forms'))).toEqual([
+      'pl app.sites [plural-forms] Polish writes {count} in the forms few, many and other: add few, even where an arm says what other says',
+      'ru app.sites [plural-forms] Russian writes {count} in the forms one, few, many and other: add one, even where an arm says what other says',
+    ]);
+    expect(todoOf(config, loadCatalog(config), new Map(), 'fr').text).toContain('#   {count}: always 2 or more');
   });
 
   test('check prints warnings beside errors, and fails only on errors', () => {

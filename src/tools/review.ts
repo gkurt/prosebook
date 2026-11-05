@@ -94,10 +94,10 @@ function catalogAt(config: ResolvedConfig, top: string, base: string): Catalog {
   }
 }
 
-const FIELDS = ['context', 'kind', 'surface', 'fragment', 'args', 'closed', 'allow', 'comment', 'remove'] as const;
+const FIELDS = ['context', 'kind', 'surface', 'fragment', 'args', 'closed', 'min', 'allow', 'comment', 'remove'] as const;
 
 function fieldsOf(m: Message): Record<(typeof FIELDS)[number], string> {
-  const map = (entries: Map<string, string>) => JSON.stringify([...entries].sort(([a], [b]) => (a < b ? -1 : 1)));
+  const map = (entries: Map<string, unknown>) => JSON.stringify([...entries].sort(([a], [b]) => (a < b ? -1 : 1)));
   return {
     context: m.context ?? '',
     kind: m.kind ?? '',
@@ -105,6 +105,7 @@ function fieldsOf(m: Message): Record<(typeof FIELDS)[number], string> {
     fragment: String(m.fragment),
     args: map(m.argDocs),
     closed: JSON.stringify(m.closed),
+    min: map(m.min),
     allow: map(m.allow),
     comment: m.comment ?? '',
     remove: String(m.remove),

@@ -175,6 +175,11 @@ export function catalogSchema(config: ResolvedConfig): object {
         description: "Select arguments that take only the arms they name: a call site can't pass another value.",
         items: { type: 'string' },
       },
+      min: {
+        type: 'object',
+        description: 'The least each plural count can be (`sites: 2`), so its plural needs only the forms counts from there take.',
+        additionalProperties: { type: 'integer', minimum: 0 },
+      },
       fragment: { type: 'boolean', description: 'Completes something beside it rather than standing as a sentence.' },
       comment: { type: 'string', description: 'A change asked of whoever edits the entry next. Make it, then delete the comment.' },
       remove: { type: 'boolean', description: 'Asks for the entry to go: delete it, its translations and the code that reads it.' },

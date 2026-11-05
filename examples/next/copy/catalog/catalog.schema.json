@@ -122,6 +122,14 @@
           "type": "string"
         }
       },
+      "min": {
+        "type": "object",
+        "description": "The least each plural count can be (`sites: 2`), so its plural needs only the forms counts from there take.",
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
       "fragment": {
         "type": "boolean",
         "description": "Completes something beside it rather than standing as a sentence."

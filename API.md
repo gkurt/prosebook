@@ -421,6 +421,7 @@ and explains every field. `generate --check` fails on a file without it; a file 
 | `kind`     | `name`, `action`, `description` or `state`. The lint holds each to its budget.                          |
 | `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                             |
 | `closed`   | Selects that take only the arms they name: `closed: [mode]` types `mode` as `'dark' \| 'light'`.        |
+| `min`      | The least a plural's count can be: `min: { sites: 2 }` asks no `one` of English, but still of Russian.  |
 | `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                           |
 | `allow`    | Lint rules the entry is exempt from, each with the reason.                                              |
 | `comment`  | A change asked of whoever edits the entry next. A warning until made and deleted.                       |
@@ -669,7 +670,7 @@ An entry with no kind is held to none of these; `fragment: true` lifts the perio
 | Rule                 | Catches                                                                         |
 | -------------------- | ------------------------------------------------------------------------------- |
 | `plural-count`       | `{count} files` outside a plural, which reads "1 files"                         |
-| `plural-one`         | a `one` arm that says what `other` says, or writes `1` where `#` belongs        |
+| `plural-one`         | a `one` arm that writes `other`'s plural (`# files`), or `1` where `#` belongs  |
 | `plural-forms`       | a plural missing a form its locale counts in (Polish's `few` and `many`); error |
 | `plural-unused-form` | an arm for a form the locale never picks (English's `zero`)                     |
 | `arm-endings`        | arms where some end with a stop and some don't                                  |
@@ -681,6 +682,11 @@ An entry with no kind is held to none of these; `fragment: true` lifts the perio
 | `french-spacing`     | `Prêt?` in French, which takes a narrow no-break space before `?`               |
 | `inverted-marks`     | a Spanish question that doesn't open with `¿`                                   |
 | `full-width`         | `,` after Chinese or Japanese text, which take `，`                             |
+
+`plural-forms` asks for `one` even where it says what `other` says (`one {# failed} other {# failed}`), for translators whose
+language tells them apart; `plural-one` warns only where `other` counts a plural noun. A count that is never 1 says so with
+`min: { count: 2 }`, and its plural is asked only for the forms counts from 2 take, in each language; `todo` and `export` tell
+translators.
 
 Translations are linted by the rules that hold in any language. Spellings, concepts, contractions, `…`, spacing and punctuation are
 fixable: `prosebook lint --fix` writes them, checking the whole catalog first.

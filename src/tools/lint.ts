@@ -275,24 +275,7 @@ function capitalizedWord(text: string, proper: Set<string>): string | undefined 
 }
 
 /** Words a count is followed by that are not plural nouns, though they end in s. */
-const NOT_PLURAL = new Set([
-  'is',
-  'was',
-  'has',
-  'does',
-  'this',
-  'its',
-  'plus',
-  'minus',
-  'less',
-  'yes',
-  'us',
-  'as',
-  'bus',
-  'gas',
-  'news',
-  'series',
-]);
+const NOT_PLURAL = new Set('is was has does this its plus minus less yes us as bus gas news series'.split(' '));
 
 /**
  * The singular of an English plural noun, or nothing where it doesn't look like one. A word with no
@@ -468,6 +451,27 @@ function showsCount(arm: MessageFormatElement[], name: string): boolean {
     if (el.type === TYPE.pound || ((el.type === TYPE.number || el.type === TYPE.argument) && el.value === name)) shows = true;
   });
   return shows;
+}
+
+/**
+ * The words an arm counts: those after its count up to the phrase's end (`Notifications, # unread`
+ * counts "unread"), or every word of an arm that doesn't show the count.
+ */
+function countedWords(arm: MessageFormatElement[], name: string): string[] {
+  const COUNT = '\u0000';
+  const render = (elements: MessageFormatElement[]): string =>
+    elements
+      .map((el) => {
+        if (el.type === TYPE.pound || ((el.type === TYPE.number || el.type === TYPE.argument) && el.value === name)) return COUNT;
+        if (el.type === TYPE.literal) return el.value;
+        if (el.type === TYPE.tag) return VERBATIM_TAGS.has(el.value) ? HOLE : render(el.children);
+        if (el.type === TYPE.plural || el.type === TYPE.select) return render(el.options['other']?.value ?? []);
+        return HOLE;
+      })
+      .join('');
+  const [before = '', ...after] = render(arm).split(COUNT);
+  const phrases = after.length === 0 ? [before] : after.map((text) => /^[^.,;:!?()…—–]*/u.exec(text)![0]);
+  return phrases.flatMap((phrase) => phrase.match(/\p{L}[\p{L}'’]*/gu) ?? []);
 }
 
 /** The marks the `quotes` rule finds, as pairs: straight, English, German and Polish lower-upper, guillemets and corner brackets. */
@@ -672,7 +676,7 @@ export const CORE_RULES = {
     },
   },
   'plural-one': {
-    description: "A plural's `one` arm says something other than `other`, and says `#` rather than `1`.",
+    description: "A plural's `one` arm writes the singular of what `other` counts, and says `#` rather than `1`.",
     recommended: 'warn',
     on: { locale: 'all' },
     check: ({ ast, locale, config }) => {
@@ -682,8 +686,16 @@ export const CORE_RULES = {
         const { one, other } = el.options;
         if (one === undefined) return;
         // Turkish says "# dosya" for one and other alike, so only the source must tell them apart.
-        if (locale === config.source && other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other'))
-          said.push({ message: `the one and other arms of ${el.value} say the same: write the singular in one` });
+        if (locale === config.source && other !== undefined && renderAs(one.value, 'other') === renderAs(other.value, 'other')) {
+          // `# failed` and `# unread` have no singular, and `plural-forms` wants their one arm written all the same.
+          const word = countedWords(other.value, el.value).find((w) => singularOf(w) !== undefined);
+          if (word !== undefined) {
+            said.push({
+              message: `the one and other arms of ${el.value} both write "${word}": write the singular, "${singularOf(word)}", in one`,
+              match: word,
+            });
+          }
+        }
         let literalOne = false;
         walk(one.value, (inner) => {
           if (inner.type === TYPE.literal && /(?<![\d.,])1(?![\d.,])/.test(inner.value)) literalOne = true;
@@ -789,14 +801,15 @@ export const CORE_RULES = {
     description: "A plural writes every form its locale's counts take.",
     recommended: 'error',
     on: { locale: 'all' },
-    check: ({ ast, locale }) => {
+    check: ({ ast, locale, message }) => {
       const said: string[] = [];
       eachPlural(ast, locale, ({ el, ordinal, rules, forms, written }) => {
         // Arms that are only exact numbers around an `other` that never shows the count pick by value, not by form.
         if ([...written].every((form) => form === 'other') && !showsCount(el.options['other']?.value ?? [], el.value)) return;
         const exact = new Set(Object.keys(el.options).flatMap((arm) => (arm.startsWith('=') ? [Number(arm.slice(1))] : [])));
         const reached = new Set<string>();
-        for (let n = 0; n <= COUNTS_UP_TO; n++) if (!exact.has(n)) reached.add(rules.select(n - el.offset));
+        const least = message.min.get(el.value) ?? 0;
+        for (let n = least; n <= Math.max(least, COUNTS_UP_TO); n++) if (!exact.has(n)) reached.add(rules.select(n - el.offset));
         const missing = forms.filter((form) => form !== 'other' && reached.has(form) && !written.has(form));
         if (missing.length === 0) return;
         const takes = forms.filter((form) => form === 'other' || reached.has(form));
