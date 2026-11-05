@@ -1,3 +1,125 @@
+## prosebook@0.7.0
+
+### `plural-count` says each finding once, and passes a ratio's total
+
+The same words in each arm of a select are one finding, and `{used, number} of {window, number} tokens` no longer asks for a plural, since the noun counts a whole.
+
+### `init`'s example entries are comments
+
+The catalog `init` writes shows its example entries as comments to write yours after, so `scan` no longer reports them as unused keys straight away.
+
+### `scan` reads what JSX expressions render, notices and label maps
+
+Both arms of a ternary, a `??` or `||` fallback and a template's words are found in JSX text and readable attributes, as are the text given to `scan.calls` (`toast`, `alert`, `confirm`) and, in components, the values of `scan.properties` (`label`, `title`, `description`, `placeholder`, `header`). `scan()` and `hardcodedText()` in `prosebook/tools` take the scan options as one object.
+
+### `extract` keeps two features' files out of one area
+
+Two files that would share an area, `routes/notifications.tsx` and `components/Notifications.tsx`, each take their folder's name too, and the report says so.
+
+### `extract` writes what type-checks
+
+Inside a component whose `children` are typed `string`, text becomes `{t('…')}` rather than a `<Text>` it can't take, and a value that may be `null` is given `?? ''`, which renders as React rendered the null.
+
+### `args` describes a tag too
+
+`args.link` on a message with `<link>` says what the tag wraps, for the translator's notes in `todo` and `export` and for the key's doc comment, rather than failing.
+
+### `extract` reads a number made text in code as the number
+
+`{c.toLocaleString()} nodes` becomes a plural of `c`, and `frameMs.toFixed(2)` becomes `{frameMs, number, ::.00}`, rather than a string placeholder; and a message that starts with a plural is keyed by its words, not `other`.
+
+### `useCopy()` keeps its identity while the provider renders again
+
+In React and Preact, a `CopyProvider` without `tags` no longer makes every `useCopy()` reader new on each render, so `t` is safe as an effect's dependency until the locale changes.
+
+### A select on `true` and `false` takes a boolean
+
+`{on, select, true {On} other {Off}}` types `on` as `boolean`, so a call site passes `true` rather than the text `'true'` or a stand-in such as `'yes'`.
+
+### A broken entry no longer stops every command
+
+`generate`, `lint`, `scan`, `status` and the dev servers report a broken entry or translation with its fix, leave it out, and carry on with the rest of the catalog; each command still fails while it is broken. An edit, a lint fix or an import is refused only for problems it brings itself.
+
+### `generate` says the files are current
+
+Run after a dev server has regenerated, it says the generated files are current rather than that nothing changed.
+
+### `extract` says nothing of markup with no words beside it
+
+`{icon} {children}` is no sentence, so it no longer warns that `{children}` holds markup.
+
+### `scan` and `extract` leave keys, example values and commands alone
+
+Text in `<Kbd>` and other components named for `<kbd>`, `<code>` and `<pre>`, and an ID such as `us-west-2`, a list of hosts or a shell command, are no longer taken for copy.
+
+### `extract` keeps a label and its hint apart
+
+A label's text followed on the next line by `<span>A sentence…</span>`, which JSX renders with no space between, becomes two entries rather than one message with a tag.
+
+### `extract`'s contexts are drafts, listed until finished
+
+A new entry's context says it is a draft and where extract found the string, and `generate` and `check` warn of every context and argument doc still starting with `TODO`. Placeholders are named for what they hold: `files.length` is `filesCount`, `PREVIEW_EVENTS` is `previewEvents`, `formatBytes(size)` is `size`.
+
+### A `detail` surface, and reasons named once
+
+A state on the new default surface `detail`, a row's detail line, a reading or a count, needs no period. `lint.reasons` holds reasons many exemptions share, which `allow` names (`period: card-detail`), so each is written and reviewed once; a name the config doesn't hold fails.
+
+### `extract` reads a component's `title` as its heading
+
+`title` on a component (`<NavCard title="Billing" />`) is a heading it shows, keyed `-title`, where an element's stays a tooltip; and a name that runs to a sentence is drafted as a description, which its word budget holds.
+
+### A shared area for the words every feature says
+
+`extract: { shared: 'common' }` gives `Cancel`, `Loading…` and other words several features say one entry: `extract` reuses one there from any file and writes text another area holds already there, and the writing guide points at it. Without it, `extract` names each string that is now an entry in several areas.
+
+### `extract` reads the words code picks
+
+`{n === 1 ? 'file' : 'files'}` in a sentence becomes a plural; a ternary or a fallback standing alone becomes an entry per word, and in a readable attribute `t()` in place, as a template attribute becomes `t()` with its values. A sentence that a pick, another message, a lookup, a joined list or a case change would split into fragments is left as it is, with a warning saying how to write it.
+
+### `formatted-by-hand` finds a unit typed after a number
+
+`{hours, number}h` and `{size, number} MB` are found, with the unit format that writes them as the locale does.
+
+### A select arm ICU can't name says how to write it
+
+`{type, select, application/pdf {…}}` fails with the name ICU takes and MF2's quoting, rather than the parser's `EXPECT_SELECT_ARGUMENT_SELECTOR_FRAGMENT`.
+
+### A select's argument can also be printed
+
+`{tool, select, shell {Shell} other {{tool}}}` no longer fails as "used as two different types", and two selects on one argument take the arms of both.
+
+### A select's `null` arm says what an absent value shows
+
+`{role, select, null {} other {, as {role}}}` picks `null` for a value that is `null` or `undefined`, and types `role` as optional, so an optional part of a message needs no stand-in value.
+
+### `extract` names areas and keys in whole words
+
+`GitHubConnect.tsx` is the area `github-connect`, as is any name in `lint.properNouns`, and a key's words keep their apostrophes' letters: `couldnt`, not `couldn`.
+
+### `closed` selects take only their arms
+
+`closed: [mode]` on an entry types `mode` as the arms its select names, `'dark' | 'light'`, so a misspelled or unhandled value is a type error; `other` stays in the message for the runtime and translation tools, and a translation may not select on an arm the source doesn't name.
+
+### A read through a `const` map of keys is seen
+
+`t(STATUS[s])` and `<Text id={KINDS[i].label} />` no longer fail a pruned build or need `prosebook-ignore` where `STATUS` and `KINDS` are `const` maps or lists of keys in the same module: every key they can read is written there.
+
+### `extract` reuses a key only for the same role
+
+The same words as an aria-label, a placeholder and a button are three entries, since each translates on its own; an entry that names no kind or surface is still reused for any.
+
+### `extract` keeps the spaces around a sentence
+
+A `{' '}` before a line break stays in the code, and a literal's own leading or trailing space goes beside the `<Text>`, so `from{' '}<Branch />` no longer renders "frommain".
+
+### `scan` and `check` report reads a pruned build can't see
+
+`t(id)` and `<Text id={id} />` are reported where they are, as the bundler plugins would fail the build on them: a warning from `scan` and `check`, an error under `scan --strict`, and `unseen-read` in a SARIF log.
+
+### `MessageKey` and `Translate` types
+
+`MessageKey` is a key of the registered catalog, for a prop or a map that holds one, and `Translate` is a copy's `t`, for a function handed one.
+
 ## prosebook@0.6.0
 
 ### Guidelines, and a writing guide for an agent to read before it writes
