@@ -252,6 +252,12 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   translations from `todo`'s YAML filled in, leaving out each entry its own file reports. A finding's `match` is found in the
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
+- `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's
+  YAML block (`snippetOf` and the comments above it) cut from its file and written, rekeyed, to its new
+  area's, in every locale; the lock's anchors moved with it, and string literals naming a key, or a
+  prefix under the one renamed, rewritten in the code (`scan.ts`'s literal reading, not calls). Checked
+  through `checkEdit` before anything is written; `loadCatalog` reads a catalog file the rename would
+  create, as it does a translation file.
 
 `site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
 push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so

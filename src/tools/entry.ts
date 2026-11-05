@@ -77,7 +77,7 @@ export function readEntry(config: ResolvedConfig, key: string): EntryView {
  * The catalog with `unsaved` in place of what is on disk, and the errors the edit brings: those the
  * catalog on disk has already, a broken entry someone else is editing, are no reason to refuse it.
  */
-function checkEdit(config: ResolvedConfig, unsaved: ReadonlyMap<string, string>): { catalog: Catalog; problems: Problem[] } {
+export function checkEdit(config: ResolvedConfig, unsaved: ReadonlyMap<string, string>): { catalog: Catalog; problems: Problem[] } {
   const id = (p: Problem) => `${p.file}\u0000${p.key}\u0000${p.message}`;
   const errors = (catalog: Catalog) => catalog.problems.filter((p) => p.severity === 'error');
   const before = new Set(errors(loadCatalog(config, undefined, { partial: true })).map(id));
@@ -245,13 +245,13 @@ export function importTranslations(config: ResolvedConfig, locale: string, reply
 }
 
 /** A file as the edit has it, as it is on disk, or empty when it is still to be made. */
-function contentOf(config: ResolvedConfig, file: string, unsaved: Map<string, string>): string {
+export function contentOf(config: ResolvedConfig, file: string, unsaved: Map<string, string>): string {
   const path = resolve(config.root, file);
   return unsaved.get(path) ?? (existsSync(path) ? readFileSync(path, 'utf8') : '');
 }
 
 /** The file a translation goes in: beside the locale's others, in its folder or its one file. */
-function translationFile(config: ResolvedConfig, message: Message, locale: string): string {
+export function translationFile(config: ResolvedConfig, message: Message, locale: string): string {
   const existing = message.translations.get(locale)?.file;
   if (existing !== undefined) return existing;
   const folder = join(config.locales, locale);
@@ -294,7 +294,7 @@ function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: 
 }
 
 /** Where an entry is written: from the start of its key's line to the end of its value. */
-function snippetOf(file: string, key: string): { start: number; end: number; text: string } | undefined {
+export function snippetOf(file: string, key: string): { start: number; end: number; text: string } | undefined {
   const doc = parseDocument(file);
   if (!isMap(doc.contents)) return undefined;
   const pair = doc.contents.items.find((p) => isScalar(p.key) && p.key.value === key);

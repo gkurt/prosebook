@@ -1161,6 +1161,29 @@ placeholder holds. `generate` and `check` list each draft context and argument a
 then, so none ships as a translator's only note. Check a drafted plural's arms too: the singular is
 the plural less its `s`, `es` or `ies`.
 
+## Renaming keys
+
+A key is written in the catalog, in every translation, in the lock and in the code that reads it.
+`prosebook rename` changes all of them at once:
+
+```bash
+prosebook rename cart.checkout pay.button   # the key, and cart.checkout.hint with it
+prosebook rename cart basket                 # a whole area: copy/catalog/cart.yaml becomes basket.yaml
+```
+
+A key takes the keys under it along (`cart.checkout.hint` becomes `pay.button.hint`). An entry whose
+first segment changes moves to its new area's file, with the comment lines above it, and so does
+each translation in a locale written as a folder of area files; a file the move empties is removed.
+The lock moves each translation's anchor too, so a stale translation is still stale under its new
+key. In the code under `scan.dirs`, every string literal naming a renamed key is rewritten, wherever
+it stands: a call, a `<Text id>`, a map of labels. A read through a prefix moves with an area
+(``t(`cart.${id}`)`` becomes ``t(`basket.${id}`)``), but one that only may reach a renamed key
+can't be followed, so it is named, by file and line, to rename by hand.
+
+It is a dry run, listing the keys and the files, unless `--write`. The catalog it would make is
+checked first, as an edit is, and a new key that is already an entry, or isn't a key, writes
+nothing. Then it regenerates.
+
 ## Pruning
 
 The Vite plugin replaces each locale module in a build with only the messages some module

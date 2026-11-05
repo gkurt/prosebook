@@ -131,7 +131,10 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
     throw new CatalogError(problems);
   }
 
-  for (const file of yamlFiles(config.catalog)) {
+  const created = [...(unsaved?.keys() ?? [])].filter((path) => !existsSync(path));
+  // A catalog file an edit would create, a rename into a new area, read as if it were there already.
+  const newAreas = created.filter((path) => resolve(path, '..') === resolve(config.catalog) && path.endsWith('.yaml'));
+  for (const file of [...yamlFiles(config.catalog), ...newAreas.map((path) => relative(config.catalog, path))].sort()) {
     const area = file.slice(0, -'.yaml'.length);
     const path = join(config.catalog, file);
     const at = rel(path);
@@ -164,7 +167,6 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
     }
   }
 
-  const created = [...(unsaved?.keys() ?? [])].filter((path) => !existsSync(path));
   const locales = readLocales(config, byKey, broken, problems, rel, read, created);
   if (options.partial !== true && problems.some((p) => p.severity === 'error')) throw new CatalogError(problems);
   return { messages: [...byKey.values()].sort((a, b) => (a.key < b.key ? -1 : 1)), locales, problems };

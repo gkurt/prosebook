@@ -17,6 +17,7 @@ import { generate, render } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 import { changeOf, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
+import { applyRename, planRename } from './tools/rename.ts';
 import { SarifReport } from './tools/sarif.ts';
 import { isReferenced, scan, sourceFiles, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
@@ -46,6 +47,8 @@ Commands:
                           (dry run unless --write; --area <name> puts every entry in one area)
   migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
                           (dry run unless --write)
+  rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
+                          translation, the lock and the code that names it  (dry run unless --write)
   check                   generate --check, lint and status --strict together, for CI, and warns
                           of reads whose key a pruned build can't see
 
@@ -148,6 +151,8 @@ async function main(argv: string[]): Promise<number> {
         return runExtract(config, rest, values.write === true, values.area);
       case 'migrate':
         return runMigrate(config, rest[0], values.write === true);
+      case 'rename':
+        return runRename(config, rest[0], rest[1], values.write === true);
       case 'check': {
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
@@ -444,6 +449,37 @@ function runExport(
   out(`prosebook: exported ${exported.count} entr${exported.count === 1 ? 'y' : 'ies'} for ${locale} to ${file}`);
   if (locale !== config.source) out(`Translate them, then \`prosebook import ${locale} ${file}\`.`);
   return 0;
+}
+
+function runRename(config: ResolvedConfig, from: string | undefined, to: string | undefined, write: boolean): number {
+  if (from === undefined || to === undefined) {
+    err('Usage: prosebook rename <from> <to> [--write]: a key and the keys under it, or an area');
+    return 1;
+  }
+  const plan = planRename(config, from, to);
+  if (plan.problems.length > 0) {
+    reportProblems(config, plan.problems);
+    err('\nNothing was renamed.');
+    return 1;
+  }
+  out(`prosebook: ${write ? 'renamed' : 'would rename'} ${plan.keys.size} key(s):`);
+  for (const [old, key] of plan.keys) out(`  ${old} → ${key}`);
+  const files = [...plan.files].filter(([path]) => !plan.code.some((c) => resolve(config.root, c.file) === path));
+  out(`\n${files.length} catalog file(s):`);
+  for (const [path, content] of files) out(`  ${rel(config, path)}${content === null ? ' (removed, now empty)' : ''}`);
+  const named = plan.code.reduce((n, c) => n + c.count, 0);
+  if (named > 0) {
+    out(`\n${named} reference(s) in ${plan.code.length} code file(s):`);
+    for (const { file, count } of plan.code) out(`  ${file} (${count})`);
+  }
+  for (const { file, line, prefix } of plan.prefixed)
+    err(`warn  ${file}:${line} reads a key through \`${prefix}\`, which may reach a renamed one: rename it there by hand`);
+  if (!write) {
+    out('\nDry run: run again with --write to rename.');
+    return 0;
+  }
+  applyRename(plan);
+  return runGenerate(config, false);
 }
 
 function runImport(config: ResolvedConfig, locale: string | undefined, file: string | undefined): number {
