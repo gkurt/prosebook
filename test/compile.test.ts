@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { compileLocale } from 'prosebook/tools';
+import { compileLocale, pseudoAst } from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { copyOf } from './fixture.ts';
@@ -129,4 +129,19 @@ describe('compiled messages', () => {
     expect(declarations).toEqual(['const o0 = {"style":"currency","currency":"EUR"};']);
     expect(rows.every((r) => r.includes(', o0)'))).toBe(true);
   });
+});
+
+test('the pseudo-locale pads a message to the length a translation reaches, a short one most', () => {
+  const pseudo = (message: string) => {
+    const { rows } = compileLocale([['a.b', pseudoAst(parseMessage(message))]]);
+    return rows[0]!.slice('  "a.b": '.length);
+  };
+  // Four letters may well be eight in German: doubling the vowels gets "Save" to six.
+  expect(pseudo('Save')).toBe('"⟦Šááṽéé ·⟧",');
+  // A long sentence grows by a third, which doubling its vowels already makes.
+  expect(pseudo('Your order ships once every item in it is back in stock at the warehouse.')).toBe(
+    '"⟦Ýóóúúŕ óóŕðééŕ šĥííþš óóñçéé ééṽééŕý ííţééɱ ííñ ííţ ííš ƀááçķ ííñ šţóóçķ ááţ ţĥéé ŵááŕééĥóóúúšéé.⟧",',
+  );
+  // Placeholders count for nothing, and plurals by their other arm.
+  expect(pseudo('{n, plural, one {# box} other {# boxes}}')).toContain('" ƀóóẋééš"] }), " ·⟧"]');
 });

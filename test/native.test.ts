@@ -480,7 +480,7 @@ describe('Android resources', () => {
     expect(at('values-de-rAT')).toContain('<string name="sale" formatted="false">50 % Rabatt</string>');
     expect(at('values-pt-rBR')).toContain('<string name="hello">Hello, %1$s! %2$s new.</string>');
     // The text around a plural goes into each arm: here, the pseudo-locale's brackets.
-    expect(at('values-en-rXA')).toContain('<item quantity="one">⟦%1$d ííţééɱ ííñ ţĥéé çááŕţ.⟧</item>');
+    expect(at('values-en-rXA')).toContain('<item quantity="one">⟦%1$d ííţééɱ ííñ ţĥéé çááŕţ. ········⟧</item>');
   });
 
   test("what Android can't hold fails the build with the fix", () => {

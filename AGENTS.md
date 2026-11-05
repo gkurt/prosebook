@@ -161,7 +161,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`
   or `.svelte` file is read as its script blocks and the expressions in its markup, each parsed apart
   at its offset, so lines and `prosebook-ignore` hold; Vite reads such a file whole, not the parts its
-  compiler splits off. `pseudo.ts`.
+  compiler splits off. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
+  reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
 - `src/tools/extract.ts`: `prosebook extract`: runs of JSX text to catalog entries, `<Text>` and `t()`. Its

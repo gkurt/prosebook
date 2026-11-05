@@ -811,9 +811,11 @@ looked at it. Each unit carries its source as exported, so a translation of a so
 since is left out until it is exported again. JSON is `key: text` in the locale, empty where it has
 none, and carries no context: give the tool the XLIFF where it reads both.
 
-**Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ⟧` from the source. Switch to it and
+**Pseudo-locale.** `pseudo: 'en-XA'` generates `⟦Ýóóúúŕ çááŕţ ·····⟧` from the source. Switch to it and
 any plain text on screen is hardcoded, a missing bracket is clipped text, and brackets inside
-brackets are a sentence spliced from fragments. It is for dev: a build through the Vite, Next or Bun
+brackets are a sentence spliced from fragments. Each message is padded to the length its
+translations are likely to reach, a short one most: "Save" may well be "Speichern", so a two-word
+label doubles while a long sentence grows by a third. It is for dev: a build through the Vite, Next or Bun
 integration leaves it out of `catalog.locales` and doesn't ship its messages, so a locale switcher
 in production never offers it. Its module is still generated, and `Locale` still names it.
 
