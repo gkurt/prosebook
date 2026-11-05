@@ -9,7 +9,7 @@
 import { relative } from 'node:path';
 
 import type { ResolvedConfig } from './config.ts';
-import type { CheckRule } from './lint.ts';
+import { languageName, type CheckRule } from './lint.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
@@ -31,14 +31,6 @@ function scopeOf({ on }: CheckRule, offIn: string[]): string | undefined {
   return scope.charAt(0).toUpperCase() + scope.slice(1);
 }
 
-function languageOf(locale: string): string {
-  try {
-    return new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale;
-  } catch {
-    return locale;
-  }
-}
-
 /** The guide, as Markdown. */
 export function writingGuide(config: ResolvedConfig): string {
   const catalog = relative(config.root, config.catalog).replaceAll('\\', '/') || '.';
@@ -53,7 +45,7 @@ export function writingGuide(config: ResolvedConfig): string {
     '',
     'Read this before adding or changing an entry in the catalog. It says what the lint cannot check; `prosebook lint` checks the rest.',
     '',
-    `Every string a person reads is an entry in \`${catalog}/<area>.yaml\`, in ${languageOf(config.source)}, read from the code by its key. A key's first segment names its file: \`cart.items\` lives in \`cart.yaml\`. An entry holds ${context}. Give it a \`kind\` and a \`surface\` from the lists below.${
+    `Every string a person reads is an entry in \`${catalog}/<area>.yaml\`, in ${languageName(config.source)}, read from the code by its key. A key's first segment names its file: \`cart.items\` lives in \`cart.yaml\`. An entry holds ${context}. Give it a \`kind\` and a \`surface\` from the lists below.${
       config.extract.shared === undefined
         ? ''
         : ` Words several features say, \`Cancel\` and \`Loading…\`, are one entry in \`${config.extract.shared}.yaml\`: read that one rather than adding another.`

@@ -158,6 +158,12 @@
             "arm-endings",
             "formatted-by-hand",
             "source-ending",
+            "plural-forms",
+            "quotes",
+            "french-spacing",
+            "inverted-marks",
+            "full-width",
+            "duplicate",
             "shop/error-next",
             "shop/plain",
             "shop/du"

@@ -851,22 +851,53 @@ true` lifts `period` and the sentence rules from a string that completes another
 
 It reads the message format too:
 
-| Rule                | Catches                                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                                     |
-| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                              |
-| `arm-endings`       | plural or select arms where some end with a stop and some don't                                       |
-| `formatted-by-hand` | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`) |
-| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round                  |
+| Rule                | Catches                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `plural-count`      | `{count} files` outside a plural, which reads "1 files" (English)                                      |
+| `plural-one`        | a `one` arm that says what `other` says, or writes `1` where `#` belongs                               |
+| `arm-endings`       | plural or select arms where some end with a stop and some don't                                        |
+| `formatted-by-hand` | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`)  |
+| `source-ending`     | a translation that ends with a stop where its source doesn't, or the other way round                   |
+| `plural-forms`      | a plural missing a form its locale counts in (Polish's `few` and `many`), or naming one it never picks |
+
+`plural-forms` is an error. A locale's forms are those `Intl.PluralRules` gives it, and each one a
+whole count up to 1,000 takes is required unless an `=N` arm covers it (`=1` covers English's
+`one`, not Russian's, which 21 takes too). Where the words are the same, the arm says what `other`
+says: German writes `one {# Artikel} other {# Artikel}`, so the next translator sees the form was
+thought of. A form only fractions or a million reach (Czech's and French's `many`) isn't required. A
+plural whose only arms are exact numbers and an `other` that never shows the count picks by value,
+and is left alone. English never picks `zero`, not even for 0, so a `zero` arm there is an error
+too: write `=0`.
 
 Translations are linted too, by the rules that hold in any language: `whitespace`, `ellipsis`,
-`arm-endings`, `formatted-by-hand`, `source-ending`, and `plural-one`'s `#` (not its `one`
-and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
+`arm-endings`, `formatted-by-hand`, `source-ending`, `plural-forms`, and `plural-one`'s `#` (not its
+`one` and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
 finding names the translation's file.
+
+Each locale is also held to its own language's punctuation, which an English rule can't see:
+
+| Rule             | Reads              | Catches                                                                                                 |
+| ---------------- | ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `quotes`         | locales with marks | `"Einstellungen"` or `“Einstellungen”` in German, which quotes `„Einstellungen“`                        |
+| `french-spacing` | `fr`               | `Prêt?` or `Prêt ?`: a narrow no-break space before `; ! ?` and inside `« »`, a no-break one before `:` |
+| `inverted-marks` | `es`               | a question or exclamation that doesn't open with `¿` or `¡`                                             |
+| `full-width`     | `zh`, `ja`         | `, . ? ! : ;` after Chinese or Japanese text, which take `，。？！：；` (Japanese's comma is `、`)      |
+
+All but `inverted-marks` are fixable. Swiss French sets no space before `; ! ?`, and Swiss German
+quotes `«so»`. The marks are CLDR's, for the languages it is sure of; `lint.quotes` sets them per
+language or locale over those, and adds languages: `quotes: { de: ['»', '«'] }` for a German product
+that quotes with chevrons.
+
+**Duplicates.** `duplicate` warns of an entry that says what another says, as the same kind on the
+same surface: one entry, read in both places, is translated once and changed once. The first by key
+stays, and each other names it. The same words in another role, a button and a heading that both
+say "Save", are two strings, which a language may translate apart. With `extract.shared` set, two
+areas' entries are moved there. Where two must stay apart, say why under `allow`, or turn the rule
+off with `rules: { duplicate: 'off' }`.
 
 A finding points at the words it is about, `file:line:column`, when the message is written in the
 file as it reads (plain, or quoted on one line); otherwise at the entry's key. Spellings, the one word
-per concept, contractions, `…` and doubled spaces are marked `(fixable)`: `prosebook lint --fix`
+per concept, contractions, `…`, doubled spaces and a language's punctuation are marked `(fixable)`: `prosebook lint --fix`
 writes them, in the case of the words they replace, wherever in the message they stand. Every fix is
 checked as the whole catalog first, and nothing is written if any would break it. Only the message
 changes: a `key: message` entry stays one, and quoting and comments elsewhere stay as they were.
@@ -933,9 +964,12 @@ const house = definePlugin({
 export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-says-what-to-do': 'error' } } });
 ```
 
-`words`, `sentences` and `phrase` are the helpers the core rules count and match with. A rule can
-return `{ message, match, fix }` instead of a string: `match` is the words as a reading has them,
-which the finding then points at, and `fix` what `--fix` writes in their place. Data rules do this
+`words`, `sentences` and `phrase` are the helpers the core rules count and match with, and `catalog`
+holds every entry, for a rule that compares one with the others. A rule can return
+`{ message, match, fix }` instead of a string: `match` is the words as a reading has them, which the
+finding then points at, and `fix` what `--fix` writes in their place. A `match` can be a regular
+expression, whose places are found in the text between placeholders, and whose `fix` names its
+groups as `String.replace` does (`'$2 $1'`). Data rules do this
 themselves: `existence` and `capitalization` point at what they found, and `substitution` fixes it.
 
 A rule can also be data, after [Vale](https://vale.sh)'s rule types, which a `prosebook.config.json`

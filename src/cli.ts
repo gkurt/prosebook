@@ -468,6 +468,7 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
       lint(
         catalog.messages.filter((m) => imported.has(m.key)),
         config,
+        catalog.messages,
       ).filter((f) => f.locale === locale),
     );
   }

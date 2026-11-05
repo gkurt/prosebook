@@ -9,7 +9,7 @@
  */
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { categoriesOf, selectionOf, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 import type { KindRule, Severity } from './presets.ts';
 
 /** What a rule is given about one message in one locale. */
@@ -26,6 +26,8 @@ export interface RuleContext {
   text: Readings;
   /** The source message as prose, to hold a translation to it: `text` itself in the source locale. */
   source: Readings;
+  /** Every entry of the catalog, for a rule that holds one entry to the others. */
+  catalog: readonly Message[];
   config: ResolvedConfig;
 }
 
@@ -56,9 +58,15 @@ export interface CheckRule extends RuleBase {
 /** A finding that can say where it is, and what to write instead. */
 export interface Report {
   message: string;
-  /** The words the finding is about, as a reading has them: found in the message's text, in any case. */
-  match?: string;
-  /** What `prosebook lint --fix` writes in place of `match`, wherever it stands; its case follows the text's. */
+  /**
+   * The words the finding is about, as a reading has them: found in the message's text, in any case.
+   * A regular expression finds its places itself, in the text between placeholders.
+   */
+  match?: string | RegExp;
+  /**
+   * What `prosebook lint --fix` writes in place of `match`, wherever it stands; its case follows the
+   * text's. For a regular expression, a replacement as `String.replace` takes it (`$1`).
+   */
   fix?: string;
 }
 
@@ -408,6 +416,76 @@ const PATH_SEPARATORS = new RegExp(
 
 const OFF_SCREEN = new Set(['aria']);
 
+/** A locale's language in English words: `pl` is Polish. */
+export function languageName(locale: string): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale;
+  } catch {
+    return locale;
+  }
+}
+
+// Not Intl.ListFormat, whose English has the serial comma this prose doesn't.
+const listOf = (items: string[], joiner = 'and') =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${joiner} ${items.at(-1)}`;
+
+/**
+ * The counts a plural's forms are required for: every whole number up to this. A form only larger
+ * numbers or fractions reach (French `many`, for a million; Czech `many`, for 1.5) isn't required,
+ * since most counts never reach it, though a plural may still write it.
+ */
+const COUNTS_UP_TO = 1000;
+
+/** Whether an arm shows the number it is picked by, as `#` or as the argument itself. */
+function showsCount(arm: MessageFormatElement[], name: string): boolean {
+  let shows = false;
+  walk(arm, (el) => {
+    if (el.type === TYPE.pound || ((el.type === TYPE.number || el.type === TYPE.argument) && el.value === name)) shows = true;
+  });
+  return shows;
+}
+
+/** The marks the `quotes` rule finds, as pairs: straight, English, German and Polish lower-upper, guillemets and corner brackets. */
+const QUOTED = /"([^"\n]+)"|“([^“”\n]+)”|„([^„“”\n]+)[“”]|«\s?([^«»\n]+?)\s?»|「([^「」\n]+)」|”([^“”\n]+)”/gu;
+
+/** No-break spaces, as French sets them: written as escapes, since an editor shows neither. */
+const NBSP = '\u00A0';
+const NARROW_NBSP = '\u202F';
+
+/** The punctuation written after Chinese and Japanese text in its full-width form, by language. */
+const FULL_WIDTH: Record<string, Record<string, string>> = {
+  zh: { ',': '，', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
+  ja: { ',': '、', '.': '。', '?': '？', '!': '！', ':': '：', ';': '；' },
+};
+
+/** A locale's own entry in a table by locale or language: `de-CH`'s, else `de`'s. */
+function byLocale<T>(table: Record<string, T>, locale: string): T | undefined {
+  const lower = locale.toLowerCase();
+  const own = Object.keys(table).find((l) => l.toLowerCase() === lower);
+  if (own !== undefined) return table[own];
+  const tags = lower.split('-');
+  for (let n = tags.length - 1; n > 0; n--) {
+    const parent = Object.keys(table).find((l) => l.toLowerCase() === tags.slice(0, n).join('-'));
+    if (parent !== undefined) return table[parent];
+  }
+  return undefined;
+}
+
+/** Entries by source text and role, each catalog once: what `duplicate` holds an entry to. */
+const sameWords = new WeakMap<readonly Message[], Map<string, Message[]>>();
+
+const roleOf = (m: Message) => `${m.kind ?? ''}\u0000${m.surface ?? ''}\u0000${m.text}`;
+
+function entriesSaying(catalog: readonly Message[], message: Message): Message[] {
+  let index = sameWords.get(catalog);
+  if (index === undefined) {
+    index = new Map();
+    for (const m of catalog) if (!m.remove) index.set(roleOf(m), [...(index.get(roleOf(m)) ?? []), m]);
+    sameWords.set(catalog, index);
+  }
+  return index.get(roleOf(message)) ?? [];
+}
+
 const an = (word = 'string') => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
 
 export const CORE_RULES = {
@@ -656,6 +734,138 @@ export const CORE_RULES = {
       ];
     },
   },
+  'plural-forms': {
+    description: "A plural writes every form its locale's counts take, and none the locale never picks.",
+    recommended: 'error',
+    on: { locale: 'all' },
+    check: ({ ast, locale }) => {
+      const said: string[] = [];
+      walk(ast, (el) => {
+        if (el.type !== TYPE.plural) return;
+        const selection = selectionOf(el);
+        if (selection?.fn.options.select === 'exact') return;
+        const ordinal = el.pluralType === 'ordinal';
+        const rules = new Intl.PluralRules(locale, { ...selection?.options, type: ordinal ? 'ordinal' : 'cardinal' });
+        const forms: string[] = rules.resolvedOptions().pluralCategories;
+        const written = new Set(categoriesOf(el));
+        const language = languageName(locale);
+        for (const form of written) {
+          if (forms.includes(form)) continue;
+          said.push(
+            form === 'zero' && !ordinal
+              ? `${language} never picks zero for {${el.value}}, not even for 0: write =0, or remove the arm`
+              : `${language} never picks ${form} for {${el.value}}: remove the arm`,
+          );
+        }
+        // Arms that are only exact numbers around an `other` that never shows the count pick by value, not by form.
+        if ([...written].every((form) => form === 'other') && !showsCount(el.options['other']?.value ?? [], el.value)) return;
+        const exact = new Set(Object.keys(el.options).flatMap((arm) => (arm.startsWith('=') ? [Number(arm.slice(1))] : [])));
+        const reached = new Set<string>();
+        for (let n = 0; n <= COUNTS_UP_TO; n++) if (!exact.has(n)) reached.add(rules.select(n - el.offset));
+        const missing = forms.filter((form) => form !== 'other' && reached.has(form) && !written.has(form));
+        if (missing.length === 0) return;
+        const takes = forms.filter((form) => form === 'other' || reached.has(form));
+        said.push(
+          `${language} writes {${el.value}} in the ${ordinal ? 'ordinal ' : ''}forms ${listOf(takes)}: add ${listOf(missing)}, even where an arm says what other says`,
+        );
+      });
+      return said;
+    },
+  },
+  quotes: {
+    description: "Quotes are its language's marks: „so“ in German, « ainsi » in French. `lint.quotes` sets them per locale.",
+    recommended: 'warn',
+    on: { locale: 'all' },
+    check: ({ text, locale, config }) => {
+      const marks = byLocale(config.lint.quotes, locale);
+      if (marks === undefined) return [];
+      const [open, close] = marks;
+      const message = `${languageName(locale)} quotes with ${open.trim()}…${close.trim()}`;
+      const said = new Map<string, Report>();
+      for (const v of text.variants) {
+        for (const m of v.matchAll(QUOTED)) {
+          const inner = m.slice(1).find((g) => g !== undefined)!;
+          const right = `${open}${inner.trim()}${close}`;
+          // The spaces inside French guillemets are `french-spacing`'s to find.
+          if (m[0].replace(/\s/gu, '') === right.replace(/\s/gu, '')) continue;
+          // Marks either side of a placeholder stand in two literals, which no fix can reach together.
+          if (inner.includes(HOLE)) said.set(message, { message });
+          else said.set(m[0], { message: `${message}: write ${right}`, match: m[0], fix: right });
+        }
+      }
+      return [...said.values()];
+    },
+  },
+  'french-spacing': {
+    description: 'French sets a narrow no-break space before ; ! ? and inside « », and a no-break space before :.',
+    recommended: 'warn',
+    on: { locale: ['fr'] },
+    check: ({ text, locale }) => {
+      // Swiss French sets no space before ; ! and ?.
+      const swiss = /^fr-ch\b/i.test(locale);
+      const word = String.raw`[\p{L}\p{N}»)'’”${HOLE}]`;
+      const found: [RegExp, string, string][] = [
+        [new RegExp(String.raw`(?<=${word}) ?:(?=\s|${HOLE}|$)`, 'gu'), `${NBSP}:`, 'a no-break space before :'],
+        [new RegExp(String.raw`« ?(?=[\p{L}\p{N}${HOLE}])`, 'gu'), `«${NARROW_NBSP}`, 'a narrow no-break space after «'],
+        [new RegExp(String.raw`(?<=[\p{L}\p{N}.!?…${HOLE}]) ?»`, 'gu'), `${NARROW_NBSP}»`, 'a narrow no-break space before »'],
+      ];
+      if (!swiss)
+        found.push([new RegExp(String.raw`(?<=${word}) ?([;!?])`, 'gu'), `${NARROW_NBSP}$1`, 'a narrow no-break space before ; ! and ?']);
+      return found
+        .filter(([pattern]) => text.variants.some((v) => new RegExp(pattern.source, 'u').test(v)))
+        .map(([match, fix, what]) => ({ message: `French sets ${what}`, match, fix }));
+    },
+  },
+  'inverted-marks': {
+    description: 'Spanish opens a question with ¿ and an exclamation with ¡.',
+    recommended: 'warn',
+    on: { locale: ['es'] },
+    check: ({ text }) => {
+      const said = new Set<string>();
+      for (const v of text.variants) {
+        // Each sentence, up to the marks that end it: a question needs its ¿ after the stop before it.
+        for (const m of v.matchAll(/[^.!?…]+([!?]+)/gu)) {
+          const sentence = m[0].trim();
+          const ends = m[1]!;
+          if (ends.includes('?') && !sentence.includes('¿')) said.add(`a question in Spanish opens with ¿: ¿${sentence}`);
+          if (ends.includes('!') && !ends.includes('?') && !sentence.includes('¡'))
+            said.add(`an exclamation in Spanish opens with ¡: ¡${sentence}`);
+        }
+      }
+      return [...said].map((message) => message.replaceAll(HOLE, '…'));
+    },
+  },
+  'full-width': {
+    description: 'Chinese and Japanese write the punctuation after their own text full-width: ，。？！ in Chinese, 、。 in Japanese.',
+    recommended: 'warn',
+    on: { locale: ['zh', 'ja'] },
+    check: ({ text, locale }) => {
+      const marks = byLocale(FULL_WIDTH, locale)!;
+      const after = String.raw`(?<=[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}ー])`;
+      return Object.entries(marks).flatMap(([half, full]) => {
+        // A period before another is an ellipsis, which `ellipsis` writes as one character.
+        const pattern = new RegExp(`${after}${half.replace(/[.?]/, '\\$&')}${half === '.' ? '(?!\\.)' : ''} *`, 'gu');
+        if (!text.variants.some((v) => new RegExp(pattern.source, 'u').test(v))) return [];
+        return [{ message: `${languageName(locale)} writes ${half} after its own text as ${full}`, match: pattern, fix: full }];
+      });
+    },
+  },
+  duplicate: {
+    description: 'No two entries say the same words in the same role: one entry, read in both places, is translated once.',
+    recommended: 'warn',
+    check: ({ message, catalog, config }) => {
+      if (message.remove) return [];
+      const same = entriesSaying(catalog, message);
+      const first = same[0];
+      if (first === undefined || first === message) return [];
+      const shared = config.extract.shared;
+      return [
+        first.area !== message.area && shared !== undefined
+          ? `says what ${first.key} says, in the same role: move one into ${shared}.*, read it in both places, and remove the other`
+          : `says what ${first.key} says, in the same role: read ${first.key} where this is read, and remove this entry`,
+      ];
+    },
+  },
 } satisfies Record<string, CheckRule>;
 
 export type CoreRule = keyof typeof CORE_RULES;
@@ -840,19 +1050,43 @@ function literalsIn(ast: MessageFormatElement[], text: string): Literal[] {
   return found;
 }
 
-/** Every place `match` stands in the literals, in any case, whole where it starts or ends with a letter. */
-function placesOf(match: string, literals: Literal[]): { start: number; end: number }[] {
+/**
+ * Every place `match` stands in the literals: a string in any case, whole where it starts or ends
+ * with a letter; a regular expression as it matches.
+ */
+function placesOf(match: string | RegExp, literals: Literal[]): Place[] {
+  const pattern =
+    typeof match === 'string' ? wordsPattern(match) : new RegExp(match.source, match.flags.includes('g') ? match.flags : `${match.flags}g`);
+  const places = new Map<number, Place>();
+  for (const { start, value } of literals) {
+    for (const m of value.matchAll(pattern))
+      if (m[0] !== '') places.set(start + m.index, { start: start + m.index, end: start + m.index + m[0].length, groups: [...m] });
+  }
+  return [...places.values()].sort((a, b) => a.start - b.start);
+}
+
+/** Where a match stands in the text, and what it matched, groups first to last after the whole. */
+interface Place {
+  start: number;
+  end: number;
+  groups: (string | undefined)[];
+}
+
+function wordsPattern(match: string): RegExp {
   const body = match
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     .replace(/ /g, '\\s+')
     .replace(/'/g, "['’]");
   const before = /^[\p{L}\p{N}]/u.test(match) ? '(?<![\\p{L}\\p{N}])' : '';
   const after = /[\p{L}\p{N}]$/u.test(match) ? '(?![\\p{L}\\p{N}])' : '';
-  const pattern = new RegExp(`${before}${body}${after}`, 'giu');
-  const places = new Map<number, number>();
-  for (const { start, value } of literals)
-    for (const m of value.matchAll(pattern)) places.set(start + m.index, start + m.index + m[0].length);
-  return [...places].sort(([a], [b]) => a - b).map(([start, end]) => ({ start, end }));
+  return new RegExp(`${before}${body}${after}`, 'giu');
+}
+
+/** What a fix writes over the text it replaces: in that text's case, or as a regular expression's replacement. */
+function fixed({ groups }: Place, match: string | RegExp, fix: string): string {
+  if (typeof match === 'string') return inCaseOf(groups[0]!, fix);
+  // Expanded from the match as it was made: run again on the text it matched, a lookaround would fail.
+  return fix.replace(/\$(&|\d)/g, (_, group: string) => (group === '&' ? groups[0]! : (groups[Number(group)] ?? '')));
 }
 
 /** A fix in the case of what it replaces: "Colour" becomes "Color". */
@@ -871,7 +1105,8 @@ export function applyEdits(text: string, edits: Edit[]): string {
   return out + text.slice(at);
 }
 
-export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
+/** The findings on `messages`, held to the whole `catalog` where a rule compares entries. */
+export function lint(messages: Message[], config: ResolvedConfig, catalog: readonly Message[] = messages): Finding[] {
   const findings: Finding[] = [];
   const rules = Object.entries(config.lint.rules);
   for (const message of messages) {
@@ -885,7 +1120,7 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
     const fired = new Set<string>();
     for (const { locale, ast, written, file } of locales) {
       const text = locale === config.source ? source : readings(ast);
-      const context: RuleContext = { message, locale, ast, kind, text, source, config };
+      const context: RuleContext = { message, locale, ast, kind, text, source, catalog, config };
       let literals: Literal[] | undefined;
       for (const [name, { rule }] of rules) {
         const severity = severityOf(config, name, message)!;
@@ -905,9 +1140,9 @@ export function lint(messages: Message[], config: ResolvedConfig): Finding[] {
           if (match !== undefined && match !== '') {
             literals ??= literalsIn(ast, written);
             const places = placesOf(match, literals);
-            if (places.length > 0) finding.at = places[0];
+            if (places.length > 0) finding.at = { start: places[0]!.start, end: places[0]!.end };
             if (places.length > 0 && fix !== undefined)
-              finding.fix = places.map((p) => ({ ...p, text: inCaseOf(written.slice(p.start, p.end), fix) }));
+              finding.fix = places.map((p) => ({ start: p.start, end: p.end, text: fixed(p, match, fix) }));
           }
           findings.push(finding);
         }

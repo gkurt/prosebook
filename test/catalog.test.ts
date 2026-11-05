@@ -293,7 +293,7 @@ describe('lint', () => {
   test('an exemption needs a reason, and must still be needed', () => {
     const yaml = [
       'app.a:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: The legal name of the plan, which is fixed.\n  en: Pro Plus Team Annual Plan',
-      'app.b:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: Intentional.\n  en: Pro Plus Team Annual Plan',
+      'app.b:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: Intentional.\n  en: Pro Plus Team Monthly Plan',
       'app.c:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: The legal name of the plan, which is fixed.\n  en: Pro',
     ].join('\n');
     expect(findings(yaml)).toEqual([
@@ -343,7 +343,7 @@ describe('lint', () => {
       {
         'copy/catalog/app.yaml': 'app.a:\n  kind: action\n  context: A button.\n  en: Save Draft',
         'copy/catalog/native.yaml': [
-          'native.a:\n  kind: action\n  context: A menu item.\n  en: Save Draft',
+          'native.a:\n  kind: action\n  context: A menu item.\n  en: Save All Drafts',
           'native.b:\n  kind: action\n  context: A menu item.\n  en: Save draft',
         ].join('\n'),
       },
@@ -519,6 +519,7 @@ describe('lint', () => {
       'app.g [formatted-by-hand] "%" is typed after rate: format it as a percent, which takes the fraction (0.5 for 50%)',
       'app.h [formatted-by-hand] "10,000" groups its digits the English way: make it a placeholder formatted as a number',
       'app.k [plural-count] total is followed by "IDs", which reads "1 IDs": make it a plural with a "# ID" arm',
+      'app.l [plural-forms] English writes {count} in the forms one and other: add one, even where an arm says what other says',
       'app.n [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
       'app.o [formatted-by-hand] "h" is typed after hours: format it as a unit, {hours, number, ::unit/hour unit-width-narrow}, which writes it as the locale does',
       'app.o [formatted-by-hand] "m" is typed after minutes: format it as a unit, {minutes, number, ::unit/minute unit-width-narrow}, which writes it as the locale does',
@@ -639,6 +640,143 @@ describe('lint', () => {
     const findings = lint(loadCatalog(config).messages, config);
     expect(applyFixes(config, loadCatalog(config), findings).fixed).toBe(2);
     expect(loadCatalog(config).messages[0]!.text).toBe(match.replace('colour}', 'color}').replace('colours}', 'colors}'));
+  });
+
+  const translated = (catalog: Record<string, string>, locales: Record<string, string>, config = {}) => {
+    const files = Object.fromEntries(Object.entries(locales).map(([locale, yaml]) => [`copy/locales/${locale}.yaml`, yaml]));
+    const loaded = fixture({ 'copy/catalog/app.yaml': entries(catalog), ...files }, { require: [], ...config });
+    return lint(loadCatalog(loaded).messages, loaded);
+  };
+  const shown = (found: ReturnType<typeof lint>) => found.map((f) => `${f.locale} ${f.key} [${f.rule}] ${f.message}`);
+
+  test("a plural writes every form its locale's counts take, and none it never picks", () => {
+    const found = translated(
+      {
+        'app.a': '{count, plural, one {# file} other {# files}}',
+        'app.b': '{count, plural, zero {No files} one {# file} other {# files}}',
+        'app.c': '{count, plural, =0 {Is empty} other {Is full}}',
+        'app.d': '{rank, selectordinal, one {#st} other {#th}}',
+        'app.e': '{count, plural, =0 {No files} =1 {One file} other {# files}}',
+      },
+      {
+        de: 'app.a: "{count, plural, other {# Dateien}}"\napp.c: "{count, plural, =0 {Leer} other {Voll}}"\napp.e: "{count, plural, =0 {Keine} =1 {Eine Datei} other {# Dateien}}"\n',
+        pl: 'app.a: "{count, plural, one {# plik} other {# plików}}"\napp.e: "{count, plural, =0 {Brak} =1 {Jeden plik} other {# plików}}"\n',
+      },
+    );
+    expect(shown(found.filter((f) => f.rule === 'plural-forms'))).toEqual([
+      'de app.a [plural-forms] German writes {count} in the forms one and other: add one, even where an arm says what other says',
+      'pl app.a [plural-forms] Polish writes {count} in the forms one, few, many and other: add few and many, even where an arm says what other says',
+      'en app.b [plural-forms] English never picks zero for {count}, not even for 0: write =0, or remove the arm',
+      'en app.d [plural-forms] English writes {rank} in the ordinal forms one, two, few and other: add two and few, even where an arm says what other says',
+      // =1 is the only count Polish's one takes, so the exact arm stands for it.
+      'pl app.e [plural-forms] Polish writes {count} in the forms few, many and other: add few and many, even where an arm says what other says',
+    ]);
+
+    // MF2 arms every form once * is written, so the forms written are what counts.
+    const match = (one: string, other: string) => `|-\n    .input {$n :number}\n    .match $n\n    one {{${one}}}\n    * {{${other}}}`;
+    const mf2 = fixture(
+      {
+        'copy/catalog/app.yaml': `app.a: ${match('{$n} file', '{$n} files')}\n`,
+        'copy/locales/pl.yaml': `app.a: ${match('{$n} plik', '{$n} plików')}\n`,
+      },
+      { require: [], messageFormat: 2 },
+    );
+    expect(shown(lint(loadCatalog(mf2).messages, mf2))).toEqual([
+      'pl app.a [plural-forms] Polish writes {n} in the forms one, few, many and other: add few and many, even where an arm says what other says',
+    ]);
+  });
+
+  test("quotes, French spacing, Spanish's opening marks and full-width punctuation follow each language", () => {
+    const found = translated(
+      {
+        'app.a': 'Open "Settings"',
+        'app.b': 'Saved!',
+        'app.c': 'Ready?',
+        'app.d': 'Note: ready, done.',
+        'app.e': 'Name {name}',
+      },
+      {
+        de: 'app.a: Öffne “Einstellungen”\n',
+        'de-CH': 'app.a: Öffne «Einstellungen»\n',
+        fr: 'app.a: Ouvrir «Réglages»\napp.b: Enregistré!\napp.c: "Prêt ?"\napp.d: "Remarque\u202F: prêt."\napp.e: "Nom «{name}»"\n',
+        'fr-CH': 'app.b: Enregistré!\n',
+        es: 'app.b: ¡Guardado!\napp.c: Listo?\n',
+        ja: 'app.d: 注意:準備完了.\n',
+        zh: 'app.d: "注意: 准备好了, 完成."\n',
+      },
+    );
+    const rules = new Set(['quotes', 'french-spacing', 'inverted-marks', 'full-width']);
+    const ours = found.filter((f) => rules.has(f.rule));
+    expect(shown(ours)).toEqual([
+      'de app.a [quotes] German quotes with „…“: write „Einstellungen“',
+      'fr app.a [french-spacing] French sets a narrow no-break space after «',
+      'fr app.a [french-spacing] French sets a narrow no-break space before »',
+      'fr app.b [french-spacing] French sets a narrow no-break space before ; ! and ?',
+      'es app.c [inverted-marks] a question in Spanish opens with ¿: ¿Listo?',
+      'fr app.c [french-spacing] French sets a narrow no-break space before ; ! and ?',
+      'ja app.d [full-width] Japanese writes . after its own text as 。',
+      'ja app.d [full-width] Japanese writes : after its own text as ：',
+      'zh app.d [full-width] Chinese writes , after its own text as ，',
+      'zh app.d [full-width] Chinese writes . after its own text as 。',
+      'zh app.d [full-width] Chinese writes : after its own text as ：',
+      'fr app.e [french-spacing] French sets a narrow no-break space after «',
+      'fr app.e [french-spacing] French sets a narrow no-break space before »',
+    ]);
+
+    const fixes = ours.filter((f) => f.fix !== undefined).map((f) => `${f.locale} ${f.key} ${JSON.stringify(f.fix!.map((e) => e.text))}`);
+    expect(fixes).toEqual([
+      'de app.a ["„Einstellungen“"]',
+      'fr app.a ["«\u202f"]',
+      'fr app.a ["\u202f»"]',
+      'fr app.b ["\u202f!"]',
+      'fr app.c ["\u202f?"]',
+      'ja app.d ["。"]',
+      'ja app.d ["："]',
+      'zh app.d ["，"]',
+      'zh app.d ["。"]',
+      'zh app.d ["："]',
+    ]);
+  });
+
+  test('lint.quotes sets the marks per locale, and must be pairs', async () => {
+    const found = translated(
+      { 'app.a': 'Open "Settings"' },
+      { de: 'app.a: Öffne „Einstellungen“\n' },
+      { lint: { quotes: { de: ['»', '«'] } } },
+    );
+    expect(shown(found)).toEqual(['de app.a [quotes] German quotes with »…«: write »Einstellungen«']);
+    // A JSON config is not type-checked.
+    const json = fixture({ 'prosebook.config.json': JSON.stringify({ lint: { quotes: { de: ['»'] } } }) });
+    const loaded = await loadConfig(json.root).then(
+      () => 'loaded',
+      (e: unknown) => (e instanceof Error ? e.message : String(e)),
+    );
+    expect(loaded).toContain('lint.quotes.de is a pair of marks');
+  });
+
+  test('two entries saying the same words in the same role are one entry', () => {
+    const catalog = (shared?: string) =>
+      fixture(
+        {
+          'copy/catalog/app.yaml': [
+            'app.save:\n  kind: action\n  context: Saves the form.\n  en: Save',
+            'app.store:\n  kind: action\n  context: Saves the draft.\n  en: Save',
+            'app.title:\n  kind: name\n  context: A heading.\n  en: Save',
+            'app.old:\n  kind: action\n  context: Saves.\n  remove: true\n  en: Save',
+          ].join('\n'),
+          'copy/catalog/editor.yaml': 'editor.save:\n  kind: action\n  context: Saves the file.\n  en: Save',
+        },
+        shared === undefined ? {} : { extract: { shared } },
+      );
+    const duplicates = (config: ReturnType<typeof fixture>) =>
+      shown(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'duplicate'));
+    expect(duplicates(catalog())).toEqual([
+      'en app.store [duplicate] says what app.save says, in the same role: read app.save where this is read, and remove this entry',
+      'en editor.save [duplicate] says what app.save says, in the same role: read app.save where this is read, and remove this entry',
+    ]);
+    expect(duplicates(catalog('common'))[1]).toBe(
+      'en editor.save [duplicate] says what app.save says, in the same role: move one into common.*, read it in both places, and remove the other',
+    );
   });
 });
 

@@ -159,3 +159,35 @@ export const STRICT_LISTS = {
     amongst: 'among',
   } as Record<string, string>,
 };
+
+/**
+ * Quotation marks by language, and by locale where a region writes them otherwise, as CLDR has them:
+ * what the `quotes` rule holds a translation to. French sets a narrow no-break space inside.
+ */
+export const DEFAULT_QUOTES: Record<string, readonly [open: string, close: string]> = {
+  cs: ['„', '“'],
+  da: ['“', '”'],
+  de: ['„', '“'],
+  'de-CH': ['«', '»'],
+  'de-LI': ['«', '»'],
+  es: ['«', '»'],
+  fi: ['”', '”'],
+  fr: ['«\u202F', '\u202F»'],
+  it: ['«', '»'],
+  ja: ['「', '」'],
+  ko: ['“', '”'],
+  nb: ['«', '»'],
+  no: ['«', '»'],
+  pl: ['„', '”'],
+  pt: ['“', '”'],
+  'pt-PT': ['«', '»'],
+  ru: ['«', '»'],
+  sk: ['„', '“'],
+  sv: ['”', '”'],
+  tr: ['“', '”'],
+  uk: ['«', '»'],
+  zh: ['“', '”'],
+  'zh-Hant': ['「', '」'],
+  'zh-HK': ['「', '」'],
+  'zh-TW': ['「', '」'],
+};

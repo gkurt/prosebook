@@ -127,6 +127,15 @@ export function selectionOf(el: MessageFormatElement): Selection | undefined {
 }
 
 /**
+ * The plural categories a plural's arms name as written. MF2's `.match` is read into an arm per
+ * category once `*` is written, so its tree carries the keys written; an MF1 plural's arms are its own.
+ */
+export function categoriesOf(el: MessageFormatElement): string[] {
+  if (el.type !== TYPE.plural) return [];
+  return (el as { categories?: string[] }).categories ?? Object.keys(el.options).filter((arm) => !arm.startsWith('='));
+}
+
+/**
  * How a placeholder renders around its value: the text it shows when it has none, or one `Intl`
  * can't format, and the marks isolating its direction from the text around it. MF2 sets these
  * (`{$name}`, and isolation in a right-to-left locale); an MF1 placeholder shows `{name}`.

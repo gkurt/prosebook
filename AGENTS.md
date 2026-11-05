@@ -145,6 +145,14 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`).
+  `plural-forms` reads the forms from `Intl.PluralRules`, and an MF2 plural's `categories` (set by
+  `matchTree`, `categoriesOf` in `icu.ts`), since its tree arms every form once `*` is written. The
+  punctuation rules (`quotes`, `french-spacing`, `inverted-marks`, `full-width`) are per language,
+  `quotes` through `lint.quotes` over `DEFAULT_QUOTES` (`presets.ts`); they match with regular
+  expressions, which a `Report` may give as its `match`, its `fix` expanded from the match's groups.
+  `duplicate` compares entries through the context's `catalog`, which `lint` takes apart from the
+  messages it lints, so the inspector's one entry is still held to the rest. No-break spaces are
+  written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, and `unseenReads`. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts

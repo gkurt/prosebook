@@ -461,7 +461,19 @@ function matchTree(selectors: Selector[], candidates: Candidate[], i: number, lo
   }
   if (!('other' in options)) arm('other', (key) => (key === null ? 2 : undefined));
   const pluralType = s.kind === 'ordinal' ? 'ordinal' : 'cardinal';
-  return [{ type: TYPE.plural, value: s.name, offset: s.offset, pluralType, options, ...(s.selection && { selection: s.selection }) }];
+  // The arms above hold every category once `*` is written, so the lint learns which were written here.
+  const written = keys.filter((k) => CATEGORIES.has(k));
+  return [
+    {
+      type: TYPE.plural,
+      value: s.name,
+      offset: s.offset,
+      pluralType,
+      options,
+      categories: written,
+      ...(s.selection && { selection: s.selection }),
+    } as Element,
+  ];
 }
 
 function compare(a: number[], b: number[]): number {

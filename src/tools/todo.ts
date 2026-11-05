@@ -10,7 +10,7 @@ import { stringify } from 'yaml';
 import { heldAs, type Catalog, type Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { TYPE, walk } from './icu.ts';
-import { applies, severityOf } from './lint.ts';
+import { applies, languageName, severityOf } from './lint.ts';
 import { changeOf, type StaleTranslation } from './lock.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
@@ -66,7 +66,7 @@ export function todoMessages(catalog: Catalog, stale: ReadonlyMap<string, StaleT
 
 function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, anyStale: boolean): string {
   const mf2 = config.messageFormat === 2;
-  const [target, source] = [nameOf(locale), nameOf(config.source)];
+  const [target, source] = [languageName(locale), languageName(config.source)];
   const plurals = { cardinal: false, ordinal: false };
   for (const m of wanted) {
     walk(m.ast, (el) => {
@@ -120,12 +120,4 @@ function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, an
     '',
     '```yaml',
   ].join('\n');
-}
-
-function nameOf(locale: string): string {
-  try {
-    return new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale;
-  } catch {
-    return locale;
-  }
 }

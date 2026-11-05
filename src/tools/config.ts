@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 
 import { compileRule, CORE_RULES, REASON_NAME, reasonProblem, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
 import type { Isolate } from './mf2.ts';
-import { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
+import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 
 export type { KindRule, Severity };
 export {
@@ -42,6 +42,11 @@ export interface WordLists {
   properNouns?: string[];
   /** What a path through menus or settings is written with, spaced: `›` by default, as in Settings › General. */
   pathSeparator?: string;
+  /**
+   * Quotation marks by language or locale, over the defaults (`de: ['„', '“']`, CLDR's): what the
+   * `quotes` rule holds a translation to. A locale takes its own, else its language's.
+   */
+  quotes?: Record<string, readonly [open: string, close: string]>;
 }
 
 type RuleSeverities = Partial<Record<CoreRule, Severity>> & Record<string, Severity>;
@@ -268,6 +273,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       concepts: { ...lint.concepts },
       properNouns: lint.properNouns ?? [],
       pathSeparator: lint.pathSeparator ?? '›',
+      quotes: checkedQuotes(lint.quotes ?? {}),
     },
     guide: config.guide === false ? false : config.guide === undefined ? join(catalog, 'WRITING.md') : at(config.guide),
     native: (config.native ?? []).map((target, i) => {
@@ -298,6 +304,15 @@ function checkedReasons(reasons: Record<string, string>): Record<string, string>
     if (problem !== undefined) throw new Error(`lint.reasons.${name} ${problem}`);
   }
   return reasons;
+}
+
+/** The defaults with the config's own over them, each a pair of marks: a JSON config is not type-checked. */
+function checkedQuotes(quotes: Record<string, readonly [string, string]>): Record<string, readonly [string, string]> {
+  for (const [locale, pair] of Object.entries(quotes)) {
+    if (!Array.isArray(pair) || pair.length !== 2 || !pair.every((mark) => typeof mark === 'string' && mark !== ''))
+      throw new Error(`lint.quotes.${locale} is a pair of marks, the opening and the closing: ['„', '“']`);
+  }
+  return { ...DEFAULT_QUOTES, ...quotes };
 }
 
 function lintRules(lint: LintConfig): ResolvedConfig['lint']['rules'] {

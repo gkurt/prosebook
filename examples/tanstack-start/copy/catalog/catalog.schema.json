@@ -157,7 +157,13 @@
             "plural-one",
             "arm-endings",
             "formatted-by-hand",
-            "source-ending"
+            "source-ending",
+            "plural-forms",
+            "quotes",
+            "french-spacing",
+            "inverted-marks",
+            "full-width",
+            "duplicate"
           ]
         },
         "additionalProperties": {

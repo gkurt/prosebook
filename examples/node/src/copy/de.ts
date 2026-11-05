@@ -6,7 +6,7 @@ const o1 = {"timeStyle":"short"} as const;
 const o2 = {"style":"currency","currency":"EUR"} as const;
 
 export default {
-  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nichts gekauft.", "other": () => [h.n(a.count) ?? h.e("{count}"), " Artikel gekauft."] }),
+  "receipt.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Nichts gekauft.", "one": () => [h.n(a.count) ?? h.e("{count}"), " Artikel gekauft."], "other": () => [h.n(a.count) ?? h.e("{count}"), " Artikel gekauft."] }),
   "receipt.printed": (a, h) => ["Gedruckt am ", h.d(a.when, o0) ?? h.e("{when}"), " um ", h.d(a.when, o1) ?? h.e("{when}"), "."],
   "receipt.thanks": "Danke für deinen Einkauf.",
   "receipt.title": "Eckladen",

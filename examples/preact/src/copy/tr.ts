@@ -7,6 +7,6 @@ export default {
   "app.title": "Köşe Dükkan",
   "cart.add": "Sepete ekle",
   "cart.checkout": "Ödemeye geç",
-  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Sepetin boş.", "other": () => ["Sepetinde ", h.n(a.count) ?? h.e("{count}"), " ürün var."] }),
+  "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Sepetin boş.", "one": () => ["Sepetinde ", h.n(a.count) ?? h.e("{count}"), " ürün var."], "other": () => ["Sepetinde ", h.n(a.count) ?? h.e("{count}"), " ürün var."] }),
   "cart.title": "Sepet",
 } satisfies CompiledMessages;

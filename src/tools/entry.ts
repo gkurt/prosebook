@@ -286,7 +286,7 @@ function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: 
     argNames: [...message.args.keys()],
     kinds: Object.keys(config.kinds),
     surfaces: Object.keys(config.surfaces),
-    findings: lint([message], config).map((f) => {
+    findings: lint([message], config, catalog.messages).map((f) => {
       const written = f.locale === config.source ? message.text : message.translations.get(f.locale)?.text;
       return f.fix === undefined || written === undefined ? f : { ...f, fixed: applyEdits(written, f.fix) };
     }),
