@@ -52,7 +52,7 @@
     {
       "name": "site",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "site", "dev", "--port", "4321"],
+      "runtimeArgs": ["run", "dev", "--port", "4321"],
       "port": 4321,
       "url": "http://localhost:4321"
     }

@@ -169,6 +169,7 @@
     "example": "tsdown && bun run --cwd examples/vite dev",
     "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",
+    "dev": "tsdown && bun run --cwd site dev",
     "site": "tsdown && bun run --cwd site build",
     "prepare": "husky",
     "tegami": "bun scripts/tegami.mts"

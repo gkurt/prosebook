@@ -18,8 +18,8 @@ bun run test        # all tests, against the source
 bun typecheck       # TypeScript 7 over src and test
 bun run cli <cmd>   # the CLI from source: bun run cli generate --root examples/vite
 bun run example     # build, then the Vite example's dev server
+bun run dev         # build, then the homepage's dev server, with the inspector
 bun run site        # the homepage (site/, Astro) built into _site/
-bun run --cwd site dev   # the homepage's dev server, with the inspector
 ```
 
 Before committing, run `bun run fix` (lint and format, with fixes) and `bun run checks` (check, typecheck and test). A pre-commit

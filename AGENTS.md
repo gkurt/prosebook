@@ -16,6 +16,7 @@ bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root exam
 bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
 bun run examples:generate     # build, then `prosebook generate` in every example and the site
 bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
+bun run dev        # build, then the homepage's dev server (site/, Astro), with the inspector
 bun run site       # build, then the homepage (site/, Astro) into _site/, as Pages deploys it
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
