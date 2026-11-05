@@ -11,6 +11,8 @@ import { extname, join, relative } from 'node:path';
 
 import { parseSync } from 'oxc-parser';
 
+import { formatIn, type Formats, type FormatTable } from '#src/runtime/formats.ts';
+
 import type { ScanOptions } from './config.ts';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git']);
@@ -247,27 +249,140 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   return found;
 }
 
+export interface Formatted {
+  file: string;
+  line: number;
+  column: number;
+  /** The call as written, on one line. */
+  code: string;
+  /** What reads in its place: the copy's method, and the format the config names where its options are one. */
+  fix: string;
+}
+
+/** `Intl`'s formatters, and the copy's method that formats in the copy's locale as each does. */
+const INTL_METHODS: Record<string, string> = {
+  NumberFormat: 'number',
+  DateTimeFormat: 'date',
+  ListFormat: 'list',
+  RelativeTimeFormat: 'relative',
+  DurationFormat: 'duration',
+};
+const TO_LOCALE: Record<string, 'date' | undefined> = { toLocaleString: undefined, toLocaleDateString: 'date', toLocaleTimeString: 'date' };
+/** The options only a date formats with, which tell `toLocaleString`'s value apart from a number. */
+const DATE_OPTIONS =
+  /^(?:dateStyle|timeStyle|year|month|day|weekday|hour|minute|second|era|timeZone|timeZoneName|hour12|hourCycle|dayPeriod)$/;
+
+/** An object literal of plain values, as the options it is: nothing where it holds anything else. */
+function literalObject(node: Node | undefined): Record<string, unknown> | undefined {
+  if (node === undefined) return {};
+  if (node.type !== 'ObjectExpression') return undefined;
+  const out: Record<string, unknown> = {};
+  for (const p of node.properties as Node[]) {
+    const name = p.type === 'Property' ? propertyName(p) : undefined;
+    const value = p.value as Node | undefined;
+    if (name === undefined || value?.type !== 'Literal') return undefined;
+    out[name] = value.value;
+  }
+  return out;
+}
+
+/** What a format's options show in a locale, to tell which named format they are. */
+function resolved(kind: keyof FormatTable, locale: string, options: object): string | undefined {
+  try {
+    const intl = kind === 'number' ? new Intl.NumberFormat(locale, options) : new Intl.DateTimeFormat(locale, options);
+    return JSON.stringify(intl.resolvedOptions());
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Numbers, dates and lists formatted in code rather than by the copy: `toLocaleString()` and
+ * `new Intl.NumberFormat()` show the browser's locale, or one written in, where the copy shows its
+ * own, and options written out drift from the format the config names. In components, `.join(', ')`
+ * is a list only English joins so. Outside tests and stories; lines marked `prosebook-ignore` are left.
+ */
+export function formattedInCode(file: string, code: string, formats: Formats = {}, locale = 'en'): Formatted[] {
+  if (NOT_APP.test(file)) return [];
+  const component = /\.[jt]sx$/.test(file);
+  const { program } = parseSync(file, code);
+  const { position, ignored } = lineIndex(code);
+  const found: Formatted[] = [];
+  const say = (node: Node, kind: string, value: string, options: Node | undefined) => {
+    const at = position(node.start);
+    if (ignored(at.line)) return;
+    const given = literalObject(options);
+    const kinds = kind === 'either' ? (Object.keys(given ?? {}).some((k) => DATE_OPTIONS.test(k)) ? ['date'] : ['number', 'date']) : [kind];
+    const named = kinds.flatMap((k) => {
+      if (given === undefined || (k !== 'number' && k !== 'date') || Object.keys(given).length === 0) return [];
+      const shown = resolved(k, locale, given);
+      return Object.keys(formats[k] ?? {})
+        .filter((name) => shown !== undefined && resolved(k, locale, formatIn(formats, k, name, locale)!) === shown)
+        .map((name) => `copy.${k}(${value}, '${name}')`);
+    });
+    const plain = kinds.map((k) => `copy.${k}(${value})`);
+    const fix =
+      named.length > 0
+        ? `${named.join(' or ')}, which shows it as the format the config names`
+        : given !== undefined && Object.keys(given).length > 0 && kinds.every((k) => k === 'number' || k === 'date')
+          ? `${plain.join(' or ')} with these options, or name them under formats.${kinds.join(' or formats.')} and pass the name`
+          : `${plain.join(' or ')}, in the copy's locale`;
+    const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
+    found.push({ file, ...at, code: text.length > 80 ? `${text.slice(0, 77)}...` : text, fix });
+  };
+  const visit = (node: Node) => {
+    if (node.type === 'NewExpression' || node.type === 'CallExpression') {
+      const callee = calleeOf(node.callee as Node);
+      const args = node.arguments as Node[];
+      const intl = callee?.root === 'Intl' ? INTL_METHODS[callee.name.slice('Intl.'.length)] : undefined;
+      if (intl !== undefined) say(node, intl, '…', args[1]);
+      const member = node.callee as Node;
+      if (node.type === 'CallExpression' && member.type === 'MemberExpression' && member.computed !== true) {
+        const method = nameOf(member.property as Node) ?? '';
+        const value = code.slice((member.object as Node).start, (member.object as Node).end);
+        if (Object.hasOwn(TO_LOCALE, method)) say(node, TO_LOCALE[method] ?? 'either', value, args[1]);
+        const joiner = args[0];
+        if (component && method === 'join' && joiner?.type === 'Literal' && joiner.value === ', ') say(node, 'list', value, undefined);
+      }
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const child of value) if (isNode(child)) visit(child);
+      } else if (isNode(value)) {
+        visit(value);
+      }
+    }
+  };
+  visit(program as unknown as Node);
+  return found;
+}
+
 function isNode(value: unknown): value is Node {
   return typeof value === 'object' && value !== null && typeof (value as Node).type === 'string';
 }
 
 export interface ScanResult {
   hardcoded: Hardcoded[];
+  formatted: Formatted[];
   refs: KeyRefs;
   files: number;
 }
 
-export function scan(options: ScanOptions, root: string, skip: string[] = []): ScanResult {
+export function scan(options: ScanOptions, root: string, skip: string[] = [], formats?: Formats, locale?: string): ScanResult {
   const refs: KeyRefs = { exact: new Set(), prefixes: new Set() };
   const hardcoded: Hardcoded[] = [];
+  const formatted: Formatted[] = [];
   const files = sourceFiles(options.dirs, options.extensions, skip);
   for (const path of files) {
     const code = readFileSync(path, 'utf8');
     keyRefs(code, refs);
+    if (SFC.test(path)) continue;
+    const file = relative(root, path).replaceAll('\\', '/');
     // JSX in .tsx and .jsx; calls and properties in any script.
-    if (!SFC.test(path)) hardcoded.push(...hardcodedText(relative(root, path).replaceAll('\\', '/'), code, options));
+    hardcoded.push(...hardcodedText(file, code, options));
+    formatted.push(...formattedInCode(file, code, formats, locale));
   }
-  return { hardcoded, refs, files: files.length };
+  return { hardcoded, formatted, refs, files: files.length };
 }
 
 /** A copy's methods that take a key first. */

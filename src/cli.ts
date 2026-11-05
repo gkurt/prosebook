@@ -43,8 +43,9 @@ Commands:
   import <locale> [file]  Write translations from todo's YAML filled in, a model's reply to --prompt,
                           or a tool's XLIFF or JSON (stdin without a file); each is checked first,
                           and one that fails is left out
-  scan                    Find hardcoded text in JSX, catalog keys no code reads, and reads whose key
-                          a pruned build can't see  (--strict: fail on any of them)
+  scan                    Find hardcoded text in JSX, numbers, dates and lists formatted in code, catalog
+                          keys no code reads, and reads whose key a pruned build can't see
+                          (--strict: fail on any of them)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
   migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
@@ -77,6 +78,7 @@ const RULES = {
   'stale-translation': 'A translation was made from the source text as it is now.',
   'hardcoded-text': 'Text a person reads comes from the catalog, not from a literal in JSX.',
   'unused-key': 'Code reads every catalog key.',
+  'formatted-in-code': "Numbers, dates and lists are formatted by the copy, in its locale and the config's named formats.",
   'unseen-read': 'Every read names its key where a build can see it, so pruning keeps its message.',
   allow: "An entry's exemption names a rule the entry breaks, and says why in a sentence.",
 };
@@ -576,9 +578,10 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
 
 function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport): number {
   const { catalog } = rendered(config, report);
-  const result = scan(config.scan, config.root, [config.out]);
+  const result = scan(config.scan, config.root, [config.out], config.formats, config.source);
   for (const h of result.hardcoded)
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text ' : hardcodedWhere(h)}"${h.text}"`);
+  for (const f of result.formatted) err(`${f.file}:${f.line}:${f.column} formatted in code: ${f.code}: read ${f.fix}`);
   const unused = catalog.messages.filter((m) => !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   const unseen = runUnseen(config, strict ? 'error' : 'warning', report);
@@ -587,6 +590,11 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
     const locate = entryLocator(config.root);
     report.rule('hardcoded-text', RULES['hardcoded-text']);
     report.rule('unused-key', RULES['unused-key']);
+    report.rule('formatted-in-code', RULES['formatted-in-code']);
+    for (const f of result.formatted) {
+      const message = `${f.code} formats in code: read ${f.fix}, or mark the line \`prosebook-ignore\``;
+      report.add({ rule: 'formatted-in-code', level, message, file: f.file, line: f.line, column: f.column });
+    }
     for (const h of result.hardcoded) {
       const what = `${hardcodedWhere(h)}"${h.text}"`;
       const message = `${what} is hardcoded: move it into the catalog with \`prosebook extract\`, or mark the line \`prosebook-ignore\``;
@@ -596,12 +604,16 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
       report.add({ rule: 'unused-key', level, message: `no code reads ${m.key}: remove it`, file: m.file, ...locate(m.file, m.key) });
   }
   out(
-    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${unused.length} unused key(s), ${unseen} unseen read(s)` +
+    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${result.formatted.length} formatted in code, ${unused.length} unused key(s), ${unseen} unseen read(s)` +
       (result.hardcoded.length > 0
         ? '. `prosebook extract` moves the text into the catalog; mark a deliberate line `prosebook-ignore`.'
         : ''),
   );
-  return strict && result.hardcoded.length + unused.length + unseen > 0 ? 1 : errorsIn(catalog).length > 0 ? 1 : 0;
+  return strict && result.hardcoded.length + result.formatted.length + unused.length + unseen > 0
+    ? 1
+    : errorsIn(catalog).length > 0
+      ? 1
+      : 0;
 }
 
 /**

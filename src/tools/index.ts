@@ -83,6 +83,7 @@ export { todoMessages, todoOf, type Todo } from './todo.ts';
 export { exportOf, readReturned, type ExchangeFormat, type Exported, type Returned } from './exchange.ts';
 export { SarifReport, type SarifResult, type SarifTool } from './sarif.ts';
 export {
+  formattedInCode,
   hardcodedText,
   isReferenced,
   keyRefs,
@@ -91,6 +92,7 @@ export {
   scan,
   sourceFiles,
   unseenReads,
+  type Formatted,
   type Hardcoded,
   type KeyRefs,
   type Reads,

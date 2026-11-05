@@ -166,7 +166,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `duplicates.ts`'s, and each finding carries its group (`Report.group`), which the CLI's text says once. `named-format` compares
   what each formatter resolves to in the locale with each named format's, so it finds only true twins. No-break spaces are
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
-  `scan.ts`: hardcoded text, key references, and `unseenReads`. Hardcoded text is JSX's, what its
+  `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
+  finds `toLocale*String` calls, `Intl` formatters and a component's `.join(', ')`, and names the
+  copy's method to read, with a named format whose options resolve as the written ones do. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
   and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build

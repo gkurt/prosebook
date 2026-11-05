@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads } from 'prosebook/tools';
+import { formattedInCode, hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads } from 'prosebook/tools';
 
 import { whereOf } from '#src/tools/scan.ts';
 
@@ -78,6 +78,33 @@ export function save() {
     // Outside a component, a title or description is as often a model's or an API's.
     expect(found('A.ts', code, options).filter((f) => f.includes(': '))).toEqual([]);
   });
+});
+
+test('numbers, dates and lists formatted in code are found, with the copy method and named format to read', () => {
+  const formats = { number: { price: { style: 'currency', currency: 'USD' } }, date: { day: { dateStyle: 'medium' } } } as const;
+  const code = `
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const big = new Intl.NumberFormat(undefined, { notation: 'compact' });
+export const Row = ({ n, when, names, rows }) => (
+  <p>
+    {n.toLocaleString()} {when.toLocaleDateString()} {when.toLocaleString('en', { dateStyle: 'medium' })}
+    {names.join(', ')} {rows.join('\\n')}
+    {/* prosebook-ignore */}
+    {n.toLocaleString()}
+  </p>
+);`;
+  const found = (file: string) => formattedInCode(file, code, formats).map((f) => `${f.line} ${f.code}: ${f.fix}`);
+  expect(found('Row.tsx')).toEqual([
+    "2 new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): copy.number(…, 'price'), which shows it as the format the config names",
+    "3 new Intl.NumberFormat(undefined, { notation: 'compact' }): copy.number(…) with these options, or name them under formats.number and pass the name",
+    "6 n.toLocaleString(): copy.number(n) or copy.date(n), in the copy's locale",
+    "6 when.toLocaleDateString(): copy.date(when), in the copy's locale",
+    "6 when.toLocaleString('en', { dateStyle: 'medium' }): copy.date(when, 'day'), which shows it as the format the config names",
+    "7 names.join(', '): copy.list(names), in the copy's locale",
+  ]);
+  // Only a component's join is a list a person reads; tests and stories are left out.
+  expect(found('row.ts').some((f) => f.includes('join'))).toBe(false);
+  expect(found('Row.test.tsx')).toEqual([]);
 });
 
 test('code-like tokens are not prose', () => {

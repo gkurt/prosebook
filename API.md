@@ -804,6 +804,16 @@ what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`
 `confirm`), and in components the values of `scan.properties`. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
 and stories are left out; mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 
+It also finds numbers, dates and lists formatted in code, which show the browser's locale rather than the copy's:
+`toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, and in components
+`.join(', ')`. Each says what to read instead, naming the [format](#named-formats) its options match:
+
+```
+src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): read copy.number(…, 'price'), which shows it as the format the config names
+```
+
+`scan` reports them; `scan --strict` fails on them, as on hardcoded text.
+
 ### SARIF
 
 ```yaml
