@@ -21,7 +21,9 @@
     "examples/*/.output/**",
     "examples/*/.tanstack/**",
     "examples/*/next-env.d.ts",
-    "examples/*/src/routeTree.gen.ts"
+    "examples/*/src/routeTree.gen.ts",
+    "site/src/copy/**",
+    "site/.astro/**"
   ],
   "rules": {
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }],

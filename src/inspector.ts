@@ -10,15 +10,7 @@
 import type { DevHooks } from '#src/runtime/types.ts';
 
 import { openDialog } from './inspector-dialog.ts';
-
-export interface Read {
-  key: string;
-  /** The locale the message was found in. */
-  locale: string;
-}
-
-/** Recent reads by the text they came to, least recent text first; each text's keys most recent first. */
-export type Reads = Map<string, Read[]>;
+import { record, type Read, type Reads } from './reads.ts';
 
 /** The character under the pointer: a text node and its index there. */
 export interface Caret {
@@ -35,17 +27,7 @@ export interface Hit {
   element: Element;
 }
 
-// Enough for every string on a busy screen and the ones it showed a moment ago.
-const LIMIT = 2000;
 const ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt', 'value'];
-
-export function record(reads: Reads, key: string, text: string, locale: string): void {
-  if (text.trim() === '') return;
-  const seen = reads.get(text) ?? [];
-  reads.delete(text);
-  reads.set(text, seen[0]?.key === key && seen[0].locale === locale ? seen : [{ key, locale }, ...seen.filter((r) => r.key !== key)]);
-  if (reads.size > LIMIT) reads.delete(reads.keys().next().value!);
-}
 
 /**
  * The read under the caret: the longest text that covers it, in the innermost element holding all of
@@ -122,6 +104,18 @@ export function install({ base }: InspectorOptions): void {
   if (hooks.__PROSEBOOK_READ__ !== undefined) return;
   const reads: Reads = new Map();
   hooks.__PROSEBOOK_READ__ = (key, text, locale) => record(reads, key, text, locale);
+  // What a server render read, as Astro's pages and a framework's first frame are: asked for again each
+  // time Alt goes down, since a page the server renders again after an edit runs no script to say so.
+  let served: Reads = new Map();
+  const fetchServed = () =>
+    fetch(`${base}__prosebook/reads`)
+      .then(async (res) => {
+        if (res.ok) served = new Map((await res.json()) as [string, Read[]][]);
+      })
+      .catch(() => undefined);
+  void fetchServed();
+  // The browser's own reads win where both came to the same text: they are the more recent.
+  const known = () => (served.size === 0 ? reads : new Map([...served, ...reads]));
 
   const box = document.createElement('div');
   const label = document.createElement('div');
@@ -150,7 +144,7 @@ export function install({ base }: InspectorOptions): void {
 
   const hitAt = (x: number, y: number) => {
     const target = document.elementFromPoint(x, y);
-    return target === null ? undefined : keyAt(target, caretAt(x, y), reads);
+    return target === null ? undefined : keyAt(target, caretAt(x, y), known());
   };
   const hide = () => {
     box.style.display = 'none';
@@ -179,7 +173,14 @@ export function install({ base }: InspectorOptions): void {
     },
     { capture: true, passive: true },
   );
-  window.addEventListener('keydown', update, true);
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === 'Alt' && !e.repeat) void fetchServed().then(() => update(e));
+      update(e);
+    },
+    true,
+  );
   window.addEventListener('keyup', update, true);
   window.addEventListener('blur', hide);
   // Alt-click on a link would otherwise download it, and on a field focus it.

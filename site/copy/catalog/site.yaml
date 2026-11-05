@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=./catalog.schema.json
+site.description:
+  kind: description
+  surface: hint
+  context: The page's description, which search engines show under its title.
+  en: Every string your app shows, in one typed catalog. ICU and MessageFormat 2 compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.
+
+site.image:
+  kind: description
+  surface: aria
+  context: Describes the picture a link to the page shows where it is shared.
+  en: The prosebook icon, an open book with prose on one page and braces on the other, beside its name.
+
+site.in-context:
+  kind: name
+  surface: label
+  context: In the top bar, links to the live demo of the inspector further down the page.
+  en: In context
+
+site.docs:
+  kind: name
+  surface: label
+  context: In the top bar, links to the API reference.
+  en: Docs
+
+site.github:
+  kind: name
+  surface: label
+  context: In the top bar, links to the repository.
+  en: GitHub
+
+site.works-with:
+  kind: name
+  surface: aria
+  context: Names the list of frameworks and bundlers under the first example, for a screen reader.
+  en: Works with
+
+site.terminal:
+  kind: name
+  surface: label
+  context: Heads a code sample that shows commands typed in a terminal and what they print.
+  en: terminal
+
+site.license:
+  kind: description
+  surface: hint
+  context: In the footer. The link opens the author's site.
+  args:
+    link: links to the author's site
+  en: MIT licensed. Made by <link>Gokhan Kurt</link>.

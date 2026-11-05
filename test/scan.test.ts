@@ -249,4 +249,32 @@ describe('reads a pruned build cannot see', () => {
       '12:52 Text <Text id="a.{name}" />',
     ]);
   });
+
+  test("an Astro component's reads are found in its frontmatter, its markup's expressions, markup in them included, and its scripts", () => {
+    const code = [
+      '---',
+      "import { t, rich } from '../copy.ts';",
+      "const title = t('a.title') + t(name);",
+      '---',
+      '<!-- t(commented) -->',
+      '<h1 title={t(hint)}>{t(`a.${id}`)} {copy.t(item.key)}</h1>',
+      "<p>{rich('a.terms', { link: (chunks) => <a href={t(href)}>{chunks}</a> })}</p>",
+      "<code>{'{'} t(key) {'}'}</code>",
+      '<ul>{items.map((item) => <li {...t(spread)}>{t(item.key)}</li>)}</ul>',
+      '<script>',
+      "  import { t } from '../copy.ts';",
+      '  document.title = t(later);',
+      '</script>',
+      '<style>h1 { color: red }</style>',
+    ].join('\n');
+    expect(at('A.astro', code)).toEqual([
+      '3:30 t t(name)',
+      '6:12 t t(hint)',
+      '6:37 t copy.t(item.key)',
+      '7:50 t t(href)',
+      '9:34 t t(spread)',
+      '9:46 t t(item.key)',
+      '12:20 t t(later)',
+    ]);
+  });
 });

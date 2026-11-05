@@ -39,6 +39,7 @@ import {
   areasNamed,
   beside,
   brokenIn,
+  DEV,
   buildIndex,
   type Groups,
   HOT_INDEX,
@@ -61,7 +62,7 @@ import { CatalogError, type EntryLocation } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
-import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
+import { inspectorEndpoints, nodeMiddleware, redirect, serverReads } from './tools/endpoints.ts';
 import { generate, writeFiles, type Generated } from './tools/generate.ts';
 import { keyRefs, SFC, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
@@ -96,8 +97,7 @@ export interface ProsebookPluginOptions {
 }
 
 const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
-const SCRIPT = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
-const DEV = 'virtual:prosebook/dev';
+const SCRIPT = /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/;
 const DEV_ID = '\0prosebook/dev';
 const AREA_ID = '\0prosebook/area/';
 
@@ -121,6 +121,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   const placeholders: { locale: string; areas?: string[] }[] = [];
   let groups: Groups = new Map();
   const shipped = { total: 0, kept: 0 };
+  let stopReads: (() => void) | undefined;
 
   const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 
@@ -204,7 +205,15 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       // Each entry opens through Vite's own `/__open-in-editor`, so the editor is whichever Vite launches.
       const editor = ({ file, line, column }: EntryLocation) =>
         redirect(`${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`);
-      server.middlewares.use(nodeMiddleware(inspectorEndpoints(config, { base, open: editor })));
+      // A server render (Astro's, a framework's first frame) runs here, in this process.
+      const served = serverReads();
+      stopReads = served.stop;
+      server.middlewares.use(nodeMiddleware(inspectorEndpoints(config, { base, open: editor, reads: served.reads })));
+    },
+
+    // In dev, once the server closes.
+    closeBundle() {
+      stopReads?.();
     },
 
     load(id, loadOptions) {
@@ -259,7 +268,10 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
           keyRefs(code, refs);
           if (prune === 'strict' && SCRIPT.test(path) && !part && !own) reads.set(id, unseenReads(path, code));
         }
-        if (!splitting(ssr) || !SCRIPT.test(path) || part || own) return null;
+        // An Astro component runs on the server alone; its `<script>` is a module the browser loads by itself.
+        const astro = path.endsWith('.astro');
+        const script = astro ? part && /[?&]type=script\b/.test(id) : SCRIPT.test(path) && !part;
+        if (!splitting(ssr) || !script || own) return null;
         const areas = areasNamed(code, lazyAreas(generated!, options.keep));
         return areas.length === 0 ? null : { code: importingAreas(code, path, areas), map: null };
       },

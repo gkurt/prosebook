@@ -27,7 +27,7 @@ const { t } = useCopy();
 - **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is about 2.5 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build, and a translation whose source
   changed is marked stale.
-- **Pruned.** Vite, Next.js and Bun builds ship only the messages the code reads, and can split them by route.
+- **Pruned.** Vite, Next.js, Bun and Astro builds ship only the messages the code reads, and can split them by route.
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 
@@ -62,7 +62,7 @@ plugins = ["prosebook/bun"]
 ```
 
 Keep `src/copy/`, `copy/catalog/catalog.schema.json` and `copy/catalog/WRITING.md` out of your formatter: `generate --check`
-compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, Bun and shared catalogs.
+compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, Bun, [Astro](API.md#astro) and shared catalogs.
 
 ## Reading messages
 
@@ -177,6 +177,8 @@ Each is a small shop in English, German and the pseudo-locale.
 | [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale.     |
 | [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page and the inspector.                    |
 | [`examples/node`](examples/node)                     | No framework and no bundler: a Node script prints a receipt.        |
+
+The homepage, [`site`](site), is an Astro site reading its words from a catalog of its own.
 
 ## Contributing
 

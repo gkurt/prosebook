@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=./catalog.schema.json
+translators.eyebrow:
+  kind: name
+  surface: label
+  context: The small line above the heading of the section on translating.
+  en: For translators
+
+translators.title:
+  kind: description
+  surface: heading
+  context: Heads the section on translating, over the commands that show and fill what is stale.
+  en: Know what changed since the last translation.

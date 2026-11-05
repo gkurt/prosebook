@@ -300,7 +300,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     extract: { ...config.extract },
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
-      extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte'],
+      extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte', '.astro'],
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],

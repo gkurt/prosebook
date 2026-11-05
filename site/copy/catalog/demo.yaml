@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=./catalog.schema.json
+demo.eyebrow:
+  kind: name
+  surface: label
+  context: The small line above the heading of the live demo of the inspector.
+  en: In dev
+
+demo.title:
+  kind: description
+  surface: heading
+  context: Heads the live demo of the inspector.
+  en: Point at a string, land on its entry.
+
+demo.intro:
+  kind: description
+  surface: hint
+  context: Under the demo's heading, above a mock shop and a mock editor.
+  en: 'In your running app, under Vite, Next.js, Bun or Astro. Try it on the shop:'
+
+demo.locale:
+  kind: name
+  surface: aria
+  context: Names the two buttons that switch the mock shop between English and German.
+  en: Locale
+
+demo.hint:
+  kind: description
+  surface: hint
+  context: Under the mock shop. The key is Alt, or Option on a Mac.
+  args:
+    key: the name of the key on the keyboard
+    kbd: marks the key's name as a key
+  en: Hold <kbd>{key}</kbd> and click a string, or right-click it to edit it here.
+
+demo.inspect:
+  kind: action
+  surface: action
+  context: Beside the hint under the mock shop. Turns pointing at strings on and off, for those without a keyboard.
+  en: Inspect
+
+demo.editor:
+  kind: name
+  surface: label
+  context: In the mock editor's title bar, before an entry is open.
+  en: your editor
+
+demo.empty:
+  kind: state
+  surface: empty
+  context: Fills the mock editor before an entry is open.
+  en: The entry you click opens here, as it would in your editor.
+
+demo.start:
+  kind: description
+  surface: hint
+  context: Under the mock editor, before an entry is open.
+  en: Shift-click opens the catalog entry, even for a translated string.
+
+demo.translation:
+  kind: state
+  surface: status
+  context: Under the mock editor, once it shows the German entry of the string clicked.
+  en: The German translation.
+
+demo.fallback:
+  kind: state
+  surface: status
+  context: Under the mock editor, once it shows the English entry of a string the German shop shows in English.
+  en: No German translation, so the string fell back to the catalog.
+
+demo.catalog:
+  kind: state
+  surface: status
+  context: Under the mock editor, once it shows the English entry of the string clicked.
+  en: The catalog entry.
+
+demo.edit:
+  kind: description
+  surface: hint
+  context: After the sentence saying which entry the mock editor shows.
+  en: 'Edit the message: the shop updates in place.'
+
+demo.saved:
+  kind: state
+  surface: status
+  context: Under the mock editor, once an edit there has changed the mock shop.
+  en: Saved. prosebook regenerated, and the page swapped the message in without reloading.
+
+demo.dialog-saved:
+  kind: state
+  surface: status
+  context: Under the mock editor, once an edit in the mock dialog has changed the mock shop.
+  args:
+    key: the key of the entry saved, such as cart.title
+  en: Saved {key} from the dialog. prosebook regenerated, and the page swapped it in without reloading.
+
+demo.finding:
+  kind: state
+  surface: hint
+  context: Under the mock shop, points at a string lint has something to say about.
+  args:
+    text: the string, as the shop shows it
+    key: its key, such as cart.checkout
+  en: Lint has a finding on “{text}” ({key}). Right-click that string with Alt held, or while inspecting, to see it and fix it.
+
+demo.clean:
+  kind: state
+  surface: hint
+  context: Under the mock shop, once lint finds nothing in its strings.
+  en: Lint has nothing to say about these strings now.

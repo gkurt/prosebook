@@ -1,11 +1,16 @@
 /**
  * The dev server's half of the inspector (`inspector.ts`, `inspector-dialog.ts`): `__prosebook/open`,
- * which opens an entry in the editor, and `__prosebook/entry`, which reads and edits one. Written over
+ * which opens an entry in the editor, `__prosebook/entry`, which reads and edits one, and, where the
+ * server renders in this process, `__prosebook/reads`, what those renders read. Written over
  * `Request` and `Response`, so each integration mounts them its own way: Vite as middleware, Bun as
  * `Bun.serve` routes, Next behind a rewrite to a server of their own. Each opens the editor its dev
  * server already launches.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+
+import type { DevHooks, ReadHook } from '#src/runtime/types.ts';
+
+import { record, type Reads } from '#src/reads.ts';
 
 import { CatalogError, entryLocation, loadCatalog, type EntryLocation } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
@@ -16,15 +21,18 @@ export interface EndpointOptions {
   base?: string;
   /** Opens an entry in the editor: a redirect to the dev server's own launcher, or a reply once it has. */
   open: (at: EntryLocation) => Response | Promise<Response>;
+  /** What server renders in this process read (`serverReads`), for text the browser never read. */
+  reads?: Reads;
 }
 
 /** Answers the inspector's requests, and nothing for any other path. */
 export function inspectorEndpoints(
   config: ResolvedConfig | Promise<ResolvedConfig>,
-  { base = '/', open }: EndpointOptions,
+  { base = '/', open, reads }: EndpointOptions,
 ): (req: Request) => Promise<Response | undefined> {
   return async (req) => {
     const url = new URL(req.url);
+    if (url.pathname === `${base}__prosebook/reads`) return Response.json(reads === undefined ? [] : [...reads]);
     if (url.pathname === `${base}__prosebook/open`) return openEntry(await config, url, open);
     if (url.pathname === `${base}__prosebook/entry`) return entry(await config, req, url);
     return undefined;
@@ -73,6 +81,38 @@ async function entry(config: ResolvedConfig, req: Request, url: URL): Promise<Re
   } catch (e) {
     return failed(e);
   }
+}
+
+/**
+ * Starts recording what every copy in this process reads, as the browser's inspector does on the page:
+ * a dev server rendering pages in its own process (Vite's, Astro's) hands these to the inspector, so
+ * text only the server read can be traced too. The process's one record, however many servers ask,
+ * which stops once the last of them has.
+ */
+export function serverReads(): { reads: Reads; stop: () => void } {
+  const hooks = globalThis as DevHooks & { __PROSEBOOK_SERVED__?: Served };
+  let served = hooks.__PROSEBOOK_SERVED__;
+  if (served === undefined) {
+    const reads: Reads = new Map();
+    served = hooks.__PROSEBOOK_SERVED__ = { reads, servers: 0, hook: (key, text, locale) => record(reads, key, text, locale) };
+  }
+  served.servers += 1;
+  hooks.__PROSEBOOK_READ__ ??= served.hook;
+  let stopped = false;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if ((served.servers -= 1) > 0) return;
+    delete hooks.__PROSEBOOK_SERVED__;
+    if (hooks.__PROSEBOOK_READ__ === served.hook) delete hooks.__PROSEBOOK_READ__;
+  };
+  return { reads: served.reads, stop };
+}
+
+interface Served {
+  reads: Reads;
+  servers: number;
+  hook: ReadHook;
 }
 
 /** A redirect within the page's origin, to a launcher the dev server answers itself. */

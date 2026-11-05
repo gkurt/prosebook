@@ -2,7 +2,7 @@
 
 The full reference. For an overview, see the [README](README.md).
 
-- [Integrations](#integrations): [Vite](#vite) · [Next.js](#nextjs) · [Bun](#bun) · [Options](#integration-options)
+- [Integrations](#integrations): [Vite](#vite) · [Next.js](#nextjs) · [Bun](#bun) · [Astro](#astro) · [Options](#integration-options)
 - [Runtime](#runtime): [`createCopy`](#createcopy) · [A copy](#a-copy) · [Locales](#locales) · [Types](#types) · [Errors](#errors)
 - [Bindings](#bindings): [React](#react) · [Preact](#preact) · [Vue](#vue) · [Svelte](#svelte) · [Solid](#solid) ·
   [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server) · [In tests](#in-tests)
@@ -98,9 +98,33 @@ import { prosebook } from 'prosebook/bun';
 export default prosebook({ split: true });
 ```
 
+### Astro
+
+```ts
+// astro.config.ts
+import { prosebook } from 'prosebook/astro';
+
+export default defineConfig({ integrations: [prosebook()] });
+```
+
+```astro
+---
+import { rich, t } from '../copy.ts'; // export const { t, rich } = createCopy(catalog);
+---
+
+<h1>{t('home.title')}</h1>
+<p>{rich('home.terms', { link: (chunks) => <a href="/terms">{chunks}</a> })}</p>
+```
+
+- The Vite plugin, with its [options](#integration-options), and the [inspector](#inspector) on every page in dev, a page with no
+  script included.
+- A page reads as the server renders it; a `<script>` reads in the browser. Each build ships only the messages its side reads.
+- An edit reloads the page, rendered again with the new text.
+- With Astro's i18n routing, a copy per page: `createCopy(catalog, { locale: Astro.currentLocale })`, then `await copy.ready`.
+
 ### Integration options
 
-Each of `prosebook()` (Vite), `withProsebook(config, options)` and `prosebook()` (Bun) takes:
+Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (Bun) and `prosebook()` (Astro) takes:
 
 | Option    | Default    |                                                                                                              |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
@@ -1009,8 +1033,8 @@ t(STATUS[s]); // fine: STATUS is a const map of keys in this module
 t(id); // prosebook-ignore: every key it reads is written elsewhere
 ```
 
-Reads are known by name: `t` and `rich`, alone, as methods or destructured, and `<Text>` from any binding, in `.vue` and `.svelte`
-markup too. `prune: 'loose'` skips the check, `prune: false` ships everything. Under Next and Bun the source under `scan.dirs` is
+Reads are known by name: `t` and `rich`, alone, as methods or destructured, and `<Text>` from any binding, in `.vue`, `.svelte`
+and `.astro` markup too. `prune: 'loose'` skips the check, `prune: false` ships everything. Under Next and Bun the source under `scan.dirs` is
 read for keys.
 
 ### Splitting
@@ -1056,9 +1080,9 @@ In dev, with any integration:
   each. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place.
 - **Comment** and **Mark for removal** write `comment:` and `remove: true`, warnings in `generate` and `check` for whoever edits
   next, a coding agent included.
-- It matches the text under the pointer to what the runtime read: text changed after reading (`.toUpperCase()`) can't be traced,
-  and under Next only text read in the browser.
-- The editor: Vite's `/__open-in-editor` (`LAUNCH_EDITOR`), Next's `/__nextjs_launch-editor` (`REACT_EDITOR`), Bun's
+- It matches the text under the pointer to what the runtime read: text changed after reading (`.toUpperCase()`) can't be traced.
+  Under Vite and Astro that includes what the dev server rendered; under Next and Bun, only text read in the browser.
+- The editor: Vite's and Astro's `/__open-in-editor` (`LAUNCH_EDITOR`), Next's `/__nextjs_launch-editor` (`REACT_EDITOR`), Bun's
   `Bun.openInEditor` (`VISUAL`, `EDITOR`). Turn it off with `inspect: false`.
 
 ## Native targets

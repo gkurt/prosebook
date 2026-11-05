@@ -1,0 +1,289 @@
+---
+import '#src/site.css';
+
+import { rich, t } from '#src/copy.ts';
+
+const api = (section: string) => `https://github.com/gkurt/prosebook/blob/main/API.md${section === '' ? '' : `#${section}`}`;
+const repo = 'https://github.com/gkurt/prosebook';
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>prosebook</title>
+    <meta name="description" content={t('site.description')} />
+    <link rel="icon" href={`${base}icon.svg`} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
+    <meta name="theme-color" content="#7c3aed" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://gkurt.com/prosebook/" />
+    <meta property="og:title" content="prosebook" />
+    <meta property="og:description" content={t('hero.title')} />
+    <meta property="og:image" content="https://gkurt.com/prosebook/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={t('site.image')} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bar">
+        <a class="mark" href={base}><img src={`${base}icon.svg`} width="28" height="28" alt="" />prose<span>book</span></a>
+        <nav>
+          <a href="#in-context">{t('site.in-context')}</a>
+          <a href={api('')}>{t('site.docs')}</a>
+          <a href={repo}>{t('site.github')}</a>
+        </nav>
+      </div>
+
+      <header class="hero">
+        <h1>{t('hero.title')}</h1>
+        <p class="lede">{t('hero.lede')}</p>
+        <div class="actions">
+          <a class="btn primary" href="#in-context">{t('hero.try')}</a>
+          <a class="btn" href={api('')}>{t('hero.docs')}</a>
+        </div>
+      </header>
+
+      <div class="pair">
+        <div class="code">
+          <header>copy/catalog/cart.yaml</header>
+          <pre><span class="k">cart.items</span>:
+  <span class="k">kind</span>: state
+  <span class="k">surface</span>: status
+  <span class="k">context</span>: Under the cart heading, counts its items.
+  <span class="k">args</span>:
+    <span class="k">count</span>: how many items are in the cart
+  <span class="k">en</span>: <span class="s">'{'{'}count, plural, =0 {'{'}Your cart is empty.{'}'}
+    one {'{'}# item in your cart.{'}'}
+    other {'{'}# items in your cart.{'}'}{'}'}'</span></pre>
+        </div>
+        <div class="code">
+          <header>src/Cart.tsx</header>
+          <pre><span class="w">const</span> {'{'} t {'}'} = useCopy();
+
+&lt;p&gt;{'{'}t(<span class="s">'cart.items'</span>, {'{'} count {'}'}){'}'}&lt;/p&gt;
+<span class="c">// "3 items in your cart."</span>
+
+&lt;Text id=<span class="s">"cart.terms"</span> /&gt;
+<span class="c">// "By checking out you agree to our &lt;u&gt;terms of sale&lt;/u&gt;."</span></pre>
+        </div>
+      </div>
+
+      <ul class="chips" aria-label={t('site.works-with')}>
+        <li><a href={api('react')}>React</a></li>
+        <li><a href={api('preact')}>Preact</a></li>
+        <li><a href={api('vue')}>Vue</a></li>
+        <li><a href={api('svelte')}>Svelte</a></li>
+        <li><a href={api('solid')}>Solid</a></li>
+        <li><a href={api('plain-javascript')}>JavaScript</a></li>
+        <li class="sep" aria-hidden="true"></li>
+        <li><a href={api('vite')}>Vite</a></li>
+        <li><a href={api('nextjs')}>Next.js</a></li>
+        <li><a href={api('bun')}>Bun</a></li>
+        <li><a href={api('astro')}>Astro</a></li>
+      </ul>
+
+      <section class="block">
+        <p class="eyebrow">{t('features.eyebrow')}</p>
+        <h2>{t('features.title')}</h2>
+        <div class="shows">
+          <article>
+            <h3><a href={api('types')}>{t('features.types')}</a></h3>
+            <div class="code">
+              <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
+t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs {'{'} count {'}'}</span>
+t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3 items in your cart."</span></pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('messages')}>{t('features.compiled')}</a></h3>
+            <div class="code">
+              <header>{t('features.generated', { file: 'src/copy/en.ts' })}</header>
+              <pre><span class="s">"cart.title"</span>: <span class="s">"Cart"</span>,
+<span class="s">"cart.total"</span>: (a, h) =&gt; [<span class="s">"Total: "</span>, h.n(a.amount, o2) ?? h.e(<span class="s">"{'{'}amount{'}'}"</span>)],
+<span class="s">"cart.terms"</span>: (a, h) =&gt; [<span class="s">"By checking out you agree to our "</span>, h.t(a, <span class="s">"link"</span>, <span class="s">"terms of sale"</span>), <span class="s">"."</span>],</pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('translations')}>{t('features.translations')}</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook check
+<span class="x">error</span> copy/locales/de/cart.yaml cart.items: differs from the source: missing {'{'}count{'}'}; unknown {'{'}anzahl{'}'}</pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('lint')}>{t('features.lint')}</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook lint
+<span class="x">error</span> cart.remove: [plural-count] count is followed by "items", which reads "1 items": make it a plural with a "# item" arm
+<span class="x">error</span> cart.total: [formatted-by-hand] "€" is typed before amount: format it as a currency, which puts the symbol where the locale does</pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('builds')}>{t('features.builds')}</a></h3>
+            <div class="code">
+              <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
+<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span>
+
+t(item.key);
+<span class="x">// ✗ 1 read(s) whose key the build can't see, so their
+//   messages would be pruned and the key shown instead</span></pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('native-targets')}>{t('features.native')}</a></h3>
+            <div class="code">
+              <pre><span class="c">// Rust</span>
+copy.recordings(<span class="k">3</span>) <span class="c">// "3 Aufnahmen"</span>
+<span class="c">// Swift</span>
+copy.trayRecordings(count: <span class="k">3</span>)
+<span class="c">// Kotlin</span>
+copy.trayRecordings(<span class="k">3</span>)
+<span class="c">// and Android's and Apple's string resources</span></pre>
+            </div>
+          </article>
+        </div>
+        <p class="more">
+          {t('features.also')}
+          <a href={api('named-formats')}>{t('features.also.named-formats')}</a> ·
+          <a href={api('icu-messageformat')}>{t('features.also.lists')}</a> ·
+          <a href={api('find')}>{t('features.also.find')}</a> ·
+          <a href={api('extract')}>{t('features.also.extract')}</a> ·
+          <a href={api('rename')}>{t('features.also.rename')}</a> ·
+          <a href={api('diff')}>{t('features.also.diff')}</a> ·
+          <a href={api('pseudo-locale')}>{t('features.also.pseudo')}</a>
+        </p>
+      </section>
+
+      <section class="block" id="in-context">
+        <p class="eyebrow">{t('demo.eyebrow')}</p>
+        <h2>{t('demo.title')}</h2>
+        <p class="intro">{t('demo.intro')}</p>
+
+        <div class="demo">
+          <div class="window">
+            <div class="chrome">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="grow">localhost:5173</span>
+              <span class="seg" role="group" aria-label={t('demo.locale')}>
+                <button type="button" data-locale="en" aria-pressed="true">en</button>
+                <button type="button" data-locale="de" aria-pressed="false">de</button>
+              </span>
+            </div>
+            <div class="app" id="app">
+              <div class="outline" id="outline"><span></span></div>
+              <h4 data-key="cart.title"></h4>
+              <div data-key="cart.items"></div>
+              <div class="row">
+                <button type="button" class="ui" data-key="cart.add" data-act="add"></button>
+                <button type="button" class="ui" data-key="cart.remove" data-act="empty"></button>
+                <button type="button" class="ui primary" data-key="cart.checkout"></button>
+              </div>
+              <p class="small" data-key="cart.shipping"></p>
+              <p class="small" data-key="cart.terms"></p>
+            </div>
+            <div class="hint">
+              <span id="hint">{rich('demo.hint', { key: 'Alt', kbd: (chunks) => <kbd>{chunks}</kbd> })}</span>
+              <button type="button" class="toggle" id="inspect" aria-pressed="false">{t('demo.inspect')}</button>
+            </div>
+            <div class="lint-note" id="lint-note" aria-live="polite"></div>
+          </div>
+
+          <div class="window">
+            <div class="chrome">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="grow" id="file">{t('demo.editor')}</span>
+            </div>
+            <div class="editor" id="editor">
+              <div class="empty">{t('demo.empty')}</div>
+            </div>
+            <div class="status" id="status" aria-live="polite">{t('demo.start')}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <p class="eyebrow">{t('translators.eyebrow')}</p>
+        <h2>{t('translators.title')}</h2>
+        <div class="pair">
+          <div class="code">
+            <header>{t('site.terminal')}</header>
+            <pre><span class="c">$</span> prosebook status --verbose
+de           13/14  92%        1      2
+  stale   cart.add: Add <span class="add">{'{'}+one +{'}'}</span>to cart
+  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{'{'}+Pay now+{'}'}</span>
+
+<span class="c">$</span> prosebook todo de
+<span class="c"># The button on a product that adds one to the cart.</span>
+<span class="c"># kind: action, surface: action</span>
+<span class="c"># en: Add one to cart</span>
+<span class="c"># stale, the source changed: Add {'{'}+one +{'}'}to cart</span>
+<span class="k">cart.add</span>: In den Warenkorb</pre>
+          </div>
+          <div class="code">
+            <header>{t('site.terminal')}</header>
+            <pre><span class="c"># with any model</span>
+<span class="c">$</span> prosebook todo de --prompt | pbcopy
+<span class="c">$</span> prosebook import de reply.md
+
+<span class="c"># with any translation tool</span>
+<span class="c">$</span> prosebook export de de.xlf
+<span class="c">$</span> prosebook import de de.xlf
+
+<span class="c"># every entry checked before it's written</span></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="start">
+        <p class="eyebrow">{t('start.eyebrow')}</p>
+        <h2>{t('start.title')}</h2>
+        <div class="steps">
+          <div class="code">
+            <header>{t('start.install')}</header>
+            <pre><span class="c">$</span> bun add prosebook
+<span class="c">$</span> bunx prosebook init</pre>
+          </div>
+          <div class="code">
+            <header>2. vite.config.ts</header>
+            <pre><span class="w">import</span> {'{'} prosebook {'}'} <span class="w">from</span> <span class="s">'prosebook/vite'</span>;
+
+plugins: [react(), prosebook()]</pre>
+          </div>
+          <div class="code">
+            <header>3. main.tsx</header>
+            <pre><span class="w">const</span> copy = createCopy(catalog, {'{'}
+  locale: preferredLocales(),
+{'}'});
+&lt;CopyProvider copy={'{'}copy{'}'}&gt;…</pre>
+          </div>
+        </div>
+        <p class="more">
+          {
+            rich('start.more', {
+              integrations: (chunks) => <a href={api('integrations')}>{chunks}</a>,
+              bindings: (chunks) => <a href={api('bindings')}>{chunks}</a>,
+            })
+          }
+        </p>
+      </section>
+
+      <footer>
+        <span>{rich('site.license', { link: (chunks) => <a href="https://gkurt.com">{chunks}</a> })}</span>
+        <span><a href={repo}>github.com/gkurt/prosebook</a></span>
+      </footer>
+    </div>
+
+    <script src="../demo.ts"></script>
+  </body>
+</html>

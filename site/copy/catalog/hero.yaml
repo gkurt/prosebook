@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=./catalog.schema.json
+hero.title:
+  kind: description
+  surface: heading
+  context: The page's headline, and what a link to it says where it is shared.
+  en: Every string your app shows, in one typed catalog.
+
+hero.lede:
+  kind: description
+  surface: hint
+  context: Under the headline, says how the catalog and the code divide the work.
+  en: The words live in YAML, beside the context a translator needs. The code holds only keys.
+
+hero.try:
+  kind: action
+  surface: action
+  context: The main button under the headline. Scrolls to the live demo of the inspector.
+  en: Try it on the page
+
+hero.docs:
+  kind: action
+  surface: action
+  context: The second button under the headline. Opens the API reference.
+  en: Read the docs

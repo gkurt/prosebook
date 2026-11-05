@@ -14,9 +14,9 @@ bun run checks     # check + typecheck + test
 bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/vite`
 bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
-bun run examples:generate     # build, then `prosebook generate` in every example
+bun run examples:generate     # build, then `prosebook generate` in every example and the site
 bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
-bun run site       # the homepage (site/) in _site/, as Pages deploys it
+bun run site       # build, then the homepage (site/, Astro) into _site/, as Pages deploys it
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
 
@@ -29,7 +29,7 @@ Releases are Tegami's: a change that ships gets a `.tegami/<slug>.md` entry (the
 `release.yml` turns pending entries into a version PR, then publishes. Never edit `version` in
 `package.json` or put a version in a commit title; only that workflow bumps it.
 
-After changing the compiler or the generator, regenerate the examples (`bun run examples:generate`) and
+After changing the compiler or the generator, regenerate the examples and the site (`bun run examples:generate`) and
 commit their `src/copy/`, so they show the current output; CI fails on an example whose output is stale.
 
 ## Structure
@@ -75,7 +75,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
-Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):
+Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, `prosebook/astro`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
@@ -184,10 +184,10 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
   and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
   can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding); a read
-  through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`
-  or `.svelte` file is read as its script blocks and the expressions in its markup, each parsed apart
-  at its offset, so lines and `prosebook-ignore` hold; Vite reads such a file whole, not the parts its
-  compiler splits off. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
+  through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`, `.svelte`
+  or `.astro` file is read as its script blocks, Astro's frontmatter and the expressions in its markup,
+  each parsed apart at its offset, so lines and `prosebook-ignore` hold (Astro's as TSX, since its
+  expressions hold markup); Vite reads such a file whole, not the parts its compiler splits off. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
   reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
@@ -216,7 +216,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   A guess that costs a request when wrong, never a message: the copy takes each area's own keys.
   `endpoints.ts`: the inspector's `/__prosebook/open` and `/__prosebook/entry` over `Request` and
   `Response`, with each dev server's editor launcher handed in as `open`; `nodeMiddleware` mounts them
-  on Vite's server and Next's.
+  on Vite's server and Next's. Vite's adds `/__prosebook/reads`: `serverReads` sets the read hook in
+  the dev server's own process, where Vite's and Astro's server renders run, until the last server
+  using it closes, so text only the server read can be traced too.
 - `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
   are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
@@ -263,9 +265,14 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   to `node_modules/.prosebook/area-files.json` and fills the server index's placeholder `areaFiles`
   in the written output, from this build's page or, in a server's own build, from that file.
   bunfig.toml takes a module's default export, so the example's dev plugin is `prosebook.plugin.ts`.
+- `src/astro.ts`: the Astro integration: the Vite plugin, and the dev module injected into every
+  page, since a page Astro renders may have no script importing the index. Astro leaves a module the
+  browser imports too to the browser's hot update, which can't change the HTML the server wrote, so
+  `reloadOnEdit` drops a generated module's update from the server's runner and reloads the page.
 - `src/inspector.ts`: browser code, loaded from beside each integration (a tsdown entry of its own).
   `install` runs once per page, since Bun and Next run the index again on every change. Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
-  keys. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
+  keys, and to those the server reported (`/__prosebook/reads`), asked for again each time Alt goes
+  down. `src/reads.ts` is the record of them both keep. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
   shadow root, which edits an entry through the plugin's `/__prosebook/entry`. While typing it posts
   the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships
   to the browser. Its comment field and Mark for removal write the entry's `comment` and `remove`:
@@ -294,13 +301,16 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   create, as it does a translation file. `planMerge` is `lint --fix --unsafe`'s merge of each
   `duplicate` group, through the same moves and code rewrite (`rewriteCode`, here without a prefix).
 
-`site/index.html` is the homepage, and the only demo: `.github/workflows/pages.yml` deploys it on every
-push to main. Its in-context demo recreates the inspector over a copy of `examples/vite`'s cart catalog, so
+`site/` is the homepage, and the only demo: an Astro site and a workspace, importing prosebook from `dist`
+as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` builds it into `_site` and
+deploys it on every push to main. Its words are its own catalog's (`site/copy/catalog`), read by the
+page as it is built and by `src/demo.ts` in the browser; code samples and the tool's own words, which
+prosebook says in English, stay in the code. Its in-context demo (`src/demo.ts`) recreates the inspector over a copy of `examples/vite`'s cart catalog, so
 keep it in step when the inspector or that catalog changes. The page shows rather than tells: each feature is a
 heading linking to its section of API.md over a small example, its output copied from the real tools; a new
 feature joins the "Also" line under them rather than adding prose. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
-`site/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
+`site/public/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.
 

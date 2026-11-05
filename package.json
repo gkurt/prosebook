@@ -3,6 +3,7 @@
   "version": "0.9.0",
   "description": "Every string your app shows, in one typed catalog: ICU messages compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.",
   "keywords": [
+    "astro",
     "bun",
     "i18n",
     "icu",
@@ -40,7 +41,8 @@
     "prosebook": "./dist/cli.js"
   },
   "workspaces": [
-    "examples/*"
+    "examples/*",
+    "site"
   ],
   "files": [
     "dist",
@@ -130,6 +132,13 @@
         "default": "./dist/bun.js"
       }
     },
+    "./astro": {
+      "prosebook@dev": "./src/astro.ts",
+      "import": {
+        "types": "./dist/astro.d.ts",
+        "default": "./dist/astro.js"
+      }
+    },
     "./config": {
       "prosebook@dev": "./src/tools/config.ts",
       "import": {
@@ -158,9 +167,9 @@
     "prepack": "tsdown",
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
     "example": "tsdown && bun run --cwd examples/vite dev",
-    "examples:generate": "tsdown && bun run --filter 'example-*' generate",
+    "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",
-    "site": "rm -rf _site && mkdir -p _site && cp -R site/* _site/",
+    "site": "tsdown && bun run --cwd site build",
     "prepare": "husky",
     "tegami": "bun scripts/tegami.mts"
   },
@@ -176,6 +185,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "astro": "^7.4.5",
     "cldr-core": "48",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
@@ -194,6 +204,7 @@
     "vue": "^3.5.44"
   },
   "peerDependencies": {
+    "astro": ">=6",
     "next": ">=16",
     "preact": ">=10",
     "react": ">=18",
@@ -204,6 +215,9 @@
     "vue": ">=3.5"
   },
   "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    },
     "next": {
       "optional": true
     },

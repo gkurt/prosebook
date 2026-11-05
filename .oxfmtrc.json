@@ -17,6 +17,8 @@
     "examples/*/.tanstack/**",
     "examples/*/next-env.d.ts",
     "examples/*/src/routeTree.gen.ts",
+    "site/src/copy/**",
+    "site/.astro/**",
     "**/catalog.schema.json",
     "**/copy/lock.json",
     "test/.tmp/**"

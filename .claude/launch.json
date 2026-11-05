@@ -52,8 +52,9 @@
     {
       "name": "site",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["x", "vite", "preview", "--outDir", "_site", "--port", "4173", "--strictPort"],
-      "port": 4173
+      "runtimeArgs": ["run", "--cwd", "site", "dev", "--port", "4321"],
+      "port": 4321,
+      "url": "http://localhost:4321"
     }
   ]
 }

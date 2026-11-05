@@ -46,3 +46,21 @@ jobs:
       - working-directory: examples/${{ matrix.example }}
         run: bun run --if-present build
       - run: bun scripts/smoke.mts ${{ matrix.example }}
+
+  # The homepage, an Astro app on the package as built: its catalog is generated and passes lint, it
+  # typechecks, and it builds, as Pages builds it.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun i --frozen-lockfile
+      - run: bun run build
+      # prosebook's bin exists only once built, so the site is linked again to get it.
+      - run: rm -rf site/node_modules && bun i --frozen-lockfile
+      - working-directory: site
+        run: bun run check
+      - working-directory: site
+        run: bun run typecheck
+      - working-directory: site
+        run: bun run build

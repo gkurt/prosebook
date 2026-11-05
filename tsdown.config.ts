@@ -16,6 +16,7 @@ export default defineConfig({
     next: 'src/next.ts',
     'next-loader': 'src/next-loader.ts',
     bun: 'src/bun.ts',
+    astro: 'src/astro.ts',
     inspector: 'src/inspector.ts',
     config: 'src/tools/config.ts',
     tools: 'src/tools/index.ts',

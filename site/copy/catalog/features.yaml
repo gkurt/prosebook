@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=./catalog.schema.json
+features.eyebrow:
+  kind: name
+  surface: label
+  context: The small line above the heading of the section listing what prosebook does.
+  en: What you get
+
+features.title:
+  kind: description
+  surface: heading
+  context: Heads the section listing what prosebook does, each with a code sample.
+  en: Words you can change without touching code, checked like code.
+
+features.types:
+  kind: state
+  surface: heading
+  context: Over a code sample where a misspelled key and a missing argument fail to compile. Links to the docs on types.
+  en: A wrong key doesn't compile
+
+features.compiled:
+  kind: state
+  surface: heading
+  context: Over a sample of the generated code, where each message is a plain function. Links to the docs on messages.
+  en: Compiled, never parsed
+
+features.generated:
+  kind: name
+  surface: label
+  context: Heads a code sample, naming the file it comes from.
+  args:
+    file: the file's path, such as src/copy/en.ts
+  en: '{file}, generated'
+
+features.translations:
+  kind: state
+  surface: heading
+  context: Over a check failing on a translation whose placeholders differ from the source's. Links to the docs on translations.
+  en: Translations can't drift
+
+features.lint:
+  kind: state
+  surface: heading
+  context: Over lint findings on two messages. Links to the docs on lint.
+  en: Held to a writing guide
+
+features.builds:
+  kind: state
+  surface: heading
+  context: Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
+  en: Only what the code reads ships
+
+features.native:
+  kind: state
+  surface: heading
+  context: Over calls to the same messages from Rust, Swift and Kotlin. Links to the docs on native targets.
+  en: Native too
+
+features.also:
+  kind: name
+  surface: label
+  context: Starts the line of links to the features with no sample of their own.
+  en: 'Also:'
+
+features.also.named-formats:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on named formats.
+  en: Named formats
+
+features.also.lists:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on lists and durations in messages.
+  en: Lists and durations
+
+features.also.find:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on `prosebook find`.
+  en: Find
+
+features.also.extract:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on `prosebook extract`.
+  en: Extract
+
+features.also.rename:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on `prosebook rename`.
+  en: Rename
+
+features.also.diff:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on `prosebook diff`, which comments on pull requests.
+  en: Diff in pull requests
+
+features.also.pseudo:
+  kind: name
+  surface: label
+  context: In the line of more features, links to the docs on the pseudo-locale.
+  en: Pseudo-locale

@@ -114,6 +114,9 @@ export function watchCatalog(config: ResolvedConfig, change: () => void): () => 
   };
 }
 
+/** The dev hooks and the inspector, imported first by the index in the browser, or by a page that holds no copy. */
+export const DEV = 'virtual:prosebook/dev';
+
 /** `virtual:prosebook/area/cart`, and in a build `…/cart/de`, a lazy locale's part of the group `cart` leads. */
 export const AREA = 'virtual:prosebook/area/';
 

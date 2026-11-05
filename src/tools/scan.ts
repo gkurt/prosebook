@@ -497,8 +497,8 @@ const nameOf = (node: Node | undefined): string | undefined =>
 /** Where `<Text>` comes from: each framework binding's. */
 const TEXT_SOURCES = new Set(['prosebook/react', 'prosebook/preact', 'prosebook/solid', 'prosebook/vue', 'prosebook/svelte']);
 
-/** Single-file components, whose reads are in their scripts and their markup. */
-export const SFC = /\.(?:vue|svelte)$/;
+/** Single-file components, whose reads are in their scripts and their markup, and in Astro's frontmatter. */
+export const SFC = /\.(?:vue|svelte|astro)$/;
 
 /** Code inside a file, parsed apart: a script block, or an expression in markup, at its offset. */
 interface Piece {
@@ -515,11 +515,13 @@ export const scriptBlocks = (code: string): Piece[] =>
  * the build would leave the message out, and the key would show in its place. A build has no types,
  * so readers are known by name: `t` and `rich` called alone or as methods, and any name imported here,
  * which may be bound to one elsewhere (`aliases`); the caller keeps those whose name turns out to be a
- * reader. `<Text>` counts where it is imported from a prosebook binding. In a `.vue` or `.svelte` file,
- * its scripts and the expressions in its markup are read. Lines marked `prosebook-ignore` are skipped.
+ * reader. `<Text>` counts where it is imported from a prosebook binding. In a `.vue`, `.svelte` or
+ * `.astro` file, its scripts, Astro's frontmatter and the expressions in its markup are read. Lines
+ * marked `prosebook-ignore` are skipped.
  */
 export function unseenReads(file: string, code: string): Reads {
   if (!SFC.test(file)) return readsIn(file, code, file, [{ code, at: 0 }]);
+  if (file.endsWith('.astro')) return astroReads(file, code);
   const vue = file.endsWith('.vue');
   const markup = blank(code, /<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>|<!--[\s\S]*?-->/g);
   const scripts = scriptBlocks(code);
@@ -528,6 +530,31 @@ export function unseenReads(file: string, code: string): Reads {
   return readsIn(file, code, 'component.ts', [...scripts, ...expressions], (names, report) => {
     for (const tag of markupTexts(markup, names, vue)) report(tag.at, tag.end, 'Text');
   });
+}
+
+/**
+ * An Astro component: its frontmatter, its `<script>`s and each `{...}` in its markup, read as TSX, since
+ * an expression there may hold markup (`rich('k', { link: (c) => <a>{c}</a> })`). An apostrophe in that
+ * markup's text reads as a quote to `closing`; the catalog holds the prose, so little is written there.
+ */
+function astroReads(file: string, code: string): Reads {
+  const pieces: Piece[] = [];
+  const open = /^\s*---\r?\n/.exec(code);
+  const close = open === null ? -1 : code.indexOf('\n---', open[0].length);
+  if (close !== -1) pieces.push({ code: code.slice(open![0].length, close), at: open![0].length });
+  const fenced = close === -1 ? 0 : close + 4;
+  const markup = blank(
+    code.slice(0, fenced).replace(/[^\n]/g, ' ') + code.slice(fenced),
+    /<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>|<!--[\s\S]*?-->/g,
+  );
+  for (let start = markup.indexOf('{'); start !== -1;) {
+    const end = closing(markup, start);
+    if (end === -1) break;
+    // A spread, `{...props}`, reads as the object it spreads.
+    pieces.push({ code: markup.slice(start + 1, end).replace(/^(\s*)\.\.\./, '$1   '), at: start + 1 });
+    start = markup.indexOf('{', end + 1);
+  }
+  return readsIn(file, code, 'component.tsx', [...pieces, ...scriptBlocks(code)]);
 }
 
 type Report = (start: number, end: number, name: string) => void;

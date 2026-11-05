@@ -4,7 +4,8 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import type { DevHooks } from 'prosebook';
 import { entryLocation, loadCatalog } from 'prosebook/tools';
 
-import { keyAt, record, type Reads } from '#src/inspector.ts';
+import { keyAt } from '#src/inspector.ts';
+import { record, type Reads } from '#src/reads.ts';
 import { copyOf, fixture } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
