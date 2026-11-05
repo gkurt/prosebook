@@ -366,6 +366,7 @@ function checkFormat(fn: Mf2Function): void {
  */
 function optionArg(fn: string, key: string, name: string, scope: Scope): string | { arg: string } {
   const bound = scope.get(name);
+  if (bound?.fn?.name === 'pb:entry') throw new Error(nameIsText(`:${fn} ${key}=$${name} gives an option`, name));
   const plain = bound?.fn === undefined || bound.fn.name === 'string';
   if (bound?.kind === 'literal' && plain) return bound.value;
   if (FROM_ARGUMENT[key] === undefined) {
@@ -385,6 +386,9 @@ function resolve(expr: Model.Expression, r: Reading, scope: Scope, optionScope =
     expr.arg.type === 'literal'
       ? { kind: 'literal', value: expr.arg.value }
       : (scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 });
+  // Its key is the literal it holds, which another function would format in its place.
+  if (fn !== undefined && fn.name !== 'pb:entry' && base.fn?.name === 'pb:entry' && expr.arg.type === 'variable')
+    throw new Error(nameIsText(`:${fn.name} formats $${expr.arg.name}`, expr.arg.name));
   const value = apply(base, fn);
   if (value.fn !== undefined) {
     checkNamed(value.fn);
@@ -447,6 +451,7 @@ function selectorOf(name: string, scope: Scope): Selector {
   const value = scope.get(name);
   // `validate` has refused a selector declared without a function.
   if (value === undefined || value.fn === undefined) throw new Error(`.match $${name} needs a function: .input {$${name} :number}`);
+  if (value.fn.name === 'pb:entry') throw new Error(nameIsText(`.match selects on $${name}`, name));
   if (value.kind === 'literal')
     throw new Error(`.match $${name} selects on a literal, which always picks the same variant: use that variant's text`);
   const { fn } = value;
@@ -623,6 +628,10 @@ function element(value: Value, r: Reading): Element {
   }
   return { type: TYPE.date, value: name, style: dateStyle(fn), placeholder } as Element;
 }
+
+/** A name used other than said: it is filled in as text, so nothing formats, selects on or reads it. */
+const nameIsText = (what: string, name: string) =>
+  `${what}, which holds a name (:pb:entry): a name is text the message says where it stands, as {$${name}}`;
 
 /** `{|app.title| :pb:entry form=genitive}`: the entry's key is written in the message, as a literal. */
 function entryElement(value: Value): Element {

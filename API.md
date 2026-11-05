@@ -616,6 +616,8 @@ app.reviews: 'Bewertungen {app.title, entry, genitive}' # MF2: {app.title :pb:en
 ```
 
 - Only an entry of kind `name` can be said, and it is text: selects for its forms, other names, no placeholders or tags.
+- It is said where it stands, never handed to another formatter. In MF2 a `.local` may hold one, said as `{$shop}`; no other
+  function, option or `.match` takes it.
 - The form picks the arm of that name in each of the name's selects, `other` without one. A name's translation may select on a
   form its source doesn't have.
 - Each locale says the name in its own words, or its nearest parent's. A message that isn't translated falls back whole, its

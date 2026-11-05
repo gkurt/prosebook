@@ -84,6 +84,18 @@ describe('an entry said in another message', () => {
     expect(() => readMessage(1, '{app.title, entry, two words}', 'en')).toThrow('names a form, which is one arm');
   });
 
+  test('in MF2, is said from a .local, and no other function formats, selects on or reads it', () => {
+    const local = '.local $shop = {app.title :pb:entry form=genitive}\n';
+    expect(writeMessage(1, readMessage(2, `${local}{{Hi {$shop}}}`, 'en'), 'en')).toBe('Hi {app.title, entry, genitive}');
+    const text = 'which holds a name (:pb:entry): a name is text the message says where it stands, as {$shop}';
+    expect(() => readMessage(2, `${local}{{Hi {$shop :string}}}`, 'en')).toThrow(`:string formats $shop, ${text}`);
+    expect(() => readMessage(2, `${local}{{{$shop :number}}}`, 'en')).toThrow(`:number formats $shop, ${text}`);
+    expect(() => readMessage(2, `${local}{{{$n :currency currency=$shop}}}`, 'en')).toThrow(
+      `:currency currency=$shop gives an option, ${text}`,
+    );
+    expect(() => readMessage(2, `${local}.match $shop\nx {{a}}\n* {{b}}`, 'en')).toThrow(`.match selects on $shop, ${text}`);
+  });
+
   test('says a name the catalog has, at a form it has, and never itself', () => {
     const problems = (catalog: string, de = '') =>
       loadCatalog(fixture({ 'copy/catalog/app.yaml': catalog, 'copy/locales/de.yaml': de }, CONFIG), undefined, {
