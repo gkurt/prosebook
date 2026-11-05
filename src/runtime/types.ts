@@ -26,7 +26,7 @@ export type MessageShapes = { [key: string]: MessageShape };
  * ```
  *
  * Add `tags: 'b' | 'link'` to say which tags the provider renders by default, so a call site
- * needs to supply only the others.
+ * needs to supply only the others. The generated module adds `formats` where the config names some.
  */
 // oxlint-disable-next-line typescript/no-empty-interface -- filled in by declaration merging
 export interface Register {}
@@ -40,6 +40,10 @@ export type RegisteredLocale = Register extends { locale: infer L extends string
 export type MessageKey<M extends MessageShapes = RegisteredMessages> = Extract<keyof M, string>;
 /** Tags the provider renders unless a call site says otherwise. */
 export type DefaultTags = Register extends { tags: infer T extends string } ? T : never;
+/** The number formats the config names (`formats.number`), which `copy.number` takes by name. */
+export type NumberFormatName = Register extends { formats: { number: infer N extends string } } ? N : never;
+/** The date formats the config names (`formats.date`), which `copy.date` takes by name. */
+export type DateFormatName = Register extends { formats: { date: infer N extends string } } ? N : never;
 
 /**
  * The helpers a compiled message calls, bound to the locale its words are in. Names are one letter

@@ -54,6 +54,10 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   A server build's catalog may list `areaFiles`, each area's file per lazy locale in the split client,
   which a copy hands to `preload` as it reads each area, once per file, for the page to link.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
+- `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
+  locale, its own over its parents' over the default. The tools read messages through it, and the generated index
+  ships the table as the catalog's `formats`, which `copy.number` and `copy.date` take names from; `Register`'s
+  `formats` names them for the types.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
@@ -70,6 +74,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
 Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
+  `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
   `presets.ts`: kinds, surfaces, the strict preset's word lists.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
@@ -78,6 +83,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `entryLocator` finds an entry's line, reading each file once.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a
   locale, so `parseMessage` reads a skeleton's `j` itself, as an hour `Intl` gives the locale's cycle.
+  It also reads a style naming a format of the config's as that format's options in the locale read, a
+  `NamedStyle`: a skeleton to the compiler and the native targets, and its `named` to the writers.
   Argument types are TypeScript text: a select's is its arms and `(string & {})` (`OPEN`), closed by the
   entry's `closed`, a boolean for `true`/`false` arms, and `| null | undefined` with a `null` arm, which
   the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument.
@@ -90,7 +97,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   (`selectionOf`): the `Intl.PluralRules` options that make it select as formatted, and `:integer`'s
   rounding or `:percent`'s scale, with its function to write back. Each placeholder carries its
   `placeholder` (`placeholderOf`): its `{$name}` fallback and, per `isolate` and `u:dir`, the marks
-  isolating it, as the reference `messageformat` package decides. `mf1.ts`: the tree written as MF1,
+  isolating it, as the reference `messageformat` package decides. `format=` on `:number`, `:date`,
+  `:time` and `:datetime` names a format of the config's, resolved as the function is read (`named`),
+  inherited through `.input`, and whole: no other option may stand beside it but `select`. `mf1.ts`: the tree written as MF1,
   which refuses options from arguments. `syntax.ts`: the one
   switch between them (`messageFormat` in the config). `migrate.ts`: `prosebook migrate`, which renders
   each message both ways before writing.
@@ -127,7 +136,7 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
 - `src/tools/generate.ts`: the files `generate` writes, the catalog's own included where one lacks its
   first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `guide.ts`: the writing guide
   `generate` writes (`guide`, `WRITING.md` in the catalog folder) for whoever writes next: only what
-  the lint can't check, the kinds' and surfaces' docs and the rules marked `guide`, which every
+  the lint can't check, the kinds' and surfaces' docs, the named formats and the rules marked `guide`, which every
   `guideline` (a data rule with no check) is. Keep it short; what a rule checks, its finding says. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model, which says the rules marked `guide` that read the
@@ -151,7 +160,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `quotes` through `lint.quotes` over `DEFAULT_QUOTES` (`presets.ts`); they match with regular
   expressions, which a `Report` may give as its `match`, its `fix` expanded from the match's groups.
   `duplicate` compares entries through the context's `catalog`, which `lint` takes apart from the
-  messages it lints, so the inspector's one entry is still held to the rest. No-break spaces are
+  messages it lints, so the inspector's one entry is still held to the rest. `named-format` compares
+  what each formatter resolves to in the locale with each named format's, so it finds only true twins. No-break spaces are
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, and `unseenReads`. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given

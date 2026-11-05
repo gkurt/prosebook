@@ -201,7 +201,7 @@ export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: 
   return [
     "import { defineCatalog } from 'prosebook';",
     ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),
-    `export const catalog = defineCatalog(${JSON.stringify({ source: config.source, locales, messages: {}, loaders: {}, split })});`,
+    `export const catalog = defineCatalog(${JSON.stringify({ source: config.source, locales, messages: {}, loaders: {}, split, ...(Object.keys(config.formats).length > 0 && { formats: config.formats }) })});`,
     '',
   ].join('\n');
 }

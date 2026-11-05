@@ -48,7 +48,7 @@ export function planMigrate(config: ResolvedConfig, to: MessageFormatVersion): M
       let back: MessageFormatElement[];
       try {
         after = writeMessage(to, ast, locale);
-        back = readMessage(to, after, locale, false);
+        back = readMessage(to, after, locale, { isolate: false, formats: config.formats });
       } catch (e) {
         plan.blocked.push({ ...at, reason: (e as Error).message });
         continue;

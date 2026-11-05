@@ -7,6 +7,13 @@ import { expect, test } from 'bun:test';
 
 import { createCopy, defineCatalog, type MessageKey, type Translate } from 'prosebook';
 
+// As the generated index registers the formats the config names.
+declare module 'prosebook' {
+  interface Register {
+    formats: { number: 'price'; date: 'receipt' };
+  }
+}
+
 type Messages = {
   'a.plain': { args: {}; tags: never };
   'a.count': { args: { readonly n: number }; tags: never };
@@ -35,6 +42,14 @@ export function typed() {
   copy.rich('a.link');
   // @ts-expect-error: only messages with tags are read rich
   copy.rich('a.plain');
+
+  copy.number(9, 'price');
+  copy.number(9, { style: 'percent' });
+  copy.date(0, 'receipt');
+  // @ts-expect-error: no number format has that name
+  copy.number(9, 'receipt');
+  // @ts-expect-error: no date format has that name
+  copy.date(0, 'price');
 
   // A key held in a map, and a `t` handed to a function, check as they would at a read.
   const labels: Record<'on' | 'off', MessageKey<Messages>> = { on: 'a.plain', off: 'a.link' };

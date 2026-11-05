@@ -31,6 +31,35 @@ function scopeOf({ on }: CheckRule, offIn: string[]): string | undefined {
   return scope.charAt(0).toUpperCase() + scope.slice(1);
 }
 
+const SAMPLE_NUMBER = 1234.5;
+const SAMPLE_DATE = new Date(Date.UTC(2026, 9, 28, 14, 5));
+
+/** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
+function formatsSection(config: ResolvedConfig): string[] {
+  const { number = {}, date = {} } = config.formats;
+  const rows = [
+    ...Object.entries(number).map(([name, o]) => [name, 'number', new Intl.NumberFormat(config.source, o).format(SAMPLE_NUMBER)]),
+    // In UTC, so the guide is the same wherever it is generated.
+    ...Object.entries(date).map(([name, o]) => [
+      name,
+      'date',
+      new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE),
+    ]),
+  ];
+  if (rows.length === 0) return [];
+  const [name, kind] = rows[0]!;
+  const example =
+    config.messageFormat === 2 ? `{$value :${kind === 'number' ? 'number' : 'datetime'} format=${name}}` : `{value, ${kind}, ${name}}`;
+  return [
+    '',
+    '## Formats',
+    '',
+    `A number or date is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
+    '',
+    ...rows.map(([n, k, shown]) => `- ${code(n!)} (${k}): ${shown}`),
+  ];
+}
+
 /** The guide, as Markdown. */
 export function writingGuide(config: ResolvedConfig): string {
   const catalog = relative(config.root, config.catalog).replaceAll('\\', '/') || '.';
@@ -59,6 +88,8 @@ export function writingGuide(config: ResolvedConfig): string {
     '',
     ...Object.entries(config.surfaces).map(([name, doc]) => `- ${code(name)}: ${doc}`),
   ];
+
+  out.push(...formatsSection(config));
 
   const guided = Object.entries(config.lint.rules).filter(([, { rule, severity }]) => rule.guide === true && severity !== 'off');
   if (guided.length > 0) {

@@ -23,7 +23,18 @@ import type {
 } from '@formatjs/icu-messageformat-parser';
 import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
 
-import { selectionOf, walk, type MessageFormatElement, type OptionArgs, type Placeholder, type Selection } from './icu.ts';
+import { formatIn, type Formats } from '#src/runtime/formats.ts';
+
+import {
+  namedOf,
+  selectionOf,
+  walk,
+  type MessageFormatElement,
+  type NamedStyle,
+  type OptionArgs,
+  type Placeholder,
+  type Selection,
+} from './icu.ts';
 
 type Element = MessageFormatElement;
 
@@ -35,6 +46,8 @@ export interface Mf2Function {
   args?: Record<string, string>;
   /** `u:dir`: the direction the value is written in, which picks the mark isolating it. */
   dir?: 'ltr' | 'rtl' | 'auto';
+  /** The options of the format `format=` names, in the locale read: the config's (`formats`), not the message's. */
+  named?: Intl.NumberFormatOptions | Intl.DateTimeFormatOptions;
 }
 
 type Value = { kind: 'literal'; value: string; fn?: Mf2Function } | { kind: 'variable'; name: string; fn?: Mf2Function; offset: number };
@@ -80,7 +93,7 @@ const SIGNIFICANT = ['minimumSignificantDigits', 'maximumSignificantDigits'];
 /** The options each default function takes, from the MF2 spec. */
 const OPTIONS: Record<string, readonly string[]> = {
   string: [],
-  number: ['select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
+  number: ['format', 'select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
   integer: ['select', 'signDisplay', 'useGrouping', 'minimumIntegerDigits', 'maximumSignificantDigits'],
   currency: [
     'currency',
@@ -96,9 +109,9 @@ const OPTIONS: Record<string, readonly string[]> = {
   percent: ['signDisplay', 'useGrouping', 'minimumFractionDigits', 'maximumFractionDigits', ...SIGNIFICANT, ...ROUNDING],
   unit: ['unit', 'unitDisplay', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
   offset: ['add', 'subtract'],
-  date: ['fields', 'length', 'calendar', 'timeZone'],
-  time: ['precision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
-  datetime: ['dateFields', 'dateLength', 'timePrecision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
+  date: ['format', 'fields', 'length', 'calendar', 'timeZone'],
+  time: ['format', 'precision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
+  datetime: ['format', 'dateFields', 'dateLength', 'timePrecision', 'timeZoneStyle', 'hour12', 'calendar', 'timeZone'],
 };
 
 /** Options whose values are a fixed set, checked here because MF2's names differ from `Intl`'s. */
@@ -184,9 +197,15 @@ function syntaxProblem(text: string, e: unknown): string {
   return `is not valid MessageFormat 2${where}: ${reason}`;
 }
 
+/** How a message is read: `isolate` (see `Isolate`), and the formats the config names, which `format=` names. */
+export interface ReadOptions {
+  isolate?: Isolate;
+  formats?: Formats;
+}
+
 /** An MF2 message as the element tree. Throws, with the fix, where it can't be read or compiled. */
-export function parseMf2(text: string, locale: string, isolate: Isolate = 'rtl'): Element[] {
-  const reading: Reading = { locale, isolate, dir: directionOf(locale) };
+export function parseMf2(text: string, locale: string, { isolate = 'rtl', formats }: ReadOptions = {}): Element[] {
+  const reading: Reading = { locale, isolate, dir: directionOf(locale), formats };
   let message: Model.Message;
   try {
     message = parseMessage(text);
@@ -200,7 +219,7 @@ export function parseMf2(text: string, locale: string, isolate: Isolate = 'rtl')
   for (const declaration of message.declarations)
     // `.input` reads the argument itself; a `.local` can build on what is declared before it. The
     // options of either can name what is declared before them.
-    scope.set(declaration.name, resolve(declaration.value, declaration.type === 'input' ? new Map() : scope, scope));
+    scope.set(declaration.name, resolve(declaration.value, reading, declaration.type === 'input' ? new Map() : scope, scope));
 
   if (message.type === 'message') return pattern(message.pattern, scope, reading);
   const selectors = message.selectors.map((s) => selectorOf(s.name, scope));
@@ -226,6 +245,7 @@ interface Reading {
   isolate: Isolate;
   /** The locale's direction, which the message's is. */
   dir: Direction;
+  formats: Formats | undefined;
 }
 
 // The scripts CLDR writes right to left, as the `messageformat` package lists them.
@@ -252,7 +272,7 @@ function placeholderFor(name: string, fn: Mf2Function | undefined, r: Reading): 
   return { fallback, isolate: [dir === 'ltr' ? LRI : dir === 'rtl' ? RLI : FSI, PDI] };
 }
 
-function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
+function functionOf(ref: Model.FunctionRef, scope: Scope, r: Reading): Mf2Function {
   const allowed = OPTIONS[ref.name];
   if (allowed === undefined) {
     const known = Object.keys(OPTIONS).map((n) => `:${n}`);
@@ -274,6 +294,8 @@ function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
     }
     if (!allowed.includes(key))
       throw new Error(`:${ref.name} has no option "${key}"${allowed.length > 0 ? `: ${allowed.join(', ')}` : ''}`);
+    if (key === 'format' && value.type !== 'literal')
+      throw new Error(`:${ref.name} format=$${value.name}: a format is named in the message, as format=price`);
     const literal = value.type === 'literal' ? value.value : optionArg(ref.name, key, value.name, scope);
     if (typeof literal !== 'string') {
       args[key] = literal.arg;
@@ -287,13 +309,40 @@ function functionOf(ref: Model.FunctionRef, scope: Scope): Mf2Function {
   }
   if (ref.name === 'unit' && ref.options?.usage !== undefined)
     throw new Error(":unit usage converts between units, which `Intl` can't do: convert the value before passing it");
+  const named = options.format === undefined ? undefined : namedFormat(ref.name, options.format, r);
   if (options.timeZone === 'input') throw new Error(`:${ref.name} timeZone=input needs a zoned value, which a JavaScript Date isn't`);
   if (ref.name === 'offset') {
     const given = ['add', 'subtract'].filter((k) => options[k] !== undefined);
     if (given.length !== 1 || !/^\d+$/.test(options[given[0]!]!))
       throw new Error(':offset takes one of add or subtract, as a whole number: {$count :offset subtract=1}');
   }
-  return { name: ref.name, options, ...(Object.keys(args).length > 0 && { args }), ...(dir && { dir }) };
+  return { name: ref.name, options, ...(Object.keys(args).length > 0 && { args }), ...(dir && { dir }), ...(named && { named }) };
+}
+
+/** The options of the format `format=` names, in the locale read. */
+function namedFormat(fn: string, name: string, r: Reading): Intl.NumberFormatOptions | Intl.DateTimeFormatOptions {
+  const kind = family(fn) as 'number' | 'date';
+  const options = formatIn(r.formats, kind, name, r.locale);
+  if (options !== undefined) return options;
+  const names = Object.keys(r.formats?.[kind] ?? {});
+  const known = names.length > 0 ? `: ${names.join(', ')}` : `, and it names none: add ${name} under formats.${kind}`;
+  throw new Error(`:${fn} format=${name} names no format of the config's (formats.${kind})${known}`);
+}
+
+/**
+ * A named format is the whole format, so an option beside it would say something it doesn't: a
+ * format of its own is another name in the config. `select` says how `.match` picks, so it may stay.
+ */
+function checkFormat(fn: Mf2Function): void {
+  if (fn.options.format === undefined) return;
+  if (!OPTIONS[fn.name]!.includes('format'))
+    throw new Error(`:${fn.name} adds to a named format (format=${fn.options.format}), which is whole: format it with :number`);
+  const beside = [...Object.keys(fn.options), ...Object.keys(fn.args ?? {})].filter((k) => k !== 'format' && k !== 'select');
+  if (beside.length > 0) {
+    throw new Error(
+      `:${fn.name} format=${fn.options.format} has ${beside.join(', ')} beside it: a named format is whole, so name another format in the config for this one`,
+    );
+  }
 }
 
 /**
@@ -314,15 +363,18 @@ function optionArg(fn: string, key: string, name: string, scope: Scope): string 
   throw new Error(`:${fn} ${key}=$${name}: $${name} is formatted, so it can't give an option: name the argument itself`);
 }
 
-function resolve(expr: Model.Expression, scope: Scope, optionScope = scope): Value {
-  const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef, optionScope);
+function resolve(expr: Model.Expression, r: Reading, scope: Scope, optionScope = scope): Value {
+  const fn = expr.functionRef === undefined ? undefined : functionOf(expr.functionRef, optionScope, r);
   if (expr.arg === undefined) throw new Error(`{:${fn!.name}} has nothing to format: give it a value, {$value :${fn!.name}}`);
   const base: Value =
     expr.arg.type === 'literal'
       ? { kind: 'literal', value: expr.arg.value }
       : (scope.get(expr.arg.name) ?? { kind: 'variable', name: expr.arg.name, offset: 0 });
   const value = apply(base, fn);
-  if (value.fn !== undefined) checkNamed(value.fn);
+  if (value.fn !== undefined) {
+    checkNamed(value.fn);
+    checkFormat(value.fn);
+  }
   return value;
 }
 
@@ -358,7 +410,17 @@ function apply(base: Value, fn: Mf2Function | undefined): Value {
   for (const key of Object.keys(fn.args ?? {})) delete inherited[key];
   const args = { ...inheritedArgs, ...fn.args };
   const options = { ...inherited, ...fn.options };
-  return { ...base, fn: { name: fn.name, options, ...(Object.keys(args).length > 0 && { args }), ...(fn.dir && { dir: fn.dir }) } };
+  const named = fn.options.format === undefined ? base.fn.named : fn.named;
+  return {
+    ...base,
+    fn: {
+      name: fn.name,
+      options,
+      ...(Object.keys(args).length > 0 && { args }),
+      ...(fn.dir && { dir: fn.dir }),
+      ...(named && { named }),
+    },
+  };
 }
 
 function literalNumber(value: string): string {
@@ -494,7 +556,7 @@ function pattern(parts: Model.Pattern, scope: Scope, r: Reading): Element[] {
     if (typeof part === 'string') {
       push({ type: TYPE.literal, value: part });
     } else if (part.type === 'expression') {
-      push(element(resolve(part, scope), r));
+      push(element(resolve(part, r, scope), r));
     } else if (part.kind === 'close') {
       const top = open.pop();
       if (top?.name !== part.name) {
@@ -551,12 +613,19 @@ export type Mf2NumberSkeleton = NumberSkeleton & { mf2: Mf2Function; args?: Opti
 export type Mf2DateSkeleton = DateTimeSkeleton & { mf2: Mf2Function; args?: OptionArgs };
 
 function numberStyle(fn: Mf2Function): Mf2NumberSkeleton {
+  if (fn.named !== undefined) return { ...namedStyle(fn), type: SKELETON_TYPE.number, tokens: [] };
   const parsedOptions = intlNumber(fn) as NumberSkeleton['parsedOptions'];
   return { type: SKELETON_TYPE.number, tokens: [], parsedOptions, mf2: fn, ...optionArgs(fn) };
 }
 
 function dateStyle(fn: Mf2Function): Mf2DateSkeleton {
+  if (fn.named !== undefined) return { ...namedStyle(fn), type: SKELETON_TYPE.dateTime, pattern: '' };
   return { type: SKELETON_TYPE.dateTime, pattern: '', parsedOptions: intlDate(fn), mf2: fn, ...optionArgs(fn) };
+}
+
+/** A named format's style, as MF1's reader makes it, with the function as written. */
+function namedStyle(fn: Mf2Function): Pick<NamedStyle, 'named' | 'parsedOptions'> & { mf2: Mf2Function } {
+  return { named: fn.options.format!, parsedOptions: fn.named as NamedStyle['parsedOptions'], mf2: fn };
 }
 
 /** The function's options given by arguments, as the `Intl` options the runtime merges in. */
@@ -570,6 +639,7 @@ function optionArgs(fn: Mf2Function): { args?: OptionArgs } {
 
 /** The `Intl.NumberFormat` options a numeric function formats with. */
 export function intlNumber(fn: Mf2Function): Intl.NumberFormatOptions {
+  if (fn.named !== undefined) return fn.named;
   const allowed = OPTIONS[fn.name] ?? [];
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fn.options)) {
@@ -595,6 +665,7 @@ export function intlNumber(fn: Mf2Function): Intl.NumberFormatOptions {
  * package does, so a message reads the same in both.
  */
 export function intlDate(fn: Mf2Function): Intl.DateTimeFormatOptions {
+  if (fn.named !== undefined) return fn.named;
   const o = fn.options;
   const out: Intl.DateTimeFormatOptions = {};
   if (o.calendar !== undefined) out.calendar = o.calendar;
@@ -862,6 +933,8 @@ function numberFunction(el: NumberElement): Model.FunctionRef {
     throw new Error(`{${el.value}, number, ${style}} has no MessageFormat 2 equivalent`);
   }
   if ('mf2' in style) return written((style as Mf2NumberSkeleton).mf2);
+  const named = namedOf(el);
+  if (named !== undefined) return functionRef('number', { format: named });
   const {
     style: kind,
     currency,
@@ -896,6 +969,8 @@ function numberFunction(el: NumberElement): Model.FunctionRef {
 function dateFunction(el: DateElement | TimeElement): Model.FunctionRef {
   const style = el.style;
   if (typeof style === 'object' && style !== null && 'mf2' in style) return written((style as Mf2DateSkeleton).mf2);
+  const named = namedOf(el);
+  if (named !== undefined) return functionRef('datetime', { format: named });
   if (el.type === TYPE.time && (style === null || style === undefined || typeof style === 'string')) {
     const time: Record<string, Record<string, string>> = {
       short: {},

@@ -1,3 +1,4 @@
+import { formatIn, type Formats } from './formats.ts';
 import { createHelpers, flatten } from './helpers.ts';
 import { chainOf, negotiate } from './locale.ts';
 import type {
@@ -6,9 +7,11 @@ import type {
   Chunks,
   Compiled,
   CompiledMessages,
+  DateFormatName,
   Helpers,
   DevHooks,
   MessageShapes,
+  NumberFormatName,
   RegisteredLocale,
   RegisteredMessages,
   RichKey,
@@ -43,6 +46,8 @@ export interface Catalog<M extends MessageShapes = MessageShapes, L extends stri
    * loads each area's messages from, per lazy locale, which `CopyOptions.preload` is handed.
    */
   readonly areaFiles?: { readonly [area: string]: { readonly [locale in L]?: string } };
+  /** The formats the config names, which `number` and `date` take by name. */
+  readonly formats?: Formats;
   /** Type-only: carries the message shapes from the generated module to `createCopy`. */
   readonly '~messages'?: M;
 }
@@ -132,10 +137,10 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   readonly version: number;
   /** Called after each locale switch, and in dev after each catalog edit. Returns the unsubscribe. */
   subscribe(this: void, listener: () => void): () => void;
-  /** Formats a number in the current locale. */
-  number(this: void, value: number | bigint, options?: Intl.NumberFormatOptions): string;
-  /** Formats a date in the current locale. */
-  date(this: void, value: Date | number, options?: Intl.DateTimeFormatOptions): string;
+  /** Formats a number in the current locale, with `Intl` options or a format the config names (`formats.number`). */
+  number(this: void, value: number | bigint, format?: Intl.NumberFormatOptions | NumberFormatName): string;
+  /** Formats a date in the current locale, with `Intl` options or a format the config names (`formats.date`). */
+  date(this: void, value: Date | number, format?: Intl.DateTimeFormatOptions | DateFormatName): string;
   /** Joins items as a list in the current locale: `a, b and c`. */
   list(this: void, items: Iterable<string>, options?: Intl.ListFormatOptions): string;
   /** `in 3 days`, `2 hours ago`, in the current locale. */
@@ -320,6 +325,14 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     return out;
   }
 
+  /** A named format's options in the current locale. The generated types allow only names the config gives. */
+  function named<K extends 'number' | 'date'>(kind: K, name: string) {
+    const options = formatIn(catalog.formats, kind, name, locale);
+    if (options === undefined)
+      throw new Error(`prosebook: no ${kind} format is named "${name}": name it under formats.${kind} in the config`);
+    return options;
+  }
+
   function formatter<F>(kind: string, options: object | undefined, make: () => F): F {
     const id = `${kind}${JSON.stringify(options ?? {})}`;
     let made = formatters.get(id) as F | undefined;
@@ -356,10 +369,12 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    number(value, opts) {
+    number(value, format) {
+      const opts = typeof format === 'string' ? named('number', format) : format;
       return formatter('n', opts, () => new Intl.NumberFormat(locale, opts)).format(value);
     },
-    date(value, opts) {
+    date(value, format) {
+      const opts = typeof format === 'string' ? named('date', format) : format;
       return formatter('d', opts, () => new Intl.DateTimeFormat(locale, opts)).format(value);
     },
     list(items, opts) {

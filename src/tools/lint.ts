@@ -7,9 +7,11 @@
  * The core rules are written as a plugin's are: a project adds its own through `lint.plugins`, as
  * code or as data, and they read the same readings of a message and are exempted the same way.
  */
+import { formatIn } from '#src/runtime/formats.ts';
+
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { categoriesOf, selectionOf, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { categoriesOf, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
 import type { KindRule, Severity } from './presets.ts';
 
 /** What a rule is given about one message in one locale. */
@@ -741,6 +743,32 @@ export const CORE_RULES = {
       if (grouped !== undefined)
         say(`"${grouped}" groups its digits the English way: make it a placeholder formatted as a number`, grouped);
       return [...said.values()];
+    },
+  },
+  'named-format': {
+    description: 'A number or date formatted as a format the config names (`formats`) says its name, so it changes with the rest.',
+    recommended: 'warn',
+    on: { locale: 'all' },
+    check: ({ ast, locale, config }) => {
+      const said = new Set<string>();
+      walk(ast, (el) => {
+        if (el.type !== TYPE.number && el.type !== TYPE.date && el.type !== TYPE.time) return;
+        // A placeholder with no style asks for no format in particular.
+        if (el.style === null || el.style === undefined || namedOf(el) !== undefined) return;
+        const kind = el.type === TYPE.number ? 'number' : 'date';
+        const shown = shownAs(el, locale);
+        if (shown === undefined) return;
+        for (const name of Object.keys(config.formats[kind] ?? {})) {
+          const options = formatIn(config.formats, kind, name, locale)!;
+          if (shownAs(el, locale, options) !== shown) continue;
+          const written =
+            config.messageFormat === 2
+              ? `{$${el.value} :${kind === 'number' ? 'number' : 'datetime'} format=${name}}`
+              : `{${el.value}, ${el.type === TYPE.time ? 'time' : kind}, ${name}}`;
+          said.add(`${el.value} is formatted as formats.${kind}.${name} is: name it, ${written}, so it changes when the format does`);
+        }
+      });
+      return [...said];
     },
   },
   'source-ending': {

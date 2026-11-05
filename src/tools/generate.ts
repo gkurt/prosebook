@@ -107,12 +107,24 @@ function typesBlock(catalog: Catalog, locales: string[]): string {
   ].join('\n');
 }
 
-const REGISTER = `declare module 'prosebook' {
+/** The module augmentation that tells `useCopy()`, `<Text>` and `copy.number`'s names the catalog's. */
+function register(config: ResolvedConfig): string {
+  const names = (kind: 'number' | 'date') => {
+    const named = Object.keys(config.formats[kind] ?? {});
+    return named.length > 0 ? named.map(quote).join(' | ') : 'never';
+  };
+  const formats =
+    config.formats.number === undefined && config.formats.date === undefined
+      ? ''
+      : `
+    formats: { number: ${names('number')}; date: ${names('date')} };`;
+  return `declare module 'prosebook' {
   interface Register {
     messages: Messages;
-    locale: Locale;
+    locale: Locale;${formats}
   }
 }`;
+}
 
 /** The catalog `defineCatalog` is given, and the imports of the locales that ship with it. */
 export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: string): { imports: string[]; literal: string } {
@@ -127,9 +139,15 @@ export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: s
       `  locales: [${locales.map(quote).join(', ')}],`,
       `  messages: { ${eager.map((l) => `${prop(l)}: ${ident(l)}`).join(', ')} },`,
       `  loaders: { ${lazy.map((l) => `${prop(l)}: () => import('./${l}${ext}')`).join(', ')} },`,
+      ...formatsField(config),
       '}',
     ].join('\n'),
   };
+}
+
+/** The formats the config names, for `copy.number` and `copy.date` to take by name; nothing where it names none. */
+export function formatsField(config: ResolvedConfig): string[] {
+  return Object.keys(config.formats).length === 0 ? [] : [`  formats: ${JSON.stringify(config.formats)},`];
 }
 
 /** The JSON Schema an editor reads to complete and explain catalog entries. */
@@ -220,7 +238,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
         '',
         `export const catalog = defineCatalog<Messages, Locale>(${literal});`,
         '',
-        REGISTER,
+        register(config),
         '',
       ].join('\n'),
     );
@@ -241,7 +259,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
         '',
         'export declare const catalog: Catalog<Messages, Locale>;',
         '',
-        REGISTER,
+        register(config),
         '',
       ].join('\n'),
     );

@@ -6,6 +6,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import type { Formats, FormatTable } from '#src/runtime/formats.ts';
+
 import { compileRule, CORE_RULES, REASON_NAME, reasonProblem, type CheckRule, type CoreRule, type Plugin } from './lint.ts';
 import type { Isolate } from './mf2.ts';
 import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
@@ -122,6 +124,13 @@ export interface ProsebookConfig {
    * as the spec's default has it. `false`: never.
    */
   isolate?: Isolate;
+  /**
+   * Number and date formats by name, as `Intl` options: `number: { price: { style: 'currency', currency: 'EUR' } }`.
+   * A message names one in place of a style (`{total, number, price}`, `{$total :number format=price}`)
+   * and code passes the name to `copy.number` and `copy.date`, so the app shows each the same way
+   * everywhere, and one edit here changes it. `locales` shows one differently in a locale or language.
+   */
+  formats?: Formats;
   /** Locales that ship in the main bundle beside the source, rather than loading when first used. */
   bundled?: string[];
   /** A pseudo-locale generated from the source (accented and lengthened) to find layout bugs and hardcoded text. */
@@ -189,6 +198,7 @@ export interface ResolvedConfig {
   source: string;
   messageFormat: 1 | 2;
   isolate: Isolate;
+  formats: Formats;
   bundled: string[];
   pseudo: string | false;
   stale: 'use' | 'fallback';
@@ -256,6 +266,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     source: config.source ?? 'en',
     messageFormat: config.messageFormat ?? 1,
     isolate: config.isolate ?? 'rtl',
+    formats: checkedFormats(config.formats ?? {}),
     bundled: config.bundled ?? [],
     pseudo: config.pseudo ?? false,
     stale: config.stale ?? 'use',
@@ -294,6 +305,101 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
     },
   };
+}
+
+/** What `Intl` reads of each kind of format's options; it ignores any other key, so a misspelled one would do nothing. */
+const FORMAT_OPTIONS = {
+  number: {
+    intl: 'Intl.NumberFormat',
+    options: [
+      'numberingSystem',
+      'style',
+      'currency',
+      'currencyDisplay',
+      'currencySign',
+      'unit',
+      'unitDisplay',
+      'notation',
+      'compactDisplay',
+      'signDisplay',
+      'useGrouping',
+      'minimumIntegerDigits',
+      'minimumFractionDigits',
+      'maximumFractionDigits',
+      'minimumSignificantDigits',
+      'maximumSignificantDigits',
+      'roundingIncrement',
+      'roundingMode',
+      'roundingPriority',
+      'trailingZeroDisplay',
+    ],
+    // The styles a message names without the config, which a format may not take the name of.
+    builtIn: ['integer', 'percent', 'currency'],
+  },
+  date: {
+    intl: 'Intl.DateTimeFormat',
+    options: [
+      'calendar',
+      'numberingSystem',
+      'hour12',
+      'hourCycle',
+      'timeZone',
+      'weekday',
+      'era',
+      'year',
+      'month',
+      'day',
+      'dayPeriod',
+      'hour',
+      'minute',
+      'second',
+      'fractionalSecondDigits',
+      'timeZoneName',
+      'dateStyle',
+      'timeStyle',
+    ],
+    builtIn: ['short', 'medium', 'long', 'full'],
+  },
+} as const;
+
+const FORMAT_NAME = /^[A-Za-z][\w-]*$/;
+
+/** Each format a name a message can say, and options `Intl` takes: a JSON config is not type-checked. */
+function checkedFormats(formats: Formats): Formats {
+  const check = (table: FormatTable, at: string, defined?: FormatTable) => {
+    for (const kind of Object.keys(table)) {
+      if (kind !== 'number' && kind !== 'date' && !(defined === undefined && kind === 'locales'))
+        throw new Error(`${at}${kind} is not a kind of format: number or date`);
+    }
+    for (const kind of ['number', 'date'] as const) {
+      const { intl, options, builtIn } = FORMAT_OPTIONS[kind];
+      for (const [name, value] of Object.entries(table[kind] ?? {})) {
+        const path = `${at}${kind}.${name}`;
+        if (defined !== undefined && defined[kind]?.[name] === undefined)
+          throw new Error(`${path} shows a format no one named: name it under formats.${kind} first`);
+        if (!FORMAT_NAME.test(name)) throw new Error(`${path}: a format's name is a letter, then letters, digits, _ and -`);
+        if ((builtIn as readonly string[]).includes(name)) {
+          const fix = `name the format for what it shows: ${name}-${kind}`;
+          throw new Error(`${path}: "${name}" is a style every message knows already, so ${fix}`);
+        }
+        if (typeof value !== 'object' || value === null || Array.isArray(value))
+          throw new Error(`${path} is the options ${intl} takes, as an object`);
+        for (const key of Object.keys(value)) {
+          if (!(options as readonly string[]).includes(key))
+            throw new Error(`${path}.${key} is not an option of ${intl}, which would ignore it: ${options.join(', ')}`);
+        }
+        try {
+          if (kind === 'number') new Intl.NumberFormat('en', value).resolvedOptions();
+          else new Intl.DateTimeFormat('en', value).resolvedOptions();
+        } catch (e) {
+          throw new Error(`${path} is refused by ${intl}: ${(e as Error).message}`, { cause: e });
+        }
+      }
+    }
+  };
+  check(formats, 'formats.');
+  for (const [locale, table] of Object.entries(formats.locales ?? {})) check(table, `formats.locales.${locale}.`, formats);
+  return formats;
 }
 
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */

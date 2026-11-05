@@ -7,7 +7,7 @@
 import { isDateElement, isNumberElement, isTimeElement, parse, TYPE } from '@formatjs/icu-messageformat-parser';
 import type { DateElement, DateTimeSkeleton, NumberElement, NumberSkeleton, TimeElement } from '@formatjs/icu-messageformat-parser';
 
-import { selectionOf, type MessageFormatElement } from './icu.ts';
+import { namedOf, selectionOf, type MessageFormatElement } from './icu.ts';
 import type { Mf2DateSkeleton, Mf2Function, Mf2NumberSkeleton } from './mf2.ts';
 
 type Element = MessageFormatElement;
@@ -37,6 +37,8 @@ function print(elements: Element[], inPlural: boolean): string {
           const style = el.style;
           if (style === null || style === undefined) return `{${el.value}, ${kind}}`;
           if (typeof style === 'string') return `{${el.value}, ${kind}, ${style}}`;
+          const named = namedOf(el);
+          if (named !== undefined) return `{${el.value}, ${kind}, ${named}}`;
           const skeleton = 'tokens' in style ? style.tokens.map((t) => [t.stem, ...t.options].join('/')).join(' ') : style.pattern;
           return `{${el.value}, ${kind}, ::${skeleton}}`;
         }
@@ -107,6 +109,7 @@ function native(elements: Element[], plural: { value: string; offset: number } |
 function plainNumber(el: NumberElement): boolean {
   const style = el.style;
   if (style === null || style === undefined) return true;
+  if (namedOf(el) !== undefined) return false;
   const mf2 = 'mf2' in Object(style) ? (style as Mf2NumberSkeleton) : undefined;
   return mf2 !== undefined && mf2.args === undefined && Object.keys(mf2.parsedOptions).length === 0;
 }
@@ -124,6 +127,8 @@ function same(a: object, b: object): boolean {
 function numberStyle(el: NumberElement): NumberElement['style'] {
   const style = el.style;
   if (style === null || style === undefined || typeof style === 'string' || !('mf2' in style)) return style;
+  // A named format is written as its name, which the config holds the options of.
+  if (namedOf(el) !== undefined) return style;
   refuseArgs(el.value, style as Mf2NumberSkeleton);
   const options = (style as Mf2NumberSkeleton).parsedOptions as Record<string, unknown>;
   if (Object.keys(options).length === 0) return null;
@@ -214,7 +219,7 @@ const NAMED: Record<string, readonly [TYPE.date | TYPE.time, string]> = {
 
 function dateElement(el: DateElement | TimeElement): Element {
   const style = el.style;
-  if (typeof style !== 'object' || style === null || !('mf2' in style)) return el;
+  if (typeof style !== 'object' || style === null || !('mf2' in style) || namedOf(el) !== undefined) return el;
   refuseArgs(el.value, style as Mf2DateSkeleton);
   const fn = (style as Mf2DateSkeleton).mf2;
   const named = NAMED[mf2Text(fn, true).slice(1)];

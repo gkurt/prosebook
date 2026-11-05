@@ -273,7 +273,7 @@ describe('options from arguments', () => {
 describe('as the spec renders', () => {
   /** A message read with `isolate`, its direction marks shown as <…> so a failure reads. */
   const shown = (message: string, values: Record<string, unknown>, locale = 'en', isolate: Isolate = 'rtl') => {
-    const ast = parseMf2(message, locale, isolate);
+    const ast = parseMf2(message, locale, { isolate });
     const m = evaluated([['m', ast]]).m!;
     const out = typeof m === 'string' ? m : m(values, createHelpers(locale));
     return flatten(out).join('').replace(/[⁦-⁨]/g, '<').replace(/⁩/g, '>');

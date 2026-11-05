@@ -566,7 +566,8 @@ its first line keeps it.
 
 The lint checks what a pattern can, after the words are written, and says each finding with its fix.
 What it can't check goes before the writing, in `copy/catalog/WRITING.md`, which `generate` writes:
-where an entry goes, what each kind and surface is for, and your guidelines, the rules with no check
+where an entry goes, what each kind and surface is for, the [named formats](#named-formats), and
+your guidelines, the rules with no check
 (see [Lint plugins](#checks)). A checked rule is in it too when it says `guide: true`. It is short on
 purpose, and `generate --check` fails once the config has moved past it. Point your agent at it:
 
@@ -593,6 +594,7 @@ en: '{on, select, true {On} other {Off}}' # on: boolean
 en: '{mode, select, dark {Dark} light {Light} other {Light}}'
 en: '{size, number, ::.0 unit/megabyte}' # 1.4 MB
 en: '{total, number, ::currency/EUR}' # €9.00
+en: '{views, number, ::compact-short}' # 1.4K, 5.7M; ::compact-long says 1.4 thousand
 en: '{when, date, medium} at {when, time, short}' # Oct 28, 2026 at 2:05 PM
 en: '{when, date, ::yMMMdjmm}' # Oct 28, 2026, 2:05 PM; 28. Okt. 2026, 14:05 in German
 en: 'By checking out you agree to our <link>terms</link>.' # a tag: an element inside the sentence
@@ -620,6 +622,52 @@ An argument can be used more than once where the uses agree: a select's argument
 both. A number and a select on one argument can't agree, and fail. A skeleton's `j` is the
 hour as each locale writes it, 12 or 24. A skeleton the formatter would silently drop
 (`::compact-shortt`, a date's `J`) fails the build instead of reaching the screen unformatted.
+
+### Named formats
+
+A price, a date on a receipt, a count of views: each is shown one way across the app, so name its
+format once in the config, as `Intl` options, and name the format wherever it is shown:
+
+```ts
+// prosebook.config.ts
+formats: {
+  number: {
+    price: { style: 'currency', currency: 'EUR' },
+    views: { notation: 'compact', maximumSignificantDigits: 3 }, // 1.4K, 5.67M
+  },
+  date: {
+    'short-date': { dateStyle: 'short' },
+    receipt: { dateStyle: 'medium', timeStyle: 'short' },
+  },
+  // A format as a locale or a language shows it, in place of the one above.
+  locales: { de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } } },
+},
+```
+
+```yaml
+en: 'Total: {total, number, price}' # €9.00
+en: 'Ordered {when, date, receipt}' # Ordered Oct 28, 2026, 2:05 PM
+en: '{when, time, short-date}' # a time names a date format too
+en: 'Total: {$total :number format=price}' # MF2; :date, :time and :datetime take format= too
+```
+
+```ts
+copy.number(total, 'price'); // €9.00, in the current locale
+copy.date(when, 'receipt');
+copy.date(when, { weekday: 'long' }); // options, as before
+```
+
+Changing a format in the config changes it in every message and every call, in every locale, at the
+next `generate`. The generated types know the names, so a misspelled one fails to compile in code and
+fails `generate` in a message. A name can't be one of the styles
+every message knows (`short`, `medium`, `long`, `full`, `integer`, `percent`, `currency`), and each
+format's options are checked as the config loads, since `Intl` ignores one it doesn't know.
+
+A named format is the whole format: in MF2, `format=price` takes no other option beside it, so a
+variant is another name in the config. A `.match` on `{$n :number format=views}` selects on the
+number as that format shows it. `migrate` writes a name as a name in either syntax. The writing
+guide lists the formats, each with what it shows, and the `named-format` lint warns of a message
+that writes out the options of one (`{total, number, ::currency/EUR}`) rather than its name.
 
 A select arm's name is letters, digits and `_` (`{type, select, pdf {PDF} other {File}}`), so map a
 value such as `application/pdf` to one in code; MF2 quotes any value as a key, `|application/pdf|`. A
@@ -859,6 +907,7 @@ It reads the message format too:
 | `plural-one`         | a `one` arm that says what `other` says, or writes `1` where `#` belongs                              |
 | `arm-endings`        | plural or select arms where some end with a stop and some don't                                       |
 | `formatted-by-hand`  | `${price}`, `{rate}%` or `{hours}h` typed around a placeholder, and digits grouped by hand (`10,000`) |
+| `named-format`       | a number or date formatted with the options of a [named format](#named-formats), rather than its name |
 | `source-ending`      | a translation that ends with a stop where its source doesn't, or the other way round                  |
 | `plural-forms`       | a plural missing a form its locale counts in (Polish's `few` and `many`)                              |
 | `plural-unused-form` | a plural naming a form its locale never picks, so its arm never shows (English's `zero` or `few`)     |
@@ -879,7 +928,7 @@ browsers may not know a form CLDR has added since (French `many`, in CLDR 42), w
 this one is a warning.
 
 Translations are linted too, by the rules that hold in any language: `whitespace`, `ellipsis`,
-`arm-endings`, `formatted-by-hand`, `source-ending`, `plural-forms`, `plural-unused-form`, and `plural-one`'s `#` (not its
+`arm-endings`, `formatted-by-hand`, `named-format`, `source-ending`, `plural-forms`, `plural-unused-form`, and `plural-one`'s `#` (not its
 `one` and `other` saying the same, which Turkish does: `# dosya`). The rest read the source only. A
 finding names the translation's file.
 
@@ -1413,6 +1462,7 @@ export default defineConfig({
   source: 'en',
   messageFormat: 1, // or 2, for Unicode MessageFormat 2
   isolate: 'rtl', // MF2: isolate placeholders in right-to-left locales; 'always', or false
+  formats: {}, // named number and date formats: { number: { price: { style: 'currency', currency: 'EUR' } } }
   bundled: [], // locales shipped in the main bundle; the rest load on first use
   pseudo: false, // or 'en-XA', in dev only: builds leave it out
   stale: 'use', // or 'fallback'

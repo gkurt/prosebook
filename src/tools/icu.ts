@@ -2,19 +2,55 @@
  * What an ICU message declares, read off its AST: argument types, tags, and whether each number and
  * date style is one the formatter honors. Shared by the loader, the compiler and the lint.
  */
-import { isDateElement, isNumberElement, isTimeElement, parse, TYPE } from '@formatjs/icu-messageformat-parser';
-import type { DateElement, MessageFormatElement, NumberElement, TimeElement } from '@formatjs/icu-messageformat-parser';
+import { isDateElement, isNumberElement, isTimeElement, parse, SKELETON_TYPE, TYPE } from '@formatjs/icu-messageformat-parser';
+import type {
+  DateElement,
+  DateTimeSkeleton,
+  MessageFormatElement,
+  NumberElement,
+  NumberSkeleton,
+  TimeElement,
+} from '@formatjs/icu-messageformat-parser';
+
+import { formatIn, type Formats } from '#src/runtime/formats.ts';
 
 export type { MessageFormatElement };
 export { TYPE };
 
-export function parseMessage(text: string): MessageFormatElement[] {
+/** An ICU message as the element tree, each style naming one of `formats` read as that format's options in `locale`. */
+export function parseMessage(text: string, formats?: Formats, locale = 'en'): MessageFormatElement[] {
   const ast = parse(text, { shouldParseSkeletons: true, requiresOtherClause: true });
   walk(ast, (el) => {
     if ((isDateElement(el) || isTimeElement(el)) && typeof el.style === 'object' && el.style !== null && el.style.pattern.includes('j'))
       el.style.parsedOptions = localHour(el.style.pattern);
+    if (!isNumberElement(el) && !isDateElement(el) && !isTimeElement(el)) return;
+    if (typeof el.style !== 'string') return;
+    const style = namedStyle(formats, el.type === TYPE.number ? 'number' : 'date', el.style, locale);
+    if (style !== undefined) el.style = style as never;
   });
   return ast;
+}
+
+/**
+ * A style the config names (`formats`): its options in the locale, as a skeleton's would be, so the
+ * compiler and the native targets read it as any other, and its name, which the writers keep.
+ */
+export type NamedStyle = (NumberSkeleton | DateTimeSkeleton) & { named: string };
+
+export function namedStyle(formats: Formats | undefined, kind: 'number' | 'date', name: string, locale: string): NamedStyle | undefined {
+  if (kind === 'number') {
+    const options = formatIn(formats, 'number', name, locale);
+    return options && { type: SKELETON_TYPE.number, tokens: [], parsedOptions: options as NumberSkeleton['parsedOptions'], named: name };
+  }
+  const options = formatIn(formats, 'date', name, locale);
+  return options && { type: SKELETON_TYPE.dateTime, pattern: '', parsedOptions: options, named: name };
+}
+
+/** The name of the format a number or date element is shown in, where the config names it. */
+export function namedOf(el: MessageFormatElement): string | undefined {
+  if (!isNumberElement(el) && !isDateElement(el) && !isTimeElement(el)) return undefined;
+  const style = el.style;
+  return typeof style === 'object' && style !== null && 'named' in style ? (style as NamedStyle).named : undefined;
 }
 
 /**
@@ -219,9 +255,12 @@ export function numberOptions(el: NumberElement): Intl.NumberFormatOptions | und
   if (typeof style === 'string') {
     if (style === 'currency') throw new Error(`{${el.value}} needs its currency named: {${el.value}, number, ::currency/EUR}`);
     const named = NUMBER_STYLES[style];
-    if (named === undefined) throw new Error(`{${el.value}} asks for number style "${style}": integer, percent, or a ::skeleton`);
+    if (named === undefined)
+      throw new Error(`{${el.value}} asks for number style "${style}": integer, percent, a ::skeleton, or a format formats.number names`);
     return named;
   }
+  // The config checked a named format's options as it loaded.
+  if (namedOf(el) !== undefined) return style.parsedOptions;
   const unknown = style.tokens.filter((t) => !stemIsKnown(t.stem, t.options)).map((t) => t.stem);
   if (unknown.length > 0) throw new Error(`{${el.value}} has skeleton stems the formatter drops without a word: ${unknown.join(', ')}`);
   const options = style.parsedOptions as Intl.NumberFormatOptions;
@@ -245,10 +284,13 @@ export function dateOptions(el: DateElement | TimeElement): Intl.DateTimeFormatO
   if (typeof style === 'string') {
     if (!(DATE_STYLES as readonly string[]).includes(style)) {
       const kind = el.type === TYPE.time ? 'time' : 'date';
-      throw new Error(`{${el.value}} asks for ${kind} style "${style}": ${DATE_STYLES.join(', ')}, or a ::skeleton`);
+      throw new Error(
+        `{${el.value}} asks for ${kind} style "${style}": ${DATE_STYLES.join(', ')}, a ::skeleton, or a format formats.date names`,
+      );
     }
     return { [field]: style };
   }
+  if (namedOf(el) !== undefined) return style.parsedOptions;
   // Every field the parser understands sets an option, and one it doesn't is dropped without a word.
   const dropped = (style.pattern.match(/([A-Za-z])*/g) ?? []).filter((f) => !f.startsWith('j') && Object.keys(dateFields(f)).length === 0);
   if (dropped.length > 0) throw new Error(`{${el.value}} has date fields the formatter drops without a word: ${dropped.join(', ')}`);
@@ -277,6 +319,19 @@ function stemIsKnown(stem: string, options: readonly string[]): boolean {
   }
 }
 
+/**
+ * What a number or date element's formatter resolves to in a locale, or one built with `options` in
+ * its place: two that resolve alike show every value alike. Nothing where `Intl` refuses it.
+ */
+export function shownAs(el: NumberElement | DateElement | TimeElement, locale: string, options?: object): string | undefined {
+  try {
+    if (el.type === TYPE.number) return JSON.stringify(new Intl.NumberFormat(locale, options ?? numberOptions(el)).resolvedOptions());
+    return JSON.stringify(new Intl.DateTimeFormat(locale, options ?? dateOptions(el)).resolvedOptions());
+  } catch {
+    return undefined;
+  }
+}
+
 /** Every format problem in a message, as sentences. */
 export function formatProblems(ast: MessageFormatElement[]): string[] {
   const found: string[] = [];
@@ -300,8 +355,11 @@ export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
     if (style === null || style === undefined) return;
     const kind = el.type === TYPE.number ? 'number' : el.type === TYPE.date ? 'date' : 'time';
     let said: string;
+    const named = namedOf(el);
     if (typeof style === 'string') {
       said = `${kind} \`${style}\``;
+    } else if (named !== undefined) {
+      said = `${kind} \`${named}\``;
     } else if ('mf2' in style) {
       // Read from MF2: the function as written.
       const {

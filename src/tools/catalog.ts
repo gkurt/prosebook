@@ -212,7 +212,7 @@ function readEntry(
 
   let ast: MessageFormatElement[];
   try {
-    ast = readMessage(config.messageFormat, text, config.source, config.isolate);
+    ast = readMessage(config.messageFormat, text, config.source, config);
   } catch (e) {
     fail(syntaxError(config, text, e));
     return undefined;
@@ -299,7 +299,7 @@ function readLocales(
         }
         let ast: MessageFormatElement[];
         try {
-          ast = readMessage(config.messageFormat, value, locale, config.isolate);
+          ast = readMessage(config.messageFormat, value, locale, config);
         } catch (e) {
           error(syntaxError(config, value, e), key);
           continue;
