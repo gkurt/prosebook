@@ -1,3 +1,9 @@
+## prosebook@0.8.0
+
+### The pseudo-locale stays out of production
+
+A build through `prosebook/vite`, `prosebook/next` or `prosebook/bun` (and Bun's server run with `NODE_ENV=production`) leaves the `pseudo` locale out of `catalog.locales` and ships none of its messages, so a locale switcher built from `copy.locales` no longer offers `en-XA` to users. Dev keeps it, and `generate` still writes its module.
+
 ## prosebook@0.7.0
 
 ### `plural-count` says each finding once, and passes a ratio's total
