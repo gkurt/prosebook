@@ -1,3 +1,65 @@
+## prosebook@0.10.0
+
+### The writing guide says the `voice` guidelines against the habits of generated copy
+
+Labels as nouns, the app's own words, no intent given to things, no instructions on a control, and placeholders that read right with every value. On for an English source; `lint.rules: { 'voice/*': 'off' }` turns them off, as `<plugin>/*` does for any plugin.
+
+### The inspector outlines only the string under the pointer
+
+Where one element holds several strings, the outline goes around the one found, a box per line it wraps over, not the whole element. The edit dialog's Save button says "Checking…" and "Saved" itself, so its row no longer wraps while saving.
+
+### `prosebook find`: the entries that say it already, before adding another
+
+`prosebook find "Save changes" --kind action` lists the entries saying those words, the closest first, so a string the catalog has is read again rather than written twice. The writing guide tells whoever writes next to run it before adding an entry.
+
+### API.md: reading the catalog in end-to-end tests
+
+A test finds the page's text with `copy.t(key)` over the generated catalog, so a copy edit doesn't break it.
+
+### `prosebook/astro`: the catalog in an Astro site
+
+`integrations: [prosebook()]` generates, prunes each build to the messages its pages and scripts read, and puts the inspector on every page in dev, a page with no script included. A page reads with `t` and `rich` in its frontmatter and markup (`rich('home.terms', { link: (chunks) => <a href="/terms">{chunks}</a> })`), and an edit reloads it with the new text. A strict build fails on an unseen read in an `.astro` file, and `scan`, `rename` and pruning read `.astro` files.
+
+### The inspector traces text the server rendered
+
+Under Vite and Astro, Alt-pointing at text a server render read, and not the browser, finds its entry, so the dialog edits and comments on it as on any other.
+
+### `scan` finds numbers, dates and lists formatted in code
+
+`toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, and `.join(', ')` in a component, show the browser's locale where the copy shows its own. `prosebook scan` lists each with the copy's method to read instead, and the named format whose options match the ones written out; `scan --strict` fails on them.
+
+### `min`: a plural's count that is never 1 needs no `one` form
+
+`min: { sites: 2 }` on an entry makes `plural-forms` ask only for the forms counts from 2 take: English and German need no `one` arm, while Russian still needs `one` (21 sites) and Polish `few`. `todo` and `export` tell translators the count is always 2 or more.
+
+### `plural-one` accepts `one {# failed} other {# failed}`
+
+It warns of a `one` arm saying what `other` says only where `other` counts a plural noun (`# files`), naming the singular to write. A count followed by a word with no singular, such as `# failed` or `# unread`, passes, as `plural-forms` asks for its `one` arm all the same.
+
+### Lists and durations in messages, and named formats for both
+
+`{names, list}` joins a list of strings as the locale joins one ("Ann, Bob, and Cy", "Ann, Bob und Cy"), and `{took, duration}` writes milliseconds in the units the locale writes ("3 min, 5 sec", "3m 5s", "0:03:05"); in MF2, `:list` and `:duration`. Both take named formats: `formats.list` with `max` and `more`, which shows the first items and says the rest with a catalog entry given `{count}` ("grep, sed, and 2 more"), and `formats.duration` with `largest`, `smallest` and `units`. `copy.list` takes a list format's name, and `copy.duration` formats milliseconds in code the same way.
+
+### `duplicate` says each group once, and `lint --fix --unsafe` merges it
+
+A group of entries saying the same words in the same role is one line at the entry to keep, naming the others. `prosebook lint --fix --unsafe` merges each group into that entry (in `extract.shared` where it spans areas), moving a translation only another entry has and rewriting the code that reads the others; a group whose translations differ is left and named.
+
+### `named-format` names every format a placeholder shows as, in one finding
+
+Two named formats that show alike in a locale gave one finding each on every placeholder they match; now one finding names both.
+
+### A name said in other messages: `{app.title, entry}`
+
+A message says an entry of kind `name` as `{app.title, entry}` (MF2's `{app.title :pb:entry}`), in each locale's words, with `{app.title, entry, genitive}` picking a form a translation of the name selects on. It is filled in as the catalog loads, so it compiles to text and native targets write it as text; a missing key, another kind, a missing form or a cycle fails `generate`, and `prosebook rename` renames the references with the entry.
+
+### Dev servers follow edits to `prosebook.config.*`
+
+An edit to the config file restarts Vite's and Astro's dev server. Next, Bun and `generate --watch` regenerate with the new config, and the inspector checks edits with it. Before, the next catalog edit regenerated with the config the server started with, which dropped new lint rules from the schema and new formats from the generated modules.
+
+### `{match}` shows a match as the message writes it
+
+A data rule's pattern matching across a placeholder (`${HOLE}'s`) names it as written, `"{team}’s"`, not as an invisible character and a straight apostrophe, and its finding points at the placeholder in the text. `asWritten(match, context)`, from `prosebook/config`, does the same for a rule written as code.
+
 ## prosebook@0.9.0
 
 ### `prosebook rename`: a key, or a whole area, renamed everywhere it is written
