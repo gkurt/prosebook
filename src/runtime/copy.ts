@@ -398,8 +398,8 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     },
     duration(ms, format) {
       const opts = typeof format === 'string' ? named('duration', format) : format;
-      const { parts, zero } = durationParts(ms, opts);
-      const all = zero === undefined ? opts : { ...opts, [`${zero}Display`]: 'always' };
+      const { parts, display } = durationParts(ms, opts);
+      const all = display === undefined ? opts : { ...opts, ...display };
       return formatter('u', all, () => new Intl.DurationFormat(locale, all as Intl.DurationFormatOptions)).format(parts);
     },
     relative(value, unit, opts) {

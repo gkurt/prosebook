@@ -49,9 +49,10 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
       return attempt(value, () => {
         // Older browsers have no `Intl.DurationFormat`: the placeholder's fallback shows, and says why.
         if (typeof Intl.DurationFormat !== 'function') throw new Error('Intl.DurationFormat is not in this browser');
-        const { parts, zero } = durationParts(value, options);
-        const given = zero === undefined ? undefined : { [`${zero}Display`]: 'always' };
-        return formatter(durations, options, given, (o) => new Intl.DurationFormat(locale, o as Intl.DurationFormatOptions)).format(parts);
+        const { parts, display } = durationParts(value, options);
+        return formatter(durations, options, display, (o) => new Intl.DurationFormat(locale, o as Intl.DurationFormatOptions)).format(
+          parts,
+        );
       });
     },
     e(fallback) {

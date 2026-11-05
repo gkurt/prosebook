@@ -28,7 +28,7 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
     }
     for (const name of names) {
       const path = join(dir, name);
-      if (skip.some((s) => path === s || path.startsWith(`${s}/`) || path.startsWith(`${s}\\`))) continue;
+      if (isUnder(path, skip)) continue;
       if (statSync(path).isDirectory()) {
         if (!SKIP_DIRS.has(name) && !name.startsWith('.')) visit(path);
       } else if (extensions.includes(extname(name)) && !name.endsWith('.d.ts')) {
@@ -38,6 +38,11 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
   };
   for (const dir of dirs) visit(dir);
   return files.sort();
+}
+
+/** Whether `path` is one of `paths` or in a folder of them. */
+function isUnder(path: string, paths: string[]): boolean {
+  return paths.some((p) => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}\\`));
 }
 
 export interface KeyRefs {
@@ -330,15 +335,19 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
     const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
     found.push({ file, ...at, code: text.length > 80 ? `${text.slice(0, 77)}...` : text, fix });
   };
+  // Formatters only asked their options, as `Intl.DateTimeFormat().resolvedOptions().timeZone` reads the
+  // device's time zone: they format nothing a person reads.
+  const asked = new Set<Node>();
   const visit = (node: Node) => {
     if (node.type === 'NewExpression' || node.type === 'CallExpression') {
       const callee = calleeOf(node.callee as Node);
       const args = node.arguments as Node[];
       const intl = callee?.root === 'Intl' ? INTL_METHODS[callee.name.slice('Intl.'.length)] : undefined;
-      if (intl !== undefined) say(node, intl, '…', args[1]);
+      if (intl !== undefined && !asked.has(node)) say(node, intl, '…', args[1]);
       const member = node.callee as Node;
       if (node.type === 'CallExpression' && member.type === 'MemberExpression' && member.computed !== true) {
         const method = nameOf(member.property as Node) ?? '';
+        if (method === 'resolvedOptions') asked.add(unwrapped(member.object as Node));
         const value = code.slice((member.object as Node).start, (member.object as Node).end);
         if (Object.hasOwn(TO_LOCALE, method)) say(node, TO_LOCALE[method] ?? 'either', value, args[1]);
         const joiner = args[0];
@@ -379,8 +388,8 @@ export function scan(options: ScanOptions, root: string, skip: string[] = [], fo
     if (SFC.test(path)) continue;
     const file = relative(root, path).replaceAll('\\', '/');
     // JSX in .tsx and .jsx; calls and properties in any script.
-    hardcoded.push(...hardcodedText(file, code, options));
-    formatted.push(...formattedInCode(file, code, formats, locale));
+    if (!isUnder(path, options.ignore['hardcoded-text'])) hardcoded.push(...hardcodedText(file, code, options));
+    if (!isUnder(path, options.ignore['formatted-in-code'])) formatted.push(...formattedInCode(file, code, formats, locale));
   }
   return { hardcoded, formatted, refs, files: files.length };
 }

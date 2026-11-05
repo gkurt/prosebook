@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { formattedInCode, hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads } from 'prosebook/tools';
+import { formattedInCode, hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads, type ProsebookConfig } from 'prosebook/tools';
 
-import { whereOf } from '#src/tools/scan.ts';
+import { scan, whereOf } from '#src/tools/scan.ts';
+import { fixture } from './fixture.ts';
 
 describe('hardcoded text', () => {
   const ATTRS = { attributes: ['alt', 'title', 'placeholder', 'aria-label'] };
@@ -105,6 +106,33 @@ export const Row = ({ n, when, names, rows }) => (
   // Only a component's join is a list a person reads; tests and stories are left out.
   expect(found('row.ts').some((f) => f.includes('join'))).toBe(false);
   expect(found('Row.test.tsx')).toEqual([]);
+});
+
+test('a formatter only asked its options formats nothing', () => {
+  const code = [
+    'export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;',
+    'export const locale = (new Intl.NumberFormat()).resolvedOptions().locale;',
+    'export const day = new Intl.DateTimeFormat().format(new Date());',
+  ].join('\n');
+  expect(formattedInCode('zone.ts', code).map((f) => `${f.line} ${f.code}`)).toEqual(['3 new Intl.DateTimeFormat()']);
+});
+
+test('scan.ignore keeps a check out of a folder', () => {
+  const files = {
+    'src/App.tsx': 'export const App = ({ n }) => <p>Total {n.toLocaleString()}</p>;\n',
+    'src/server/tools.ts': 'export const result = (n: number) => `${n.toLocaleString()} rows`;\n',
+  };
+  const formatted = (config: ProsebookConfig) => {
+    const c = fixture(files, config);
+    return scan(c.scan, c.root).formatted.map((f) => f.file);
+  };
+  expect(formatted({})).toEqual(['src/App.tsx', 'src/server/tools.ts']);
+  expect(formatted({ scan: { ignore: { 'formatted-in-code': ['src/server/'] } } })).toEqual(['src/App.tsx']);
+  const c = fixture(files, { scan: { ignore: { 'formatted-in-code': ['src/server'] } } });
+  expect(scan(c.scan, c.root).hardcoded.map((h) => h.text)).toEqual(['Total']);
+  expect(() => fixture({}, { scan: { ignore: { formatted: ['src'] } as never } })).toThrow(
+    'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code',
+  );
 });
 
 test('code-like tokens are not prose', () => {

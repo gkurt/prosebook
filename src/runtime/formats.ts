@@ -24,6 +24,11 @@ export interface DurationFormatOptions {
   readonly smallest?: DurationUnit;
   /** The most units shown, from the largest the duration reaches: 2 writes "1 hr, 2 min", not "1 hr, 2 min, 5 sec". All when digital. */
   readonly units?: number;
+  /**
+   * Digits of a second shown as its fraction, 0 to 3: 1 writes "4.2s" where milliseconds would write
+   * "4s 200ms". The seconds are the smallest unit then, and the duration is rounded to the last digit.
+   */
+  readonly fractionalDigits?: number;
 }
 
 type OptionsOf = {
@@ -80,16 +85,21 @@ const UNITS: readonly (readonly [DurationUnit, number])[] = [
 /**
  * Milliseconds as the units `options` shows: from the largest the duration reaches, at most `units`
  * of them, the last rounded, so 185,400 ms is 3 minutes and 5 seconds and 59,600 ms to the second is
- * a minute. A duration of nothing is 0 in the smallest unit; `zero` says which, for its display.
+ * a minute. With `fractionalDigits`, the milliseconds left under the seconds go with them, as their
+ * fraction. `display` is what `Intl.DurationFormat` takes beside the format's own options to show
+ * them: a duration of nothing as 0 in the smallest unit, and milliseconds folded into the seconds.
  */
 export function durationParts(
   ms: number,
   options: DurationFormatOptions = {},
-): { parts: Partial<Record<DurationUnit, number>>; zero?: DurationUnit } {
+): { parts: Partial<Record<DurationUnit, number>>; display?: Record<string, string> } {
   const digital = options.style === 'digital';
+  const fraction = options.fractionalDigits;
   const index = (unit: DurationUnit | undefined, or: number) => (unit === undefined ? or : UNITS.findIndex(([u]) => u === unit));
-  const range = UNITS.slice(index(options.largest, 0), index(options.smallest, digital ? 3 : 4) + 1);
+  const range = UNITS.slice(index(options.largest, 0), fraction === undefined ? index(options.smallest, digital ? 3 : 4) + 1 : 4);
   const units = options.units ?? (digital ? range.length : 2);
+  // `Intl` writes milliseconds as the seconds' fraction only where they are `numeric`, as digital has them.
+  const folded = fraction === undefined || digital ? undefined : { milliseconds: 'numeric' };
   const sign = ms < 0 ? -1 : 1;
   let rest = Math.abs(ms);
   let first = 0;
@@ -102,7 +112,8 @@ export function durationParts(
     );
     if (rest < range.at(-1)![1]) first = range.length - 1;
     last = Math.min(first + units - 1, range.length - 1);
-    const size = range[last]![1];
+    const seconds = fraction !== undefined && range[last]![0] === 'seconds';
+    const size = seconds ? 1000 / 10 ** fraction : range[last]![1];
     const rounded = Math.round(rest / size) * size;
     settled = rounded === rest;
     rest = rounded;
@@ -113,5 +124,9 @@ export function durationParts(
     rest -= n * size;
     if (n !== 0) parts[unit] = sign * n;
   }
-  return Object.keys(parts).length > 0 ? { parts } : { parts: { [range[last]![0]]: 0 }, zero: range[last]![0] };
+  // What rounding to the fraction left under the last unit, which is the seconds where any is left.
+  if (rest !== 0) parts.milliseconds = sign * rest;
+  if (Object.keys(parts).length > 0) return folded === undefined ? { parts } : { parts, display: folded };
+  const zero = range[last]![0];
+  return { parts: { [zero]: 0 }, display: { ...folded, [`${zero}Display`]: 'always' } };
 }

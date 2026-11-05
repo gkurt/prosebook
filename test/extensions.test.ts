@@ -10,7 +10,12 @@ import { cli, compiled, fixture } from './fixture.ts';
 
 const formats = {
   list: { tools: { type: 'unit', max: 2 } },
-  duration: { compact: { style: 'narrow' }, clock: { style: 'digital' } },
+  duration: {
+    compact: { style: 'narrow' },
+    clock: { style: 'digital' },
+    tenths: { style: 'narrow', fractionalDigits: 1 },
+    stopwatch: { style: 'digital', fractionalDigits: 2 },
+  },
 } as const;
 
 /** A message read in a locale with the formats above, rendered with `values`. */
@@ -136,8 +141,22 @@ describe('durations', () => {
     // 59.6 seconds to the second is a minute.
     expect(durationParts(59_600, { smallest: 'seconds' })).toEqual({ parts: { minutes: 1 } });
     expect(durationParts(90_000_000, { largest: 'hours' })).toEqual({ parts: { hours: 25 } });
-    expect(durationParts(0, { smallest: 'seconds' })).toEqual({ parts: { seconds: 0 }, zero: 'seconds' });
+    expect(durationParts(0, { smallest: 'seconds' })).toEqual({ parts: { seconds: 0 }, display: { secondsDisplay: 'always' } });
     expect(durationParts(-65_000)).toEqual({ parts: { minutes: -1, seconds: -5 } });
+  });
+
+  test('with fractionalDigits, the milliseconds are the seconds’ fraction, rounded to its last digit', () => {
+    const tenths = { fractionalDigits: 1 };
+    const folded = { milliseconds: 'numeric' };
+    expect(durationParts(4_237, tenths)).toEqual({ parts: { seconds: 4, milliseconds: 200 }, display: folded });
+    expect(durationParts(180_250, tenths)).toEqual({ parts: { minutes: 3, milliseconds: 300 }, display: folded });
+    // 59.96 seconds to the tenth is a minute.
+    expect(durationParts(59_960, tenths)).toEqual({ parts: { minutes: 1 }, display: folded });
+    expect(durationParts(3_725_400, tenths)).toEqual({ parts: { hours: 1, minutes: 2 }, display: folded });
+    expect(durationParts(-1_250, { fractionalDigits: 2 })).toEqual({ parts: { seconds: -1, milliseconds: -250 }, display: folded });
+    expect(durationParts(0, tenths)).toEqual({ parts: { seconds: 0 }, display: { ...folded, secondsDisplay: 'always' } });
+    // Digital writes milliseconds as a fraction already.
+    expect(durationParts(4_237, { style: 'digital', fractionalDigits: 1 })).toEqual({ parts: { seconds: 4, milliseconds: 200 } });
   });
 
   test('a duration formats as its locale writes one, in either syntax', () => {
@@ -149,5 +168,23 @@ describe('durations', () => {
     expect(render(1, '{took, duration, long}', 'de', { took: 3_725_000 })).toBe('1 Stunde, 2 Minuten');
     expect(render(2, 'Took {$took :duration format=compact}', 'en', { took: 185_400 })).toBe('Took 3m 5s');
     expect(render(2, '{$took :duration style=long}', 'en', { took: 185_400 })).toBe('3 minutes, 5 seconds');
+  });
+
+  test('a format with fractionalDigits shows tenths of a second, in messages and in code', () => {
+    expect(render(1, 'Took {took, duration, tenths}', 'en', { took: 4_237 })).toBe('Took 4.2s');
+    expect(render(1, '{took, duration, tenths}', 'en', { took: 180_250 })).toBe('3m 0.3s');
+    expect(render(1, '{took, duration, tenths}', 'en', { took: 0 })).toBe('0.0s');
+    expect(render(1, '{took, duration, tenths}', 'de', { took: 4_237 })).toBe('4,2 Sek.');
+    expect(render(1, '{took, duration, stopwatch}', 'en', { took: 185_437 })).toBe('0:03:05.44');
+    expect(render(2, '{$took :duration format=tenths}', 'en', { took: 4_237 })).toBe('4.2s');
+    const copy = createCopy(defineCatalog({ source: 'en', locales: ['en'], messages: {}, loaders: {}, formats }));
+    expect(copy.duration(4_237, 'tenths' as never)).toBe('4.2s');
+  });
+
+  test('fractionalDigits is checked with the units around it', () => {
+    const refused = (duration: Record<string, unknown>) => () => fixture({}, { formats: { duration: { took: duration } } });
+    expect(refused({ fractionalDigits: 4 })).toThrow('fractionalDigits is how many digits of a second are shown, 0 to 3');
+    expect(refused({ fractionalDigits: 1, smallest: 'milliseconds' })).toThrow('remove smallest');
+    expect(refused({ fractionalDigits: 1, largest: 'milliseconds' })).toThrow('largest is seconds or larger');
   });
 });

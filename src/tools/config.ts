@@ -190,8 +190,17 @@ export interface ProsebookConfig {
     calls?: string[];
     /** Object properties whose literal value a person reads, as in a label map: `{ value: 'done', label: 'Done' }`. */
     properties?: string[];
+    /**
+     * Folders and files a check leaves out, by its name, where what it finds is no person's to read:
+     * `{ 'formatted-in-code': ['src/server'] }` for a server's numbers and dates, which a tool reads.
+     */
+    ignore?: { [check in ScanCheck]?: string[] };
   };
 }
+
+/** The checks `scan` runs file by file, which `scan.ignore` can keep out of folders. */
+export const SCAN_CHECKS = ['hardcoded-text', 'formatted-in-code'] as const;
+export type ScanCheck = (typeof SCAN_CHECKS)[number];
 
 /** What `scan` reads, and where. */
 export interface ScanOptions {
@@ -200,6 +209,7 @@ export interface ScanOptions {
   attributes: string[];
   calls: string[];
   properties: string[];
+  ignore: Record<ScanCheck, string[]>;
 }
 
 export interface ResolvedConfig {
@@ -328,8 +338,19 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
+      ignore: scanIgnore(config.scan?.ignore ?? {}, at),
     },
   };
+}
+
+/** `scan.ignore`'s paths from the root, each under a check `scan` runs: a JSON config is not type-checked. */
+function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: string) => string): Record<ScanCheck, string[]> {
+  for (const check of Object.keys(ignore)) {
+    if (!(SCAN_CHECKS as readonly string[]).includes(check))
+      throw new Error(`scan.ignore.${check} is not a check scan runs file by file: ${SCAN_CHECKS.join(', ')}`);
+  }
+  const paths = (check: ScanCheck) => (ignore[check] ?? []).map(at);
+  return { 'hardcoded-text': paths('hardcoded-text'), 'formatted-in-code': paths('formatted-in-code') };
 }
 
 /** What `Intl` reads of each kind of format's options; it ignores any other key, so a misspelled one would do nothing. */
@@ -390,7 +411,11 @@ const FORMAT_OPTIONS = {
     options: ['type', 'style', 'max', 'more'],
     builtIn: ['conjunction', 'disjunction', 'unit', 'long', 'short', 'narrow'],
   },
-  duration: { intl: 'Intl.DurationFormat', options: ['style', 'largest', 'smallest', 'units'], builtIn: DURATION_STYLES },
+  duration: {
+    intl: 'Intl.DurationFormat',
+    options: ['style', 'largest', 'smallest', 'units', 'fractionalDigits'],
+    builtIn: DURATION_STYLES,
+  },
 } as const;
 
 const KINDS = Object.keys(FORMAT_OPTIONS) as (keyof typeof FORMAT_OPTIONS)[];
@@ -413,6 +438,15 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
     if (largest !== undefined && smallest !== undefined && at(largest) > at(smallest))
       return `largest is ${DURATION_UNITS[at(largest)]!}, which is smaller than smallest`;
     if (units !== undefined && !whole(units)) return 'units is how many units are shown, 1 or more';
+    const { fractionalDigits: digits } = value;
+    if (digits !== undefined) {
+      // A duration is milliseconds, so a fourth digit would always be 0.
+      if (typeof digits !== 'number' || !Number.isInteger(digits) || digits < 0 || digits > 3)
+        return 'fractionalDigits is how many digits of a second are shown, 0 to 3';
+      if (smallest !== undefined && smallest !== 'seconds')
+        return `fractionalDigits shows the milliseconds as the seconds' fraction, so the seconds are the smallest unit: remove smallest`;
+      if (largest === 'milliseconds') return `fractionalDigits shows the seconds' fraction, so largest is seconds or larger`;
+    }
   }
   try {
     if (kind === 'number') new Intl.NumberFormat('en', value).resolvedOptions();

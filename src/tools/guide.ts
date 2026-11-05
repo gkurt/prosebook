@@ -48,10 +48,10 @@ function sampleList(locale: string, o: ListFormatOptions): string {
 }
 
 function sampleDuration(locale: string, o: DurationFormatOptions): string {
-  const { parts } = durationParts(SAMPLE_DURATION, o);
+  const { parts, display } = durationParts(SAMPLE_DURATION, o);
   // A Node or Bun without `Intl.DurationFormat` says the units it would show.
   if (typeof Intl.DurationFormat !== 'function') return JSON.stringify(parts);
-  return new Intl.DurationFormat(locale, o).format(parts);
+  return new Intl.DurationFormat(locale, { ...o, ...display } as Intl.DurationFormatOptions).format(parts);
 }
 
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */

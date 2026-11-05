@@ -572,6 +572,7 @@ formats: {
   },
   duration: {
     compact: { style: 'narrow', smallest: 'seconds' }, // "3m 5s"; largest, smallest, units (2)
+    tenths: { style: 'narrow', fractionalDigits: 1 }, // "4.2s"
   },
   locales: { de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } } },
 },
@@ -606,7 +607,8 @@ copy.duration(took, 'compact');
 - A list format's `max` shows that many items and says the rest with the entry `more` names, given `{count}`, as the last item,
   in each locale's words; `max` and `more` go together, and only in a named format. The entry is kept in every build.
 - A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
-  many it shows from the largest it reaches.
+  many it shows from the largest it reaches. `fractionalDigits` (0 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
+  where milliseconds would show "4s 200ms", rounded to its last digit; the seconds are its smallest unit.
 - The `named-format` lint warns of a message that spells out a named format's options.
 
 ### Tags
@@ -947,7 +949,16 @@ It also finds numbers, dates and lists formatted in code, which show the browser
 src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): read copy.number(…, 'price'), which shows it as the format the config names
 ```
 
-`scan` reports them; `scan --strict` fails on them, as on hardcoded text.
+`scan` reports them; `scan --strict` fails on them, as on hardcoded text. A formatter only asked its options, as in
+`Intl.DateTimeFormat().resolvedOptions().timeZone`, formats nothing and isn't reported.
+
+Code whose text no person reads, as a server tool's results, leaves a check out by folder or file:
+
+```ts
+scan: {
+  ignore: { 'formatted-in-code': ['src/server'] }, // and 'hardcoded-text'
+},
+```
 
 ### SARIF
 

@@ -640,7 +640,7 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
     report.rule('unused-key', RULES['unused-key']);
     report.rule('formatted-in-code', RULES['formatted-in-code']);
     for (const f of result.formatted) {
-      const message = `${f.code} formats in code: read ${f.fix}, or mark the line \`prosebook-ignore\``;
+      const message = `${f.code} formats in code: read ${f.fix}, or mark the line \`prosebook-ignore\` (a folder no person reads: scan.ignore)`;
       report.add({ rule: 'formatted-in-code', level, message, file: f.file, line: f.line, column: f.column });
     }
     for (const h of result.hardcoded) {
@@ -651,11 +651,15 @@ function runScan(config: ResolvedConfig, strict: boolean, report?: SarifReport):
     for (const m of unused)
       report.add({ rule: 'unused-key', level, message: `no code reads ${m.key}: remove it`, file: m.file, ...locate(m.file, m.key) });
   }
+  const hints = [
+    result.hardcoded.length > 0 ? '`prosebook extract` moves the text into the catalog' : '',
+    result.hardcoded.length + result.formatted.length > 0
+      ? 'mark a deliberate line `prosebook-ignore`, and name a folder no person reads under scan.ignore'
+      : '',
+  ].filter(Boolean);
   out(
     `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${result.formatted.length} formatted in code, ${unused.length} unused key(s), ${unseen} unseen read(s)` +
-      (result.hardcoded.length > 0
-        ? '. `prosebook extract` moves the text into the catalog; mark a deliberate line `prosebook-ignore`.'
-        : ''),
+      (hints.length > 0 ? `. ${hints.join('; ')}.` : ''),
   );
   return strict && result.hardcoded.length + result.formatted.length + unused.length + unseen > 0
     ? 1

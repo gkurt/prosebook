@@ -62,7 +62,9 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list` and `copy.duration`
   take names from; `Register`'s `formats` names them for the types. Lists and durations have options of
   prosebook's own beside `Intl`'s: a list's `max` and `more` (the entry saying the rest, which `moreKeys`
-  keeps in builds), a duration's `largest`, `smallest` and `units`, which `durationParts` reads.
+  keeps in builds), a duration's `largest`, `smallest`, `units` and `fractionalDigits`, which `durationParts`
+  reads; it hands back the `Intl` options a duration adds (`display`): 0 shown in the smallest unit, and
+  `milliseconds: 'numeric'`, which is how `Intl.DurationFormat` writes them as the seconds' fraction.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
@@ -194,7 +196,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
   finds `toLocale*String` calls, `Intl` formatters and a component's `.join(', ')`, and names the
-  copy's method to read, with a named format whose options resolve as the written ones do. Hardcoded text is JSX's, what its
+  copy's method to read, with a named format whose options resolve as the written ones do, and passes by a formatter
+  only asked its `resolvedOptions()`. `scan.ignore` keeps either check out of folders, by its name (`SCAN_CHECKS`). Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
   and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
