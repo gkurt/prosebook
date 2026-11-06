@@ -458,7 +458,7 @@ const ends = (text: string) => /[.!?…:]["')”]*$/.test(text.trim());
 function findingsOf(text: string, source?: string): Finding[] {
   const found: Finding[] = [];
   if (/ {2,}/.test(text)) found.push({ rule: 'whitespace', message: 'no leading, trailing or doubled spaces', match: / {2,}/g, fix: ' ' });
-  if (text.includes('...')) found.push({ rule: 'ellipsis', message: 'an ellipsis is one character: …', match: /\.{3}/g, fix: '…' });
+  if (text.includes('...')) found.push({ rule: 'ellipsis', message: 'ellipses should be one character: …', match: /\.{3}/g, fix: '…' });
   if (source !== undefined && text.trim() !== '' && ends(text) !== ends(source)) {
     found.push({
       rule: 'source-ending',

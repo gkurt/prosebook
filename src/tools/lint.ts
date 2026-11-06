@@ -626,7 +626,7 @@ export const CORE_RULES = {
     description: 'An ellipsis is one character, `…`, not three periods.',
     on: { locale: 'all' },
     check: ({ text }) =>
-      text.variants.some((v) => v.includes('...')) ? [{ message: 'an ellipsis is one character: …', match: '...', fix: '…' }] : [],
+      text.variants.some((v) => v.includes('...')) ? [{ message: 'ellipses should be one character: …', match: '...', fix: '…' }] : [],
   },
   'plural-count': {
     description: 'A count followed by a plural noun, `{count} files`, is a plural, or it reads "1 files". English.',
