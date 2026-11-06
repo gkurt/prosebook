@@ -6,7 +6,7 @@
  * terminal. Server components read the new text on their next render; in the browser, each locale
  * module hands its new messages to the copies holding it, which re-render in the locale and state
  * they were in. `next build` ships only the messages the code names: each locale module is handed to a
- * Turbopack loader (`next-loader.ts`) that returns it pruned. Turbopack loads a module before it has
+ * Turbopack loader (`loader.ts`) that returns it pruned. Turbopack loads a module before it has
  * seen the code that reads it, so the keys come from the source under `scan.dirs` (`tools/bundle.ts`),
  * read here once, and each pruned module travels to the loader as its options. The index travels too,
  * without the pseudo-locale, which is for dev.
@@ -27,7 +27,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join, relative, resolve } from 'node:path';
 
-import type { LoaderOptions } from './next-loader.ts';
+import type { LoaderOptions } from './loader.ts';
 import {
   areaFile,
   areaModule,
@@ -91,7 +91,7 @@ type ConfigFunction<C> = (phase: string, context: { defaultConfig: C }) => C | P
 const DEV = 'phase-development-server';
 const BUILD = 'phase-production-build';
 
-const loaderPath = beside(import.meta.url, 'next-loader');
+const loaderPath = beside(import.meta.url, 'loader');
 const inspectorPath = beside(import.meta.url, 'inspector');
 
 // Next loads its config more than once in a process; one watcher and one inspector server per catalog

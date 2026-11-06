@@ -50,6 +50,12 @@
       "port": 3006
     },
     {
+      "name": "example-rspack",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "examples/rspack", "dev", "--port", "3007"],
+      "port": 3007
+    },
+    {
       "name": "site",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev", "--port", "4321"],

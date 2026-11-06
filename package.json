@@ -15,13 +15,15 @@
     "nextjs",
     "preact",
     "react",
+    "rspack",
     "solid",
     "svelte",
     "translation",
     "typescript",
     "ux-writing",
     "vite",
-    "vue"
+    "vue",
+    "webpack"
   ],
   "homepage": "https://gkurt.com/prosebook/",
   "bugs": {
@@ -125,6 +127,13 @@
         "default": "./dist/next.js"
       }
     },
+    "./webpack": {
+      "prosebook@dev": "./src/webpack.ts",
+      "import": {
+        "types": "./dist/webpack.d.ts",
+        "default": "./dist/webpack.js"
+      }
+    },
     "./bun": {
       "prosebook@dev": "./src/bun.ts",
       "import": {
@@ -183,6 +192,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^21.0.4",
+    "@rspack/core": "^2.3.1",
     "@types/bun": "^1.4.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -203,9 +213,11 @@
     "tsdown": "^0.23.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
-    "vue": "^3.5.44"
+    "vue": "^3.5.44",
+    "webpack": "^5.112.2"
   },
   "peerDependencies": {
+    "@rspack/core": ">=1",
     "astro": ">=6",
     "next": ">=16",
     "preact": ">=10",
@@ -214,9 +226,13 @@
     "svelte": ">=5.7",
     "typescript": ">=7",
     "vite": ">=6",
-    "vue": ">=3.5"
+    "vue": ">=3.5",
+    "webpack": ">=5"
   },
   "peerDependenciesMeta": {
+    "@rspack/core": {
+      "optional": true
+    },
     "astro": {
       "optional": true
     },
@@ -242,6 +258,9 @@
       "optional": true
     },
     "vue": {
+      "optional": true
+    },
+    "webpack": {
       "optional": true
     }
   },

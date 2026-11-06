@@ -1,0 +1,29 @@
+{
+  "name": "example-rspack",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rspack serve",
+    "build": "NODE_ENV=production rspack build",
+    "start": "node serve.ts",
+    "typecheck": "tsc",
+    "check": "prosebook generate --check && prosebook lint",
+    "generate": "prosebook generate"
+  },
+  "dependencies": {
+    "prosebook": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^2.3.1",
+    "@rspack/core": "^2.3.1",
+    "@rspack/dev-server": "^2.2.2",
+    "@rspack/plugin-react-refresh": "^2.0.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react-refresh": "^0.18.0",
+    "typescript": "^7.0.2"
+  }
+}

@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import type { CompiledMessages, DevHooks, HotHook } from 'prosebook';
 import type { EntryView } from 'prosebook/tools';
 
-import loader, { type LoaderOptions } from '#src/next-loader.ts';
+import loader, { type LoaderOptions } from '#src/loader.ts';
 import { withProsebook, type ProsebookNextOptions } from '#src/next.ts';
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { fixture, route } from './fixture.ts';

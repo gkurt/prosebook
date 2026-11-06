@@ -58,6 +58,26 @@ export default withProsebook({/* your Next config */});
 - Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config.
 - Turbopack only: Next 16 fails a Turbopack build whose config has a `webpack` key.
 
+### webpack and Rspack
+
+```ts
+// webpack.config.ts or rspack.config.ts
+import { ProsebookPlugin } from 'prosebook/webpack';
+
+export default {
+  plugins: [new ProsebookPlugin()],
+  // The generated index imports `./en.js`, as TypeScript writes it, for `en.ts`.
+  resolve: { extensionAlias: { '.js': ['.ts', '.js'] } },
+};
+```
+
+- Generates before each build; watching, and so under the dev server, again on every edit, and the page shows the new text
+  without reloading, in the locale and state it was in.
+- In `production` mode, the default, the build ships only the messages the code reads and leaves the pseudo-locale out.
+- Without `extensionAlias`, set `importExtension: ''` in the prosebook config instead.
+- Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)); not `split`, and no [inspector](#inspector).
+  Rsbuild takes it as `tools.rspack.plugins`.
+
 ### Bun
 
 ```toml
@@ -124,7 +144,8 @@ import { rich, t } from '../copy.ts'; // export const { t, rich } = createCopy(c
 
 ### Integration options
 
-Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (Bun) and `prosebook()` (Astro) takes:
+Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (Bun) and `prosebook()` (Astro) takes, and
+`new ProsebookPlugin()` (webpack) the first four:
 
 | Option    | Default    |                                                                                                              |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
@@ -135,7 +156,7 @@ Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (B
 | `split`   | `false`    | [Split](#splitting) each locale by area.                                                                     |
 | `inspect` | `true`     | The [inspector](#inspector), in dev.                                                                         |
 
-In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, Bun and `generate --watch` regenerate with
+In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, webpack, Bun and `generate --watch` regenerate with
 the new config, but keep the paths (`catalog`, `locales`, `out`) they started with: restart them after moving one. A module the
 config file imports is read once per process.
 

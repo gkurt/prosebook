@@ -27,7 +27,7 @@ const { t } = useCopy();
 - **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build, and a translation whose source
   changed is marked stale.
-- **Pruned.** Vite, Next.js, Bun and Astro builds ship only the messages the code reads, and can split them by route.
+- **Pruned.** Vite, Next.js, webpack, Rspack, Bun and Astro builds ship only the messages the code reads, and can split them by route.
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 
@@ -62,7 +62,8 @@ plugins = ["prosebook/bun"]
 ```
 
 Keep `src/copy/`, `copy/catalog/catalog.schema.json` and `copy/catalog/WRITING.md` out of your formatter: `generate --check`
-compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, Bun, [Astro](API.md#astro) and shared catalogs.
+compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, [webpack and Rspack](API.md#webpack-and-rspack), Bun,
+[Astro](API.md#astro) and shared catalogs.
 
 ## Reading messages
 
@@ -175,6 +176,7 @@ Each is a small shop in English, German and the pseudo-locale.
 | [`examples/vue`](examples/vue)                       | Vue single-file components, typed by `vue-tsc`.                     |
 | [`examples/svelte`](examples/svelte)                 | Svelte 5 with runes, typed by `svelte-check`.                       |
 | [`examples/solid`](examples/solid)                   | Solid, updating in place on a locale switch.                        |
+| [`examples/rspack`](examples/rspack)                 | React with Rspack, pruned in production.                            |
 | [`examples/next`](examples/next)                     | Next.js, with server components reading a copy per request.         |
 | [`examples/tanstack-start`](examples/tanstack-start) | TanStack Start, rendered on the server in the request's locale.     |
 | [`examples/bun`](examples/bun)                       | `Bun.serve` with a React page and the inspector.                    |

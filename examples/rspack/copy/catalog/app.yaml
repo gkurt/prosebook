@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=./catalog.schema.json
+app.title:
+  kind: name
+  surface: title
+  context: The app's name, in the header and the browser tab.
+  en: Corner Shop
+
+app.language:
+  kind: name
+  surface: label
+  context: Labels the menu that switches the language of the app.
+  en: Language
+
+app.greeting:
+  kind: state
+  surface: status
+  context: Greets the signed-in person at the top of the page.
+  args:
+    name: the person's first name
+  en: Welcome back, {name}.
+
+app.last-visit:
+  kind: state
+  surface: hint
+  context: Under the greeting, says when the person last visited.
+  args:
+    when: the date and time of the last visit
+  en: Your last visit was {when, date, medium} at {when, time, short}.

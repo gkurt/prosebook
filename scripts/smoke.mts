@@ -44,6 +44,7 @@ const EXAMPLES: Record<string, Example> = {
   vue: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   svelte: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   solid: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
+  rspack: { requests: [{ path: '/', scripts: true, says: ['Corner Shop', 'Add to cart'] }] },
   bun: {
     requests: [
       { path: '/', scripts: true, says: ['Corner Shop'], lazy: ['Add to cart'] },

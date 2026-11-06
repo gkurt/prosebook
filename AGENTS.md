@@ -83,7 +83,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
-Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/bun`, `prosebook/astro`, the CLI):
+Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/bun`, `prosebook/astro`,
+the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
@@ -266,8 +267,8 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `src/cli.ts`: the `prosebook` command.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
   watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
-  path's end (Turbopack's root may be the monorepo's). `next-loader.ts` is the loader those rules name
-  by path (a tsdown entry of its own): in a build each locale's pruned module travels to it as its
+  path's end (Turbopack's root may be the monorepo's). `loader.ts` is the loader those rules name
+  by path (a tsdown entry of its own, shared with `webpack.ts`): in a build each locale's pruned module travels to it as its
   options, so no config is loaded in Turbopack's workers; in dev, in the browser, the index sets the
   hot set and starts the inspector (imported by a relative path), and each locale, run again by Fast
   Refresh, updates the copies. An app route needs a file in the app, so in dev the inspector's
@@ -281,6 +282,12 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   append the area imports. An app's own rule for a glob ours shares stays, first, in a list. Turbopack only: Next 16 fails
   a Turbopack build whose config has a `webpack` key. Its export has a `default` condition, since Next
   `require`s the config.
+- `src/webpack.ts`: `ProsebookPlugin`, for webpack and Rspack. Its rule is added as the plugin is applied, before the
+  config loads, so it names the plugin, and `loader.ts` finds each module's options in `pluginModules`, which the plugin
+  fills before each compile: Rspack fixes a rule's options when it reads the config. Production mode prunes as Next does
+  (`scanSources`, the index from `buildIndex`); otherwise each locale self-accepts through `import.meta.webpackHot` and hands
+  its messages to the copies (`notifyingLocale`), and the index accepts its update unless the locales changed. Watching, it
+  regenerates through `watchCatalog`. No `split` and no inspector. `test/webpack.test.ts` runs both bundlers.
 - `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so it prunes there; the dev server
   (bunfig.toml's `[serve.static]`) names none, so there it watches and appends the Vite plugin's hot
   code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from the index
@@ -344,7 +351,7 @@ differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo 
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.
 
-`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `bun`, `node`) and per
+`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `rspack`, `bun`, `node`) and per
 binding beyond React (`preact`, `vue`, `svelte`, `solid`, each on Vite), each a
 private workspace whose copy follows its `copy/catalog/WRITING.md`, and that imports prosebook from `dist` as a user's app would, so build before running
 one. They share the shop catalog, but each is standalone. `scripts/smoke.mts` serves an example's

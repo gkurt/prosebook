@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown';
 
 // One entry per export in package.json, plus the CLI, the dev inspector each integration loads from
-// beside itself and the Turbopack loader the Next config names by path. The frameworks, Vite, Bun and
+// beside itself and the loader the Next config and the webpack plugin name by path. The frameworks, Vite, Bun and
 // Node built-ins stay external.
 export default defineConfig({
   entry: {
@@ -14,7 +14,8 @@ export default defineConfig({
     'svelte/index': 'src/svelte/index.ts',
     vite: 'src/vite.ts',
     next: 'src/next.ts',
-    'next-loader': 'src/next-loader.ts',
+    loader: 'src/loader.ts',
+    webpack: 'src/webpack.ts',
     bun: 'src/bun.ts',
     astro: 'src/astro.ts',
     inspector: 'src/inspector.ts',
