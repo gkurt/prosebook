@@ -67,8 +67,8 @@ describe('defineCatalog', () => {
     const catalog = { source: 'en', locales: ['en'], messages: { en: {} }, loaders: {} };
     expect(defineCatalog(catalog).source).toBe('en');
     expect(defineCatalog({ ...catalog, runtime: 1 }).runtime).toBe(1);
-    expect(() => defineCatalog({ ...catalog, runtime: 99 })).toThrow('generated for a newer runtime (99)');
-    expect(() => defineCatalog({ ...catalog, runtime: 0 })).toThrow('run `prosebook generate`');
+    expect(() => defineCatalog({ ...catalog, runtime: 99 })).toThrow('generated for runtime 99, and this prosebook reads 1 to 1');
+    expect(() => defineCatalog({ ...catalog, runtime: 0 })).toThrow('generate it with the installed prosebook');
   });
 });
 

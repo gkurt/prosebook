@@ -16,6 +16,8 @@ jobs:
       - run: bun i --frozen-lockfile
       # First: the examples import prosebook as an app does, from dist, and the type-aware lint reads them.
       - run: bun run build
+      # What an app ships, minified and gzipped, against the budgets in the script.
+      - run: bun run size
       - run: bun check
       - run: bun run test
       - run: bun typecheck

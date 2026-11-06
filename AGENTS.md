@@ -16,6 +16,7 @@ bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root exam
 bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
 bun run examples:generate     # build, then `prosebook generate` in every example and the site
 bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
+bun run size       # the runtime and each binding, minified and gzipped from dist, against budgets (after `build`)
 bun run dev        # build, then the homepage's dev server (site/, Astro), with the inspector
 bun run site       # build, then the homepage (site/, Astro) into _site/, as Pages deploys it
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
@@ -36,7 +37,7 @@ commit their `src/copy/`, so they show the current output; CI fails on an exampl
 ## Structure
 
 One package, ESM-only. Two halves that share only types: the runtime, which ships to browsers and
-must stay small and dependency-free, and the tools, which run at build time in Node or Bun.
+must stay small and dependency-free (`scripts/size.mts` holds it to budgets in CI), and the tools, which run at build time in Node or Bun.
 
 Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/preact`, `prosebook/vue`,
 `prosebook/svelte`, `prosebook/solid`):
