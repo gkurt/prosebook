@@ -2,6 +2,7 @@
 import '#src/site.css';
 
 import { rich, t } from '#src/copy.ts';
+import { FILES } from '#src/playground/starter.ts';
 
 const api = (section: string) => `https://github.com/gkurt/prosebook/blob/main/API.md${section === '' ? '' : `#${section}`}`;
 const repo = 'https://github.com/gkurt/prosebook';
@@ -40,6 +41,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         <a class="mark" href={base}><img src={`${base}icon.svg`} width="28" height="28" alt="" />prose<span>book</span></a>
         <nav>
           <a href="#in-context">{t('site.in-context')}</a>
+          <a href="#playground">{t('playground.eyebrow')}</a>
           <a href={api('')}>{t('site.docs')}</a>
           <a href={repo}>{t('site.github')}</a>
         </nav>
@@ -212,6 +214,42 @@ copy.trayRecordings(<span class="k">3</span>)
         </div>
       </section>
 
+      <section class="block" id="playground">
+        <p class="eyebrow">{t('playground.eyebrow')}</p>
+        <h2>{t('playground.title')}</h2>
+        <p class="intro">{t('playground.intro')}</p>
+
+        <div class="play">
+          <div class="window">
+            <div class="chrome">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="grow" data-path>{FILES.catalog}</span>
+              <span class="seg" role="group" aria-label={t('playground.files')}>
+                <button type="button" data-file={FILES.catalog} aria-pressed="true">en</button>
+                <button type="button" data-file={FILES.german} aria-pressed="false">de</button>
+              </span>
+              <button type="button" class="toggle small" data-reset>{t('playground.reset')}</button>
+            </div>
+            <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label={FILES.catalog}></textarea>
+            <div class="status" aria-live="polite"></div>
+          </div>
+
+          <div class="window">
+            <div class="chrome tabs">
+              <span class="seg" role="group" aria-label={t('playground.outputs')}>
+                <button type="button" data-tab="preview" aria-pressed="true">{t('playground.preview')}</button>
+                <button type="button" data-tab="lint" aria-pressed="false">{t('playground.lint', { count: 0 })}</button>
+                <button type="button" data-tab="index.ts" aria-pressed="false">index.ts</button>
+                <button type="button" data-tab="en.ts" aria-pressed="false">en.ts</button>
+                <button type="button" data-tab="Copy.swift" aria-pressed="false">Copy.swift</button>
+                <button type="button" data-tab="Copy.kt" aria-pressed="false">Copy.kt</button>
+              </span>
+            </div>
+            <div class="out" tabindex="0"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="block">
         <p class="eyebrow">{t('translators.eyebrow')}</p>
         <h2>{t('translators.title')}</h2>
@@ -285,5 +323,6 @@ plugins: [react(), prosebook()]</pre>
     </div>
 
     <script src="../demo.ts"></script>
+    <script src="../playground.ts"></script>
   </body>
 </html>

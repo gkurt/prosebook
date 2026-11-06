@@ -7,4 +7,7 @@ export default defineConfig({
   base: '/prosebook',
   outDir: '../_site',
   integrations: [prosebook()],
+  // The playground loads the tools late; prebundled up front, the dev server doesn't find their
+  // dependencies only then and reload the page.
+  vite: { optimizeDeps: { include: ['prosebook/playground'] } },
 });

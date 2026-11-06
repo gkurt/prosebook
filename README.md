@@ -2,7 +2,7 @@
 
 Every string your app shows, in one typed catalog. For React, React Native, Preact, Vue, Svelte, Solid and any JavaScript.
 
-[Homepage](https://gkurt.com/prosebook/) · [Try it on the page](https://gkurt.com/prosebook/#in-context) · [API reference](API.md)
+[Homepage](https://gkurt.com/prosebook/) · [Try it on the page](https://gkurt.com/prosebook/#in-context) · [Playground](https://gkurt.com/prosebook/#playground) · [API reference](API.md)
 
 The words live in YAML, one entry per string, with the context a translator needs beside them. The code
 holds only keys, so changing what the app says is an edit to the catalog, not to the code.
@@ -165,6 +165,7 @@ generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.
 - [**Native targets**](API.md#native-targets): Rust, Swift, Kotlin, Android resources and Apple string tables.
 - [**Pseudo-locale**](API.md#pseudo-locale): accented, padded text that shows what was missed.
+- [**Playground**](API.md#playground): the tools in a browser, over files in memory, as the homepage's playground runs them.
 
 ## Examples
 

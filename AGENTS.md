@@ -357,7 +357,9 @@ as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` bui
 deploys it on every push to main. Its words are its own catalog's (`site/copy/catalog`), read by the
 page as it is built and by `src/demo.ts` in the browser; code samples and the tool's own words, which
 prosebook says in English, stay in the code. Its in-context demo (`src/demo.ts`) recreates the inspector over a copy of `examples/vite`'s cart catalog, so
-keep it in step when the inspector or that catalog changes. The page shows rather than tells: each feature is a
+keep it in step when the inspector or that catalog changes. Its playground (`src/playground.ts`, the starting files in `src/playground/starter.ts`) runs `prosebook/playground` on
+a catalog the visitor edits, loaded once the section is near; its preview reads that catalog's keys, which the site's
+pruning can't see, so that read is `prosebook-ignore`. The page shows rather than tells: each feature is a
 heading linking to its section of API.md over a small example, its output copied from the real tools; a new
 feature joins the "Also" line under them rather than adding prose. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.

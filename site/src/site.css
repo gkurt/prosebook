@@ -735,6 +735,171 @@ h2 {
   font-size: 12px;
 }
 
+/* Playground */
+.play {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.play textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 460px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  resize: vertical;
+  background: var(--code-bg);
+  color: var(--ink);
+  font: 12.5px/1.65 var(--mono);
+  tab-size: 2;
+  /* A message is one long line: wrapped, it reads whole. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+}
+.play textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.toggle.small {
+  padding: 5px 10px;
+  font-size: 12px;
+  flex: none;
+}
+.chrome.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chrome.tabs .seg button {
+  white-space: nowrap;
+}
+.out {
+  flex: 1;
+  min-height: 460px;
+  max-height: 560px;
+  overflow: auto;
+  position: relative;
+}
+.out:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.out pre {
+  margin: 0;
+  padding: 12px 16px;
+  font: 12px/1.6 var(--mono);
+  background: var(--code-bg);
+  min-height: 100%;
+}
+.out .empty {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.out .empty.ok {
+  color: var(--ok);
+}
+.msg {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.msg .key {
+  font: 12px/1.5 var(--mono);
+  color: var(--tok-key);
+}
+.msg .args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 6px 0 8px;
+}
+.msg .args label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px/1 var(--mono);
+  color: var(--muted);
+}
+.msg .args input,
+.msg .args select {
+  font: 12px/1.2 var(--mono);
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--ink);
+  max-width: 10.5rem;
+}
+.msg .args input[type='number'] {
+  width: 6rem;
+}
+.msg .args input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+.says {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.says .loc {
+  font: 11px/1.9 var(--mono);
+  color: var(--muted);
+}
+.says .said {
+  overflow-wrap: anywhere;
+}
+.says .fallback {
+  color: var(--muted);
+  font-style: italic;
+}
+.says a {
+  color: var(--accent);
+}
+.out .findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.out .findings li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.out .findings li::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--tok-kw);
+}
+.out .findings li.error::before {
+  background: var(--err);
+}
+.out .findings li > div {
+  flex: 1;
+  min-width: 0;
+}
+.out .findings .where {
+  display: block;
+  font: 12px/1.6 var(--mono);
+  color: var(--tok-key);
+}
+.out .findings code {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
 /* Translators */
 .block .pair {
   margin: 32px 0 0;
@@ -771,11 +936,16 @@ footer {
 @media (max-width: 860px) {
   .pair,
   .demo,
+  .play,
   .shows,
   .steps {
     grid-template-columns: minmax(0, 1fr);
   }
   .hero {
     padding-top: 32px;
+  }
+  .play textarea,
+  .out {
+    min-height: 320px;
   }
 }

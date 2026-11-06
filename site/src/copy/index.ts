@@ -263,6 +263,134 @@ export type Messages = {
    */
   "hero.try": { args: {}; tags: never };
   /**
+   * {count, plural, one {# problem leaves an entry out: see Lint.} other {# problems leave entries out: see Lint.}}
+   *
+   * Under the editor when an entry has an error and is left out of what compiled.
+   */
+  "playground.broken": {
+    args: {
+      /** How many problems there are. */
+      readonly count: number;
+    };
+    tags: never;
+  };
+  /**
+   * Nothing to fix. The words pass the writing rules.
+   *
+   * In the lint panel when nothing is wrong.
+   */
+  "playground.clean": { args: {}; tags: never };
+  /**
+   * Playground
+   *
+   * The small line above the heading of the playground, where a visitor edits a catalog and sees what it compiles to.
+   */
+  "playground.eyebrow": { args: {}; tags: never };
+  /**
+   * The compiler didn't load: {reason}
+   *
+   * Under the editor when the compiler could not be downloaded.
+   */
+  "playground.failed": {
+    args: {
+      /** The error the browser gave. */
+      readonly reason: string;
+    };
+    tags: never;
+  };
+  /**
+   * Not translated in {locale}, so it shows in English.
+   *
+   * Shown on hover over a message that a locale doesn't translate, which shows in English instead.
+   */
+  "playground.fallback": {
+    args: {
+      /** The locale that lacks the translation. */
+      readonly locale: string;
+    };
+    tags: never;
+  };
+  /**
+   * Files
+   *
+   * Names the buttons above the editor that switch between the catalog file and its German translation.
+   */
+  "playground.files": { args: {}; tags: never };
+  /**
+   * Fix
+   *
+   * Beside a lint finding. Makes the edit the finding suggests in the file.
+   */
+  "playground.fix": { args: {}; tags: never };
+  /**
+   * The real compiler, lint and generators, running in this page. Edit the order page, in English or German:
+   *
+   * Under the playground's heading, above an editor holding a catalog and a panel showing what it makes.
+   */
+  "playground.intro": { args: {}; tags: never };
+  /**
+   * {count, plural, =0 {Lint} one {Lint (#)} other {Lint (#)}}
+   *
+   * The button that shows the catalog's problems and the writing rules' findings.
+   */
+  "playground.lint": {
+    args: {
+      /** How many problems and findings there are. */
+      readonly count: number;
+    };
+    tags: never;
+  };
+  /**
+   * Loading the compiler…
+   *
+   * Under the editor while the compiler downloads, before the first result.
+   */
+  "playground.loading": { args: {}; tags: never };
+  /**
+   * Not generated. The lint says why.
+   *
+   * In place of a generated file that could not be written because of a problem in the catalog.
+   */
+  "playground.missing": { args: {}; tags: never };
+  /**
+   * Output
+   *
+   * Names the buttons above the output panel that switch between the preview, the lint and the generated files.
+   */
+  "playground.outputs": { args: {}; tags: never };
+  /**
+   * Preview
+   *
+   * The button that shows each message rendered in every locale, with a field for each placeholder.
+   */
+  "playground.preview": { args: {}; tags: never };
+  /**
+   * Reset
+   *
+   * In the editor's title bar. Puts back the files the playground started with.
+   */
+  "playground.reset": { args: {}; tags: never };
+  /**
+   * {messages, plural, one {# message} other {# messages}} compiled in {locales, plural, one {# locale} other {# locales}}.
+   *
+   * Under the editor after each edit, says how much compiled.
+   */
+  "playground.summary": {
+    args: {
+      /** How many messages the catalog holds. */
+      readonly messages: number;
+      /** How many locales they were compiled in. */
+      readonly locales: number;
+    };
+    tags: never;
+  };
+  /**
+   * Write a message, see what ships.
+   *
+   * Heads the playground.
+   */
+  "playground.title": { args: {}; tags: never };
+  /**
    * Every string your app shows, in one typed catalog. ICU and MessageFormat 2 compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.
    *
    * The page's description, which search engines show under its title.
