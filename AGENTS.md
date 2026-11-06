@@ -45,7 +45,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
   for the inspector, and the `HotHook` set every copy adds itself to, so an edited locale's messages
   are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
-- `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale.
+- `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale
+  and per copy's `timeZone`, which `dateFormat` puts under a zone a message names itself.
   None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
   the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key. `l`
   joins a list (`shownItems`: its first `max`, and the compiled `more` message for the rest), `u` writes

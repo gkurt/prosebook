@@ -95,6 +95,22 @@ test('a server copy asks for the locale, negotiates it, and comes back with its 
   expect(errors).toEqual(['{n} has no value']);
 });
 
+test('a server copy asks for its options per request too', async () => {
+  const catalog = defineCatalog({
+    source: 'en',
+    locales: ['en'],
+    messages: { en: compiled([['a.b', parseMessage('{d, date, ::yMMMd}')]]) },
+    loaders: {},
+  });
+  const serverCopy = createServerCopy(
+    catalog,
+    () => 'en',
+    async () => ({ timeZone: 'Asia/Tokyo' }),
+  );
+  const copy = await serverCopy();
+  expect(copy.t('a.b' as never, { d: Date.UTC(2025, 11, 31, 23, 30) })).toBe('Jan 1, 2026');
+});
+
 test("useCopy()'s t keeps its identity while the provider re-renders, until the locale changes", async () => {
   const copy = copyOf({ en: { 'a.title': 'Cart' }, de: { 'a.title': 'Warenkorb' } });
   const seen: unknown[] = [];

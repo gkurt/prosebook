@@ -1,5 +1,5 @@
 import { durationParts, formatIn, type DurationFormatOptions, type FormatKind, type Formats, type ListFormatOptions } from './formats.ts';
-import { createHelpers, flatten, shownItems } from './helpers.ts';
+import { createHelpers, dateFormat, flatten, shownItems } from './helpers.ts';
 import { chainOf, negotiate } from './locale.ts';
 import type {
   AnyTagFn,
@@ -110,6 +110,12 @@ export interface CopyOptions<L extends string> {
    * client has such files (`Catalog.areaFiles`), and only its lazy locales.
    */
   preload?: (href: string) => void;
+  /**
+   * The IANA time zone dates are shown in, `'Europe/Berlin'`, unless a message names its own. Defaults
+   * to the environment's, which a server and its readers rarely share: give both the same zone, or a
+   * server-rendered date hydrates as another. A zone `Intl` refuses shows dates as their placeholders.
+   */
+  timeZone?: string;
 }
 
 /** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
@@ -127,6 +133,8 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   readonly locale: L;
   readonly locales: readonly L[];
   readonly source: L;
+  /** The zone dates are shown in, from `CopyOptions.timeZone`; `undefined` for the environment's. */
+  readonly timeZone: string | undefined;
   /** The tag renderers rich reads fall back to, from `CopyOptions.tags`. */
   readonly tags: { readonly [tag: string]: AnyTagFn };
   /** Settles once the starting locale's messages are loaded. */
@@ -198,8 +206,11 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     else console.error(`prosebook: ${key} in ${l}: ${error.message}`);
   };
   const helpers = (l: L) =>
-    createHelpers(l, (error) => {
-      if (reading !== undefined) report(error, reading, l);
+    createHelpers(l, {
+      report: (error) => {
+        if (reading !== undefined) report(error, reading, l);
+      },
+      timeZone: options.timeZone,
     });
 
   const areas = () => (split === undefined ? [WHOLE] : [...split.areas.keys()]);
@@ -364,6 +375,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     },
     locales: catalog.locales,
     source: catalog.source,
+    timeZone: options.timeZone,
     tags: defaultTags,
     ready,
     t(key, ...args) {
@@ -388,7 +400,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     },
     date(value, format) {
       const opts = typeof format === 'string' ? named('date', format) : format;
-      return formatter('d', opts, () => new Intl.DateTimeFormat(locale, opts)).format(value);
+      return formatter('d', opts, () => dateFormat(locale, options.timeZone, opts)).format(value);
     },
     list(items, format) {
       const opts = typeof format === 'string' ? named('list', format) : format;

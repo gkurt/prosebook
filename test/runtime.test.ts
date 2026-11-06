@@ -188,4 +188,28 @@ describe('copy', () => {
     expect(copy.list(['a', 'b', 'c'])).toBe('a, b und c');
     expect(copy.relative(-1, 'day', { numeric: 'auto' })).toBe('gestern');
   });
+
+  test('dates show in the copy’s time zone, unless a message names its own', () => {
+    // 23:30 UTC on 31 December: already 1 January in Tokyo.
+    const when = Date.UTC(2025, 11, 31, 23, 30);
+    const en = { 'a.when': '{when, date, ::yMMMd} {when, time, ::Hm}' };
+    expect(copyOf({ en }, { timeZone: 'UTC' }).t('a.when', { when })).toBe('Dec 31, 2025 23:30');
+    const tokyo = copyOf({ en }, { timeZone: 'Asia/Tokyo' });
+    expect(tokyo.timeZone).toBe('Asia/Tokyo');
+    expect(tokyo.t('a.when', { when })).toBe('Jan 1, 2026 08:30');
+    expect(tokyo.date(when, { dateStyle: 'medium' })).toBe('Jan 1, 2026');
+    expect(tokyo.date(when, { dateStyle: 'medium', timeZone: 'UTC' })).toBe('Dec 31, 2025');
+    const own = copyOf({ en: { 'a.when': '{$when :datetime dateLength=medium timeZone=UTC}' } }, { timeZone: 'Asia/Tokyo' }, 2);
+    expect(own.t('a.when', { when })).toContain('Dec 31, 2025');
+  });
+
+  test('a time zone Intl refuses shows the date as its placeholder, and says why', () => {
+    const errors: string[] = [];
+    const copy = copyOf(
+      { en: { 'a.when': 'On {when, date, medium}' } },
+      { timeZone: 'Mars/Olympus', onError: (e) => errors.push(e.message) },
+    );
+    expect(copy.t('a.when', { when: 0 })).toBe('On {when}');
+    expect(errors[0]).toContain('{when} could not be formatted');
+  });
 });

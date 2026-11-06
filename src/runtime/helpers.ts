@@ -10,9 +10,10 @@ type Formatters<F> = Map<object | undefined, Map<string, F>>;
  * Options an argument gives are built per call, so those are told apart by value.
  *
  * A value missing, or one `Intl` refuses, never throws: `n` and `d` give nothing back, and the message
- * shows the placeholder's fallback through `e`, which hands `report` what went wrong.
+ * shows the placeholder's fallback through `e`, which hands `report` what went wrong. `timeZone` is the
+ * zone dates are shown in unless a message names its own.
  */
-export function createHelpers(locale: string, report?: (error: Error) => void): Helpers {
+export function createHelpers(locale: string, { report, timeZone }: HelperOptions = {}): Helpers {
   const numbers: Formatters<Intl.NumberFormat> = new Map();
   const dates: Formatters<Intl.DateTimeFormat> = new Map();
   const rules: Formatters<Intl.PluralRules>[] = [new Map(), new Map()];
@@ -38,7 +39,7 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
       return attempt(value, () => formatter(numbers, options, given, (o) => new Intl.NumberFormat(locale, o)).format(value));
     },
     d(value, options, given) {
-      return attempt(value, () => formatter(dates, options, given, (o) => new Intl.DateTimeFormat(locale, o)).format(value));
+      return attempt(value, () => formatter(dates, options, given, (o) => dateFormat(locale, timeZone, o)).format(value));
     },
     l(value, options, more) {
       return attempt(value, () =>
@@ -85,6 +86,18 @@ export function createHelpers(locale: string, report?: (error: Error) => void): 
       return typeof render === 'function' ? (render as (chunks: unknown[]) => unknown)(flatten(children)) : children;
     },
   };
+}
+
+export interface HelperOptions {
+  /** Told why a placeholder shows its fallback. */
+  report?: (error: Error) => void;
+  /** The IANA time zone dates are shown in, unless a message names its own. Defaults to the environment's. */
+  timeZone?: string;
+}
+
+/** A date formatter in `timeZone`, under any the options name. */
+export function dateFormat(locale: string, timeZone: string | undefined, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, timeZone === undefined ? options : { timeZone, ...options });
 }
 
 /** A list's items as text, the first `max` of them and the `more` entry saying the rest. */

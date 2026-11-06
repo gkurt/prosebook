@@ -40,6 +40,7 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
     },
     locales: copy.locales,
     source: copy.source,
+    timeZone: copy.timeZone,
     tags: copy.tags,
     ready: copy.ready,
     t(key, ...args) {

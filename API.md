@@ -153,6 +153,7 @@ const copy = createCopy(catalog, {
   onMissing: (key, locale) => key,
   onError: (error, key, locale) => report(error, { key, locale }),
   preload: (href) => preloadModule(href, { as: 'script' }),
+  timeZone: 'Europe/Berlin',
 });
 await copy.ready;
 ```
@@ -164,6 +165,7 @@ await copy.ready;
 | `onMissing` | What a key the catalog lacks reads as. Defaults to the key.                                         |
 | `onError`   | Told of a placeholder with no value or one `Intl` refuses. Defaults to `console.error`.             |
 | `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads. |
+| `timeZone`  | The IANA zone dates show in, unless a message names its own. Defaults to the environment's.         |
 
 ### A copy
 
@@ -181,6 +183,7 @@ const stop = copy.subscribe(render); // after each locale switch, and each catal
 copy.locale; // 'de'
 copy.locales; // every locale of the catalog
 copy.source; // 'en'
+copy.timeZone; // 'Europe/Berlin', or undefined for the environment's
 copy.version; // counts changes to what messages read as
 ```
 
@@ -421,6 +424,19 @@ function Ready({ copy, children }: { copy: Copy; children: ReactNode }) {
   return <CopyProvider copy={copy}>{children}</CopyProvider>;
 }
 ```
+
+**Time zones.** A date shows in the environment's zone, and a server's is rarely its reader's: `{when, date}` at 23:30 UTC is
+tomorrow in Tokyo, and the page hydrates as another day. Give both copies the same `timeZone`: the reader's, kept in a cookie
+the browser sets from `Intl.DateTimeFormat().resolvedOptions().timeZone`, or `'UTC'`. `createServerCopy` asks for its options
+per request when they are a function:
+
+```ts
+export const serverCopy = createServerCopy(catalog, locale, async () => ({
+  timeZone: (await cookies()).get('tz')?.value ?? 'UTC',
+}));
+```
+
+A zone `Intl` refuses shows each date as its placeholder, `{when}`, and `onError` says why.
 
 ### In tests
 

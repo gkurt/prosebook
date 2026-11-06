@@ -10,6 +10,8 @@ import type { MessageShapes } from '#src/runtime/types.ts';
 /** What a request asks for: a locale, or the locales it prefers, most preferred first. */
 type Asked<L extends string> = L | (string & {}) | readonly string[];
 
+type Options<L extends string> = Omit<CopyOptions<L>, 'locale'>;
+
 /**
  * A reader of one copy per request, ready to use: `locale` is asked once per request, and every
  * server component rendering in it gets the same copy, in the locale negotiated from the answer.
@@ -23,14 +25,18 @@ type Asked<L extends string> = L | (string & {}) | readonly string[];
  * });
  * const { t, locale } = await serverCopy();
  * ```
+ *
+ * `options` may be a function too, asked once per request, for what differs between readers: the
+ * `timeZone` a reader's cookie holds, say.
  */
 export function createServerCopy<M extends MessageShapes, L extends string>(
   catalog: Catalog<M, L>,
   locale: () => Asked<L> | Promise<Asked<L>>,
-  options: Omit<CopyOptions<L>, 'locale'> = {},
+  options: Options<L> | (() => Options<L> | Promise<Options<L>>) = {},
 ): () => Promise<Copy<M, L>> {
   return cache(async () => {
-    const copy = createCopy(catalog, { ...options, locale: await locale() });
+    const given = typeof options === 'function' ? await options() : options;
+    const copy = createCopy(catalog, { ...given, locale: await locale() });
     await copy.ready;
     return copy;
   });
