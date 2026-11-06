@@ -156,7 +156,9 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   `checkPlural`: what a platform's plurals pick on (one cardinal count, no offset, no `=N`). `test/native.test.ts` compiles
   each target with any toolchain on the PATH (aapt2 from `ANDROID_HOME` too) and compares its output
   with the runtime's; nothing here runs the `.strings` files on a Mac.
-- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`.
+- `src/tools/compile.ts`: ICU AST to JavaScript. Keep its output in step with `runtime/helpers.ts`, and raise
+  `RUNTIME` (`copy.ts`), which every generated index names and `defineCatalog` checks, when it needs what an older
+  runtime lacks; raise `OLDEST` only when the runtime stops reading older output.
   Every placeholder reads `h` for its fallback (`a.name ?? h.e("{name}")`), so only a message with no
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
   example's output, which keeps that so.

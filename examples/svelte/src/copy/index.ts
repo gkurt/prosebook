@@ -131,6 +131,7 @@ export type Messages = {
 };
 
 export const catalog = defineCatalog<Messages, Locale>({
+  runtime: 1,
   source: "en",
   locales: ["en", "de", "tr", "en-XA"],
   messages: { en: m_en },

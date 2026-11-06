@@ -10,6 +10,7 @@ import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { RUNTIME } from '#src/runtime/copy.ts';
 import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 
 import { CatalogError } from './catalog.ts';
@@ -251,7 +252,7 @@ export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: 
   return [
     "import { defineCatalog } from 'prosebook';",
     ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),
-    `export const catalog = defineCatalog(${JSON.stringify({ source: config.source, locales, messages: {}, loaders: {}, split, ...(Object.keys(config.formats).length > 0 && { formats: config.formats }) })});`,
+    `export const catalog = defineCatalog(${JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split, ...(Object.keys(config.formats).length > 0 && { formats: config.formats }) })});`,
     '',
   ].join('\n');
 }

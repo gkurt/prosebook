@@ -48,6 +48,16 @@ describe('locale negotiation', () => {
   });
 });
 
+describe('defineCatalog', () => {
+  test('refuses generated code it does not read, saying what to run', () => {
+    const catalog = { source: 'en', locales: ['en'], messages: { en: {} }, loaders: {} };
+    expect(defineCatalog(catalog).source).toBe('en');
+    expect(defineCatalog({ ...catalog, runtime: 1 }).runtime).toBe(1);
+    expect(() => defineCatalog({ ...catalog, runtime: 99 })).toThrow('generated for a newer runtime (99)');
+    expect(() => defineCatalog({ ...catalog, runtime: 0 })).toThrow('run `prosebook generate`');
+  });
+});
+
 describe('copy', () => {
   test('falls back key by key, formatting each message in its own locale', async () => {
     const copy = copyOf({ en: { 'a.n': '{n, number}', 'a.only': 'English only {n, number}' }, de: { 'a.n': '{n, number}' } });

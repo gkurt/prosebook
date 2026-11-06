@@ -8,6 +8,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
+import { RUNTIME } from '#src/runtime/copy.ts';
+
 import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions, type Message } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
@@ -135,6 +137,7 @@ export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: s
     imports: eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
     literal: [
       '{',
+      `  runtime: ${RUNTIME},`,
       `  source: ${quote(config.source)},`,
       `  locales: [${locales.map(quote).join(', ')}],`,
       `  messages: { ${eager.map((l) => `${prop(l)}: ${ident(l)}`).join(', ')} },`,
