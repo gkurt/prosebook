@@ -34,6 +34,10 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
       track();
       return copy.locale;
     },
+    get dir() {
+      track();
+      return copy.dir;
+    },
     get version() {
       track();
       return copy.version;

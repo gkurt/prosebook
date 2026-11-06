@@ -5,6 +5,7 @@ import {
   addArea,
   chainOf,
   createCopy,
+  dirOf,
   defineCatalog,
   negotiate,
   type CompiledMessages,
@@ -37,6 +38,19 @@ describe('locale negotiation', () => {
     expect(acceptedLocales('fr-CH, fr;q=0.9, en;q=0.8, de;q=0.7, *;q=0.5')).toEqual(['fr-CH', 'fr', 'en', 'de']);
     expect(acceptedLocales('pt-BR,de;q=0.5,pt;q=0.5')).toEqual(['pt-BR', 'de', 'pt']);
     expect(acceptedLocales('de ; Q = 0.5 , en')).toEqual(['en', 'de']);
+  });
+
+  test("a locale's direction comes from its script, or its language where it names none", () => {
+    expect(['ar', 'he', 'fa-IR', 'ur', 'pa-PK', 'pa-Arab', 'az-Arab', 'yi', 'iw'].map(dirOf)).toEqual(Array(9).fill('rtl'));
+    expect(['en', 'de', 'pa', 'az', 'tr', 'ar-Latn', 'en-XA', 'zh-Hant', 'not a tag'].map(dirOf)).toEqual(Array(9).fill('ltr'));
+    // Hermes has no `Intl.Locale`: the tag alone decides.
+    const { Locale } = Intl;
+    Object.assign(Intl, { Locale: undefined });
+    try {
+      expect(['ar', 'ur-PK', 'pa-Arab', 'en', 'pa-PK'].map(dirOf)).toEqual(['rtl', 'rtl', 'rtl', 'ltr', 'ltr']);
+    } finally {
+      Object.assign(Intl, { Locale });
+    }
   });
 
   test('Accept-Language leaves out what no one asked for', () => {
@@ -189,6 +203,13 @@ describe('copy', () => {
     const copy = copyOf({ en: { 'a.b': 'See <b>this</b>' } }, { tags: { b: (c: string[]) => `**${c.join('')}**` } });
     expect(copy.rich('a.b' as never)).toEqual(['See **this**']);
     expect(copy.rich('a.b' as never, { b: (c: string[]) => `_${c.join('')}_` } as never)).toEqual(['See _this_']);
+  });
+
+  test('dir follows the locale', async () => {
+    const copy = copyOf({ en: {}, ar: {} });
+    expect(copy.dir).toBe('ltr');
+    await copy.setLocale('ar-EG');
+    expect(copy.dir).toBe('rtl');
   });
 
   test('formatters follow the current locale', async () => {

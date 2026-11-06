@@ -63,6 +63,25 @@ export function acceptedLocales(header: string | null | undefined): string[] {
   return weighed.sort((a, b) => b.q - a.q).map((w) => w.tag);
 }
 
+// The scripts written right to left, and the languages written in one where a tag names no script.
+const RTL_SCRIPTS = new Set(['adlm', 'arab', 'hebr', 'mand', 'mend', 'nkoo', 'rohg', 'samr', 'syrc', 'thaa', 'yezi']);
+const RTL_LANGUAGES = new Set(['ar', 'arc', 'ckb', 'dv', 'fa', 'he', 'iw', 'ks', 'nqo', 'ps', 'sd', 'syr', 'ug', 'ur', 'yi']);
+
+/**
+ * The direction a locale's text runs in, for `<html dir>`: from its script, or its language's usual
+ * one (`ur`, `pa-PK`). Without `Intl.Locale` (Hermes), from the tag alone.
+ */
+export function dirOf(locale: string): 'ltr' | 'rtl' {
+  let tag = locale;
+  try {
+    tag = new Intl.Locale(locale).maximize().toString();
+  } catch {
+    // An invalid tag, or no `Intl.Locale`: the tag as given.
+  }
+  const script = tag.split('-').find((part, i) => i > 0 && part.length === 4);
+  return (script === undefined ? RTL_LANGUAGES.has(languageOf(tag)) : RTL_SCRIPTS.has(script.toLowerCase())) ? 'rtl' : 'ltr';
+}
+
 function languageOf(tag: string): string {
   return tag.split('-', 1)[0]!.toLowerCase();
 }

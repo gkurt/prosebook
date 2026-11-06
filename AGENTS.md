@@ -57,7 +57,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   the module's own, so an area loading after a dev edit ran the index again still reaches its copies.
   A server build's catalog may list `areaFiles`, each area's file per lazy locale in the split client,
   which a copy hands to `preload` as it reads each area, once per file, for the page to link.
-- `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, and `acceptedLocales` for servers.
+- `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, `acceptedLocales` for servers, and `dirOf`, a
+  locale's direction from `Intl.Locale`'s likely script, or from the tag's own subtags where Hermes has no `Intl.Locale`.
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
   locale, its own over its parents' over the default. The tools read messages through it, and the generated index
   ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list` and `copy.duration`

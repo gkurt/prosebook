@@ -1,6 +1,6 @@
 import { durationParts, formatIn, type DurationFormatOptions, type FormatKind, type Formats, type ListFormatOptions } from './formats.ts';
 import { createHelpers, dateFormat, flatten, shownItems } from './helpers.ts';
-import { chainOf, negotiate } from './locale.ts';
+import { chainOf, dirOf, negotiate } from './locale.ts';
 import type {
   AnyTagFn,
   ArgsParam,
@@ -155,6 +155,8 @@ type OrName<O, N extends string> = [N] extends [never] ? O : O | N;
 export interface Copy<M extends MessageShapes = MessageShapes, L extends string = string> {
   /** The locale messages are coming back in. */
   readonly locale: L;
+  /** The direction the locale's text runs in, for `<html dir>`. */
+  readonly dir: 'ltr' | 'rtl';
   readonly locales: readonly L[];
   readonly source: L;
   /** The zone dates are shown in, from `CopyOptions.timeZone`; `undefined` for the environment's. */
@@ -393,6 +395,9 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   return {
     get locale() {
       return locale;
+    },
+    get dir() {
+      return dirOf(locale);
     },
     get version() {
       return version;

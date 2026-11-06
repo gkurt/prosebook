@@ -181,6 +181,7 @@ copy.has(key); // narrows key to a key of the catalog
 await copy.setLocale('de'); // once its messages and its fallbacks' are loaded
 const stop = copy.subscribe(render); // after each locale switch, and each catalog edit in dev
 copy.locale; // 'de'
+copy.dir; // 'ltr', or 'rtl' in Arabic, Hebrew, Persian, Urdu...
 copy.locales; // every locale of the catalog
 copy.source; // 'en'
 copy.timeZone; // 'Europe/Berlin', or undefined for the environment's
@@ -192,15 +193,19 @@ Methods don't use `this`: `const { t, rich } = copy` works.
 ### Locales
 
 ```ts
-import { acceptedLocales, chainOf, negotiate, preferredLocales } from 'prosebook';
+import { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from 'prosebook';
 
 preferredLocales(); // the browser's languages
 acceptedLocales('de;q=0.1, en;q=0.9'); // ['en', 'de'], by weight
 negotiate(['de-AT', 'en'], catalog.locales, 'en'); // the best the catalog has, else the fallback
 chainOf('pt-BR', catalog.locales, 'en'); // ['pt-BR', 'pt', 'en']: the fallback chain
+dirOf('ar-EG'); // 'rtl': the direction its script runs in, for <html dir>
 ```
 
 A key a locale leaves out falls back, key by key, through its parents to the source, and is formatted in its own locale.
+
+`dirOf` reads the script a tag names, or its language's usual one (`pa-PK` is Arabic script). Set `<html lang={copy.locale}
+dir={copy.dir}>`, and write layout with logical properties (`margin-inline-start`), which follow it.
 
 ### Types
 
