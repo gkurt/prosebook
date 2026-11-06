@@ -5,6 +5,7 @@
   "keywords": [
     "astro",
     "bun",
+    "expo",
     "i18n",
     "icu",
     "intl",
@@ -12,9 +13,11 @@
     "localization",
     "messageformat",
     "messageformat2",
+    "metro",
     "nextjs",
     "preact",
     "react",
+    "react-native",
     "rspack",
     "solid",
     "svelte",
@@ -134,6 +137,13 @@
         "default": "./dist/webpack.js"
       }
     },
+    "./metro": {
+      "prosebook@dev": "./src/metro.ts",
+      "default": {
+        "types": "./dist/metro.d.ts",
+        "default": "./dist/metro.js"
+      }
+    },
     "./bun": {
       "prosebook@dev": "./src/bun.ts",
       "import": {
@@ -201,6 +211,8 @@
     "cldr-core": "48",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
+    "metro": "^0.87.3",
+    "metro-config": "^0.87.3",
     "oxfmt": "^0.75.0",
     "oxlint": "^1.90.0",
     "oxlint-tsgolint": "^7.0.2005",
@@ -219,6 +231,7 @@
   "peerDependencies": {
     "@rspack/core": ">=1",
     "astro": ">=6",
+    "metro": ">=0.80",
     "next": ">=16",
     "preact": ">=10",
     "react": ">=18",
@@ -234,6 +247,9 @@
       "optional": true
     },
     "astro": {
+      "optional": true
+    },
+    "metro": {
       "optional": true
     },
     "next": {

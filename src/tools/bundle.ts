@@ -101,12 +101,14 @@ export function brokenIn(generated: Generated): string | undefined {
  * Calls `change` once a burst of edits to the catalog, its translations or the config file settles,
  * with the config as it then reads: loaded again after an edit to its file, unless it was given
  * `inline`. A config that fails to load goes to `fail`, and the last one stays. Returns the stop.
+ * Unless `persistent`, the watchers don't keep the process alive: for a config read by a build too.
  */
 export function watchCatalog(
   config: ResolvedConfig,
   inline: ProsebookConfig | undefined,
   change: (config: ResolvedConfig) => void,
   fail: (e: unknown) => void,
+  persistent = true,
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let reload = false;
@@ -132,13 +134,13 @@ export function watchCatalog(
     for (const w of dirs) w.close();
     dirs = [config.catalog, config.locales]
       .filter((dir) => existsSync(dir))
-      .map((dir) => watch(dir, { recursive: true }, (_event, file) => file?.endsWith('.yaml') === true && settle()));
+      .map((dir) => watch(dir, { recursive: true, persistent }, (_event, file) => file?.endsWith('.yaml') === true && settle()));
   };
   watchDirs();
   // The folder, not the file, so a config file written in place of another is seen too.
   const own =
     inline === undefined
-      ? watch(config.root, (_event, file) => {
+      ? watch(config.root, { persistent }, (_event, file) => {
           if (file === null || !CONFIG_FILES.includes(file)) return;
           reload = true;
           settle();

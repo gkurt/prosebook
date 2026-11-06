@@ -83,8 +83,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
-Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/bun`, `prosebook/astro`,
-the CLI):
+Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
+`prosebook/astro`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
@@ -288,6 +288,14 @@ the CLI):
   (`scanSources`, the index from `buildIndex`); otherwise each locale self-accepts through `import.meta.webpackHot` and hands
   its messages to the copies (`notifyingLocale`), and the index accepts its update unless the locales changed. Watching, it
   regenerates through `watchCatalog`. No `split` and no inspector. `test/webpack.test.ts` runs both bundlers.
+- `src/metro.ts`: `withProsebook` for Metro (React Native, Expo). Metro has no loaders and decides dev or production per
+  bundle, so its resolver (`context.dev`) sends each generated module to a file under `node_modules/.prosebook/metro`, all
+  written as the config loads, before Metro reads the files: in dev a wrapper re-exporting the generated module that
+  calls `module.hot.accept()`, where Metro's runtime stops an update, and hands its messages to the copies; in production
+  the module pruned (`scanSources`), whose unseen reads fail only a production resolve, so the dev server starts. A
+  wrapper's own imports pass through. Its watcher isn't `persistent`, as the same config serves `metro build`. Its export
+  has a `default` condition, since `metro.config.js` `require`s it. No example: `test/metro.test.ts` bundles with Metro
+  both ways, and nothing here runs a device.
 - `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so it prunes there; the dev server
   (bunfig.toml's `[serve.static]`) names none, so there it watches and appends the Vite plugin's hot
   code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from the index

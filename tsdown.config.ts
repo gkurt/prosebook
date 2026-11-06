@@ -16,6 +16,7 @@ export default defineConfig({
     next: 'src/next.ts',
     loader: 'src/loader.ts',
     webpack: 'src/webpack.ts',
+    metro: 'src/metro.ts',
     bun: 'src/bun.ts',
     astro: 'src/astro.ts',
     inspector: 'src/inspector.ts',

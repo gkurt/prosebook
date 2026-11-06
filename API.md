@@ -78,6 +78,38 @@ export default {
 - Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)); not `split`, and no [inspector](#inspector).
   Rsbuild takes it as `tools.rspack.plugins`.
 
+### React Native and Expo
+
+```js
+// metro.config.js
+const { getDefaultConfig } = require('expo/metro-config'); // or @react-native/metro-config
+const { withProsebook } = require('prosebook/metro');
+
+module.exports = withProsebook(getDefaultConfig(__dirname));
+```
+
+```tsx
+import { getLocales } from 'expo-localization';
+import { Text } from 'react-native';
+
+const copy = createCopy(catalog, { locale: getLocales().map((l) => l.languageTag) });
+
+function Cart({ count }: { count: number }) {
+  const { t } = useCopy(); // prosebook/react
+  return <Text>{t('cart.items', { count })}</Text>;
+}
+```
+
+- Generates as Metro reads its config, and again on every edit while the dev server runs; the app shows the new text without
+  reloading, in the locale and state it was in.
+- A production bundle ships only the messages the code reads and leaves the pseudo-locale out; a read whose key it can't see
+  fails it, as `prune` says, while the dev server still starts.
+- Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)), the Metro config as an object, a promise or a
+  function, and returns a promise, which Metro waits for. Not `split`, and no [inspector](#inspector).
+- prosebook is ESM: `require('prosebook/metro')` needs Node 20.19 or later.
+- React Native renders text only inside `<Text>`: read with `t`, or put prosebook's `<Text>` inside React Native's. Hermes
+  implements part of `Intl`: a placeholder whose format it lacks shows as `{name}`, and `onError` says why.
+
 ### Bun
 
 ```toml
@@ -145,7 +177,7 @@ import { rich, t } from '../copy.ts'; // export const { t, rich } = createCopy(c
 ### Integration options
 
 Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (Bun) and `prosebook()` (Astro) takes, and
-`new ProsebookPlugin()` (webpack) the first four:
+`new ProsebookPlugin()` (webpack) and `withProsebook()` (Metro) the first four:
 
 | Option    | Default    |                                                                                                              |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
@@ -156,7 +188,8 @@ Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (B
 | `split`   | `false`    | [Split](#splitting) each locale by area.                                                                     |
 | `inspect` | `true`     | The [inspector](#inspector), in dev.                                                                         |
 
-In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, webpack, Bun and `generate --watch` regenerate with
+In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, webpack, Metro, Bun and `generate --watch`
+regenerate with
 the new config, but keep the paths (`catalog`, `locales`, `out`) they started with: restart them after moving one. A module the
 config file imports is read once per process.
 

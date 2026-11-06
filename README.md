@@ -1,6 +1,6 @@
 # <img src="https://gkurt.com/prosebook/icon.svg" width="40" height="40" alt="" align="top"> prosebook
 
-Every string your app shows, in one typed catalog. For React, Preact, Vue, Svelte, Solid and any JavaScript.
+Every string your app shows, in one typed catalog. For React, React Native, Preact, Vue, Svelte, Solid and any JavaScript.
 
 [Homepage](https://gkurt.com/prosebook/) · [Try it on the page](https://gkurt.com/prosebook/#in-context) · [API reference](API.md)
 
@@ -27,7 +27,8 @@ const { t } = useCopy();
 - **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build, and a translation whose source
   changed is marked stale.
-- **Pruned.** Vite, Next.js, webpack, Rspack, Bun and Astro builds ship only the messages the code reads, and can split them by route.
+- **Pruned.** Vite, Next.js, webpack, Rspack, Metro, Bun and Astro builds ship only the messages the code reads; Vite, Next.js,
+  Bun and Astro can split them by route.
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 
@@ -62,8 +63,8 @@ plugins = ["prosebook/bun"]
 ```
 
 Keep `src/copy/`, `copy/catalog/catalog.schema.json` and `copy/catalog/WRITING.md` out of your formatter: `generate --check`
-compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, [webpack and Rspack](API.md#webpack-and-rspack), Bun,
-[Astro](API.md#astro) and shared catalogs.
+compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, [webpack and Rspack](API.md#webpack-and-rspack),
+[React Native and Expo](API.md#react-native-and-expo), Bun, [Astro](API.md#astro) and shared catalogs.
 
 ## Reading messages
 
