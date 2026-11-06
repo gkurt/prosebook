@@ -24,4 +24,4 @@ start.more:
   args:
     integrations: links to the docs on the integrations
     bindings: links to the docs on the bindings
-  en: 'Next.js, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.'
+  en: 'Next.js, webpack, Metro, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.'

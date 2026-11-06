@@ -50,7 +50,7 @@ export default {
   "site.works-with": "Works with",
   "start.eyebrow": "Get started",
   "start.install": "1. Set up",
-  "start.more": (a, h) => ["Next.js, Bun and Astro take one line each, and every framework its own binding: see ", h.t(a, "integrations", "Integrations"), " and ", h.t(a, "bindings", "Bindings"), "."],
+  "start.more": (a, h) => ["Next.js, webpack, Metro, Bun and Astro take one line each, and every framework its own binding: see ", h.t(a, "integrations", "Integrations"), " and ", h.t(a, "bindings", "Bindings"), "."],
   "start.title": "Three steps to a typed catalog.",
   "translators.eyebrow": "For translators",
   "translators.title": "Know what changed since the last translation.",

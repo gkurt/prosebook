@@ -325,7 +325,7 @@ export type Messages = {
    */
   "start.install": { args: {}; tags: never };
   /**
-   * Next.js, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.
+   * Next.js, webpack, Metro, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.
    *
    * Under the three steps, which show the Vite plugin and React.
    *
