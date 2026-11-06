@@ -7,6 +7,7 @@ import type * as Playground from 'prosebook/playground';
 import type { Files, Finding, Message, Played, Problem, ProsebookConfig } from 'prosebook/playground';
 
 import { t } from './copy.ts';
+import { highlightCatalog, highlightCode } from './playground/highlight.ts';
 import { CATALOG, FILES, GERMAN } from './playground/starter.ts';
 
 type Engine = typeof Playground;
@@ -32,6 +33,7 @@ const GENERATED: Record<string, string> = {
 
 const root = document.getElementById('playground')!;
 const editor = root.querySelector<HTMLTextAreaElement>('textarea')!;
+const painted = root.querySelector<HTMLElement>('.ed pre')!;
 const path = root.querySelector<HTMLElement>('[data-path]')!;
 const status = root.querySelector<HTMLElement>('.status')!;
 const out = root.querySelector<HTMLElement>('.out')!;
@@ -86,7 +88,18 @@ async function run() {
 }
 
 let pending: ReturnType<typeof setTimeout> | undefined;
+/** The highlighted copy of the text, under the textarea's transparent one, scrolled with it. */
+function paint() {
+  painted.innerHTML = highlightCatalog(editor.value);
+  painted.scrollTop = editor.scrollTop;
+}
+
+editor.addEventListener('scroll', () => {
+  painted.scrollTop = editor.scrollTop;
+});
+
 editor.addEventListener('input', () => {
+  paint();
   state.files[state.file] = editor.value;
   clearTimeout(pending);
   pending = setTimeout(() => void run(), 120);
@@ -105,6 +118,7 @@ editor.addEventListener('keydown', (e) => {
 function openFile(file: string) {
   state.file = file;
   editor.value = state.files[file]!;
+  paint();
   path.textContent = file;
   editor.setAttribute('aria-label', file);
   for (const b of root.querySelectorAll<HTMLButtonElement>('[data-file]')) b.setAttribute('aria-pressed', String(b.dataset.file === file));
@@ -144,27 +158,10 @@ function showFile(text: string | undefined) {
     return;
   }
   const pre = h('pre');
-  pre.innerHTML = highlight(text);
+  pre.innerHTML = highlightCode(text);
   out.append(pre);
   const first = text.split('\n').findIndex((line) => /^\s*(?:public func|fun) /.test(line));
   if (first > 4) out.scrollTop = (first - 4) * parseFloat(getComputedStyle(pre).lineHeight);
-}
-
-const KEYWORDS =
-  /\b(?:import|export|from|const|let|var|type|readonly|return|switch|case|default|public|private|internal|static|func|fun|val|enum|class|object|struct|extension|protocol|package|when|else|if|in|is|some|override)\b/;
-const TOKENS = new RegExp(`(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)|("(?:[^"\\\\\\n]|\\\\.)*")|(${KEYWORDS.source})`, 'g');
-const escapeHtml = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
-
-function highlight(code: string): string {
-  let html = '';
-  let last = 0;
-  for (const m of code.matchAll(TOKENS)) {
-    html += escapeHtml(code.slice(last, m.index));
-    const cls = m[1] !== undefined ? 'c' : m[2] !== undefined ? 's' : 'w';
-    html += `<span class="${cls}">${escapeHtml(m[0])}</span>`;
-    last = m.index + m[0].length;
-  }
-  return html + escapeHtml(code.slice(last));
 }
 
 // --- Preview: each message with a field per placeholder, rendered in every locale

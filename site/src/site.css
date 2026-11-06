@@ -742,24 +742,50 @@ h2 {
   gap: 16px;
   align-items: stretch;
 }
-.play textarea {
+.ed {
   flex: 1;
-  width: 100%;
-  min-height: 460px;
+  position: relative;
+  display: flex;
+  background: var(--code-bg);
+}
+/* The text twice, set alike: highlighted below, and above it the textarea, its own text transparent. */
+.ed pre,
+.ed textarea {
   margin: 0;
   padding: 12px 16px;
   border: 0;
-  resize: vertical;
-  background: var(--code-bg);
-  color: var(--ink);
   font: 12.5px/1.65 var(--mono);
+  letter-spacing: normal;
   tab-size: 2;
   /* A message is one long line: wrapped, it reads whole. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow: auto;
+  /* Both keep room for a scrollbar, so both wrap at the same width. */
+  scrollbar-gutter: stable;
 }
-.play textarea:focus-visible {
+.ed pre {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--ink);
+  pointer-events: none;
+}
+.ed textarea {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 460px;
+  resize: vertical;
+  overflow: auto;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ink);
+}
+.ed textarea::selection {
+  color: transparent;
+  background: rgb(124 58 237 / 0.28);
+}
+.ed textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
@@ -944,7 +970,7 @@ footer {
   .hero {
     padding-top: 32px;
   }
-  .play textarea,
+  .ed textarea,
   .out {
     min-height: 320px;
   }

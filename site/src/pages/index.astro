@@ -230,7 +230,10 @@ copy.trayRecordings(<span class="k">3</span>)
               </span>
               <button type="button" class="toggle small" data-reset>{t('playground.reset')}</button>
             </div>
-            <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label={FILES.catalog}></textarea>
+            <div class="ed">
+              <pre aria-hidden="true"></pre>
+              <textarea spellcheck="false" autocapitalize="off" autocomplete="off" aria-label={FILES.catalog}></textarea>
+            </div>
             <div class="status" aria-live="polite"></div>
           </div>
 
