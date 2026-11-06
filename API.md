@@ -1238,6 +1238,31 @@ In dev, with any integration:
 - The editor: Vite's and Astro's `/__open-in-editor` (`LAUNCH_EDITOR`), Next's `/__nextjs_launch-editor` (`REACT_EDITOR`), Bun's
   `Bun.openInEditor` (`VISUAL`, `EDITOR`). Turn it off with `inspect: false`.
 
+## Playground
+
+`prosebook/playground` is the tools built for a browser, over files held in memory: what `generate`, `lint` and `lint --fix`
+make of a catalog, for an editor or a demo of your own. The [homepage's playground](https://gkurt.com/prosebook/#playground)
+runs on it.
+
+```ts
+import { createCopy } from 'prosebook';
+import { fix, play } from 'prosebook/playground';
+
+const files = { 'copy/catalog/cart.yaml': yaml, 'copy/locales/de/cart.yaml': german };
+const config = { pseudo: 'en-XA', lint: { extends: 'strict' }, native: [{ language: 'swift', out: 'ios/Copy.swift' }] };
+
+const played = play(files, config);
+played.generated['src/copy/index.ts']; // the types, as generate writes them; native targets' files too
+played.problems; // an entry or translation with an error is left out, and said
+played.findings; // the lint's, each with its fix where it has one
+const copy = createCopy(played.catalog); // compiled and run, in every locale
+
+const fixed = fix(files, played.findings, config); // the files with the fixes made, if the catalog still loads
+```
+
+- The config is the object `prosebook.config.ts` would export; nothing is read from disk, and `scan` doesn't run.
+- It compiles with `new Function`, which a page's Content Security Policy must allow (`'unsafe-eval'`).
+
 ## Native targets
 
 ### Rust, Swift, Kotlin

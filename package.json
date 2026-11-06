@@ -172,6 +172,13 @@
         "default": "./dist/tools.js"
       }
     },
+    "./playground": {
+      "prosebook@dev": "./src/playground.ts",
+      "import": {
+        "types": "./dist/playground.d.ts",
+        "default": "./dist/playground.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

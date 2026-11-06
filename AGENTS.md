@@ -83,7 +83,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
-Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
+Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
 `prosebook/astro`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
@@ -329,6 +329,12 @@ Tools (`prosebook/tools`, `prosebook/config`, `prosebook/vite`, `prosebook/next`
   translations from `todo`'s YAML filled in, leaving out each entry its own file reports. A finding's `match` is found in the
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
+- `src/playground.ts`: `prosebook/playground`, `play` and `fix`: `render`, `lint` and `applyFixes` over files held in
+  memory, each locale compiled and run for `createCopy`. A second tsdown build, for the browser, replaces each `node:`
+  module the tools import with its stand-in in `src/browser/` (`BROWSER_SHIMS`): `fs.ts` is the in-memory volume every
+  call fills anew, `path.ts` POSIX paths. A tool that reaches a new Node API needs it there too, or that build fails; keep
+  `oxc-parser` and TypeScript out of what `playground.ts` imports. `test/playground.test.ts` builds it the same way, as
+  from source the tools would read the real disk. The homepage's playground (`site/src/playground.ts`) loads it lazily.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,
   translations and lock are read out of git (`ls-tree`, `show`) into a temporary folder and loaded with
   this project's config; entries are compared by key, a key gone and one come with the same words
