@@ -41,6 +41,7 @@
       "peerDependencies": {
         "@rspack/core": ">=1",
         "astro": ">=6",
+        "metro": ">=0.80",
         "next": ">=16",
         "preact": ">=10",
         "react": ">=18",
@@ -54,6 +55,7 @@
       "optionalPeers": [
         "@rspack/core",
         "astro",
+        "metro",
         "next",
         "preact",
         "react",
