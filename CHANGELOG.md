@@ -1,3 +1,30 @@
+## prosebook@0.13.0
+
+### `voice/familiar-context` and `voice/phrases`: a sentence names what it's about rather than leaning on `It` or `they`, and a phrase stands where a phrase does
+
+`prosebook judge` weighs each guideline with the others the entry is held to.
+
+### `prosebook judge` holds each entry to the guidelines through decision models, `decisionJudge` from `prosebook/ai`, and keeps the verdicts in the lock for `lint`
+
+`judge.prompt` tells the models about the app, and `prosebook approve` passes an entry as written until it changes.
+
+### `tone.formality` takes a form of `you` per locale, said in each language's own words, and the `formality` rule finds the other form's pronouns
+
+Without `tone.formality`, the rule holds a locale to the form most of its entries take.
+
+### `catalog: false` lints the text in the code, with no catalog, and `prosebook approve` passes an entry against any rule
+
+`prosebook lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own, its kind
+and surface guessed from where it stands (a `<button>` is an action, an `<h1>` a name on a heading), which
+`lint.guessed` sets severities for and `scan.roles` turns off; a
+`prosebook-allow <rule>: <why>` comment exempts its line, and an approval holds wherever the words move until they
+change. `scan --lint` holds a catalog project's hardcoded text to the rules too.
+
+### `extends` gives the copy a tone, `plain`, `professional`, `friendly`, `technical` or `playful`, with the rules that go with it
+
+The writing guide says the tone with an example per kind of string, `todo --prompt` says it and the form of `you`
+translations take, and the judge reads it. `tone.areas` gives an area its own, and `definePreset` a team's own.
+
 ## prosebook@0.12.0
 
 ### `formatters`: number and date formats of the app's own, as code, named in messages and `copy.number` as any format is
