@@ -46,7 +46,7 @@ export const DEFAULT_KINDS: Record<string, KindRule> = {
     period: 'always',
   },
   state: {
-    doc: 'Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.',
+    doc: 'Reports what is true right now, in the present tense: a phrase where one does, or one sentence; on an error or empty state, one more saying what to do.',
     maxSentences: 1,
     maxSentencesOn: { error: 2, empty: 2, hint: 2, status: 2 },
     period: ['hint', 'status', 'error', 'empty', 'confirm'],
@@ -197,12 +197,16 @@ export const VOICE: Plugin = {
         "A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.",
     },
     // The habit of a writer who had the component in view: the pronoun's referent is in the code, the
-    // entry's context or the prompt, never on screen. So the description tells the judge, which sees
-    // the context, to read the message without it.
-    'stands-alone': {
+    // entry's context or the prompt, never on screen.
+    'familiar-context': {
       type: 'guideline',
       description:
-        "A message is read alone, without its context or what its writer knew, so it names what it's about rather than pointing at it: `It`, `its`, `they`, `these` or `the questions`, with nothing they stand for earlier in the message, leave the reader guessing. `The workflow's name, instructions and models`, not `Its name, instructions and models`.",
+        "A sentence doesn't lean on what only its writer had in view: `It`, `its`, `they`, `these` or `the questions`, standing for nothing named before them, point at what the reader can't see. `The workflow's name, instructions and models`, not `Its name, instructions and models`. A short status or label, `Added` or `Turned off`, sits beside what it's about and names nothing.",
+    },
+    phrases: {
+      type: 'guideline',
+      description:
+        'A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A sentence is for what takes explaining.',
     },
   },
 };

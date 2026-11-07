@@ -577,7 +577,7 @@ checked rule is in it when it says `guide: true`.
 
 #### Voice guidelines
 
-The guide also says six guidelines against the habits of copy written off the code, as an agent tends to write it:
+The guide also says seven guidelines against the habits of copy written off the code, as an agent tends to write it:
 
 | Rule                       | Says                                                                                     |
 | -------------------------- | ---------------------------------------------------------------------------------------- |
@@ -586,7 +586,8 @@ The guide also says six guidelines against the habits of copy written off the co
 | `voice/no-intent`          | Things don't want, know, say or tell: `Runs on new issues`, not `The workflow takes in…` |
 | `voice/no-instructions`    | A control names what it does: `Replay`, not `Click this if you want to replay`           |
 | `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` comes to `Sales's usage`   |
-| `voice/stands-alone`       | Read alone, it names what it's about: `The workflow's name`, not `Its name`              |
+| `voice/familiar-context`   | A sentence names what it's about: `The workflow's name`, not `Its name`                  |
+| `voice/phrases`            | A phrase where a phrase does: `Saved`, not `Your changes have been saved.`               |
 
 They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught, but a
 model can judge, with [`prosebook judge`](#judge). They're written in English, so they're on only where the source is. Turn them
@@ -1082,17 +1083,19 @@ export default defineConfig({
 ```
 
 ```text
-prosebook: judged 1,345 of 1,345 entries (13,450 questions) in 33.5s; the lock had the other 0
-  194ms a request (median), 496ms at most; 2,339,575 input tokens, 254,205 output; $0.0983
+prosebook: judged 1,345 of 1,345 entries (18,830 questions) in 35.7s; the lock had the other 0
+  207ms a request (median), 451ms at most; 4,250,907 input tokens, 353,735 output; $0.1785
 warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a guideline, the model judges: A label over a value names the field, as a noun: …
 ```
 
 - **One request per entry and locale**, through the AI SDK's `experimental_decide`. The entry is the state: its message, key,
-  context, kind, surface, what its placeholders hold, and the source beside a translation. Each guideline is two yes-or-no
-  questions: whether it speaks of a message in this role, and whether the message breaks it. The probability it's broken is
+  context, kind, surface, what its placeholders hold, the source beside a translation, and every guideline it's held to.
+  Each guideline is two yes-or-no questions: whether it speaks of a message in this role, and whether the message breaks it,
+  weighed with the other guidelines, which give way to one another where they pull apart. The probability it's broken is
   their product.
 - **Verdicts live in the lock**, under `judged`, each beside a hash of everything its request said: the model, the entry and
-  the guideline. A run asks only of what changed since, and says how long it took, the tokens and what they cost.
+  the guidelines, so changing one asks again of every entry it reads. A run asks only of what changed since, and says how
+  long it took, the tokens and what they cost.
 - **`lint` and `check` read the verdicts** from the lock, with no model and no key, and `check` warns of entries not judged
   as they are now. The lock keeps the probability, so a new `threshold` needs no new run.
 - **`--check`** asks nothing and fails on any entry not judged as it is now.

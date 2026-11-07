@@ -13,7 +13,7 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 - `name`: Identifies a thing so it can be found again. One to four words, a noun phrase, no period.
 - `action`: Says what pressing it does. One to three words, verb first, no period.
 - `description`: Adds only what the name cannot carry. One sentence, two at most, with a period.
-- `state`: Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.
+- `state`: Reports what is true right now, in the present tense: a phrase where one does, or one sentence; on an error or empty state, one more saying what to do.
 
 ## Surfaces
 
@@ -40,7 +40,8 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 - A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.
 - A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
 - A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.
-- A message is read alone, without its context or what its writer knew, so it names what it's about rather than pointing at it: `It`, `its`, `they`, `these` or `the questions`, with nothing they stand for earlier in the message, leave the reader guessing. `The workflow's name, instructions and models`, not `Its name, instructions and models`.
+- A sentence doesn't lean on what only its writer had in view: `It`, `its`, `they`, `these` or `the questions`, standing for nothing named before them, point at what the reader can't see. `The workflow's name, instructions and models`, not `Its name, instructions and models`. A short status or label, `Added` or `Turned off`, sits beside what it's about and names nothing.
+- A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A sentence is for what takes explaining.
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
 - In `de`: Address the shopper as du, never Sie.

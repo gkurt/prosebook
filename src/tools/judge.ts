@@ -9,7 +9,8 @@
  * makes one from an AI SDK decision model.
  *
  * Each answer is kept in the lock, beside a hash of everything the request said: the model, the
- * prompt, the entry and the guideline. An entry whose request would say the same is not asked again,
+ * prompt, the entry and the guidelines, every one the entry is held to, as each is weighed with the
+ * rest, so a guideline changed asks again of every entry it reads. An entry whose request would say the same is not asked again,
  * so a run asks only of what changed, and `lint` reads the lock's verdicts without a model: the
  * probability is kept rather than the verdict, so a new `threshold` needs no new run.
  */
@@ -62,7 +63,7 @@ export interface JudgeConfig {
 }
 
 /** Raised when what the request says changes in a way the hash can't see: the questions' words. */
-const PROMPT = 2;
+const PROMPT = 3;
 
 /**
  * A guideline is asked as two questions, as one yes-or-no question answers best when it asks one
@@ -75,8 +76,14 @@ export interface Questions {
   breaks: JudgeQuestion;
 }
 
+/**
+ * Each question names its guideline, and the state holds every guideline the entry is held to, so
+ * the guideline is weighed with the rest: they're guidelines, not rules, and one gives way to another
+ * where they pull apart. Asked alone, a guideline against pointing at what the screen never names
+ * found `Added` breaking it, where writing it as a sentence would break another.
+ */
 function questionsOf(description: string): Questions {
-  const guideline = `A writing guideline for the copy of an app: ${description}`;
+  const guideline = `A writing guideline for the copy of an app, one of those in \`guidelines\`: ${description}`;
   return {
     concerns: {
       instructions: `${guideline}\n\nIs the guideline about messages like \`message\`, in the role its \`kind\`, \`surface\` and \`context\` give it?`,
@@ -86,10 +93,10 @@ function questionsOf(description: string): Questions {
       },
     },
     breaks: {
-      instructions: `${guideline}\n\nSupposing the guideline is about \`message\`, does the message do what the guideline warns against?`,
+      instructions: `${guideline}\n\nSupposing the guideline is about \`message\`, and weighing it with the other guidelines in \`guidelines\`, which give way to one another where they pull apart, does the message do what this guideline warns against?`,
       criteria: {
-        true: 'The message does what the guideline warns against, or misses what it asks for.',
-        false: 'The message does as the guideline asks.',
+        true: 'The message does what this guideline warns against, and rewriting it would serve the guidelines taken together.',
+        false: 'The message does as this guideline asks, or does what another of the guidelines asks for where the two pull apart.',
       },
     },
   };
@@ -136,7 +143,7 @@ export function askedOf(config: ResolvedConfig, judge: Judge, messages: readonly
         ([name, { rule }]) => severityOf(config, name, message) !== 'off' && applies(rule, message, locale, config.source),
       );
       if (held.length === 0) continue;
-      const state = stateOf(config, message, locale);
+      const state = { ...stateOf(config, message, locale), guidelines: held.map(([, { rule }]) => rule.description) };
       const questions = new Map(
         held.map(([name, { rule }]) => {
           const questions = questionsOf(rule.description);

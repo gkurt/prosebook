@@ -35,7 +35,7 @@
           },
           {
             "const": "state",
-            "description": "Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do."
+            "description": "Reports what is true right now, in the present tense: a phrase where one does, or one sentence; on an error or empty state, one more saying what to do."
           }
         ]
       },
@@ -179,7 +179,8 @@
             "voice/no-intent",
             "voice/no-instructions",
             "voice/placeholder-values",
-            "voice/stands-alone",
+            "voice/familiar-context",
+            "voice/phrases",
             "shop/error-next",
             "shop/plain",
             "shop/du"

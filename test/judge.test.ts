@@ -101,6 +101,8 @@ describe('judge', () => {
       context: 'The label over the person who filed an issue.',
       kind: { name: 'name' },
       surface: { name: 'label' },
+      // Each guideline is weighed with the others the entry is held to.
+      guidelines: ['A label names the field, as a noun.', 'Say what happens, not what a thing wants.'],
     });
     expect(judged(config).map((f) => [f.key, f.rule, f.severity])).toEqual([['form.reporter', 'house/labels', 'warn']]);
     expect(judged(config)[0]!.message).toContain('A label names the field, as a noun.');
