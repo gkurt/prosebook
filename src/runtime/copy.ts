@@ -46,7 +46,7 @@ interface Pieces<L extends string = string> {
  * catalog's fields. Raise it when generated code needs what an older runtime lacks, and raise `OLDEST`
  * only when this runtime stops reading what an older generator wrote.
  */
-export const RUNTIME = 2;
+export const RUNTIME = 1;
 const OLDEST = 1;
 
 /** A generated catalog: which locales exist, which ship in the bundle and how to fetch the rest. */

@@ -134,4 +134,5 @@ test('watching, an edit to the catalog is built again', async () => {
   await new Promise<void>((done) => watching.close(done));
   expect(builds[0]).toContain('Used message');
   expect(builds.at(-1)).toContain('Edited message');
-});
+  // Longer than the 5 seconds it waits for the second build, which Bun's default timeout would cut short under load.
+}, 20_000);

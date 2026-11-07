@@ -727,8 +727,10 @@ copy.number(total, 'money');
 
 - Each is named as a format of the config's is, typed, and checked: a name `formats` has too, or a built-in style, fails as the
   config loads. It is given the value and the locale, and the copy's `timeZone` where it has one, and gives the text.
-- The generated index imports the module, so it ships to the browser: keep it small, and its text a function of the value and
-  the locale alone, so the server and the browser show the same.
+- The generated index imports the module, so it ships to the browser, and everything it imports with it: keep it small, free
+  of secrets and of server-only code, and its text a function of the value and the locale alone, so the server and the browser
+  show the same.
+- `generate` and every dev server run it, as they run the config: on a checkout you don't trust, both are code you run.
 - One that throws shows the placeholder's fallback and tells `onError` why, as `Intl` refusing a value does.
 - The writing guide shows each on its samples. A message can't `.match` on one, native targets refuse one, and the
   `named-format` lint never names one. Dev servers read the module again when it changes.

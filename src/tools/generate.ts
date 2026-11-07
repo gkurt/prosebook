@@ -145,7 +145,8 @@ export function catalogLiteral(
   return {
     imports: [
       ...eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
-      ...(formatters === undefined ? [] : [`import formatters from '${formatters}';`]),
+      // A folder's name may hold a quote or a backslash, which would end the string early.
+      ...(formatters === undefined ? [] : [`import formatters from '${formatters.replace(/['\\]/g, '\\$&')}';`]),
     ],
     literal: [
       '{',

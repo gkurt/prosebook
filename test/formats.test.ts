@@ -239,6 +239,11 @@ describe("the app's own formatters", () => {
     const { files } = generate(config, { check: true });
     const index = files.get(join(config.out, 'index.ts'))!;
     expect(index).toContain("import formatters from '../formatters.js';");
+    // A quote in a folder's name stays in the string.
+    const quoted = await own({ "src/o'neil/formatters.ts": MODULE }, { formatters: "src/o'neil/formatters.ts" });
+    expect(generate(quoted, { check: true }).files.get(join(quoted.out, 'index.ts'))).toContain(
+      "import formatters from '../o\\'neil/formatters.js';",
+    );
     expect(index).toContain('  formatters,\n');
     expect(index).toContain('formats: { number: "money"; date: "stamp"; list: never; duration: never };');
     expect(files.get(config.guide as string)).toContain('- `money` (number): 1235 in en · 12 in en · -0.25 cents');
