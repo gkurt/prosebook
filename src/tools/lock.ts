@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { Catalog } from './catalog.ts';
 import { formatDiff, wordDiff } from './diff.ts';
+import type { Verdicts } from './judge.ts';
 
 export interface Lock {
   version: 2;
@@ -22,6 +23,8 @@ export interface Lock {
   sources: Record<string, string>;
   /** Per locale, per key: `<source hash>:<translation hash>`. */
   translations: Record<string, Record<string, string>>;
+  /** A model's verdicts on the guidelines, which `prosebook judge` writes (`judge.ts`). */
+  judged?: Verdicts;
 }
 
 export function hash(text: string): string {
@@ -48,7 +51,16 @@ export function serializeLock(lock: Lock): string {
       .sort()
       .map((locale) => [locale, sortedEntries(lock.translations[locale]!)]),
   );
-  return `${JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations }, null, 2)}\n`;
+  const judged = Object.fromEntries(
+    Object.keys(lock.judged ?? {})
+      .sort()
+      .map((locale) => [
+        locale,
+        Object.fromEntries(Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => [key, sortedEntries(rules)])),
+      ]),
+  );
+  const verdicts = Object.keys(judged).length > 0 ? { judged } : {};
+  return `${JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations, ...verdicts }, null, 2)}\n`;
 }
 
 export interface StaleTranslation {
@@ -77,7 +89,8 @@ export interface Reconciled {
  * translations (per locale, keys, or `true` for all of them) to the current source.
  */
 export function reconcile(catalog: Catalog, previous: Lock, accept: Map<string, Set<string> | true> = new Map()): Reconciled {
-  const lock = emptyLock();
+  // The verdicts are `prosebook judge`'s to bring up to date, so they're kept as they were.
+  const lock: Lock = { ...emptyLock(), ...(previous.judged !== undefined && { judged: previous.judged }) };
   const stale = new Map<string, Map<string, StaleTranslation>>();
   for (const message of catalog.messages) {
     const source = hash(message.text);

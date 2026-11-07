@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import type { Formats, Formatters, FormatTable } from '#src/runtime/formats.ts';
 
 import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
+import type { JudgeConfig } from './judge.ts';
 import {
   compileRule,
   CORE_RULES,
@@ -44,6 +45,7 @@ export {
   type SubstitutionRule,
 } from './lint.ts';
 export { asWritten, HOLE } from './places.ts';
+export type { Judge, JudgeConfig, JudgeQuestion, JudgeRequest, JudgeResponse } from './judge.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */
@@ -169,6 +171,12 @@ export interface ProsebookConfig {
   surfaces?: Record<string, string>;
   lint?: LintConfig;
   /**
+   * A decision model that holds each entry to the guidelines no lint rule can check, for `prosebook
+   * judge`: `{ model: decisionJudge(typeSafeAi.decisionModel('jev-latest')) }`, with `decisionJudge`
+   * from `prosebook/ai`. Its verdicts are kept in the lock, so `lint` reads them without the model.
+   */
+  judge?: JudgeConfig;
+  /**
    * The writing guide `generate` writes for whoever writes the copy, a person or an agent: the kinds,
    * the surfaces and the rules the lint holds them to, as instructions. `WRITING.md` in the catalog
    * folder by default; `false` writes none. Point AGENTS.md at it.
@@ -251,6 +259,7 @@ export interface ResolvedConfig {
   native: (NativeTarget & { name: string })[];
   extract: { shared?: string };
   scan: ScanOptions;
+  judge?: Required<JudgeConfig>;
 }
 
 const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings', apple: 'Localizable' };
@@ -396,6 +405,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
     },
+    ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
   };
 }
 
@@ -591,6 +601,16 @@ function checkedFormats(formats: Formats): Formats {
 }
 
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
+/** `judge`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
+function checkedJudge(judge: JudgeConfig): Required<JudgeConfig> {
+  const { model, threshold = 0.7, concurrency = 8 } = judge;
+  if (typeof model?.id !== 'string' || typeof model.judge !== 'function')
+    throw new Error('judge.model is not a model: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts');
+  if (!(threshold > 0 && threshold < 1)) throw new Error(`judge.threshold is ${threshold}: give a probability between 0 and 1`);
+  if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`judge.concurrency is ${concurrency}: give a whole number from 1`);
+  return { model, threshold, concurrency };
+}
+
 function checkedReasons(reasons: Record<string, string>): Record<string, string> {
   for (const [name, why] of Object.entries(reasons)) {
     if (!REASON_NAME.test(name)) throw new Error(`lint.reasons.${name}: a reason's name is lowercase words joined by -`);

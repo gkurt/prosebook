@@ -96,7 +96,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
 Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
-`prosebook/astro`, the CLI):
+`prosebook/astro`, `prosebook/ai`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
@@ -354,6 +354,20 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   being a rename. Stale locales come from `reconcile` over the working lock, findings from `lint`,
   kept to the locales whose words the change wrote. Text in `git diff --word-diff`'s notation, or
   Markdown for a pull request's comment, opening with `REVIEW_MARKER` and every cell escaped.
+- `src/tools/judge.ts`: `prosebook judge`, each entry held to the guidelines by the config's
+  `judge.model`, a `Judge` (an `id` and `judge({ state, questions })`). `askedOf` builds one request
+  per entry and locale some guideline reads (`applies`, as the lint decides), the entry as JSON state,
+  and two boolean questions per guideline, whether it concerns the entry's role and whether the entry
+  breaks it, multiplied: asked as one, a fast model found a guideline for controls broken by hints.
+  Each verdict is kept in the lock's `judged` (per locale, key and rule, `<hash>:<probability>`), the
+  hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
+  only what `unanswered` finds; raise `PROMPT` when the questions' words change. `reconcile` and
+  `rename` keep `judged` as it was. `lint` takes a `Verdict` (`verdictsOf`) and asks it of each rule
+  compiled from a `guideline` (`isGuideline`, a `WeakSet` filled by `compileRule`); a guideline with
+  no verdict is unjudged, so its `allow` isn't called stale. `src/ai.ts` is `prosebook/ai`,
+  `decisionJudge`: a `Judge` over an AI SDK decision model through `experimental_decide`, a tsdown
+  entry of its own so only it imports `ai`, an optional peer; its cost is the AI Gateway's where it
+  says one, else the tokens at the `price` given.
 - `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)
   and their key past its area, which the writing guide tells writers to run before adding one.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's

@@ -31,6 +31,7 @@ export default defineConfig([
       config: 'src/tools/config.ts',
       tools: 'src/tools/index.ts',
       cli: 'src/cli.ts',
+      ai: 'src/ai.ts',
     },
     format: 'esm',
     platform: 'node',

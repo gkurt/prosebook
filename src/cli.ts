@@ -16,8 +16,9 @@ import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { findEntries } from './tools/find.ts';
 import { generate, render } from './tools/generate.ts';
-import { lint, type Finding } from './tools/lint.ts';
-import { changeOf, type StaleTranslation } from './tools/lock.ts';
+import { askedOf, judgeCatalog, unanswered, verdictsOf, type JudgeStats } from './tools/judge.ts';
+import { isGuideline, lint, type Finding } from './tools/lint.ts';
+import { changeOf, readLock, serializeLock, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { applyRename, planMerge, planRename, type MergePlan } from './tools/rename.ts';
 import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
@@ -59,19 +60,23 @@ Commands:
                           (--kind, --surface: only entries in that role)
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
+  judge                   Hold each entry to the guidelines no rule can check, through the config's
+                          judge model, asking only of entries the lock has no verdict on as they are
+                          now; says the time, tokens and cost  (--check: ask nothing, and fail on
+                          any entry not judged)
   check                   generate --check, lint and status --strict together, for CI, and warns
-                          of reads whose key a pruned build can't see
+                          of reads whose key a pruned build can't see and of entries not judged
 
 Options:
   --root <dir>            Project root (default: the current directory)
-  --format <text|sarif>   With lint, scan, status and check: sarif writes a SARIF 2.1.0 log to stdout
+  --format <text|sarif>   With lint, scan, status, judge and check: sarif writes a SARIF 2.1.0 log to stdout
                           for code scanning, and the usual text to stderr
   --format <xliff|json>   With export: the file's format (XLIFF by default on stdout)
   --format <markdown>     With diff: Markdown, for a pull request's comment
   -h, --help              Show this help
 `;
 
-const SARIF_COMMANDS = ['lint', 'scan', 'status', 'check'];
+const SARIF_COMMANDS = ['lint', 'scan', 'status', 'judge', 'check'];
 const EXCHANGE_FORMATS: Record<string, ExchangeFormat> = { xliff: 'xliff', xlf: 'xliff', json: 'json' };
 
 /** What the checks that aren't lint rules hold the project to, for the rules in a SARIF log. */
@@ -177,9 +182,13 @@ async function main(argv: string[]): Promise<number> {
         return runRename(config, rest[0], rest[1], values.write === true);
       case 'find':
         return runFind(config, rest.join(' '), values.kind, values.surface);
+      case 'judge':
+        code = await runJudge(config, values.check === true, report);
+        break;
       case 'check': {
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
+        warnUnjudged(config);
         code = results.some((r) => r !== 0) ? 1 : 0;
         break;
       }
@@ -315,7 +324,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     return 1;
   }
   let { catalog } = rendered(config, report);
-  let findings = lint(catalog.messages, config);
+  const linted = () => lint(catalog.messages, config, catalog.messages, verdictsOf(config, catalog.messages, readLock(config.lock)));
+  let findings = linted();
   if (fix) {
     const { fixed, problems } = applyFixes(config, catalog, findings);
     if (problems.length > 0) {
@@ -326,7 +336,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     if (fixed > 0) {
       out(`prosebook: fixed ${fixed} finding(s); run prosebook generate to compile them`);
       ({ catalog } = rendered(config, report));
-      findings = lint(catalog.messages, config);
+      findings = linted();
     }
   }
   if (unsafe) {
@@ -340,24 +350,10 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     if (plan.merged.length > 0) {
       applyRename(plan);
       ({ catalog } = rendered(config, report));
-      findings = lint(catalog.messages, config);
+      findings = linted();
     }
   }
-  const placed = printFindings(config, findings);
-  if (report !== undefined) {
-    for (const [name, { rule }] of Object.entries(config.lint.rules)) report.rule(name, rule.description);
-    report.rule('allow', RULES.allow);
-    for (const f of placed) {
-      report.add({
-        rule: f.rule,
-        level: f.severity === 'error' ? 'error' : 'warning',
-        message: `${f.key}: ${f.message}`,
-        file: f.file,
-        line: f.line,
-        column: f.column,
-      });
-    }
-  }
+  reportFindings(config, findings, report);
   const errors = findings.filter((f) => f.severity === 'error').length;
   const fixable = findings.filter((f) => f.fix !== undefined).length;
   const broken = errorsIn(catalog).length;
@@ -381,6 +377,106 @@ function printMerges(plan: MergePlan): void {
   if (named > 0) out(`prosebook: rewrote ${named} reference(s) in ${plan.code.length} code file(s)`);
   for (const { file, line, prefix } of plan.prefixed)
     err(`warn  ${file}:${line} reads a key through \`${prefix}\`, which may reach a merged one: read the one kept there by hand`);
+}
+
+/** The findings, each on its line, and in the SARIF log. */
+function reportFindings(config: ResolvedConfig, findings: Finding[], report?: SarifReport): void {
+  const placed = printFindings(config, findings);
+  if (report === undefined) return;
+  for (const [name, { rule }] of Object.entries(config.lint.rules)) report.rule(name, rule.description);
+  report.rule('allow', RULES.allow);
+  for (const f of placed) {
+    report.add({
+      rule: f.rule,
+      level: f.severity === 'error' ? 'error' : 'warning',
+      message: `${f.key}: ${f.message}`,
+      file: f.file,
+      line: f.line,
+      column: f.column,
+    });
+  }
+}
+
+const JUDGE_OFF = 'prosebook: judge is off: set judge.model in the config, as decisionJudge from prosebook/ai makes one';
+
+/** The entries, each in a locale, the lock has no verdict on as they are now. */
+function unjudged(config: ResolvedConfig, catalog: Catalog) {
+  return config.judge === undefined ? [] : unanswered(askedOf(config, config.judge.model, catalog.messages), readLock(config.lock).judged);
+}
+
+function warnUnjudged(config: ResolvedConfig): void {
+  const open = unjudged(config, rendered(config).catalog);
+  if (open.length === 0) return;
+  const one = open.length === 1;
+  err(
+    `warn  ${open.length} entr${one ? 'y is' : 'ies are'} not judged against the guidelines as ${one ? 'it is' : 'they are'} now: run prosebook judge`,
+  );
+}
+
+async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifReport): Promise<number> {
+  if (config.judge === undefined) {
+    err(JUDGE_OFF);
+    return 1;
+  }
+  const { catalog } = rendered(config, report);
+  let failed = false;
+  if (check) {
+    const open = unjudged(config, catalog);
+    for (const a of open) err(`error ${a.message.key} (${a.locale}): not judged on ${[...a.questions.keys()].join(', ')}`);
+    if (open.length > 0) {
+      err(`${open.length} entr${open.length === 1 ? 'y' : 'ies'} not judged as they are now: run prosebook judge
+`);
+    }
+    failed = open.length > 0;
+  } else {
+    const lock = readLock(config.lock);
+    const tty = process.stderr.isTTY;
+    const progress = tty ? (done: number, total: number) => process.stderr.write(`\rprosebook: judging ${done}/${total}`) : undefined;
+    const run = await judgeCatalog(config, catalog, lock, progress === undefined ? {} : { progress });
+    if (tty && run.stats.requests > 0) process.stderr.write('\n');
+    mkdirSync(dirname(config.lock), { recursive: true });
+    writeFileSync(config.lock, serializeLock({ ...lock, judged: run.verdicts }));
+    for (const { key, locale, error } of run.failures) {
+      const why = error instanceof Error ? error.message : String(error);
+      err(`error ${key} (${locale}): the model failed, so the run stopped there: ${why}`);
+    }
+    sayStats(run.stats);
+    failed = run.failures.length > 0;
+  }
+  const verdict = verdictsOf(config, catalog.messages, readLock(config.lock));
+  const findings = lint(catalog.messages, config, catalog.messages, verdict).filter((f) => {
+    const rule = config.lint.rules[f.rule]?.rule;
+    return rule !== undefined && isGuideline(rule);
+  });
+  reportFindings(config, findings, report);
+  const errors = findings.filter((f) => f.severity === 'error').length;
+  if (findings.length > 0) {
+    const where = `Rewrite the string, or add \`allow: { <rule>: <why> }\` where the model is wrong about it.`;
+    err(`\n${errors} error(s), ${findings.length - errors} warning(s). ${where}`);
+  }
+  return failed || errors > 0 ? 1 : 0;
+}
+
+/** What a run took: the time, the requests and their tokens, and what they cost where it's known. */
+function sayStats(stats: JudgeStats): void {
+  const count = (n: number) => n.toLocaleString('en');
+  const seconds = (ms: number) => (ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`);
+  if (stats.requests === 0) {
+    out(`prosebook: the lock judged all ${count(stats.entries)} entries as they are now, so nothing was asked`);
+    return;
+  }
+  const sorted = [...stats.latencies].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+  out(
+    `prosebook: judged ${count(stats.requests)} of ${count(stats.entries)} entries (${count(stats.questions)} questions) in ${seconds(stats.ms)}; the lock had the other ${count(stats.cached)}`,
+  );
+  const cost =
+    stats.unpriced === stats.requests
+      ? 'cost unknown: give decisionJudge a price'
+      : `$${stats.cost.toFixed(stats.cost < 0.01 ? 6 : 4)}${stats.unpriced > 0 ? ` (${count(stats.unpriced)} requests unpriced)` : ''}`;
+  out(
+    `  ${seconds(median)} a request (median), ${seconds(sorted.at(-1)!)} at most; ${count(stats.inputTokens)} input tokens, ${count(stats.outputTokens)} output; ${cost}`,
+  );
 }
 
 /** Each finding on its line, placed at its entry's words. */

@@ -163,6 +163,7 @@ generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.
+- [**Judge**](API.md#judge): each entry held to the guidelines no rule can check by a decision model, asking only of what changed.
 - [**Native targets**](API.md#native-targets): Rust, Swift, Kotlin, Android resources and Apple string tables.
 - [**Pseudo-locale**](API.md#pseudo-locale): accented, padded text that shows what was missed.
 - [**Playground**](API.md#playground): the tools in a browser, over files in memory, as the homepage's playground runs them.

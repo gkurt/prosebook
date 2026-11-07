@@ -959,6 +959,20 @@ const COUNTERS: Record<OccurrenceRule['count'], (text: string) => number> = {
   characters: (text) => [...graphemes.segment(text.replaceAll(HOLE, ''))].length,
 };
 
+/** The rules compiled from guidelines, which no check holds a string to: only a model's judgment (`judge.ts`). */
+const GUIDELINES = new WeakSet<CheckRule>();
+
+export const isGuideline = (rule: CheckRule): boolean => GUIDELINES.has(rule);
+
+/**
+ * Whether an entry breaks a guideline in a locale, as the lock's verdicts say (`verdictsOf` in
+ * `judge.ts`); undefined where none was given on the entry as it is now.
+ */
+export type Verdict = (message: Message, locale: string, rule: string) => boolean | undefined;
+
+/** A finding's words for a guideline a model judged broken. */
+export const judgedMessage = (description: string): string => `breaks a guideline, the model judges: ${description}`;
+
 /** A rule as code, checked once when the config loads: a JSON config is not type-checked. */
 export function compileRule(name: string, rule: Rule): CheckRule {
   const fail = (problem: string): never => {
@@ -979,8 +993,11 @@ export function compileRule(name: string, rule: Rule): CheckRule {
   const { description, recommended, strict, on, guide } = rule;
   const base = { description, recommended, strict, on, guide };
   switch (rule.type) {
-    case 'guideline':
-      return { ...base, recommended: recommended ?? 'warn', guide: true, check: () => [] };
+    case 'guideline': {
+      const compiled: CheckRule = { ...base, recommended: recommended ?? 'warn', guide: true, check: () => [] };
+      GUIDELINES.add(compiled);
+      return compiled;
+    }
     case 'existence': {
       const list = rule.words ?? [];
       const patterns = (rule.patterns ?? []).map((p, i) => pattern(p, `patterns[${i}]`, rule.ignoreCase));
@@ -1129,8 +1146,11 @@ export function applyEdits(text: string, edits: Edit[]): string {
   return out + text.slice(at);
 }
 
-/** The findings on `messages`, held to the whole `catalog` where a rule compares entries. */
-export function lint(messages: Message[], config: ResolvedConfig, catalog: readonly Message[] = messages): Finding[] {
+/**
+ * The findings on `messages`, held to the whole `catalog` where a rule compares entries, and to the
+ * guidelines where `verdict` gives a model's judgment of them.
+ */
+export function lint(messages: Message[], config: ResolvedConfig, catalog: readonly Message[] = messages, verdict?: Verdict): Finding[] {
   const findings: Finding[] = [];
   const rules = Object.entries(config.lint.rules);
   for (const message of messages) {
@@ -1142,6 +1162,8 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
     ];
     // An exemption is the entry's, so it holds in every locale, and is still needed if any locale needs it.
     const fired = new Set<string>();
+    // A guideline nobody judged the entry on may still be broken, so its exemption may still be needed.
+    const unjudged = new Set<string>();
     for (const { locale, ast, written, file } of locales) {
       const text = locale === config.source ? source : readings(ast);
       const context: RuleContext = { message, locale, ast, written, kind, text, source, catalog, config };
@@ -1151,7 +1173,13 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
         if (severity === 'off' || !applies(rule, message, locale, config.source)) continue;
         let said: (string | Report)[];
         try {
-          said = rule.check(context);
+          if (isGuideline(rule)) {
+            const broken = verdict?.(message, locale, name);
+            if (broken === undefined) unjudged.add(name);
+            said = broken === true ? [judgedMessage(rule.description)] : [];
+          } else {
+            said = rule.check(context);
+          }
         } catch (cause) {
           throw new Error(`lint rule ${name} failed on ${message.key} in ${locale}: fix or turn off the rule`, { cause });
         }
@@ -1181,7 +1209,7 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
         findings.push({ ...at, message: `allow.${name} is not a rule: ${rules.map(([n]) => n).join(', ')}` });
       } else if (severityOf(config, name, message) === 'off') {
         continue;
-      } else if (!fired.has(name)) {
+      } else if (!fired.has(name) && !unjudged.has(name)) {
         findings.push({ ...at, message: `allow.${name} exempts the entry from a rule it passes: remove it` });
       } else if (REASON_NAME.test(why) && config.lint.reasons[why] === undefined) {
         const named = Object.keys(config.lint.reasons);

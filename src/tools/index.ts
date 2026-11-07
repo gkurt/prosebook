@@ -72,6 +72,22 @@ export {
 export { asWritten, HOLE } from './places.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
 export { changeOf, emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
+export {
+  askedOf,
+  judgeCatalog,
+  unanswered,
+  verdictsOf,
+  type Asked,
+  type Judge,
+  type JudgeConfig,
+  type JudgeOptions,
+  type JudgeQuestion,
+  type JudgeRequest,
+  type JudgeResponse,
+  type JudgeRun,
+  type JudgeStats,
+  type Verdicts,
+} from './judge.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';
 export { pseudoAst, pseudoText } from './pseudo.ts';
 export { intlDate, intlNumber, parseMf2, toMf2, type Isolate, type Mf2Function, type ReadOptions } from './mf2.ts';

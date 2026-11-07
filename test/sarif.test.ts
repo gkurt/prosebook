@@ -118,6 +118,6 @@ describe('--format sarif', () => {
     const { code, stdout, stderr } = cli(config.root, 'todo', 'de', '--format', 'sarif');
     expect(code).toBe(1);
     expect(stdout).toBe('');
-    expect(stderr).toContain('--format sarif works with lint, scan, status, check');
+    expect(stderr).toContain('--format sarif works with lint, scan, status, judge, check');
   });
 });

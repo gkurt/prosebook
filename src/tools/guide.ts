@@ -12,7 +12,7 @@ import { durationParts, formatWith, stepOf, type DurationFormatOptions, type Lis
 import { shownItems } from '#src/runtime/helpers.ts';
 
 import type { ResolvedConfig } from './config.ts';
-import { languageName, severityIn, type CheckRule } from './lint.ts';
+import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
@@ -163,6 +163,11 @@ export function writingGuide(config: ResolvedConfig): string {
     '## Before you finish',
     '',
     "Run `prosebook lint` and fix what it finds; `--fix` writes the fixes it offers. Where a rule is wrong about an entry, exempt the entry under `allow` with the reason. An entry's `comment` or `remove` is a request: make the change, then delete the field.",
+    '',
+  );
+  if (config.judge === undefined || !guided.some(([, { rule }]) => isGuideline(rule))) return out.join('\n');
+  out.push(
+    'Then run `prosebook judge`, which asks a model whether each entry you changed keeps to the guidelines, and rewrite what it finds.',
     '',
   );
   return out.join('\n');

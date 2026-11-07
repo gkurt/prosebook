@@ -11,7 +11,7 @@ The full reference. For an overview, see the [README](README.md).
   [MessageFormat 2](#messageformat-2)
 - [Translations](#translations): [Stale](#stale-translations) · [With a model](#translating-with-a-model) ·
   [Translation tools](#translation-tools) · [Pseudo-locale](#pseudo-locale)
-- [CLI](#cli): [Lint](#lint) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Find](#find) · [Rename](#rename) · [Diff](#diff)
+- [CLI](#cli): [Lint](#lint) · [Judge](#judge) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Find](#find) · [Rename](#rename) · [Diff](#diff)
 - [Builds](#builds): [Pruning](#pruning) · [Splitting](#splitting)
 - [Inspector](#inspector)
 - [Native targets](#native-targets): [Rust, Swift, Kotlin](#rust-swift-kotlin) · [Android](#android-resources) ·
@@ -587,8 +587,9 @@ The guide also says five guidelines against the habits of copy written off the c
 | `voice/no-instructions`    | A control names what it does: `Replay`, not `Click this if you want to replay`           |
 | `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` comes to `Sales's usage`   |
 
-They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught. They're
-written in English, so they're on only where the source is. Turn them all off, or one, or in an area:
+They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught, but a
+model can judge, with [`prosebook judge`](#judge). They're written in English, so they're on only where the source is. Turn them
+all off, or one, or in an area:
 
 ```ts
 lint: {
@@ -904,9 +905,10 @@ message is padded to the length a translation is likely to reach. Builds through
 | `diff [base]`            | The copy changed since a git revision (`--format markdown`).                            |
 | `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                 |
 | `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).      |
+| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).  |
 | `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                               |
 
-`--root <dir>` sets the project root. `lint`, `scan`, `status` and `check` take `--format sarif`.
+`--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
 **Broken entries** (a message that doesn't parse, a missing field, drifted placeholders) are reported with their fix and left out;
 every command carries on with the rest and fails at the end. An edit, fix or import is refused only for the problems it brings.
@@ -1018,7 +1020,7 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 | `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`, `relative` | the count is out of bounds, or out of ratio with the source's |
 | `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions`           | a word is out of case                                         |
 | `conditional`    | `when`, `require`, `message`                                           | the string matches `when` but not `require`                   |
-| `guideline`      | `description`                                                          | never: it's advice, said in the writing guide                 |
+| `guideline`      | `description`                                                          | a model judges it broken, with [`judge`](#judge)              |
 
 ```json
 {
@@ -1053,6 +1055,53 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 ```
 
 Every rule is checked when the config loads.
+
+### Judge
+
+A guideline is about meaning, so no rule finds a string breaking it. A decision model can: `prosebook judge` asks one whether
+each entry keeps to each guideline that reads it, the [voice guidelines](#voice-guidelines) and your own.
+
+```bash
+npm install ai @ai-sdk/typesafe-ai # TYPESAFE_AI_API_KEY; or ai alone, through the AI Gateway
+```
+
+```ts
+// prosebook.config.ts
+import { typeSafeAi } from '@ai-sdk/typesafe-ai';
+import { decisionJudge } from 'prosebook/ai';
+import { defineConfig } from 'prosebook/config';
+
+export default defineConfig({
+  judge: {
+    model: decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } }), // dollars per million tokens
+    threshold: 0.7, // the probability from which an entry breaks a guideline
+    concurrency: 8, // requests in flight
+  },
+});
+```
+
+```text
+prosebook: judged 1,345 of 1,345 entries (13,450 questions) in 33.5s; the lock had the other 0
+  194ms a request (median), 496ms at most; 2,339,575 input tokens, 254,205 output; $0.0983
+warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a guideline, the model judges: A label over a value names the field, as a noun: …
+```
+
+- **One request per entry and locale**, through the AI SDK's `experimental_decide`. The entry is the state: its message, key,
+  context, kind, surface, what its placeholders hold, and the source beside a translation. Each guideline is two yes-or-no
+  questions: whether it speaks of a message in this role, and whether the message breaks it. The probability it's broken is
+  their product.
+- **Verdicts live in the lock**, under `judged`, each beside a hash of everything its request said: the model, the entry and
+  the guideline. A run asks only of what changed since, and says how long it took, the tokens and what they cost.
+- **`lint` and `check` read the verdicts** from the lock, with no model and no key, and `check` warns of entries not judged
+  as they are now. The lock keeps the probability, so a new `threshold` needs no new run.
+- **`--check`** asks nothing and fails on any entry not judged as it is now.
+- **Exemptions** work as for any rule: `allow: { voice/no-intent: <why> }`. One is called stale only once a verdict says the
+  entry keeps to the guideline.
+- **A model of your own** is a `Judge`, from `prosebook/config`: an `id`, in every hash, and `judge({ state, questions })`
+  giving each question's probability of a yes.
+
+The default threshold is from the guidelines' own examples: Jev judged each bad example broken from 0.7 to 0.96, and none of
+the good ones from 0.7. Below it, the model is more often unsure than right.
 
 ### Scan
 
@@ -1418,6 +1467,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
+  judge: undefined, // { model, threshold: 0.7, concurrency: 8 }: a decision model for `prosebook judge`
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says
