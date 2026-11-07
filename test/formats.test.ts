@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { createCopy, createHelpers, defineCatalog, flatten, type Formats } from 'prosebook';
 import { generate, lint, loadCatalog, planMigrate, readMessage, resolveConfig, type ProsebookConfig } from 'prosebook/tools';
 
+import { splitIndex } from '#src/tools/bundle.ts';
+import { withFormatters } from '#src/tools/config.ts';
+
 import { writingGuide } from '#src/tools/guide.ts';
 import { formatsOf } from '#src/tools/icu.ts';
 import { compiled, fixture } from './fixture.ts';
@@ -194,6 +197,88 @@ describe('number formats with steps', () => {
     const match = '.input {$n :number format=price}\n.match $n\none {{One}}\n* {{More}}';
     expect(() => readMessage(2, match, 'en', { formats: steps })).toThrow(
       '.match on :number format=price, whose steps show a number by its size: match on a :number of the same value declared apart',
+    );
+  });
+});
+
+describe("the app's own formatters", () => {
+  const MODULE = [
+    'export default {',
+    '  number: { money: (value, { locale }) => (value < 10 ? `${value} cents` : `${Math.round(value)} in ${locale}`) },',
+    "  date: { stamp: (value, { timeZone }) => `${new Date(value).toISOString().slice(0, 10)} ${timeZone ?? 'local'}` },",
+    '};',
+  ].join('\n');
+  const own = (files: Record<string, string> = {}, config: ProsebookConfig = {}) =>
+    withFormatters(fixture({ 'src/formatters.ts': MODULE, ...files }, { require: [], formatters: 'src/formatters.ts', ...config }));
+
+  test('a message names one as it names a format, in either syntax, and is shown by it', async () => {
+    const config = await own();
+    const { formatters } = config;
+    for (const [version, text] of [
+      [1, '{total, number, money} on {when, date, stamp}'],
+      [2, '{$total :number format=money} on {$when :datetime format=stamp}'],
+    ] as const) {
+      const ast = readMessage(version, text, 'en', { formats: config.formats, isolate: false });
+      const { m } = compiled([['m', ast]]);
+      const h = createHelpers('de', { formatters: formatters?.table, timeZone: 'UTC' });
+      expect(typeof m === 'string' ? m : flatten(m!({ total: 12.4, when: WHEN }, h)).join('')).toBe('12 in de on 2026-10-28 UTC');
+    }
+  });
+
+  test('a formatter that throws shows the fallback and says why', async () => {
+    const config = await own({ 'src/formatters.ts': 'export default { number: { money: () => { throw new Error("no rate"); } } };' });
+    const { m } = compiled([['m', readMessage(1, 'Total: {total, number, money}', 'en', { formats: config.formats })]]);
+    const errors: string[] = [];
+    const h = createHelpers('en', { formatters: config.formatters?.table, report: (e) => errors.push(e.message) });
+    expect(typeof m === 'string' ? m : flatten(m!({ total: 3 }, h)).join('')).toBe('Total: {total}');
+    expect(errors).toEqual(['{total} could not be formatted: no rate']);
+  });
+
+  test('the index imports the module, the types name its formats, and code formats by them', async () => {
+    const config = await own({ 'copy/catalog/app.yaml': 'app.a: "{total, number, money}"\n' });
+    const { files } = generate(config, { check: true });
+    const index = files.get(join(config.out, 'index.ts'))!;
+    expect(index).toContain("import formatters from '../formatters.js';");
+    expect(index).toContain('  formatters,\n');
+    expect(index).toContain('formats: { number: "money"; date: "stamp"; list: never; duration: never };');
+    expect(files.get(config.guide as string)).toContain('- `money` (number): 1235 in en · 12 in en · -0.25 cents');
+    const table = config.formatters?.table;
+    const copy = createCopy(
+      defineCatalog({ source: 'en', locales: ['en'], messages: { en: {} }, loaders: {}, formats: config.formats, formatters: table }),
+      { timeZone: 'UTC' },
+    );
+    expect(copy.number(4, 'money' as never)).toBe('4 cents');
+    expect(copy.date(WHEN, 'stamp' as never)).toBe('2026-10-28 UTC');
+    // A split index, a virtual module, imports it by its path.
+    const split = splitIndex(config, generate(config));
+    expect(split).toContain(`import formatters from ${JSON.stringify(config.formatters!.file)};`);
+    expect(split).toContain('formatters });');
+  });
+
+  test('.match, native targets and the lint leave them alone', async () => {
+    const config = await own({ 'copy/catalog/app.yaml': 'app.a: "{t, number, ::currency/USD}"\n' });
+    const match = '.input {$n :number format=money}\n.match $n\none {{One}}\n* {{More}}';
+    expect(() => readMessage(2, match, 'en', { formats: config.formats })).toThrow(
+      ".match on :number format=money, which the app's own formatter shows: match on a :number of the same value declared apart",
+    );
+    expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
+  });
+
+  test('the module is checked as it loads', async () => {
+    const refused = (module: string, config: ProsebookConfig = {}) => own({ 'src/formatters.ts': module }, config);
+    expect(own({}, { formatters: 'src/missing.ts' })).rejects.toThrow(
+      "formatters names src/missing.ts, which isn't there: write it, or remove formatters",
+    );
+    expect(refused('export const x = 1;')).rejects.toThrow('src/formatters.ts exports no formatters:');
+    expect(refused('export default { time: {} };')).rejects.toThrow('src/formatters.ts: time is not a kind of formatter: number, date');
+    expect(refused('export default { number: { money: "$" } };')).rejects.toThrow(
+      'src/formatters.ts: number.money is a function of the value and its context, giving the text',
+    );
+    expect(refused('export default { number: { price: () => "" } };', { formats })).rejects.toThrow(
+      'src/formatters.ts: number.price is named in formats.number too: rename one',
+    );
+    expect(refused('export default { date: { short: () => "" } };')).rejects.toThrow(
+      'src/formatters.ts: date.short: "short" is a style every message knows already',
     );
   });
 });

@@ -128,13 +128,25 @@ function register(config: ResolvedConfig): string {
 }`;
 }
 
-/** The catalog `defineCatalog` is given, and the imports of the locales that ship with it. */
-export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: string): { imports: string[]; literal: string } {
+/**
+ * The catalog `defineCatalog` is given, and the imports of the locales that ship with it and of the
+ * formatters module, as a module in `from` names it: the generated index's folder unless said.
+ */
+export function catalogLiteral(
+  config: ResolvedConfig,
+  locales: string[],
+  ext: string,
+  from = config.out,
+): { imports: string[]; literal: string } {
   const eager = locales.filter((l) => l === config.source || config.bundled.includes(l));
   const lazy = locales.filter((l) => !eager.includes(l));
   const ident = (l: string) => `m_${l.replace(/\W/g, '_')}`;
+  const formatters = formattersSpecifier(config, from);
   return {
-    imports: eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
+    imports: [
+      ...eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
+      ...(formatters === undefined ? [] : [`import formatters from '${formatters}';`]),
+    ],
     literal: [
       '{',
       `  runtime: ${RUNTIME},`,
@@ -143,9 +155,24 @@ export function catalogLiteral(config: ResolvedConfig, locales: string[], ext: s
       `  messages: { ${eager.map((l) => `${prop(l)}: ${ident(l)}`).join(', ')} },`,
       `  loaders: { ${lazy.map((l) => `${prop(l)}: () => import('./${l}${ext}')`).join(', ')} },`,
       ...formatsField(config),
+      ...(formatters === undefined ? [] : ['  formatters,']),
       '}',
     ].join('\n'),
   };
+}
+
+/**
+ * The formatters module as a module in `from` imports it, or nothing without one. From the generated
+ * index, which the app's own compiler reads, with the extension its imports have; from elsewhere,
+ * code only a bundler reads, as the file is named.
+ */
+export function formattersSpecifier(config: ResolvedConfig, from = config.out): string | undefined {
+  const file = config.formatters?.file;
+  if (file === undefined) return undefined;
+  const to = relative(from, file).replaceAll('\\', '/');
+  const specifier = to.startsWith('.') ? to : `./${to}`;
+  if (from !== config.out || config.importExtension === '.ts') return specifier;
+  return specifier.replace(/\.([mc]?)tsx?$/, (_, m: string) => (config.importExtension === '' ? '' : `.${m}js`));
 }
 
 /** The formats the config names, for `copy.number` and `copy.date` to take by name; nothing where it names none. */

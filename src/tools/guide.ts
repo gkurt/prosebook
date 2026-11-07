@@ -8,7 +8,7 @@
  */
 import { relative } from 'node:path';
 
-import { durationParts, stepOf, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
+import { durationParts, formatWith, stepOf, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
 import { shownItems } from '#src/runtime/helpers.ts';
 
 import type { ResolvedConfig } from './config.ts';
@@ -69,6 +69,15 @@ function sampleDurations(locale: string, o: DurationFormatOptions): string {
   return shown.join(SAMPLES);
 }
 
+/** A sample as the app's own formatter shows it in the source, or what it throws. */
+function sampleOwn(config: ResolvedConfig, kind: 'number' | 'date', name: string, value: number | Date): string {
+  try {
+    return formatWith(config.formatters?.table, kind, name, value, { locale: config.source, timeZone: 'UTC' });
+  } catch (e) {
+    return `(throws: ${(e as Error).message})`;
+  }
+}
+
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
 function formatsSection(config: ResolvedConfig): string[] {
   const { number = {}, date = {}, list: lists = {}, duration = {} } = config.formats;
@@ -77,6 +86,7 @@ function formatsSection(config: ResolvedConfig): string[] {
       name,
       'number',
       SAMPLE_NUMBERS.map((n) => {
+        if (o.formatter !== undefined) return sampleOwn(config, 'number', o.formatter, n);
         const make = (options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(config.source, options);
         return make(stepOf(o, n, make)).format(n);
       }).join(SAMPLES),
@@ -85,7 +95,9 @@ function formatsSection(config: ResolvedConfig): string[] {
     ...Object.entries(date).map(([name, o]) => [
       name,
       'date',
-      new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE),
+      o.formatter === undefined
+        ? new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE)
+        : sampleOwn(config, 'date', o.formatter, SAMPLE_DATE),
     ]),
     ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o)]),
     ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDurations(config.source, o)]),

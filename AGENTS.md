@@ -75,6 +75,13 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   the step from 10 (a compact one compares the raw size). `h.n`, `copy.number` and the guide's samples
   go through it; the `named-format` lint and `formattedInCode` never take a stepped format as a twin,
   MF2's `.match` on one is refused (plural rules take one set of options), and so are native targets.
+  `Formatters` are the app's own formats, as code, from the module the config's `formatters` names:
+  `withFormatters` (`config.ts`, run by `loadConfig`) imports it and puts each in `formats` as
+  `{ formatter: name }`, so every tool reads it as a named format, and `h.n`, `h.d`, `copy.number` and
+  `copy.date` call it by that name (`formatWith`) from the catalog's `formatters`, which the generated
+  index imports (`formattersSpecifier`; a virtual split index by its path). `beyondOptions` (`icu.ts`)
+  is a format that steps or a formatter, which the lint, the scan, `.match` and native targets pass by
+  or refuse. `resolveConfig` alone, being synchronous, leaves the module unread.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
@@ -93,7 +100,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
-  `loadConfig` imports a config file anew once it changed (a query for Node, `require.cache` for Bun),
+  `loadConfig` imports a config file, and the formatters module, anew once it changed (a query for Node, `require.cache` for Bun),
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
   `presets.ts`: kinds, surfaces, the strict preset's word lists, and `VOICE`, the built-in `voice` plugin: guidelines
   against the habits of generated copy, on only for an English source.
@@ -235,7 +242,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
 - `src/tools/bundle.ts`: what the bundler integrations share: `keeper`, the unseen reads that are a
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
   the code reading it, the pruned locale module, the catalog watcher (`watchCatalog`, which loads the
-  config again when its file changes, for the CLI's `--watch`, Next and Bun), and the dev code appended to the
+  config again when its file or the formatters module changes, for the CLI's `--watch`, Next and Bun), and the dev code appended to the
   generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
   A build leaves the pseudo-locale out (`withoutPseudo`) and loads `buildIndex` in place of the
   generated index, which lists every locale `generated` holds; the split index and areas read the same.
@@ -257,7 +264,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
   apps that share a catalog. In dev an edit to the config file restarts the server, as Vite does for
   its own, except beside the Astro integration's plugin (`ASTRO_PLUGIN`): `astro.ts` names the files
-  to Astro (`addWatchFile`), whose restart does more than Vite's. In dev it makes the generated modules accept their own updates (the index
+  to Astro (`addWatchFile`), whose restart does more than Vite's. An edit to the formatters module loads
+  the config again and regenerates, without a restart, in Astro too. In dev it makes the generated modules accept their own updates (the index
   reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
   first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
   HTML too. It serves the inspector's endpoints and opens an entry by redirecting to Vite's

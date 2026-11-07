@@ -17,6 +17,7 @@ import {
   type DurationFormatOptions,
   type DurationUnit,
   type Formats,
+  type DateFormatOptions,
   type ListFormatOptions,
   type NumberFormatOptions,
 } from '#src/runtime/formats.ts';
@@ -223,6 +224,11 @@ export function durationOptions(el: ExtensionElement): DurationFormatOptions {
  * A style the config names (`formats`): its options in the locale, as a skeleton's would be, so the
  * compiler and the native targets read it as any other, and its name, which the writers keep.
  */
+/** Whether a named format shows values in a way its `Intl` options alone don't: by steps, or by the app's own formatter. */
+export function beyondOptions(options: NumberFormatOptions | DateFormatOptions): boolean {
+  return ('steps' in options && options.steps !== undefined) || options.formatter !== undefined;
+}
+
 export type NamedStyle = (NumberSkeleton | DateTimeSkeleton) & { named: string };
 
 export function namedStyle(formats: Formats | undefined, kind: 'number' | 'date', name: string, locale: string): NamedStyle | undefined {
@@ -467,7 +473,7 @@ export function numberOptions(el: NumberElement): NumberFormatOptions | undefine
 }
 
 /** The `Intl` options a date or time element formats with. Throws, with the fix, where the style is wrong. */
-export function dateOptions(el: DateElement | TimeElement): Intl.DateTimeFormatOptions | undefined {
+export function dateOptions(el: DateElement | TimeElement): DateFormatOptions | undefined {
   const style = el.style;
   const field = el.type === TYPE.time ? 'timeStyle' : 'dateStyle';
   if (style === null || style === undefined) return el.type === TYPE.time ? { timeStyle: 'short' } : undefined;

@@ -10,6 +10,7 @@ import type { Catalog, Message, Problem } from '#src/tools/catalog.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
 import {
+  beyondOptions,
   dateOptions,
   extensionOf,
   LIST,
@@ -252,6 +253,14 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
         `{${'value' in el ? el.value : ''}} takes a formatting option from an argument: native code formats with options the message fixes, ${LEAVE_OUT}`,
       );
     }
+    const named = isNumberElement(el) ? numberOptions(el) : isDateElement(el) || isTimeElement(el) ? dateOptions(el) : undefined;
+    if (named !== undefined && beyondOptions(named)) {
+      const what = named.formatter === undefined ? 'a format with steps' : "the app's own formatter";
+      const value = (el as { value: string }).value;
+      throw new Error(
+        `{${value}} is shown by ${what}, which native code does not run: pass it as a plain {${value}}, written in code, ${LEAVE_OUT}`,
+      );
+    }
     if (isDateElement(el) || isTimeElement(el)) {
       placed(el, el.value, { type: 'date', arg: el.value, format: date(dates, locale, dateOptions(el)) });
       continue;
@@ -262,11 +271,6 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
       throw new Error(`{${own.value}} is ${what}: pass it as a plain {${own.value}}, written in code, ${LEAVE_OUT}`);
     }
     if (isNumberElement(el)) {
-      if (numberOptions(el)?.steps !== undefined) {
-        throw new Error(
-          `{${el.value}} is shown by a format with steps, which native code does not show: pass it as a plain {${el.value}}, written in code, ${LEAVE_OUT}`,
-        );
-      }
       const fallback = placeholderOf(el, el.value).fallback;
       placed(el, el.value, { type: 'number', arg: el.value, offset: 0, format: format(formats, locale, numberOptions(el)), fallback });
       continue;

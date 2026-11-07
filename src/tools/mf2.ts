@@ -23,10 +23,11 @@ import type {
 } from '@formatjs/icu-messageformat-parser';
 import { MessageSyntaxError, parseMessage, stringifyMessage, validate, type Model } from 'messageformat';
 
-import { formatIn, type FormatKind, type Formats } from '#src/runtime/formats.ts';
+import { formatIn, type DateFormatOptions, type FormatKind, type Formats, type NumberFormatOptions } from '#src/runtime/formats.ts';
 
 import {
   asElement,
+  beyondOptions,
   DURATION,
   durationOptions,
   ENTRY,
@@ -57,7 +58,7 @@ export interface Mf2Function {
   /** `u:dir`: the direction the value is written in, which picks the mark isolating it. */
   dir?: 'ltr' | 'rtl' | 'auto';
   /** The options of the format `format=` names, in the locale read: the config's (`formats`), not the message's. */
-  named?: Intl.NumberFormatOptions | Intl.DateTimeFormatOptions;
+  named?: NumberFormatOptions | DateFormatOptions;
 }
 
 type Value = { kind: 'literal'; value: string; fn?: Mf2Function } | { kind: 'variable'; name: string; fn?: Mf2Function; offset: number };
@@ -469,11 +470,11 @@ function selectorOf(name: string, scope: Scope): Selector {
  * for a bare `:number`, which selects as MF1 does.
  */
 function selectionWith(fn: Mf2Function): { selection?: Selection } {
-  // Plural rules take one set of options, where a format with steps rounds a number by its size.
-  if (fn.named !== undefined && 'steps' in fn.named && fn.named.steps !== undefined) {
-    throw new Error(
-      `.match on :${fn.name} format=${fn.options.format}, whose steps show a number by its size: match on a :number of the same value declared apart`,
-    );
+  // Plural rules take one set of options, where a format with steps rounds a number by its size, and
+  // the app's own formatter rounds as it likes.
+  if (fn.named !== undefined && beyondOptions(fn.named)) {
+    const why = fn.named.formatter === undefined ? 'whose steps show a number by its size' : "which the app's own formatter shows";
+    throw new Error(`.match on :${fn.name} format=${fn.options.format}, ${why}: match on a :number of the same value declared apart`);
   }
   const pick = <T>(from: Record<string, T>) => Object.fromEntries(Object.entries(from).filter(([k]) => PLURAL_OPTIONS.has(k)));
   const options = pick(intlNumber(fn) as Record<string, unknown>) as Intl.PluralRulesOptions;

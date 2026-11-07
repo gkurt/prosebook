@@ -8,7 +8,19 @@
 export { addArea, createCopy, defineCatalog, type Catalog, type Copy, type CopyOptions, type Translate } from './runtime/copy.ts';
 export { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from './runtime/locale.ts';
 export { createHelpers, flatten, type HelperOptions } from './runtime/helpers.ts';
-export type { DurationFormatOptions, DurationUnit, Formats, FormatTable, ListFormatOptions } from './runtime/formats.ts';
+export { defineFormatters } from './runtime/formats.ts';
+export type {
+  DateFormatOptions,
+  DurationFormatOptions,
+  DurationUnit,
+  Formats,
+  Formatters,
+  FormatterContext,
+  FormatTable,
+  ListFormatOptions,
+  NumberFormatOptions,
+  NumberStep,
+} from './runtime/formats.ts';
 export type {
   AnyTagFn,
   ArgsParam,

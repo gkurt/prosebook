@@ -188,9 +188,20 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       const dirs = [normalize(config.catalog), normalize(config.locales)];
       // The config is loaded by this plugin, not imported by Vite's, so Vite doesn't restart for it itself.
       const configFiles = options.config === undefined && restarts ? CONFIG_FILES.map((name) => normalize(join(configRoot, name))) : [];
+      // Vite watches the formatters module, which the index imports, but the names in it are read with the config.
+      const formatters = () => (config.formatters === undefined ? undefined : normalize(config.formatters.file));
       server.watcher.add([...dirs, ...configFiles]);
       const onChange = (file: string) => {
         const path = normalize(file);
+        if (path === formatters()) {
+          loadConfig(configRoot, options.config)
+            .then((loaded) => {
+              config = loaded;
+              regenerate(path);
+            })
+            .catch((e: unknown) => failed(e));
+          return;
+        }
         if (configFiles.includes(path)) {
           const logger = server.config.logger;
           logger.info(`prosebook: ${relative(viteRoot, path).replaceAll('\\', '/')} changed, restarting the server`, { timestamp: true });
@@ -199,6 +210,13 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
           return;
         }
         if (!path.endsWith('.yaml') || !dirs.some((d) => path.startsWith(`${d}/`))) return;
+        regenerate(path);
+      };
+      const failed = (e: unknown) => {
+        server.config.logger.error(describe(e), { timestamp: true });
+        server.ws.send({ type: 'error', err: { message: describe(e), stack: '', plugin: 'prosebook' } });
+      };
+      const regenerate = (path: string) => {
         try {
           generated = generate(config, { partial: true });
           // An area's module names the locales, which an edit may have added to.
@@ -209,8 +227,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
             timestamp: true,
           });
         } catch (e) {
-          server.config.logger.error(describe(e), { timestamp: true });
-          server.ws.send({ type: 'error', err: { message: describe(e), stack: '', plugin: 'prosebook' } });
+          failed(e);
         }
       };
       server.watcher.on('change', onChange);

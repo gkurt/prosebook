@@ -82,8 +82,8 @@ export function withoutPseudo(config: ResolvedConfig, generated: Generated): Gen
  * The index a build loads in place of the generated one, as JavaScript: the catalog with only the
  * locales `generated` holds, so a locale `withoutPseudo` left out is neither listed nor imported.
  */
-export function buildIndex(config: ResolvedConfig, generated: Generated): string {
-  const { imports, literal } = catalogLiteral(config, [...generated.entries.keys()], config.importExtension);
+export function buildIndex(config: ResolvedConfig, generated: Generated, from = config.out): string {
+  const { imports, literal } = catalogLiteral(config, [...generated.entries.keys()], config.importExtension, from);
   return ["import { defineCatalog } from 'prosebook';", ...imports, `export const catalog = defineCatalog(${literal});`, ''].join('\n');
 }
 
@@ -129,12 +129,22 @@ export function watchCatalog(
     }
     change(config);
   };
-  // Again after a reload, which may have moved them.
+  // Again after a reload, which may have moved them. The formatters module is loaded with the config,
+  // so an edit to it, which may name a format anew, loads both again.
   const watchDirs = () => {
     for (const w of dirs) w.close();
     dirs = [config.catalog, config.locales]
       .filter((dir) => existsSync(dir))
       .map((dir) => watch(dir, { recursive: true, persistent }, (_event, file) => file?.endsWith('.yaml') === true && settle()));
+    const formatters = config.formatters?.file;
+    if (formatters !== undefined && existsSync(formatters)) {
+      dirs.push(
+        watch(formatters, { persistent }, () => {
+          reload = true;
+          settle();
+        }),
+      );
+    }
   };
   watchDirs();
   // The folder, not the file, so a config file written in place of another is seen too.
@@ -251,10 +261,14 @@ const generatedPath = (config: ResolvedConfig, name: string) =>
 export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: string[], where = VIRTUAL): string {
   const locales = [...generated.entries.keys()];
   const split = { id: splitId(config), areas: [...areasOf(generated)] };
+  const formats = Object.keys(config.formats).length > 0 && { formats: config.formats };
+  const literal = JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split, ...formats });
+  const formatters = config.formatters?.file;
   return [
     "import { defineCatalog } from 'prosebook';",
     ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),
-    `export const catalog = defineCatalog(${JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split, ...(Object.keys(config.formats).length > 0 && { formats: config.formats }) })});`,
+    ...(formatters === undefined ? [] : [`import formatters from ${JSON.stringify(where.generated(formatters))};`]),
+    `export const catalog = defineCatalog(${formatters === undefined ? literal : `{ ...${literal}, formatters }`});`,
     '',
   ].join('\n');
 }

@@ -12,7 +12,18 @@ import { formatIn } from '#src/runtime/formats.ts';
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { apart, entriesSaying } from './duplicates.ts';
-import { categoriesOf, inlined, namedOf, selectionOf, shownAs, staticLiteral, TYPE, walk, type MessageFormatElement } from './icu.ts';
+import {
+  beyondOptions,
+  categoriesOf,
+  inlined,
+  namedOf,
+  selectionOf,
+  shownAs,
+  staticLiteral,
+  TYPE,
+  walk,
+  type MessageFormatElement,
+} from './icu.ts';
 import { asWritten, fixed, HOLE, literalsIn, placesOf, takesInHole, type Literal } from './places.ts';
 import { byLocale, FULL_WIDTH, QUOTED, type KindRule, type Severity } from './presets.ts';
 
@@ -746,10 +757,10 @@ export const CORE_RULES = {
         const shown = shownAs(el, locale);
         if (shown === undefined) return;
         // Two formats may show alike in one locale and apart in another, so a placeholder gets one finding naming each.
-        // A format with steps shows numbers as no options written in a message do.
+        // A format with steps, or the app's own formatter, shows values as no options written in a message do.
         const names = Object.keys(config.formats[kind] ?? {}).filter((name) => {
           const options = formatIn(config.formats, kind, name, locale);
-          return !(options !== undefined && 'steps' in options && options.steps !== undefined) && shownAs(el, locale, options) === shown;
+          return options !== undefined && !beyondOptions(options) && shownAs(el, locale, options) === shown;
         });
         if (names.length === 0) return;
         const written = names.map((name) =>

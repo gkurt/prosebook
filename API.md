@@ -7,7 +7,7 @@ The full reference. For an overview, see the [README](README.md).
 - [Bindings](#bindings): [React](#react) · [Preact](#preact) · [Vue](#vue) · [Svelte](#svelte) · [Solid](#solid) ·
   [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server) · [In tests](#in-tests)
 - [The catalog](#the-catalog): [Fields](#fields) · [The writing guide](#the-writing-guide)
-- [Messages](#messages): [ICU](#icu-messageformat) · [Named formats](#named-formats) · [Tags](#tags) ·
+- [Messages](#messages): [ICU](#icu-messageformat) · [Named formats](#named-formats) · [Formatters](#formatters) · [Tags](#tags) ·
   [MessageFormat 2](#messageformat-2)
 - [Translations](#translations): [Stale](#stale-translations) · [With a model](#translating-with-a-model) ·
   [Translation tools](#translation-tools) · [Pseudo-locale](#pseudo-locale)
@@ -694,6 +694,45 @@ copy.duration(took, 'compact');
   the `units`, so with 2, "3m 5s" shows none; `units: 3` shows "3m 5.2s". Digital keeps every digit, "0:03:05.40".
 - The `named-format` lint warns of a message that spells out a named format's options.
 
+### Formatters
+
+For what options and steps can't say, a format of the app's own, as code. The config names the module:
+
+```ts
+// prosebook.config.ts
+formatters: 'src/copy/formatters.ts',
+```
+
+```ts
+// src/copy/formatters.ts
+import { defineFormatters } from 'prosebook';
+
+export default defineFormatters({
+  number: {
+    money: (value, { locale }) => (value < 1 ? `${Math.round(Number(value) * 100)}¢` : new Intl.NumberFormat(locale).format(value)),
+  },
+  date: {
+    stamp: (value, { locale, timeZone }) => new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'short' }).format(value),
+  },
+});
+```
+
+```yaml
+en: 'Total: {total, number, money}' # MF2: {$total :number format=money}
+```
+
+```ts
+copy.number(total, 'money');
+```
+
+- Each is named as a format of the config's is, typed, and checked: a name `formats` has too, or a built-in style, fails as the
+  config loads. It is given the value and the locale, and the copy's `timeZone` where it has one, and gives the text.
+- The generated index imports the module, so it ships to the browser: keep it small, and its text a function of the value and
+  the locale alone, so the server and the browser show the same.
+- One that throws shows the placeholder's fallback and tells `onError` why, as `Intl` refusing a value does.
+- The writing guide shows each on its samples. A message can't `.match` on one, native targets refuse one, and the
+  `named-format` lint never names one. Dev servers read the module again when it changes.
+
 ### Tags
 
 ```yaml
@@ -1355,6 +1394,7 @@ export default defineConfig({
   messageFormat: 1, // or 2
   isolate: 'rtl', // MF2: isolate placeholders in right-to-left locales; 'always', or false
   formats: {}, // named number and date formats
+  formatters: undefined, // a module of the app's own number and date formats, as code
   bundled: [], // locales shipped in the main bundle; the rest load on first use
   pseudo: false, // or 'en-XA', in dev only
   stale: 'use', // or 'fallback'

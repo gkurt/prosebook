@@ -269,7 +269,7 @@ describe('native targets', () => {
     expect((error as CatalogError).problems.map((p) => `${p.key}: ${p.message}`)).toEqual([
       "app.big: swift: native code can't format this number in en: compact notation reads the size of the number at runtime. Format it another way, or leave the key out of this target's `keys`",
       "app.link: swift: <a> is a tag, and native code writes plain text: say it without the tag, or leave the key out of this target's `keys`",
-      "app.price: swift: {total} is shown by a format with steps, which native code does not show: pass it as a plain {total}, written in code, or leave the key out of this target's `keys`",
+      "app.price: swift: {total} is shown by a format with steps, which native code does not run: pass it as a plain {total}, written in code, or leave the key out of this target's `keys`",
       "app.when: swift: native code can't format this date in en: it writes the timeZoneName, which native code can't. Format it another way, or leave the key out of this target's `keys`",
     ]);
   });

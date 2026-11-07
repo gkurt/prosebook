@@ -1,11 +1,15 @@
 import {
   durationParts,
   formatIn,
+  formatWith,
   stepOf,
+  type DateFormatOptions,
   type DurationFormatOptions,
   type FormatKind,
   type Formats,
+  type Formatters,
   type ListFormatOptions,
+  type NumberFormatOptions,
 } from './formats.ts';
 import { createHelpers, dateFormat, flatten, shownItems } from './helpers.ts';
 import { chainOf, dirOf, negotiate } from './locale.ts';
@@ -42,7 +46,7 @@ interface Pieces<L extends string = string> {
  * catalog's fields. Raise it when generated code needs what an older runtime lacks, and raise `OLDEST`
  * only when this runtime stops reading what an older generator wrote.
  */
-export const RUNTIME = 1;
+export const RUNTIME = 2;
 const OLDEST = 1;
 
 /** A generated catalog: which locales exist, which ship in the bundle and how to fetch the rest. */
@@ -68,6 +72,8 @@ export interface Catalog<M extends MessageShapes = MessageShapes, L extends stri
   readonly areaFiles?: { readonly [area: string]: { readonly [locale in L]?: string } };
   /** The formats the config names, which `number` and `date` take by name. */
   readonly formats?: Formats;
+  /** The app's own formats, from the module the config's `formatters` names, which `formats` name by `formatter`. */
+  readonly formatters?: Formatters;
   /** Type-only: carries the message shapes from the generated module to `createCopy`. */
   readonly '~messages'?: M;
 }
@@ -240,6 +246,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
         if (reading !== undefined) report(error, reading, l);
       },
       timeZone: options.timeZone,
+      formatters: catalog.formatters,
     });
 
   const areas = () => (split === undefined ? [WHOLE] : [...split.areas.keys()]);
@@ -427,11 +434,16 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       return () => listeners.delete(listener);
     },
     number(value, format) {
+      const opts: NumberFormatOptions | undefined = typeof format === 'string' ? named('number', format) : format;
+      if (opts?.formatter !== undefined)
+        return formatWith(catalog.formatters, 'number', opts.formatter, value, { locale, timeZone: options.timeZone });
       const make = (o?: Intl.NumberFormatOptions) => formatter('n', o, () => new Intl.NumberFormat(locale, o));
-      return make(stepOf(typeof format === 'string' ? named('number', format) : format, value, make)).format(value);
+      return make(stepOf(opts, value, make)).format(value);
     },
     date(value, format) {
-      const opts = typeof format === 'string' ? named('date', format) : format;
+      const opts: DateFormatOptions | undefined = typeof format === 'string' ? named('date', format) : format;
+      if (opts?.formatter !== undefined)
+        return formatWith(catalog.formatters, 'date', opts.formatter, value, { locale, timeZone: options.timeZone });
       return formatter('d', opts, () => dateFormat(locale, options.timeZone, opts)).format(value);
     },
     list(items, format) {

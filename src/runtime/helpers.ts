@@ -1,8 +1,8 @@
-import { durationParts, stepOf, type ListFormatOptions } from './formats.ts';
+import { durationParts, formatWith, stepOf, type Formatters, type ListFormatOptions } from './formats.ts';
 import type { Arms, Helpers, Values } from './types.ts';
 
 /** Formatters by options object, then by the options arguments gave, as JSON (`''` for none). */
-type Formatters<F> = Map<object | undefined, Map<string, F>>;
+type Cache<F> = Map<object | undefined, Map<string, F>>;
 
 /**
  * The helpers compiled messages call, for one locale. Formatters are built once per options object:
@@ -11,14 +11,16 @@ type Formatters<F> = Map<object | undefined, Map<string, F>>;
  *
  * A value missing, or one `Intl` refuses, never throws: `n` and `d` give nothing back, and the message
  * shows the placeholder's fallback through `e`, which hands `report` what went wrong. `timeZone` is the
- * zone dates are shown in unless a message names its own.
+ * zone dates are shown in unless a message names its own. A format naming a `formatter` is the app's
+ * own, from `formatters`.
  */
-export function createHelpers(locale: string, { report, timeZone }: HelperOptions = {}): Helpers {
-  const numbers: Formatters<Intl.NumberFormat> = new Map();
-  const dates: Formatters<Intl.DateTimeFormat> = new Map();
-  const rules: Formatters<Intl.PluralRules>[] = [new Map(), new Map()];
-  const lists: Formatters<Intl.ListFormat> = new Map();
-  const durations: Formatters<Intl.DurationFormat> = new Map();
+export function createHelpers(locale: string, { report, timeZone, formatters }: HelperOptions = {}): Helpers {
+  const context = { locale, timeZone };
+  const numbers: Cache<Intl.NumberFormat> = new Map();
+  const dates: Cache<Intl.DateTimeFormat> = new Map();
+  const rules: Cache<Intl.PluralRules>[] = [new Map(), new Map()];
+  const lists: Cache<Intl.ListFormat> = new Map();
+  const durations: Cache<Intl.DurationFormat> = new Map();
   let failure: unknown;
 
   function attempt(value: unknown, format: () => string): string | undefined {
@@ -36,10 +38,13 @@ export function createHelpers(locale: string, { report, timeZone }: HelperOption
   return {
     locale,
     n(value, options, given) {
+      if (options?.formatter !== undefined)
+        return attempt(value, () => formatWith(formatters, 'number', options.formatter!, value, context));
       const make = (o?: Intl.NumberFormatOptions) => formatter(numbers, o, given, (all) => new Intl.NumberFormat(locale, all));
       return attempt(value, () => make(stepOf(options, value, make)).format(value));
     },
     d(value, options, given) {
+      if (options?.formatter !== undefined) return attempt(value, () => formatWith(formatters, 'date', options.formatter!, value, context));
       return attempt(value, () => formatter(dates, options, given, (o) => dateFormat(locale, timeZone, o)).format(value));
     },
     l(value, options, more) {
@@ -94,6 +99,8 @@ export interface HelperOptions {
   report?: (error: Error) => void;
   /** The IANA time zone dates are shown in, unless a message names its own. Defaults to the environment's. */
   timeZone?: string;
+  /** The app's own formats, which a format of the config's names (`formatter`). */
+  formatters?: Formatters;
 }
 
 /** A date formatter in `timeZone`, under any the options name. */
@@ -110,7 +117,7 @@ export function shownItems(items: Iterable<unknown>, options?: ListFormatOptions
   return more === undefined ? all.slice(0, max) : [...all.slice(0, max), flatten(more(rest)).join('')];
 }
 
-function formatter<O extends object, F>(cache: Formatters<F>, options: O | undefined, given: O | undefined, make: (o?: O) => F): F {
+function formatter<O extends object, F>(cache: Cache<F>, options: O | undefined, given: O | undefined, make: (o?: O) => F): F {
   let byGiven = cache.get(options);
   if (byGiven === undefined) cache.set(options, (byGiven = new Map()));
   const key = given === undefined ? '' : JSON.stringify(given);

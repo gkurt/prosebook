@@ -39,6 +39,49 @@ export interface NumberFormatOptions extends Intl.NumberFormatOptions {
    * shows $9.99 and $13. A named format's only.
    */
   readonly steps?: readonly NumberStep[];
+  /** Set by prosebook, not the config: the name of the formatter that shows the number (`formatters`). */
+  readonly formatter?: string;
+}
+
+/** A date as `Intl.DateTimeFormat` shows it. */
+export interface DateFormatOptions extends Intl.DateTimeFormatOptions {
+  /** Set by prosebook, not the config: the name of the formatter that shows the date (`formatters`). */
+  readonly formatter?: string;
+}
+
+/** What a formatter is told of where it shows a value. */
+export interface FormatterContext {
+  readonly locale: string;
+  /** The copy's `timeZone`, where it was given one. */
+  readonly timeZone?: string;
+}
+
+/**
+ * Formats of the app's own, by name, as code: what options can't say. A message names one as it does
+ * a format of the config's (`{total, number, money}`), and so does code (`copy.number(total, 'money')`).
+ */
+export interface Formatters {
+  readonly number?: { readonly [name: string]: (value: number | bigint, context: FormatterContext) => string };
+  readonly date?: { readonly [name: string]: (value: Date | number, context: FormatterContext) => string };
+}
+
+/** Typed formatters, for the module the config's `formatters` names. */
+export function defineFormatters<const F extends Formatters>(formatters: F): F {
+  return formatters;
+}
+
+/** `value` as the formatter `name` shows it. Throws where the catalog has none of that name, or the formatter throws. */
+export function formatWith(
+  formatters: Formatters | undefined,
+  kind: 'number' | 'date',
+  name: string,
+  value: number | bigint | Date,
+  context: FormatterContext,
+): string {
+  const format = formatters?.[kind]?.[name] as ((value: unknown, context: FormatterContext) => unknown) | undefined;
+  // The generated index imports the module whose names it lists, so only a catalog written by hand lacks one.
+  if (format === undefined) throw new Error(`no ${kind} formatter "${name}"`);
+  return String(format(value, context));
 }
 
 export interface NumberStep extends Intl.NumberFormatOptions {
@@ -90,7 +133,7 @@ function shownSize(format: Intl.NumberFormat, size: number): number {
 
 type OptionsOf = {
   number: NumberFormatOptions;
-  date: Intl.DateTimeFormatOptions;
+  date: DateFormatOptions;
   list: ListFormatOptions;
   duration: DurationFormatOptions;
 };

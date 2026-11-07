@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { Formats, FormatTable } from '#src/runtime/formats.ts';
+import type { Formats, Formatters, FormatTable } from '#src/runtime/formats.ts';
 
 import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
 import {
@@ -144,6 +144,13 @@ export interface ProsebookConfig {
    * everywhere, and one edit here changes it. `locales` shows one differently in a locale or language.
    */
   formats?: Formats;
+  /**
+   * A module of formats of the app's own, as code (`defineFormatters`), for what options can't say:
+   * `'src/copy/formatters.ts'`. Each is named as a format here is, and the generated index imports
+   * the module, so it ships to the browser: keep it small, and its output a function of the value and
+   * locale alone, so a server and a browser show the same.
+   */
+  formatters?: string;
   /** Locales that ship in the main bundle beside the source, rather than loading when first used. */
   bundled?: string[];
   /** A pseudo-locale generated from the source (accented and lengthened) to find layout bugs and hardcoded text. */
@@ -225,6 +232,8 @@ export interface ResolvedConfig {
   messageFormat: 1 | 2;
   isolate: Isolate;
   formats: Formats;
+  /** The formatters module, and once `loadConfig` imported it, its formats, each in `formats` as `{ formatter }`. */
+  formatters?: { file: string; table?: Formatters };
   bundled: string[];
   pseudo: string | false;
   stale: 'use' | 'fallback';
@@ -270,18 +279,61 @@ const imported = new Map<string, number>();
  * it is now, so a dev server that loads it again after an edit gets the edit.
  */
 export async function loadConfig(root: string, inline?: ProsebookConfig): Promise<ResolvedConfig> {
-  if (inline) return resolveConfig(root, inline);
+  if (inline) return withFormatters(resolveConfig(root, inline));
   for (const name of CONFIG_FILES) {
     const path = join(root, name);
     if (!existsSync(path)) continue;
-    if (name.endsWith('.json')) return resolveConfig(root, JSON.parse(readFileSync(path, 'utf8')) as ProsebookConfig);
-    const modified = statSync(path).mtimeMs;
-    if (imported.get(path) !== modified) delete modules[path];
-    imported.set(path, modified);
-    const mod = (await import(`${pathToFileURL(path).href}?t=${modified}`)) as { default?: ProsebookConfig };
-    return resolveConfig(root, mod.default ?? {});
+    if (name.endsWith('.json')) return withFormatters(resolveConfig(root, JSON.parse(readFileSync(path, 'utf8')) as ProsebookConfig));
+    const mod = (await importAnew(path)) as { default?: ProsebookConfig };
+    return withFormatters(resolveConfig(root, mod.default ?? {}));
   }
   return resolveConfig(root, {});
+}
+
+async function importAnew(path: string): Promise<unknown> {
+  const modified = statSync(path).mtimeMs;
+  if (imported.get(path) !== modified) delete modules[path];
+  imported.set(path, modified);
+  return import(`${pathToFileURL(path).href}?t=${modified}`);
+}
+
+/**
+ * The config with its formatters module imported, anew once it changed: each format there named in
+ * `formats` as `{ formatter: name }`, which the tools read as any format and the runtime calls by.
+ */
+export async function withFormatters(config: ResolvedConfig): Promise<ResolvedConfig> {
+  const file = config.formatters?.file;
+  if (file === undefined) return config;
+  const at = relative(config.root, file).replaceAll('\\', '/');
+  if (!existsSync(file)) throw new Error(`formatters names ${at}, which isn't there: write it, or remove formatters`);
+  const mod = (await importAnew(file)) as { default?: unknown };
+  const table = checkedFormatters(mod.default, config.formats, at);
+  const formats: Record<string, unknown> = { ...config.formats };
+  for (const kind of ['number', 'date'] as const) {
+    const names = Object.keys(table[kind] ?? {});
+    if (names.length > 0)
+      formats[kind] = { ...config.formats[kind], ...Object.fromEntries(names.map((name) => [name, { formatter: name }])) };
+  }
+  return { ...config, formats: formats, formatters: { file, table } };
+}
+
+/** The formatters module's default export, each a function under a name no format of the config's has. */
+function checkedFormatters(table: unknown, formats: Formats, at: string): Formatters {
+  const shape = `export default defineFormatters({ number: { money: (value, { locale }) => '…' } })`;
+  if (typeof table !== 'object' || table === null) throw new Error(`${at} exports no formatters: ${shape}`);
+  for (const [kind, named] of Object.entries(table)) {
+    if (kind !== 'number' && kind !== 'date') throw new Error(`${at}: ${kind} is not a kind of formatter: number, date`);
+    if (typeof named !== 'object' || named === null) throw new Error(`${at}: ${kind} is its formatters by name: ${shape}`);
+    for (const [name, format] of Object.entries(named)) {
+      const path = `${at}: ${kind}.${name}`;
+      if (typeof format !== 'function') throw new Error(`${path} is a function of the value and its context, giving the text`);
+      if (!FORMAT_NAME.test(name)) throw new Error(`${path}: a format's name is a letter, then letters, digits, _ and -`);
+      if ((FORMAT_OPTIONS[kind].builtIn as readonly string[]).includes(name))
+        throw new Error(`${path}: "${name}" is a style every message knows already, so name the format for what it shows`);
+      if (formats[kind]?.[name] !== undefined) throw new Error(`${path} is named in formats.${kind} too: rename one`);
+    }
+  }
+  return table;
 }
 
 export function resolveConfig(root: string, config: ProsebookConfig): ResolvedConfig {
@@ -305,6 +357,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     messageFormat: config.messageFormat ?? 1,
     isolate: config.isolate ?? 'rtl',
     formats: checkedFormats(config.formats ?? {}),
+    ...(config.formatters !== undefined && { formatters: { file: at(config.formatters) } }),
     bundled: config.bundled ?? [],
     pseudo: config.pseudo ?? false,
     stale: config.stale ?? 'use',

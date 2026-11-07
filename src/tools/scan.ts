@@ -12,6 +12,7 @@ import { extname, join, matchesGlob, relative } from 'node:path';
 import { parseSync } from 'oxc-parser';
 
 import { formatIn, type Formats, type FormatTable } from '#src/runtime/formats.ts';
+import { beyondOptions } from '#src/tools/icu.ts';
 
 import type { ScanOptions } from './config.ts';
 
@@ -324,8 +325,8 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
       return Object.keys(formats[k] ?? {})
         .filter((name) => {
           const options = formatIn(formats, k, name, locale)!;
-          // A format with steps shows numbers as no options written in code do.
-          return shown !== undefined && !('steps' in options && options.steps !== undefined) && resolved(k, locale, options) === shown;
+          // A format with steps, or the app's own formatter, shows values as no options written in code do.
+          return shown !== undefined && !beyondOptions(options) && resolved(k, locale, options) === shown;
         })
         .map((name) => `copy.${k}(${value}, '${name}')`);
     });

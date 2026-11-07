@@ -186,7 +186,7 @@ function buildModules(config: ResolvedConfig, generated: Generated, dir: string,
     if (unseen.length > 0) error = unseenMessage(unseen, config.root);
     kept = keeper(refs, options.keep, config.formats);
   }
-  const files = new Map([[join(at, 'index.js'), buildIndex({ ...config, importExtension: '.js' }, generated)]]);
+  const files = new Map([[join(at, 'index.js'), buildIndex({ ...config, importExtension: '.js' }, generated, at)]]);
   for (const [locale, entries] of generated.entries) files.set(join(at, `${locale}.js`), prunedModule(entries, kept));
   return { files, error };
 }
