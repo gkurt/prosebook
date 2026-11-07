@@ -1,60 +1,56 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `voice/familiar-context` and `voice/phrases`: a sentence names what it's about rather than leaning on `It` or `they`, and a phrase stands where a phrase does\n\n`prosebook judge` weighs each guideline with the others the entry is held to.\n"
-    filename: voice-guidelines.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Fewer false positives when scanning and linting text in code\n\n`scan` reads JSX text with values in it (`restart from {clientName}.`) as one sentence, decodes entities such as `&nbsp;`, skips class strings, and skips JSX in tests and stories. `<Tooltip label>` gets the tooltip role. `path` now ignores a trailing arrow and a single slash. `no-em-dash` names the dash it found and asks for an en dash in ranges. The lint summary counts findings per rule, notes that warnings alone exit 0, and suggests `lint.properNouns`.\n"
+    filename: scan-lint-false-positives.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook judge` holds each entry to the guidelines through decision models, `decisionJudge` from `prosebook/ai`, and keeps the verdicts in the lock for `lint`\n\n`judge.prompt` tells the models about the app, and `prosebook approve` passes an entry as written until it changes.\n"
-    filename: judge.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The package ships CHANGELOG.md, and the writing guide mentions each language's form of `you` only when the catalog has translations\n"
+    filename: changelog-and-tone-guide.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `tone.formality` takes a form of `you` per locale, said in each language's own words, and the `formality` rule finds the other form's pronouns\n\nWithout `tone.formality`, the rule holds a locale to the form most of its entries take.\n"
-    filename: formality.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### scan leaves the formatters module out, so its `Intl` formatters are not reported as formatted in code\n"
+    filename: scan-skips-formatters.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `catalog: false` lints the text in the code, with no catalog, and `prosebook approve` passes an entry against any rule\n\n`prosebook lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own, its kind\nand surface guessed from where it stands (a `<button>` is an action, an `<h1>` a name on a heading), which\n`lint.guessed` sets severities for and `scan.roles` turns off; a\n`prosebook-allow <rule>: <why>` comment exempts its line, and an approval holds wherever the words move until they\nchange. `scan --lint` holds a catalog project's hardcoded text to the rules too.\n"
-    filename: lint-in-code.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `extends` gives the copy a tone, `plain`, `professional`, `friendly`, `technical` or `playful`, with the rules that go with it\n\nThe writing guide says the tone with an example per kind of string, `todo --prompt` says it and the form of `you`\ntranslations take, and the judge reads it. `tone.areas` gives an area its own, and `definePreset` a team's own.\n"
-    filename: tone-presets.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Judged guidelines are said once per entry, the lock keeps each entry's verdicts on one line, and `voice/phrases` takes a long phrase as a phrase\n\n`lint` and `judge` print one line per entry, listing every guideline it breaks, and print each guideline's text once at the end.\n"
+    filename: judge-output-and-lock.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - voice-guidelines.md
-      - judge.md
-      - formality.md
-      - lint-in-code.md
-      - tone-presets.md
+      - scan-lint-false-positives.md
+      - changelog-and-tone-guide.md
+      - scan-skips-formatters.md
+      - judge-output-and-lock.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
+  - id: npm:example-svelte
+    updated: false
   - id: npm:example-preact
     updated: false
-  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vue
     updated: false
   - id: npm:example-node
     updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-bun
+  - id: npm:example-next
     updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-rspack
     updated: false
   - id: npm:example-vite
     updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-next
+  - id: npm:example-bun
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
+  - id: npm:example-svelte
   - id: npm:example-preact
-  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+  - id: npm:example-vue
   - id: npm:example-node
   - id: npm:example-solid
-  - id: npm:example-bun
-  - id: npm:example-tanstack-start
-  - id: npm:example-vite
-  - id: npm:example-vue
-  - id: npm:example-svelte
   - id: npm:example-next
+  - id: npm:example-rspack
+  - id: npm:example-vite
+  - id: npm:example-bun

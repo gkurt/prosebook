@@ -1,3 +1,17 @@
+## prosebook@0.13.1
+
+### Fewer false positives when scanning and linting text in code
+
+`scan` reads JSX text with values in it (`restart from {clientName}.`) as one sentence, decodes entities such as `&nbsp;`, skips class strings, and skips JSX in tests and stories. `<Tooltip label>` gets the tooltip role. `path` now ignores a trailing arrow and a single slash. `no-em-dash` names the dash it found and asks for an en dash in ranges. The lint summary counts findings per rule, notes that warnings alone exit 0, and suggests `lint.properNouns`.
+
+### The package ships CHANGELOG.md, and the writing guide mentions each language's form of `you` only when the catalog has translations
+
+### scan leaves the formatters module out, so its `Intl` formatters are not reported as formatted in code
+
+### Judged guidelines are said once per entry, the lock keeps each entry's verdicts on one line, and `voice/phrases` takes a long phrase as a phrase
+
+`lint` and `judge` print one line per entry, listing every guideline it breaks, and print each guideline's text once at the end.
+
 ## prosebook@0.13.0
 
 ### `voice/familiar-context` and `voice/phrases`: a sentence names what it's about rather than leaning on `It` or `they`, and a phrase stands where a phrase does
