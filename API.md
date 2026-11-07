@@ -969,7 +969,8 @@ every command carries on with the rest and fails at the end. An edit, fix or imp
 
 `recommended` checks shape; `strict` adds sentence case, contractions, em dashes, `…`, American spelling, one path separator
 (`Settings › General`) and banned filler words. A spaced hyphen between numbers or dates is a range, which takes an en dash
-(`9am–5pm`, `Mar 30 – Apr 6`); an arrow with nothing after it (`View loop →`) and a single slash (`Read / Write`) are no paths.
+(`9am–5pm`, `Mar 30 – Apr 6`); an arrow with nothing after it (`View loop →`), a lone separator with no capital after it
+(`origin → {hops}`) and a single slash (`Read / Write`) are no paths.
 
 | Kind          | Words                                                | Ends with a period                               | No period | Case                       |
 | ------------- | ---------------------------------------------------- | ------------------------------------------------ | --------- | -------------------------- |
@@ -1005,8 +1006,8 @@ translators.
 Translations are linted by the rules that hold in any language. Spellings, concepts, contractions, `…`, spacing and punctuation are
 fixable: `prosebook lint --fix` writes them, checking the whole catalog first.
 
-The summary counts each rule's findings, and names words `sentence-case` finds capitalized in 3 or more strings, for
-`lint.properNouns`. Warnings alone exit 0: a rule CI should fail on is set to `'error'` under `lint.rules`.
+The summary counts each rule's findings, and names words `sentence-case` finds capitalized in 3 or more strings and
+never written in lowercase, for `lint.properNouns`. Warnings alone exit 0: a rule CI should fail on is set to `'error'` under `lint.rules`.
 
 `duplicate` says each group once, at the entry to keep. `prosebook lint --fix --unsafe` also merges each group: the first entry
 stays (moved into `extract.shared` where the group spans areas), the others go with their translations, and every string literal
@@ -1195,7 +1196,7 @@ prosebook scan
 Finds text a person reads that is still in the code: JSX text, readable attributes (`title`, `alt`, `placeholder`, `aria-label`),
 what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`), the text given to `scan.calls` (`toast`, `alert`,
 `confirm`), and in components the values of `scan.properties`. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
-and stories are left out; mark a deliberate literal with `prosebook-ignore` on its line or the line above.
+and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 
 JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,
 `Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes are not text: `className=`, what `cn`, `clsx`,
@@ -1247,7 +1248,9 @@ error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
 ```
 
 - `lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own. A template's
-  `${user.name}` reads as the placeholder `{name}`.
+  `${user.name}` reads as the placeholder `{name}`, and `${rate.toFixed(1)}` as `{rate}`. A pick between two strings
+  stays in its sentence: `{n === 1 ? 'hop' : 'hops'}` reads as `{n, plural, one {hop} other {hops}}`, any other test as
+  a select, so each arm is linted in place.
 - Each takes the [kind and surface](#fields) its place says plainly, where the config defines them: a `<button>` or a
   component named `…Button` or `…MenuItem` is an action; `<h1>`–`<h6>`, `<th>` and `…Title` or `…Heading` a name on a heading;
   `<label>`, `<legend>`, `<dt>`, `…Label`, and `label=` or `label:` a name on a label, though `label=` takes its element's role

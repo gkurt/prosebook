@@ -378,7 +378,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     const findings = lintEntries(config, messages, report);
     const errors = findings.filter((f) => f.severity === 'error').length;
     if (findings.length === 0) out(`prosebook: ${messages.length} strings in the code pass the writing rules`);
-    else sayTotals(findings, SCANNED_HINT);
+    else sayTotals(findings, messages, SCANNED_HINT);
     return errors > 0 ? 1 : 0;
   }
   let { catalog } = rendered(config, report);
@@ -420,7 +420,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
       `prosebook: ${catalog.messages.length} messages pass the writing rules${broken > 0 ? `, and ${broken} broken entr${broken === 1 ? 'y was' : 'ies were'} left out` : ''}`,
     );
   } else {
-    sayTotals(findings, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
+    sayTotals(findings, catalog.messages, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
   return errors + broken > 0 ? 1 : 0;
@@ -471,9 +471,10 @@ const NAME_AT = 3;
 /**
  * The count of errors and warnings, then each rule's, most first, so a first run reads as what to
  * fix or turn off; that warnings alone pass, which a CI job adding the lint would miss; and the words
- * capitalized often enough to be names, for `lint.properNouns`.
+ * capitalized often enough to be names, for `lint.properNouns`. A word `messages` also write in
+ * lowercase is a Title Case label's, not a name: "Pipeline Name" beside "the pipeline".
  */
-function sayTotals(findings: readonly Finding[], hint: string, what = ''): void {
+function sayTotals(findings: readonly Finding[], messages: readonly Message[], hint: string, what = ''): void {
   const errors = findings.filter((f) => f.severity === 'error').length;
   err(`\n${errors} error(s), ${findings.length - errors} warning(s)${what}. ${hint}`);
   const byRule = new Map<string, number>();
@@ -488,7 +489,10 @@ function sayTotals(findings: readonly Finding[], hint: string, what = ''): void 
     const word = f.rule === 'sentence-case' ? /^"([^"]+)" is capitalized/.exec(f.message)?.[1] : undefined;
     if (word !== undefined) named.set(word, (named.get(word) ?? 0) + 1);
   }
-  const names = [...named].filter(([, n]) => n >= NAME_AT).sort(([a, m], [b, n]) => (n === m ? (a < b ? -1 : 1) : n - m));
+  const lower = new Set(messages.flatMap((m) => m.text.match(/(?<![\p{L}\p{N}])\p{Ll}[\p{L}\p{N}]*/gu) ?? []));
+  const names = [...named]
+    .filter(([w, n]) => n >= NAME_AT && !lower.has(w.toLowerCase()))
+    .sort(([a, m], [b, n]) => (n === m ? (a < b ? -1 : 1) : n - m));
   if (names.length > 0) {
     err(
       `Capitalized in ${NAME_AT} or more strings, so likely names: lint: { properNouns: [${names.map(([w]) => JSON.stringify(w)).join(', ')}] } stops these findings.`,
@@ -997,7 +1001,7 @@ function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, repo
     if (findings.length > 0) {
       const hint =
         'Fix the string, mark it `prosebook-allow <rule>: <why>` where the rule is wrong about it, or move it into the catalog with `prosebook extract`.';
-      sayTotals(findings, hint, ' in the hardcoded text');
+      sayTotals(findings, messages, hint, ' in the hardcoded text');
     }
   }
   return strict && result.hardcoded.length + result.formatted.length + unused.length + unseen > 0

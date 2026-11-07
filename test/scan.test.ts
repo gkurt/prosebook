@@ -77,6 +77,8 @@ export function save() {
     ]);
     expect(found('A.test.tsx', code, options)).toEqual([]);
     expect(found('A.stories.tsx', 'export const S = () => <Drawer title="Filters">Pick a range</Drawer>;')).toEqual([]);
+    expect(found('A.spec.helper.tsx', 'export const H = () => <p>Panel content</p>;')).toEqual([]);
+    expect(found('A.stories.helpers.tsx', 'export const H = () => <p>Panel content</p>;')).toEqual([]);
     // Outside a component, a title or description is as often a model's or an API's.
     expect(found('A.ts', code, options).filter((f) => f.includes(': '))).toEqual([]);
   });
@@ -159,7 +161,7 @@ test('scan.ignore takes globs, and * for every check', () => {
   });
 });
 
-test('JSX text is one sentence across its values, its entities decoded, and classes are no text', () => {
+test('JSX text is one sentence across its values and its two-string picks, its entities decoded, and classes are no text', () => {
   const code = `
 export const A = ({ clientName, user, n }) => (
   <p className="block h-full">
@@ -179,9 +181,7 @@ const pill = tv({ slots: { label: 'block h-full cursor-[inherit] truncate' } });
     '4:5 text Could not allow access. Use another account or restart from ${clientName}.',
     '5:11 text Advanced Settings',
     '6:8 text Agent version ≥ ${user.version}',
-    '7:8 text Hello ${user.name}, you have',
-    '7:51 text one item',
-    '7:64 text items',
+    "7:8 text Hello ${user.name}, you have ${n === 1 ? 'one item' : 'items'}",
     '8:52 title=A & B',
   ]);
 });

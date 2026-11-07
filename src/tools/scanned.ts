@@ -5,35 +5,130 @@
  * once they change. The same words in several places are one entry, unless a place's
  * `prosebook-allow` comments exempt it from rules the others aren't: an exemption is the place's.
  */
+import { parseSync } from 'oxc-parser';
+
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage, type MessageFormatElement } from './icu.ts';
 import { lint, type Finding, type Verdict } from './lint.ts';
-import { scan, unscanned, whereOf, type Hardcoded } from './scan.ts';
+import { pickOf, scan, unscanned, unwrapped, whereOf, type Hardcoded, type Node } from './scan.ts';
 
-/** A template's `${…}`, read as a placeholder named by its last identifier, so `${user.name}` says `{name}`. */
+/** A template's `${…}`, read as a placeholder named for the value it shows, so `${user.name}` says `{name}`. */
 const HOLE = /\$\{([^}]*)\}/g;
 
-/** The text as an ICU message: literal text escaped, and each of a template's holes a placeholder. */
+/**
+ * The text as an ICU message: literal text escaped, and each of a template's holes a placeholder. A
+ * hole picking between two strings is a choice: `${n === 1 ? 'hop' : 'hops'}` a plural on `n`, any
+ * other test a select, so the lint reads each arm. The same expression twice is one placeholder.
+ */
 export function messageOf(text: string): { text: string; ast: MessageFormatElement[]; args: Map<string, string> } {
   const args = new Map<string, string>();
+  const sources = new Map<string, string>();
+  const nameFor = (base: string, source: string, type: string) => {
+    let name = base;
+    for (let n = 2; args.has(name) && sources.get(name) !== source; n++) name = `${base}${n}`;
+    if (!args.has(name) || type === 'number') args.set(name, type);
+    sources.set(name, source);
+    return name;
+  };
   let out = '';
   let at = 0;
   for (const hole of text.matchAll(HOLE)) {
     out += escaped(text.slice(at, hole.index));
-    const base = /([A-Za-z_]\w*)\W*$/.exec(hole[1]!)?.[1] ?? 'value';
-    let name = base;
-    for (let n = 2; args.has(name); n++) name = `${base}${n}`;
-    args.set(name, 'string');
-    out += `{${name}}`;
     at = hole.index + hole[0].length;
+    const source = hole[1]!.trim();
+    const expr = expressionOf(source);
+    const pick = expr === undefined ? undefined : pickOf(expr);
+    if (pick === undefined) {
+      out += `{${nameFor((expr && nameOf(expr)) ?? lastIdentifier(source), source, 'string')}}`;
+      continue;
+    }
+    const [yes, no] = pick.arms;
+    const count = countOf(pick.test);
+    if (count !== undefined) {
+      const name = nameFor(nameOf(count.of) ?? 'count', sourceOf(source, count.of), 'number');
+      const [one, other] = count.oneFirst ? [yes, no] : [no, yes];
+      out += `{${name}, plural, one {${escaped(one, true)}} other {${escaped(other, true)}}}`;
+    } else {
+      const name = nameFor(nameOf(pick.test) ?? 'choice', sourceOf(source, pick.test), 'string');
+      out += `{${name}, select, true {${escaped(yes)}} other {${escaped(no)}}}`;
+    }
   }
   out += escaped(text.slice(at));
   return { text: out, ast: parseMessage(out), args };
 }
 
-/** Text written literally in an ICU message, apostrophes doubled where ICU would read them as quotes. */
-const escaped = (text: string) => text.replace(/'/g, "''").replace(/[{}<]/g, (c) => `'${c}'`);
+/** A hole's code as an expression, or nothing where it doesn't parse as one. */
+function expressionOf(source: string): Node | undefined {
+  const { program, errors } = parseSync('hole.tsx', `(${source})`);
+  const [statement] = program.body as unknown as Node[];
+  if (errors.length > 0 || statement?.type !== 'ExpressionStatement') return undefined;
+  return unwrapped(statement.expression as Node);
+}
+
+/** A node's code, out of the hole parsed as `(source)`. */
+const sourceOf = (source: string, node: Node) => source.slice(node.start - 1, node.end - 1);
+
+/** Methods that show the value they are called on: `rate.toFixed(1)` shows `rate`. */
+const SHOWS_ITS_VALUE = /^(?:toFixed|toPrecision|toString|toLocale\w*|toUpperCase|toLowerCase|trim\w*|valueOf)$/;
+
+/**
+ * What a placeholder is called for the value it shows: `user.name` is `name`, `rate.toFixed(1)` and
+ * `Math.round(rate * 100)` are `rate`, `format(when)` is `when`, `n === 1` is `n`.
+ */
+function nameOf(node: Node): string | undefined {
+  const n = unwrapped(node);
+  switch (n.type) {
+    case 'Identifier':
+      return argName(n.name as string);
+    case 'MemberExpression': {
+      const property = n.property as Node;
+      return n.computed === true || property.type !== 'Identifier' ? nameOf(n.object as Node) : argName(property.name as string);
+    }
+    case 'ChainExpression':
+      return nameOf(n.expression as Node);
+    case 'CallExpression': {
+      const callee = unwrapped(n.callee as Node);
+      const method = callee.type === 'MemberExpression' && callee.computed !== true ? (callee.property as Node) : undefined;
+      if (method?.type === 'Identifier' && SHOWS_ITS_VALUE.test(method.name as string)) return nameOf(callee.object as Node);
+      const [first] = n.arguments as Node[];
+      return (first !== undefined && first.type !== 'SpreadElement' ? nameOf(first) : undefined) ?? nameOf(callee);
+    }
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return nameOf(n.left as Node) ?? nameOf(n.right as Node);
+    case 'UnaryExpression':
+    case 'AwaitExpression':
+      return nameOf(n.argument as Node);
+    default:
+      return undefined;
+  }
+}
+
+/** A name ICU reads as an argument's. */
+const argName = (name: string) => (/^[A-Za-z_]\w*$/.test(name) ? name : undefined);
+
+/** The last identifier in code that doesn't parse, as `${user.name}` was read before. */
+const lastIdentifier = (source: string) => /([A-Za-z_]\w*)\W*$/.exec(source)?.[1] ?? 'value';
+
+/** A test on a count, `n === 1`, `n !== 1` or `n > 1`: the count, and whether the first arm is its one. */
+function countOf(test: Node): { of: Node; oneFirst: boolean } | undefined {
+  if (test.type !== 'BinaryExpression') return undefined;
+  const left = unwrapped(test.left as Node);
+  const right = unwrapped(test.right as Node);
+  const isOne = (n: Node) => n.type === 'Literal' && n.value === 1;
+  const [of, flipped] = isOne(right) ? [left, false] : isOne(left) ? [right, true] : [undefined, false];
+  if (of === undefined) return undefined;
+  const operator = test.operator as string;
+  if (operator === '===' || operator === '==') return { of, oneFirst: true };
+  if (operator === '!==' || operator === '!=') return { of, oneFirst: false };
+  // `n > 1` picks the plural first, as `1 < n` does.
+  if ((operator === '>' && !flipped) || (operator === '<' && flipped)) return { of, oneFirst: false };
+  return undefined;
+}
+
+/** Text written literally in an ICU message, apostrophes doubled where ICU would read them as quotes, and in a plural's arm `#`. */
+const escaped = (text: string, inPlural = false) => text.replace(/'/g, "''").replace(inPlural ? /[{}<#]/g : /[{}<]/g, (c) => `'${c}'`);
 
 /** A role guessed from where text stands: the kind and surface an entry would name. */
 interface Role {

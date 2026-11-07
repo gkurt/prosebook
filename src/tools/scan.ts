@@ -96,7 +96,7 @@ export function whereOf(h: Hardcoded): string {
   return h.via === 'call' ? `${h.where}(…) ` : h.via === 'property' ? `${h.where}: ` : `${h.where}=`;
 }
 
-type Node = { type: string; start: number; end: number; [field: string]: unknown };
+export type Node = { type: string; start: number; end: number; [field: string]: unknown };
 
 /** A token of code: a path, a call, an identifier with an underscore, a dotted name or a glob, or an ID such as `us-west-2`. */
 const codeToken = (token: string) => /[/()_=<>{}[\].*]|::/.test(token) || (/^[\w-]+$/.test(token) && /\d/.test(token) && /-/.test(token));
@@ -220,8 +220,8 @@ export function jsxText(value: string): string {
 /** Elements whose text is code, keys or markup, not prose: `<kbd>`, and components named for them, `<Kbd>`. */
 const NON_PROSE_ELEMENTS = new Set(['code', 'pre', 'kbd', 'samp', 'script', 'style', 'svg', 'path']);
 export const isNonProse = (name: string) => NON_PROSE_ELEMENTS.has(name.toLowerCase());
-/** Tests and stories hold text a person never reads in the app: fixtures, expectations. */
-const NOT_APP = /\.(?:test|spec|stories)\.[cm]?[jt]sx?$/;
+/** Tests and stories, and their helpers (`A.spec.helper.tsx`), hold text a person never reads in the app. */
+const NOT_APP = /\.(?:test|spec|stories)(?:\.[\w-]+)*\.[cm]?[jt]sx?$/;
 
 /**
  * The literals an expression can come to, which the screen shows where it is rendered: both arms of
@@ -428,14 +428,32 @@ function literalIn(child: Node): string | undefined {
 
 /**
  * An expression that shows one value inside a sentence, `{name}`, `{user.name}`, `{format(date)}`:
- * a placeholder. Not one that picks words itself (a ternary's arms are text of their own), and not
- * one holding markup or a function, which no placeholder reads as written.
+ * a placeholder. Or one that picks between two strings, `{n === 1 ? 'hop' : 'hops'}`, which reads
+ * as a plural or a select. Not one holding markup or a function, which no placeholder reads as written.
  */
 function isRunValue(expr: Node, code: string): boolean {
   if (expr.type === 'JSXEmptyExpression') return true;
   if (expr.type === 'Literal') return typeof expr.value === 'string';
+  if (pickOf(expr) !== undefined) return !/[{}]/.test(code.slice(expr.start, expr.end));
   if (!['Identifier', 'MemberExpression', 'ChainExpression', 'TSNonNullExpression', 'CallExpression'].includes(expr.type)) return false;
   return !/[{}<\n]|=>/.test(code.slice(expr.start, expr.end));
+}
+
+/** A string written whole, with no values in it: `'hop'` or `` `hop` ``. */
+function plainString(node: Node): string | undefined {
+  const n = unwrapped(node);
+  if (n.type === 'Literal') return typeof n.value === 'string' ? n.value : undefined;
+  if (n.type !== 'TemplateLiteral' || (n.expressions as Node[]).length > 0) return undefined;
+  return (n.quasis as { value: { cooked: string } }[])[0]?.value.cooked;
+}
+
+/** A ternary picking between two strings, `n === 1 ? 'hop' : 'hops'`: its test and its two arms. */
+export function pickOf(node: Node): { test: Node; arms: [string, string] } | undefined {
+  const n = unwrapped(node);
+  if (n.type !== 'ConditionalExpression') return undefined;
+  const yes = plainString(n.consequent as Node);
+  const no = plainString(n.alternate as Node);
+  return yes === undefined || no === undefined ? undefined : { test: unwrapped(n.test as Node), arms: [yes, no] };
 }
 
 /** A JSX element's name, the last part of a member's: `Dialog.Title` is `Title`, `svg:title` is `title`. */
@@ -643,7 +661,7 @@ function keySeen(node: Node | undefined, maps: KeyMaps = new Map()): boolean {
   }
 }
 
-const unwrapped = (node: Node): Node => (WRAPPERS.has(node.type) ? unwrapped(node.expression as Node) : node);
+export const unwrapped = (node: Node): Node => (WRAPPERS.has(node.type) ? unwrapped(node.expression as Node) : node);
 
 /**
  * A module's `const` maps of keys, by name: `direct` where every value is a key (`{ done: 'run.done' }`,

@@ -415,8 +415,9 @@ const UNITS: Record<string, string> = {
  * The ways a path through menus is written, the separator in a group: an arrow or `›` however
  * spaced, and `>` or `/` only spaced, each between words or placeholders, so "View loop →" is an
  * affordance and "2 > 1" no path. A slash takes a capital after it and, in the check, a second one
- * in the same text, since "Preference / Context" says "or". The match takes the spaces around, so
- * the fix spaces the separator.
+ * in the same text, since "Preference / Context" says "or"; any other separator standing alone takes
+ * a capital after it, as a menu's name has, since "origin → {hops}" is a flow. The match takes the
+ * spaces around, so the fix spaces the separator.
  */
 const PATH_SEPARATORS = new RegExp(
   String.raw`(?<=[\p{L}\p{N}${HOLE}])\s*(→|->|›)\s*(?=[\p{L}\p{N}${HOLE}])|(?<=[\p{L}${HOLE}])\s+(>)\s+(?=[\p{L}${HOLE}])|(?<=\p{L})\s+(\/)\s+(?=\p{Lu})`,
@@ -641,6 +642,7 @@ export const CORE_RULES = {
         for (const m of found) {
           const separator = m[1] ?? m[2] ?? m[3];
           if (separator === use || (m[3] !== undefined && slashes < 2)) continue;
+          if (found.length === 1 && !/^\p{Lu}/u.test(v.slice(m.index + m[0].length))) continue;
           return [{ message: `a path is written with a spaced ${use}`, match: m[0], fix: ` ${use} ` }];
         }
       }

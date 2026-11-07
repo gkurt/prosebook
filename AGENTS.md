@@ -231,7 +231,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values, none of it in tests or stories
-  (`NOT_APP`). An element's run of text and values (`isRunValue`: `{name}`, not a ternary) is one string,
+  or their helpers (`NOT_APP`). An element's run of text and values (`isRunValue`: `{name}`, or `pickOf`'s
+  ternary between two strings) is one string,
   each value a template's hole, as `jsxText` renders it, with `decodeEntities`, since oxc leaves `&nbsp;`
   as written; `extract` reads JSX text through the same `jsxText`. `looksLikeCode` keeps IDs, hosts,
   commands and utility classes (`isClassList`) out, `CLASS_CALLS` and `CLASS_ATTRIBUTES` what builds
@@ -244,7 +245,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   A `prosebook-allow <rule>: <why>` comment on a hardcoded string's line or the one above is its `allow`.
   `scanned.ts`: that text as entries (`Message.places`), for `catalog: false` (`inCode`, which `loadCatalog`
   refuses and the CLI's catalog commands too) and `scan --lint`: one per distinct words and set of exemptions,
-  keyed by its words, a template's holes as placeholders; linted each apart (no `duplicate`), its findings
+  keyed by its words, a template's holes as placeholders (`messageOf`: each parsed, named for the value it
+  shows past formatting calls, `nameOf`; a `pickOf` ternary a plural where it tests a count against 1,
+  `countOf`, else a select); linted each apart (no `duplicate`), its findings
   said at every place, with no fix. `roleOf` guesses a kind and surface from the place: the elements
   `scan` records around JSX text (`Hardcoded.inside`, the nearest past `INLINE` ones deciding), the
   attribute (`label=` its element's role first, `elementRole`), the property or the call; `roleIn` keeps what the config defines and drops a guess naming

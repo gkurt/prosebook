@@ -381,9 +381,11 @@ describe('lint', () => {
     expect(readFileSync(join(config.catalog, 'app.yaml'), 'utf8').match(/Open Settings › General\./g)).toHaveLength(3);
   });
 
-  test('an arrow with no word after it is an affordance, and one slash between words says or', () => {
+  test('an arrow with no word after it is an affordance, a lone one with no capital after a flow, and one slash says or', () => {
     const yaml = [
       'app.a:\n  kind: action\n  context: A link.\n  en: View loop →',
+      'app.e:\n  context: A caption.\n  en: origin → {hops}\n  args:\n    hops: The hops.',
+      'app.f:\n  context: A caption.\n  en: retry → fail',
       'app.b:\n  kind: name\n  context: A label.\n  en: Preference / Context',
       'app.c:\n  kind: description\n  context: A hint.\n  en: Open Settings / Privacy / Cookies.',
       'app.d:\n  kind: description\n  context: A hint.\n  en: Open {page} → Billing.\n  args:\n    page: The page.',

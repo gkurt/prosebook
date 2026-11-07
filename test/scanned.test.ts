@@ -56,6 +56,24 @@ describe('text in code as entries', () => {
     expect(messageOf("It's <b>").text).toBe("It''s '<'b>");
   });
 
+  test('a hole is named for the value it shows, past the calls that format it', () => {
+    const names = (text: string) => messageOf(text).text;
+    expect(names('${item.leftPercent.toFixed(1)}% and ${Math.round(rate * 100)}%')).toBe('{leftPercent}% and {rate}%');
+    expect(names('Updated ${getRelativeDate(table.updated_on)} by ${user?.name ?? "someone"}')).toBe('Updated {updated_on} by {name}');
+    expect(names('${a.x} and ${b.x}, ${a.x} again')).toBe('{x} and {x2}, {x} again');
+    expect(names('${t("key")} and ${$}')).toBe('{t} and {value}');
+  });
+
+  test('a hole picking between two strings is a plural on a count, or else a select', () => {
+    expect(messageOf("origin → ${hops} ${hops === 1 ? 'hop' : 'hops'}").text).toBe(
+      'origin → {hops} {hops, plural, one {hop} other {hops}}',
+    );
+    expect(messageOf("${n !== 1 ? 'items #' : 'item'}").text).toBe("{n, plural, one {item} other {items '#'}}");
+    expect(messageOf("${list.length > 1 ? 'files' : 'file'}").text).toBe('{length, plural, one {file} other {files}}');
+    expect(messageOf("${open ? 'Close' : 'Open'} the panel").text).toBe('{open, select, true {Close} other {Open}} the panel');
+    expect(messageOf("${n === 1 ? 'one' : 'two'}").args).toEqual(new Map([['n', 'number']]));
+  });
+
   test('the same words are one entry, unless a place is exempt from rules the others are not', () => {
     const at = (line: number, allow?: Record<string, string>) => ({
       file: 'a.tsx',
