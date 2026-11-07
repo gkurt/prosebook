@@ -355,13 +355,17 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   kept to the locales whose words the change wrote. Text in `git diff --word-diff`'s notation, or
   Markdown for a pull request's comment, opening with `REVIEW_MARKER` and every cell escaped.
 - `src/tools/judge.ts`: `prosebook judge`, each entry held to the guidelines by the config's
-  `judge.model`, a `Judge` (an `id` and `judge({ state, questions })`). `askedOf` builds one request
-  per entry and locale some guideline reads (`applies`, as the lint decides), the entry as JSON state,
+  `judge.models`, each a `Judge` (an `id` and `judge({ state, questions })`). `askedOf` builds one request
+  per entry and locale some guideline reads (`applies`, as the lint decides), the entry as JSON state
+  with `judge.prompt` as `notes` and every guideline it's held to, so each is weighed with the rest,
   and two boolean questions per guideline, whether it concerns the entry's role and whether the entry
   breaks it, multiplied: asked as one, a fast model found a guideline for controls broken by hints.
-  Each verdict is kept in the lock's `judged` (per locale, key and rule, `<hash>:<probability>`), the
-  hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
-  only what `unanswered` finds; raise `PROMPT` when the questions' words change. `reconcile` and
+  Each answer is kept in the lock's `judged` (per locale, key, rule and judge, `<hash>:<probability>`),
+  the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
+  each model only what it hasn't answered; raise `PROMPT` when the questions' words change. Several
+  models' probabilities are averaged. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`
+  under a hash of the entry's own state and the one guideline, so a new model or prompt keeps it, and
+  an approved guideline is neither asked nor found broken. `reconcile` and
   `rename` keep `judged` as it was. `lint` takes a `Verdict` (`verdictsOf`) and asks it of each rule
   compiled from a `guideline` (`isGuideline`, a `WeakSet` filled by `compileRule`); a guideline with
   no verdict is unjudged, so its `allow` isn't called stale. `src/ai.ts` is `prosebook/ai`,

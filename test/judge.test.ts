@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import type { Experimental_DecisionModel } from 'ai';
 import { decisionJudge } from 'prosebook/ai';
 import {
+  approve,
+  AUTHOR,
   definePlugin,
   generate,
   judgeCatalog,
@@ -68,7 +70,7 @@ function fakeJudge(id = 'fake/judge'): Judge & { asked: JudgeRequest[] } {
 const project = (judge: Judge, options: ProsebookConfig = {}) =>
   fixture(
     { 'copy/catalog/form.yaml': CATALOG },
-    { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { model: judge }, ...options },
+    { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { models: [judge] }, ...options },
   );
 
 async function run(config: ResolvedConfig) {
@@ -107,7 +109,72 @@ describe('judge', () => {
     expect(judged(config).map((f) => [f.key, f.rule, f.severity])).toEqual([['form.reporter', 'house/labels', 'warn']]);
     expect(judged(config)[0]!.message).toContain('A label names the field, as a noun.');
     // 0.95 × 0.9, kept to two places, under a hash of what was asked.
-    expect(readLock(config.lock).judged!['en']!['form.reporter']!['house/labels']).toMatch(/^[0-9a-f]{10}:0\.86$/);
+    expect(readLock(config.lock).judged!['en']!['form.reporter']!['house/labels']!['fake/judge']).toMatch(/^[0-9a-f]{10}:0\.86$/);
+  });
+
+  test('the prompt goes to the models as notes, and asks again of every entry', async () => {
+    const judge = fakeJudge();
+    const config = project(judge);
+    await run(config);
+    judge.asked.length = 0;
+    const noted = resolveConfig(config.root, { ...configOf(config), judge: { models: [judge], prompt: 'An app for on-call engineers.' } });
+    expect((await run(noted)).stats.requests).toBe(2);
+    expect(judge.asked[0]!.state['notes']).toBe('An app for on-call engineers.');
+    expect(Object.values(judge.asked[0]!.questions)[0]!.instructions).toContain('`notes`');
+  });
+
+  test('several models: each answers once, and an entry breaks a guideline by their mean', async () => {
+    const lenient: Judge = {
+      id: 'fake/lenient',
+      judge: ({ questions }) => Promise.resolve({ probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.5])) }),
+    };
+    const judge = fakeJudge();
+    const config = project(judge);
+    await run(config);
+    judge.asked.length = 0;
+    const both = resolveConfig(config.root, { ...configOf(config), judge: { models: [judge, lenient] } });
+    // Only the new model is asked; the first's answers stay.
+    expect((await run(both)).stats.requests).toBe(2);
+    expect(judge.asked).toEqual([]);
+    // form.reporter: (0.86 + 0.25) / 2 is under 0.7.
+    expect(judged(both)).toEqual([]);
+    expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [judge, lenient], threshold: 0.5 } }))).toHaveLength(
+      1,
+    );
+  });
+
+  test('the author approves an entry as written: it passes, is not asked of, and is judged again once it changes', async () => {
+    const judge = fakeJudge();
+    const config = project(judge);
+    await run(config);
+    const lock = readLock(config.lock);
+    const { messages } = loadCatalog(config);
+    const result = approve(config, messages, lock.judged, ['form.reporter', 'form.nope']);
+    expect(result.approved).toEqual([{ key: 'form.reporter', rules: ['house/labels', 'house/plain'] }]);
+    expect(result.problems).toEqual([expect.stringContaining('form.nope (en) is held to no guideline')]);
+    writeFileSync(config.lock, serializeLock({ ...lock, judged: result.verdicts }));
+    expect(judged(config)).toEqual([]);
+    expect(readLock(config.lock).judged!['en']!['form.reporter']!['house/labels']![AUTHOR]).toMatch(/^[0-9a-f]{10}:0$/);
+    // A new model leaves the approval: it is of the words, not of what a model was told.
+    const other = fakeJudge('fake/other');
+    const swapped = resolveConfig(config.root, { ...configOf(config), judge: { models: [other] } });
+    await run(swapped);
+    expect(other.asked.map((r) => r.state['key'])).toEqual(['form.save']);
+    expect(judged(swapped)).toEqual([]);
+    // Words changed: the approval no longer holds, and the model is asked again.
+    writeFileSync(`${config.catalog}/form.yaml`, CATALOG.replace('context: The label over', 'context: The label above'));
+    judge.asked.length = 0;
+    await run(config);
+    // form.save too: the run with the other model kept only its own answers.
+    expect(new Set(judge.asked.map((r) => r.state['key']))).toEqual(new Set(['form.reporter', 'form.save']));
+    expect(judged(config)).toHaveLength(1);
+  });
+
+  test('approve names only guidelines the entry is held to', async () => {
+    const config = project(fakeJudge());
+    const { messages } = loadCatalog(config);
+    const result = approve(config, messages, undefined, ['form.save'], { rules: ['house/labels'] });
+    expect(result.problems).toEqual(['form.save (en) is not held to house/labels: name one of house/plain']);
   });
 
   test('asks again only of what changed: an entry, or the model', async () => {
@@ -121,14 +188,14 @@ describe('judge', () => {
     expect(again.stats).toMatchObject({ requests: 1, cached: 1 });
     expect(judge.asked.map((r) => r.state['key'])).toEqual(['form.save']);
     const other = fakeJudge('fake/other');
-    expect((await run(resolveConfig(config.root, { ...configOf(config), judge: { model: other } }))).stats.requests).toBe(2);
+    expect((await run(resolveConfig(config.root, { ...configOf(config), judge: { models: [other] } }))).stats.requests).toBe(2);
   });
 
   test('keeps the probability, so a new threshold needs no new run', async () => {
     const config = project(fakeJudge());
     await run(config);
     expect(judged(config)).toHaveLength(1);
-    expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { model: fakeJudge(), threshold: 0.9 } }))).toHaveLength(0);
+    expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [fakeJudge()], threshold: 0.9 } }))).toHaveLength(0);
   });
 
   test("an exemption hides the finding, and is stale only once a verdict says it isn't needed", async () => {
@@ -161,7 +228,7 @@ describe('judge', () => {
       id: 'fake/flaky',
       judge: (request) => (calls++ === 0 ? fakeJudge().judge(request) : Promise.reject(new Error('rate limited'))),
     };
-    const config = project(flaky, { judge: { model: flaky, concurrency: 1 } });
+    const config = project(flaky, { judge: { models: [flaky], concurrency: 1 } });
     const { failures, stats, verdicts } = await run(config);
     expect(failures.map((f) => String(f.error))).toEqual(['Error: rate limited']);
     expect(stats.requests).toBe(1);
@@ -183,8 +250,8 @@ describe('judge', () => {
   });
 
   test('a config with a judge that is not a model, or a threshold past 1, says so', () => {
-    expect(() => resolveConfig('.', { judge: { model: {} as Judge } })).toThrow('judge.model is not a model');
-    expect(() => resolveConfig('.', { judge: { model: fakeJudge(), threshold: 1.5 } })).toThrow('judge.threshold is 1.5');
+    expect(() => resolveConfig('.', { judge: { models: [{} as Judge] } })).toThrow('judge.models[0] is not a model');
+    expect(() => resolveConfig('.', { judge: { models: [fakeJudge()], threshold: 1.5 } })).toThrow('judge.threshold is 1.5');
   });
 
   test('the CLI: --check fails on an entry not judged, and lint reads the verdicts with no model', async () => {
@@ -192,7 +259,7 @@ describe('judge', () => {
       'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
 const house = definePlugin({ name: 'house', rules: { labels: { type: 'guideline', description: 'A label names the field, as a noun.' } } });
 const model = { id: 'fake/cli', judge: async ({ questions }) => ({ probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.9])) }) };
-export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { model } };
+export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model] } };
 `,
       'copy/catalog/form.yaml':
         'form.reporter:\n  kind: name\n  surface: label\n  context: The label over who filed it.\n  en: Reported by\n',
@@ -201,13 +268,18 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     expect(check.code).toBe(1);
     expect(check.stderr).toContain('form.reporter (en): not judged on house/labels');
     const first = cli(config.root, 'judge');
-    expect(first.stdout).toContain('judged 1 of 1 entries (2 questions)');
+    expect(first.stdout).toContain('judged 1 of 1 entries (1 requests, 2 questions)');
     expect(first.stdout).toContain('cost unknown');
     expect(first.stderr).toContain('[house/labels] breaks a guideline, the model judges');
+    expect(first.stderr).toContain('prosebook approve <key>');
     expect(cli(config.root, 'judge').stdout).toContain('nothing was asked');
     expect(cli(config.root, 'judge', '--check').code).toBe(0);
     expect(cli(config.root, 'lint').stderr).toContain('[house/labels]');
     expect(readFileSync(config.lock, 'utf8')).toContain('"judged"');
+    const approved = cli(config.root, 'approve', '--all');
+    expect(approved.stdout).toContain('approved form.reporter (en) against house/labels');
+    expect(cli(config.root, 'lint').stderr).not.toContain('[house/labels]');
+    expect(cli(config.root, 'approve', '--all').stderr).toContain('none needs approving');
   });
 });
 

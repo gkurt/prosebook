@@ -56,7 +56,12 @@ export function serializeLock(lock: Lock): string {
       .sort()
       .map((locale) => [
         locale,
-        Object.fromEntries(Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => [key, sortedEntries(rules)])),
+        Object.fromEntries(
+          Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => [
+            key,
+            Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)])),
+          ]),
+        ),
       ]),
   );
   const verdicts = Object.keys(judged).length > 0 ? { judged } : {};

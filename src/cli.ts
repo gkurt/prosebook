@@ -16,7 +16,7 @@ import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { findEntries } from './tools/find.ts';
 import { generate, render } from './tools/generate.ts';
-import { askedOf, judgeCatalog, unanswered, verdictsOf, type JudgeStats } from './tools/judge.ts';
+import { approve, askedOf, brokenKeys, judgeCatalog, unanswered, verdictsOf, type JudgeStats } from './tools/judge.ts';
 import { isGuideline, lint, type Finding } from './tools/lint.ts';
 import { changeOf, readLock, serializeLock, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
@@ -61,9 +61,12 @@ Commands:
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
   judge                   Hold each entry to the guidelines no rule can check, through the config's
-                          judge model, asking only of entries the lock has no verdict on as they are
+                          judge models, asking only of entries the lock has no verdict on as they are
                           now; says the time, tokens and cost  (--check: ask nothing, and fail on
                           any entry not judged)
+  approve [keys]          Pass entries against their guidelines as written, whatever the models say,
+                          until they change  (--all: every entry found breaking one; --locale, and
+                          --rule for one guideline)
   check                   generate --check, lint and status --strict together, for CI, and warns
                           of reads whose key a pruned build can't see and of entries not judged
 
@@ -112,6 +115,8 @@ async function main(argv: string[]): Promise<number> {
       unsafe: { type: 'boolean' },
       prompt: { type: 'boolean' },
       area: { type: 'string' },
+      locale: { type: 'string' },
+      rule: { type: 'string' },
       kind: { type: 'string' },
       surface: { type: 'string' },
       format: { type: 'string' },
@@ -185,6 +190,8 @@ async function main(argv: string[]): Promise<number> {
       case 'judge':
         code = await runJudge(config, values.check === true, report);
         break;
+      case 'approve':
+        return runApprove(config, rest, values.all === true, values.locale, values.rule);
       case 'check': {
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
@@ -397,11 +404,40 @@ function reportFindings(config: ResolvedConfig, findings: Finding[], report?: Sa
   }
 }
 
-const JUDGE_OFF = 'prosebook: judge is off: set judge.model in the config, as decisionJudge from prosebook/ai makes one';
+const JUDGE_OFF = 'prosebook: judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one';
 
 /** The entries, each in a locale, the lock has no verdict on as they are now. */
 function unjudged(config: ResolvedConfig, catalog: Catalog) {
-  return config.judge === undefined ? [] : unanswered(askedOf(config, config.judge.model, catalog.messages), readLock(config.lock).judged);
+  const { judge } = config;
+  return judge === undefined ? [] : unanswered(askedOf(config, judge, catalog.messages), readLock(config.lock).judged, judge.models);
+}
+
+/** `prosebook approve`: the author passes entries against their guidelines as written, until they change. */
+function runApprove(config: ResolvedConfig, keys: string[], all: boolean, locale: string | undefined, rule: string | undefined): number {
+  if (config.judge === undefined) {
+    err(JUDGE_OFF);
+    return 1;
+  }
+  const { catalog } = rendered(config);
+  const lock = readLock(config.lock);
+  const named = all ? brokenKeys(config, catalog.messages, lock, locale) : keys;
+  if (named.length === 0) {
+    err(
+      all
+        ? 'prosebook: no entry breaks a guideline, as the lock judges it, so none needs approving'
+        : 'prosebook: name the keys to approve, or --all',
+    );
+    return all ? 0 : 1;
+  }
+  const options = { ...(locale !== undefined && { locale }), ...(rule !== undefined && { rules: [rule] }) };
+  const result = approve(config, catalog.messages, lock.judged, named, options);
+  for (const problem of result.problems) err(`error ${problem}`);
+  if (result.approved.length > 0) {
+    mkdirSync(dirname(config.lock), { recursive: true });
+    writeFileSync(config.lock, serializeLock({ ...lock, judged: result.verdicts }));
+  }
+  for (const { key, rules } of result.approved) out(`approved ${key} (${locale ?? config.source}) against ${rules.join(', ')}`);
+  return result.problems.length > 0 ? 1 : 0;
 }
 
 function warnUnjudged(config: ResolvedConfig): void {
@@ -436,9 +472,9 @@ async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifRe
     if (tty && run.stats.requests > 0) process.stderr.write('\n');
     mkdirSync(dirname(config.lock), { recursive: true });
     writeFileSync(config.lock, serializeLock({ ...lock, judged: run.verdicts }));
-    for (const { key, locale, error } of run.failures) {
+    for (const { key, locale, model, error } of run.failures) {
       const why = error instanceof Error ? error.message : String(error);
-      err(`error ${key} (${locale}): the model failed, so the run stopped there: ${why}`);
+      err(`error ${key} (${locale}): ${model} failed, so the run stopped there: ${why}`);
     }
     sayStats(run.stats);
     failed = run.failures.length > 0;
@@ -451,7 +487,8 @@ async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifRe
   reportFindings(config, findings, report);
   const errors = findings.filter((f) => f.severity === 'error').length;
   if (findings.length > 0) {
-    const where = `Rewrite the string, or add \`allow: { <rule>: <why> }\` where the model is wrong about it.`;
+    const where =
+      'Rewrite the string, or where the models are wrong about it, run `prosebook approve <key>` to pass it as written, or add `allow: { <rule>: <why> }` to pass it for good.';
     err(`\n${errors} error(s), ${findings.length - errors} warning(s). ${where}`);
   }
   return failed || errors > 0 ? 1 : 0;
@@ -468,7 +505,7 @@ function sayStats(stats: JudgeStats): void {
   const sorted = [...stats.latencies].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)]!;
   out(
-    `prosebook: judged ${count(stats.requests)} of ${count(stats.entries)} entries (${count(stats.questions)} questions) in ${seconds(stats.ms)}; the lock had the other ${count(stats.cached)}`,
+    `prosebook: judged ${count(stats.entries - stats.cached)} of ${count(stats.entries)} entries (${count(stats.requests)} requests, ${count(stats.questions)} questions) in ${seconds(stats.ms)}; the lock had the other ${count(stats.cached)}`,
   );
   const cost =
     stats.unpriced === stats.requests

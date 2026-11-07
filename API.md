@@ -891,24 +891,25 @@ message is padded to the length a translation is likely to reach. Builds through
 
 ## CLI
 
-| Command                  |                                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| `init`                   | A config and a first catalog file.                                                      |
-| `generate`               | The typed modules (`--check`, `--watch`).                                               |
-| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`).                        |
-| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                   |
-| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                      |
-| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                             |
-| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).             |
-| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file). |
-| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`).                              |
-| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                              |
-| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                        |
-| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                            |
-| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                 |
-| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).      |
-| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).  |
-| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                               |
+| Command                  |                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| `init`                   | A config and a first catalog file.                                                       |
+| `generate`               | The typed modules (`--check`, `--watch`).                                                |
+| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`).                         |
+| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                    |
+| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                       |
+| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                              |
+| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).              |
+| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).  |
+| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`).                               |
+| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                               |
+| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                         |
+| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                             |
+| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                  |
+| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).       |
+| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).   |
+| `approve [keys]`         | Pass entries against the guidelines as written, until they change ([Judge](#approving)). |
+| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                |
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
@@ -1060,8 +1061,9 @@ Every rule is checked when the config loads.
 
 ### Judge
 
-A guideline is about meaning, so no rule finds a string breaking it. A decision model can: `prosebook judge` asks one whether
-each entry keeps to each guideline that reads it, the [voice guidelines](#voice-guidelines) and your own.
+A guideline is about meaning, so no rule finds a string breaking it. A decision model can: `prosebook judge` asks one, or
+several, whether each entry keeps to each guideline that reads it, the [voice guidelines](#voice-guidelines) and your own.
+The author is a judge too: `prosebook approve` passes an entry as written, whatever the models say.
 
 ```bash
 npm install ai @ai-sdk/typesafe-ai # TYPESAFE_AI_API_KEY; or ai alone, through the AI Gateway
@@ -1075,7 +1077,8 @@ import { defineConfig } from 'prosebook/config';
 
 export default defineConfig({
   judge: {
-    model: decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } }), // dollars per million tokens
+    models: [decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } })], // dollars per million tokens
+    prompt: 'An incident tool for on-call engineers, read mid-incident.', // beside every entry, as `notes`
     threshold: 0.7, // the probability from which an entry breaks a guideline
     concurrency: 8, // requests in flight
   },
@@ -1083,26 +1086,41 @@ export default defineConfig({
 ```
 
 ```text
-prosebook: judged 1,345 of 1,345 entries (18,830 questions) in 35.7s; the lock had the other 0
+prosebook: judged 1,345 of 1,345 entries (1,345 requests, 18,830 questions) in 35.7s; the lock had the other 0
   207ms a request (median), 451ms at most; 4,250,907 input tokens, 353,735 output; $0.1785
 warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a guideline, the model judges: A label over a value names the field, as a noun: …
 ```
 
-- **One request per entry and locale**, through the AI SDK's `experimental_decide`. The entry is the state: its message, key,
-  context, kind, surface, what its placeholders hold, the source beside a translation, and every guideline it's held to.
-  Each guideline is two yes-or-no questions: whether it speaks of a message in this role, and whether the message breaks it,
-  weighed with the other guidelines, which give way to one another where they pull apart. The probability it's broken is
-  their product.
-- **Verdicts live in the lock**, under `judged`, each beside a hash of everything its request said: the model, the entry and
-  the guidelines, so changing one asks again of every entry it reads. A run asks only of what changed since, and says how
-  long it took, the tokens and what they cost.
+- **One request per entry, locale and model**, through the AI SDK's `experimental_decide`. The entry is the state: its
+  message, key, context, kind, surface, what its placeholders hold, the source beside a translation, the `prompt` as `notes`,
+  and every guideline it's held to. Each guideline is two yes-or-no questions: whether it speaks of a message in this role,
+  and whether the message breaks it, weighed with the other guidelines, which give way to one another where they pull apart.
+  The probability it's broken is their product.
+- **Several models** each answer, and an entry breaks a guideline by the mean of their probabilities. A model of your own, for
+  one the AI SDK doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
+  `judge({ state, questions })` giving each question's probability of a yes.
+- **Verdicts live in the lock**, under `judged`, per locale, key, guideline and judge, each beside a hash of everything its
+  request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
+  run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and
+  what they cost.
 - **`lint` and `check` read the verdicts** from the lock, with no model and no key, and `check` warns of entries not judged
   as they are now. The lock keeps the probability, so a new `threshold` needs no new run.
 - **`--check`** asks nothing and fails on any entry not judged as it is now.
-- **Exemptions** work as for any rule: `allow: { voice/no-intent: <why> }`. One is called stale only once a verdict says the
-  entry keeps to the guideline.
-- **A model of your own** is a `Judge`, from `prosebook/config`: an `id`, in every hash, and `judge({ state, questions })`
-  giving each question's probability of a yes.
+
+#### Approving
+
+Where the models are wrong about an entry, its author approves it as written:
+
+```bash
+prosebook approve form.assignee            # every guideline it's held to, in the source
+prosebook approve form.assignee --rule voice/field-names --locale de
+prosebook approve --all                    # every entry found breaking one
+```
+
+An approval is the author's verdict, kept in the lock as `author` beside the models', under a hash of the entry and the
+guideline alone. It passes the entry whatever the models say, and no model is asked of it, until the entry's words, role or
+context change, or the guideline's; a new model or prompt keeps it. `allow: { voice/no-intent: <why> }` passes an entry for
+good instead, through every edit, and is called stale only once a verdict says the entry keeps to the guideline.
 
 The default threshold is from the guidelines' own examples: Jev judged each bad example broken from 0.7 to 0.96, and none of
 the good ones from 0.7. Below it, the model is more often unsure than right.
@@ -1471,7 +1489,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
-  judge: undefined, // { model, threshold: 0.7, concurrency: 8 }: a decision model for `prosebook judge`
+  judge: undefined, // { models, prompt, threshold: 0.7, concurrency: 8 }: decision models for `prosebook judge`
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says

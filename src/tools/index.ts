@@ -73,10 +73,14 @@ export { asWritten, HOLE } from './places.ts';
 export { formatDiff, wordDiff, type DiffPart } from './diff.ts';
 export { changeOf, emptyLock, hash, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 export {
+  approve,
   askedOf,
+  AUTHOR,
+  brokenKeys,
   judgeCatalog,
   unanswered,
   verdictsOf,
+  type ApproveOptions,
   type Asked,
   type Judge,
   type JudgeConfig,
@@ -86,6 +90,7 @@ export {
   type JudgeResponse,
   type JudgeRun,
   type JudgeStats,
+  type ResolvedJudge,
   type Verdicts,
 } from './judge.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';

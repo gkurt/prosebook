@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import type { Formats, Formatters, FormatTable } from '#src/runtime/formats.ts';
 
 import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
-import type { JudgeConfig } from './judge.ts';
+import { AUTHOR, type Judge, type JudgeConfig, type ResolvedJudge } from './judge.ts';
 import {
   compileRule,
   CORE_RULES,
@@ -45,7 +45,7 @@ export {
   type SubstitutionRule,
 } from './lint.ts';
 export { asWritten, HOLE } from './places.ts';
-export type { Judge, JudgeConfig, JudgeQuestion, JudgeRequest, JudgeResponse } from './judge.ts';
+export type { Judge, JudgeConfig, JudgeQuestion, JudgeRequest, JudgeResponse, ResolvedJudge } from './judge.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */
@@ -259,7 +259,7 @@ export interface ResolvedConfig {
   native: (NativeTarget & { name: string })[];
   extract: { shared?: string };
   scan: ScanOptions;
-  judge?: Required<JudgeConfig>;
+  judge?: ResolvedJudge;
 }
 
 const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings', apple: 'Localizable' };
@@ -602,13 +602,24 @@ function checkedFormats(formats: Formats): Formats {
 
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
 /** `judge`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
-function checkedJudge(judge: JudgeConfig): Required<JudgeConfig> {
-  const { model, threshold = 0.7, concurrency = 8 } = judge;
-  if (typeof model?.id !== 'string' || typeof model.judge !== 'function')
-    throw new Error('judge.model is not a model: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts');
+function checkedJudge(judge: JudgeConfig): ResolvedJudge {
+  const { models, prompt, threshold = 0.7, concurrency = 8 } = judge;
+  if (!Array.isArray(models) || models.length === 0)
+    throw new Error('judge.models is not a list of models: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts');
+  const ids = new Set<string>();
+  models.forEach((model: Partial<Judge> | undefined, i) => {
+    if (typeof model?.id !== 'string' || typeof model.judge !== 'function')
+      throw new Error(`judge.models[${i}] is not a model: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts`);
+    if (model.id === AUTHOR)
+      throw new Error(`judge.models[${i}] is named ${AUTHOR}, which names the approvals of prosebook approve: give it another id`);
+    if (ids.has(model.id)) throw new Error(`judge.models[${i}] is named ${model.id} as another is: give each model its own id`);
+    ids.add(model.id);
+  });
+  if (prompt !== undefined && (typeof prompt !== 'string' || prompt.trim() === ''))
+    throw new Error('judge.prompt is empty: say what the app is and who reads it, or leave it out');
   if (!(threshold > 0 && threshold < 1)) throw new Error(`judge.threshold is ${threshold}: give a probability between 0 and 1`);
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`judge.concurrency is ${concurrency}: give a whole number from 1`);
-  return { model, threshold, concurrency };
+  return { models, threshold, concurrency, ...(prompt !== undefined && { prompt }) };
 }
 
 function checkedReasons(reasons: Record<string, string>): Record<string, string> {
