@@ -600,6 +600,49 @@ lint: {
 },
 ```
 
+#### Tone
+
+A preset gives the copy a tone, said in the guide with an example per kind of string, in `prosebook todo --prompt` with the
+form of `you` translations take, and to the judge, beside the rules that go with it:
+
+```ts
+export default defineConfig({
+  extends: 'friendly',
+  tone: {
+    notes: 'We sell to bakeries: warm, no puns.', // said after the preset's tone
+    formality: 'informal', // over the preset's: du, tu, tú; or 'formal': Sie, vous, usted
+    areas: { legal: 'plain' }, // an area's own preset: its tone said for it, its rules held there alone
+  },
+});
+```
+
+| Preset         | For                               | Rules                                                                                                |
+| -------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `plain`        | government, health, banking       | `formal`'s, `plain/words` (`commence` is `start`), and `plain/idioms`, a guideline                   |
+| `professional` | tools people use at work          | `formal`'s                                                                                           |
+| `friendly`     | apps people choose to use         | `contractions` on                                                                                    |
+| `technical`    | developers and operators          | none                                                                                                 |
+| `playful`      | games, hobbies, lifestyle         | `contractions` on, and `playful/serious-moments`, a guideline keeping errors and confirmations plain |
+| `formal`       | the formal form of `you`, no more | `contractions` off, `formal/expanded` (`can't` is `cannot`) and `formal/exclamation` on              |
+
+A preset's severities sit over `lint.extends` and under `lint.rules`: `off` turns a rule off, and `warn` or `error` turns it on at
+least that high, so `friendly` under `strict` keeps `contractions` an error. A team's own preset extends prosebook's, each field of
+its tone over theirs, and adds its own rules and words:
+
+```ts
+import { definePreset } from 'prosebook/config';
+
+export const house = definePreset({
+  name: 'house',
+  extends: ['professional'],
+  tone: { doc: 'Calm and exact, for the people who run a kitchen.' },
+  lint: { rules: { 'formal/exclamation': 'error' }, banned: [{ words: ['synergy'], why: 'is jargon' }], plugins: [] },
+});
+// prosebook.config.ts: extends: [house]
+```
+
+An area's preset may not add words (`banned`, `spelling`, `concepts`, `properNouns`), which hold for the whole catalog.
+
 ## Messages
 
 ### ICU MessageFormat
@@ -1519,6 +1562,8 @@ export default defineConfig({
   language: 'ts', // or 'js'
   importExtension: '.js', // '.ts' for Node's type stripping, '' for bundler resolution
   require: ['context'],
+  extends: [], // presets: 'plain', 'professional', 'friendly', 'technical', 'playful', 'formal', or a team's own
+  tone: {}, // notes, formality, areas: over the presets' tone
   kinds: {/* name, action, description, state */},
   surfaces: {/* label, heading, tooltip, ... */},
   lint: {

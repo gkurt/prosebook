@@ -11,8 +11,9 @@ import { relative } from 'node:path';
 import { durationParts, formatWith, stepOf, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
 import { shownItems } from '#src/runtime/helpers.ts';
 
-import type { ResolvedConfig } from './config.ts';
+import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
+import { formalityOf } from './presets.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
@@ -21,11 +22,12 @@ const list = (items: string[], joiner = 'or') =>
   items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${joiner} ${items.at(-1)}`;
 
 /** Which entries a rule reads, in words to lead its line: `On toast, not in native.*`. */
-function scopeOf({ on }: CheckRule, offIn: string[]): string | undefined {
+function scopeOf({ on }: CheckRule, offIn: string[], onlyIn: string[]): string | undefined {
+  const areas = [...(on?.area ?? []), ...onlyIn];
   const parts = [
     on?.kind && `for ${list(on.kind.map(code))}`,
     on?.surface && `on ${list(on.surface.map(code))}`,
-    on?.area && `in ${list(on.area.map((a) => code(`${a}.*`)))}`,
+    areas.length > 0 && `in ${list(areas.map((a) => code(`${a}.*`)))}`,
     on?.locale === undefined ? undefined : on.locale === 'all' ? 'in every locale' : `in ${list(on.locale.map(code), 'and')}`,
     offIn.length > 0 ? `not in ${list(offIn.map((a) => code(`${a}.*`)))}` : undefined,
   ].filter((p): p is string => typeof p === 'string');
@@ -115,6 +117,36 @@ function formatsSection(config: ResolvedConfig): string[] {
   ];
 }
 
+/** The tone the presets and the config give, with its examples, and each area's that differs. */
+function toneSection(config: ResolvedConfig): string[] {
+  const { tone } = config;
+  const areas = Object.entries(tone.areas);
+  if (tone.doc === undefined && tone.notes === undefined && tone.formality === undefined && areas.length === 0) return [];
+  const out = ['', '## Tone', ''];
+  const said = [tone.doc, tone.notes].filter((s): s is string => s !== undefined);
+  if (said.length > 0) out.push(said.join(' '), '');
+  if (tone.formality !== undefined) out.push(`Translations address the reader with ${formalityOf(tone.formality)}.`, '');
+  if (tone.examples.length > 0) {
+    out.push('As it reads:', '');
+    for (const { kind, surface, say, not } of tone.examples)
+      out.push(`- ${code(kind)} on ${code(surface)}: "${say}"${not === undefined ? '' : `, not "${not}"`}`);
+    out.push('');
+  }
+  for (const [area, own] of areas) {
+    const named = own.presets.at(-1);
+    const head = `In ${code(`${area}.*`)}${named === undefined ? '' : `, ${named}`}:`;
+    const parts = [
+      own.doc !== tone.doc ? own.doc : undefined,
+      own.formality !== tone.formality && own.formality !== undefined
+        ? `Translations address the reader with ${formalityOf(own.formality)}.`
+        : undefined,
+    ];
+    out.push([head, ...parts.filter((p): p is string => p !== undefined)].join(' '), '');
+  }
+  out.pop();
+  return out;
+}
+
 /** The guide, as Markdown. */
 export function writingGuide(config: ResolvedConfig): string {
   const catalog = relative(config.root, config.catalog).replaceAll('\\', '/') || '.';
@@ -148,12 +180,22 @@ export function writingGuide(config: ResolvedConfig): string {
 
   out.push(...formatsSection(config));
 
-  const guided = Object.entries(config.lint.rules).filter(([, { rule, severity }]) => rule.guide === true && severity !== 'off');
+  out.push(...toneSection(config));
+
+  // A rule off but in the areas that turn it on, as an area's preset does, is said for those.
+  const inAreas = (name: string, severity: Severity) =>
+    Object.entries(config.lint.areas).flatMap(([area, set]) => {
+      const own = severityIn(set, name);
+      return (severity === 'off' ? own !== undefined && own !== 'off' : own === 'off') ? [area] : [];
+    });
+  const guided = Object.entries(config.lint.rules).filter(
+    ([name, { rule, severity }]) => rule.guide === true && (severity !== 'off' || inAreas(name, severity).length > 0),
+  );
   if (guided.length > 0) {
     out.push('', '## Guidelines', '');
-    for (const [name, { rule }] of guided) {
-      const offIn = Object.entries(config.lint.areas).flatMap(([area, set]) => (severityIn(set, name) === 'off' ? [area] : []));
-      const scope = scopeOf(rule, offIn);
+    for (const [name, { rule, severity }] of guided) {
+      const areas = inAreas(name, severity);
+      const scope = severity === 'off' ? scopeOf(rule, [], areas) : scopeOf(rule, areas, []);
       out.push(`- ${scope === undefined ? '' : `${scope}: `}${rule.description}`);
     }
   }

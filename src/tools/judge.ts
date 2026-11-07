@@ -23,6 +23,7 @@ import type { Catalog, Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { applies, isGuideline, languageName, lint, severityOf, type Verdict } from './lint.ts';
 import { hash, type Lock } from './lock.ts';
+import { toneIn } from './presets.ts';
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -163,14 +164,17 @@ export function askedOf(config: ResolvedConfig, judge: ResolvedJudge, messages: 
       );
       if (held.length === 0) continue;
       const entry = stateOf(config, message, locale);
+      // What the writers say of the copy: the judge's prompt, and the tone the entry is written in.
+      const tone = toneIn(config, message.places === undefined ? message.area : undefined);
+      const notes = [judge.prompt, tone.doc, tone.notes].filter((s): s is string => s !== undefined).join(' ');
       const state = {
         ...entry,
-        ...(judge.prompt !== undefined && { notes: judge.prompt }),
+        ...(notes !== '' && { notes }),
         guidelines: held.map(([, { rule }]) => rule.description),
       };
       const questions = new Map(
         held.map(([name, { rule }]) => {
-          const questions = questionsOf(rule.description, judge.prompt !== undefined);
+          const questions = questionsOf(rule.description, notes !== '');
           const hashes = Object.fromEntries(judge.models.map((m) => [m.id, hash(JSON.stringify([PROMPT, m.id, state, questions]))]));
           hashes[AUTHOR] = authorHash(config, message, locale, name)!;
           return [name, { questions, hashes }];

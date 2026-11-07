@@ -23,9 +23,21 @@ import {
   type Plugin,
 } from './lint.ts';
 import type { Isolate } from './mf2.ts';
-import { DEFAULT_KINDS, DEFAULT_QUOTES, DEFAULT_SURFACES, STRICT_LISTS, VOICE, type KindRule, type Severity } from './presets.ts';
+import {
+  DEFAULT_KINDS,
+  DEFAULT_QUOTES,
+  DEFAULT_SURFACES,
+  PRESETS,
+  STRICT_LISTS,
+  VOICE,
+  type Formality,
+  type KindRule,
+  type Severity,
+  type Tone,
+  type ToneExample,
+} from './presets.ts';
 
-export type { KindRule, Severity };
+export type { Formality, KindRule, Severity, Tone, ToneExample };
 export {
   definePlugin,
   phrase,
@@ -87,6 +99,48 @@ export interface LintConfig extends WordLists {
    * `card-detail` names here, so it is written, reviewed and changed once.
    */
   reasons?: Record<string, string>;
+}
+
+/** What a preset sets of the lint: severities, and rules and words it adds to the config's. */
+export type PresetLint = Pick<LintConfig, 'rules' | 'plugins' | 'banned' | 'spelling' | 'concepts' | 'properNouns'>;
+
+/**
+ * A tone and the rules that go with it, which a config extends: one of prosebook's by name, or a
+ * team's own, shared as a package.
+ */
+export interface Preset {
+  /** Its name, which the writing guide says and no other preset the config extends may have. */
+  name: string;
+  /** Presets this one builds on, each under it. */
+  extends?: (string | Preset)[];
+  /** How the copy sounds; each field over the presets' it extends. */
+  tone?: Partial<Tone>;
+  /**
+   * Severities over `lint.extends` (`off` turns a rule off; `warn` or `error` turns it on at least
+   * that high), and rules and words added to the config's.
+   */
+  lint?: PresetLint;
+}
+
+export interface ToneConfig {
+  /** What the presets' tone leaves to the app, said after it: who reads the copy, and what it is for. */
+  notes?: string;
+  /** The form of `you` translations take, over the presets'. */
+  formality?: Formality;
+  /**
+   * A preset for one area's entries (a key's first segment): `{ legal: 'plain' }`. Its tone is said
+   * for them, and its rules hold there alone, so it may not add words, which hold everywhere.
+   */
+  areas?: Record<string, string | Preset>;
+}
+
+/** A tone as the presets and the config give it. */
+export interface ResolvedTone {
+  /** The presets it comes from, in order. */
+  presets: string[];
+  doc?: string;
+  formality?: Formality;
+  examples: ToneExample[];
 }
 
 /**
@@ -174,6 +228,14 @@ export interface ProsebookConfig {
   importExtension?: '.js' | '.ts' | '';
   /** The fields every entry must have. A shorthand `key: message` entry satisfies none of them. */
   require?: ('context' | 'kind' | 'surface')[];
+  /**
+   * Presets the config builds on, in order, each under it: a tone and the rules that go with it.
+   * prosebook's are `plain`, `professional`, `friendly`, `technical`, `playful`, and `formal`, which
+   * the first two extend; a team's own is a `Preset` (`definePreset`).
+   */
+  extends?: string | Preset | (string | Preset)[];
+  /** The tone over the presets': notes of the app's own, the form of `you`, a tone per area. */
+  tone?: ToneConfig;
   /** The kinds of string an entry may say it is, with the shape each one is held to. */
   kinds?: Record<string, KindRule>;
   /** Where a string may sit, with what each surface means. */
@@ -268,6 +330,8 @@ export interface ResolvedConfig {
   require: ('context' | 'kind' | 'surface')[];
   kinds: Record<string, KindRule>;
   surfaces: Record<string, string>;
+  /** The presets' tone with the config's over it, and each area's own. */
+  tone: ResolvedTone & { notes?: string; areas: Record<string, ResolvedTone> };
   lint: {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
@@ -286,6 +350,93 @@ const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: '
 /** Typed config, for `prosebook.config.ts`. */
 export function defineConfig(config: ProsebookConfig): ProsebookConfig {
   return config;
+}
+
+/** Typed preset, for a config's `extends`. */
+export function definePreset(preset: Preset): Preset {
+  return preset;
+}
+
+/** The presets a list names, each after those it extends, once: a JSON config is not type-checked. */
+function presetsOf(list: string | Preset | (string | Preset)[] | undefined, at: string): Preset[] {
+  const out = new Map<string, Preset>();
+  const open = new Set<string>();
+  const visit = (item: string | Preset) => {
+    if (typeof item === 'string' && PRESETS[item] === undefined)
+      throw new Error(`${at} names "${item}", which is no preset: name one of ${Object.keys(PRESETS).join(', ')}`);
+    const preset = typeof item === 'string' ? PRESETS[item]! : item;
+    if (typeof preset !== 'object' || typeof preset.name !== 'string' || preset.name === '')
+      throw new Error(`${at} holds a preset with no name: give it one, as definePreset({ name, ... }) does`);
+    const { name } = preset;
+    const seen = out.get(name);
+    if (seen === preset) return;
+    if (seen !== undefined) throw new Error(`${at}: two presets are named "${name}": rename one`);
+    if (open.has(name)) throw new Error(`${at}: preset "${name}" extends itself`);
+    open.add(name);
+    for (const parent of preset.extends ?? []) visit(parent);
+    open.delete(name);
+    out.set(name, preset);
+  };
+  for (const item of list === undefined ? [] : Array.isArray(list) ? list : [list]) visit(item);
+  return [...out.values()];
+}
+
+/** The presets' tone, each field over the ones before it. */
+function toneOf(presets: Preset[]): ResolvedTone {
+  const tone: ResolvedTone = { presets: presets.map((p) => p.name), examples: [] };
+  for (const { tone: own } of presets) {
+    if (own?.doc !== undefined) tone.doc = own.doc;
+    if (own?.formality !== undefined) tone.formality = own.formality;
+    if (own?.examples !== undefined) tone.examples = own.examples;
+  }
+  return tone;
+}
+
+/** The presets' lint, each over the ones before it: severities replaced, rules and words added. */
+function lintOf(presets: Preset[]): Required<PresetLint> {
+  const lint: Required<PresetLint> = { rules: {}, plugins: [], banned: [], spelling: {}, concepts: {}, properNouns: [] };
+  for (const { lint: own = {} } of presets) {
+    Object.assign(lint.rules, own.rules);
+    lint.plugins.push(...(own.plugins ?? []).filter((p) => !lint.plugins.includes(p)));
+    lint.banned.push(...(own.banned ?? []));
+    Object.assign(lint.spelling, own.spelling);
+    Object.assign(lint.concepts, own.concepts);
+    lint.properNouns.push(...(own.properNouns ?? []));
+  }
+  return lint;
+}
+
+const RANK: Record<Severity, number> = { off: 0, warn: 1, error: 2 };
+
+/** A preset's severity over the one under it: `off` turns a rule off, and any other turns it on at least that high. */
+const atLeast = (under: Severity, preset: Severity | undefined): Severity =>
+  preset === undefined ? under : preset === 'off' ? 'off' : RANK[preset] > RANK[under] ? preset : under;
+
+/** The tone, and each area's preset as its tone and rules, the rules not yet checked against the config's. */
+function tonesOf(config: ProsebookConfig) {
+  const presets = presetsOf(config.extends, 'extends');
+  const own = config.tone ?? {};
+  const tone = toneOf(presets);
+  if (own.formality !== undefined) tone.formality = own.formality;
+  const areas = Object.entries(own.areas ?? {}).map(([area, item]) => {
+    const at = `tone.areas.${area}`;
+    const named = presetsOf(item, at);
+    const lint = lintOf(named);
+    const words = lint.banned.length + Object.keys(lint.spelling).length + Object.keys(lint.concepts).length + lint.properNouns.length;
+    if (words > 0) throw new Error(`${at} adds words, which hold for the whole catalog: extend the preset at the top instead`);
+    // What the area's presets leave unsaid is the config's: a doc with its examples, and the form of `you`.
+    const local = toneOf(named);
+    const said = local.doc === undefined ? tone : local;
+    const formality = own.formality ?? local.formality ?? tone.formality;
+    const areaTone: ResolvedTone = {
+      presets: local.presets,
+      ...(said.doc !== undefined && { doc: said.doc }),
+      ...(formality !== undefined && { formality }),
+      examples: said.examples,
+    };
+    return { area, tone: areaTone, lint, presets: named };
+  });
+  return { presets, tone: { ...tone, ...(own.notes !== undefined && { notes: own.notes }) }, areas };
 }
 
 export const CONFIG_FILES = [
@@ -372,7 +523,15 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
-  const rules = lintRules(lint, config.source ?? 'en');
+  const tones = tonesOf(config);
+  const fromPresets = lintOf(tones.presets);
+  const areaPlugins = tones.areas.flatMap((a) => a.lint.plugins);
+  const rules = lintRules(lint, config.source ?? 'en', fromPresets, areaPlugins);
+  for (const preset of [...tones.presets, ...tones.areas.flatMap((a) => a.presets)]) {
+    for (const name of Object.keys(preset.lint?.rules ?? {}))
+      if (!namesRule(name, rules)) throw new Error(`preset "${preset.name}" sets lint.rules.${name}, which ${notARule(rules)}`);
+  }
+  const areaSeverities = presetAreas(rules, tones.areas, [...fromPresets.plugins, ...(lint.plugins ?? [])], lint.rules ?? {});
   const inCode = config.catalog === false;
   if (inCode) {
     for (const name of CATALOG_ONLY)
@@ -414,15 +573,21 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     require: config.require ?? ['context'],
     kinds,
     surfaces,
+    tone: { ...tones.tone, areas: Object.fromEntries(tones.areas.map(({ area, tone }) => [area, tone])) },
     lint: {
       rules,
-      areas: lint.areas ?? {},
+      areas: Object.fromEntries(
+        [...new Set([...Object.keys(areaSeverities), ...Object.keys(lint.areas ?? {})])].map((area) => [
+          area,
+          { ...areaSeverities[area], ...lint.areas?.[area] },
+        ]),
+      ),
       guessed: lint.guessed ?? {},
       reasons: checkedReasons(lint.reasons ?? {}),
-      banned: [...(strict ? STRICT_LISTS.banned : []), ...(lint.banned ?? [])],
-      spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...lint.spelling },
-      concepts: { ...lint.concepts },
-      properNouns: lint.properNouns ?? [],
+      banned: [...(strict ? STRICT_LISTS.banned : []), ...fromPresets.banned, ...(lint.banned ?? [])],
+      spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...fromPresets.spelling, ...lint.spelling },
+      concepts: { ...fromPresets.concepts, ...lint.concepts },
+      properNouns: [...fromPresets.properNouns, ...(lint.properNouns ?? [])],
       pathSeparator: lint.pathSeparator ?? '›',
       quotes: checkedQuotes(lint.quotes ?? {}),
     },
@@ -681,11 +846,47 @@ function checkedQuotes(quotes: Record<string, readonly [string, string]>): Recor
   return { ...DEFAULT_QUOTES, ...quotes };
 }
 
-function lintRules(lint: LintConfig, source: string): ResolvedConfig['lint']['rules'] {
+/**
+ * Each area's severities from its preset, under `lint.areas`: the preset's over the config's, and the
+ * rules of a plugin only an area's preset adds, which are off elsewhere, at their own.
+ */
+function presetAreas(
+  rules: ResolvedConfig['lint']['rules'],
+  areas: { area: string; lint: Required<PresetLint> }[],
+  everywhere: Plugin[],
+  own: Record<string, Severity>,
+): Record<string, Record<string, Severity>> {
+  const global = new Set(everywhere.map((p) => p.name));
+  const areaOnly = (name: string) =>
+    name.includes('/') && !global.has(name.slice(0, name.indexOf('/'))) && !name.startsWith(`${VOICE.name}/`);
+  const out: Record<string, Record<string, Severity>> = {};
+  for (const { area, lint } of areas) {
+    const set: Record<string, Severity> = {};
+    for (const [name, { severity }] of Object.entries(rules)) {
+      const preset = severityIn(lint.rules, name);
+      const ownsIt = areaOnly(name) && lint.plugins.some((p) => name.startsWith(`${p.name}/`));
+      if (ownsIt || preset !== undefined) set[name] = atLeast(severity, preset);
+    }
+    out[area] = set;
+  }
+  // A rule only an area's preset adds holds there alone, unless the config's own lint.rules says otherwise.
+  for (const [name, rule] of Object.entries(rules)) if (areaOnly(name) && severityIn(own, name) === undefined) rule.severity = 'off';
+  return out;
+}
+
+function lintRules(
+  lint: LintConfig,
+  source: string,
+  presets: Required<PresetLint>,
+  areaPlugins: Plugin[],
+): ResolvedConfig['lint']['rules'] {
   const base = lint.extends ?? 'recommended';
   const all: [string, CheckRule][] = Object.entries(CORE_RULES);
   const seen = new Set<string>();
-  for (const plugin of [VOICE, ...(lint.plugins ?? [])]) {
+  // A preset's plugin, extended by the config and by an area, or listed in lint.plugins too, is the one plugin.
+  const own = lint.plugins ?? [];
+  const fromPresets = [...new Set([...presets.plugins, ...areaPlugins])].filter((p) => !own.includes(p));
+  for (const plugin of [VOICE, ...fromPresets, ...own]) {
     if (!/^[a-z][a-z0-9-]*$/i.test(plugin.name))
       throw new Error(`lint.plugins: "${plugin.name}" is not a plugin name: use letters, digits and dashes`);
     if (seen.has(plugin.name)) {
@@ -710,7 +911,10 @@ function lintRules(lint: LintConfig, source: string): ResolvedConfig['lint']['ru
         ? (rule.strict ?? 'error')
         : (rule.recommended ?? 'off');
   const rules = Object.fromEntries(
-    all.map(([name, rule]) => [name, { rule, severity: severityIn(lint.rules, name) ?? preset(name, rule) }]),
+    all.map(([name, rule]) => [
+      name,
+      { rule, severity: severityIn(lint.rules, name) ?? atLeast(preset(name, rule), severityIn(presets.rules, name)) },
+    ]),
   );
   for (const name of Object.keys(lint.rules ?? {})) if (!namesRule(name, rules)) throw new Error(`lint.rules.${name} ${notARule(rules)}`);
   return rules;

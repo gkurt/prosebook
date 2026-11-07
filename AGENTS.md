@@ -104,7 +104,13 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `loadConfig` imports a config file, and the formatters module, anew once it changed (a query for Node, `require.cache` for Bun),
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
   `presets.ts`: kinds, surfaces, the strict preset's word lists, and `VOICE`, the built-in `voice` plugin: guidelines
-  against the habits of generated copy, on only for an English source.
+  against the habits of generated copy, on only for an English source. And `PRESETS`, what the config's
+  `extends` names: each a `Preset`, a tone (`doc`, `formality`, `examples`, the same six moments in every
+  tone) and lint rules and words, its plugins data rules. `presetsOf` (`config.ts`) flattens a list, each
+  preset after those it extends, once; `toneOf` and `lintOf` merge them, and a preset's severity is
+  `atLeast` the one under it (`off` turns a rule off). `tone.areas` gives an area a preset: `presetAreas`
+  puts its severities in `lint.areas`, and the rules of a plugin only an area's preset adds are off
+  elsewhere. `toneIn` is an entry's tone, which the guide, `todo --prompt` and the judge's `notes` say.
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
   servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,

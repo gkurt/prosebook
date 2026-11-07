@@ -1,11 +1,12 @@
 /**
  * The defaults: four kinds of string, the surfaces they sit on, the word lists of the strict lint preset,
- * and the voice guidelines.
+ * the voice guidelines, and the presets a config extends for a tone.
  *
  * The kinds are the four any UI writing guide comes down to. A name identifies, an action says what
  * pressing it does, a description adds what the name cannot carry, a state reports what is true.
  * Each carries a budget and a grammar, which is what makes a mechanical check of the words possible.
  */
+import type { Preset, ResolvedConfig, ResolvedTone } from './config.ts';
 import type { Plugin } from './lint.ts';
 
 export type Severity = 'error' | 'warn' | 'off';
@@ -207,6 +208,268 @@ export const VOICE: Plugin = {
       type: 'guideline',
       description:
         'A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A sentence is for what takes explaining.',
+    },
+  },
+};
+
+/** How a product sounds, said in the writing guide, the translation prompt and the judge's notes. */
+export interface Tone {
+  /** The tone, what it's for and where it stops. */
+  doc: string;
+  /** The form of `you` a translation takes where a language has two: Sie, vous, usted, or du, tu, tú. */
+  formality: Formality;
+  /** The same few moments in every tone, so two tones compare line by line, each with what it avoids. */
+  examples: ToneExample[];
+}
+
+export type Formality = 'formal' | 'informal';
+
+export interface ToneExample {
+  kind: string;
+  surface: string;
+  /** What the tone writes there. */
+  say: string;
+  /** What it doesn't, where a writer would reach for it. */
+  not?: string;
+}
+
+/** How a translation addresses the reader, in words a writer or a model acts on. */
+export function formalityOf(formality: Formality): string {
+  return formality === 'formal'
+    ? 'the formal form of `you`, where a language has two (Sie, vous, usted)'
+    : 'the informal form of `you`, where a language has two (du, tu, tú)';
+}
+
+/** The tone an entry of an area is written in: its area's, else the config's; text in code has no area. */
+export function toneIn(config: Pick<ResolvedConfig, 'tone'>, area: string | undefined): ResolvedTone & { notes?: string } {
+  const own = area === undefined ? undefined : config.tone.areas[area];
+  if (own === undefined) return config.tone;
+  return { ...own, ...(config.tone.notes !== undefined && { notes: config.tone.notes }) };
+}
+
+/**
+ * The tones of the built-in presets. Each example keeps to the kinds' budgets and the voice
+ * guidelines, so a tone never asks for what the lint finds: warmth or humor is in the words, not in
+ * apologies, exclamations or whole sentences where a phrase does.
+ */
+const TONES = {
+  plain: {
+    doc: 'Plain and neutral, for services anyone may have to use: government, health, banking, insurance. Short, common words, one idea a sentence, the main point first. No jokes, no exclamation marks, no idioms a reader of English as a second language would stumble on. Say what happened, then what the reader can do. Address the reader as `you`.',
+    formality: 'formal',
+    examples: [
+      { kind: 'name', surface: 'heading', say: 'Your applications' },
+      {
+        kind: 'state',
+        surface: 'error',
+        say: 'Your application was not sent. Check your internet connection, then send it again.',
+        not: 'Submission failed due to a network error.',
+      },
+      { kind: 'state', surface: 'empty', say: 'You have no applications. Start one to apply for a permit.' },
+      { kind: 'state', surface: 'toast', say: 'Application sent', not: 'Success! Your application is on its way.' },
+      { kind: 'description', surface: 'hint', say: 'Write your name as it is on your passport.', not: 'Must match identity document.' },
+      { kind: 'action', surface: 'confirm', say: 'Withdraw application' },
+    ],
+  },
+  professional: {
+    doc: 'Calm, exact and brief, for tools people use at work all day. Neutral words, few contractions, no exclamation marks, no humor: the reader is busy, and the copy stays out of the way. An error names the cause and the next step without apologizing. Terms of the trade are fine where the reader uses them; terms of the product are not.',
+    formality: 'formal',
+    examples: [
+      { kind: 'name', surface: 'heading', say: 'Billing contacts' },
+      {
+        kind: 'state',
+        surface: 'error',
+        say: 'The report could not be exported: it has more rows than an export holds. Choose a shorter date range.',
+        not: "Sorry, we couldn't export your report. Please try again later.",
+      },
+      { kind: 'state', surface: 'empty', say: 'No invoices match these filters. Clear a filter to see more.' },
+      { kind: 'state', surface: 'toast', say: 'Invoice sent' },
+      { kind: 'description', surface: 'hint', say: 'Shown on invoices and in emails to customers.' },
+      { kind: 'action', surface: 'confirm', say: 'Delete invoices' },
+    ],
+  },
+  friendly: {
+    doc: "Warm and direct, for apps people choose to use. Contractions and everyday words; the reader is `you`, and the product is `we` where it does something on the reader's behalf. Warmth comes from being clear and on the reader's side, not from exclamation marks, apologies or emoji. A little personality in empty states and onboarding; errors stay straightforward.",
+    formality: 'informal',
+    examples: [
+      { kind: 'name', surface: 'heading', say: 'Your lists' },
+      {
+        kind: 'state',
+        surface: 'error',
+        say: "We couldn't save your list. Check your connection, then try again.",
+        not: 'Oops! Something went wrong.',
+      },
+      {
+        kind: 'state',
+        surface: 'empty',
+        say: "You haven't saved any recipes yet. Tap the heart on a recipe to keep it here.",
+        not: 'No saved recipes.',
+      },
+      { kind: 'state', surface: 'toast', say: 'Recipe saved', not: 'Yay! Your recipe has been saved!' },
+      { kind: 'description', surface: 'hint', say: 'Friends see this name when you share a list.' },
+      { kind: 'action', surface: 'confirm', say: 'Delete list' },
+    ],
+  },
+  technical: {
+    doc: 'Terse and exact, for developers and operators. The precise term over the friendly one, and names, commands, codes and values exactly as the system writes them, so the reader can search for them. Numbers with their units. An error says what failed as the system reported it, then the fix; no reassurance, no humor. The reader knows the domain: explain the product, not the field.',
+    formality: 'formal',
+    examples: [
+      { kind: 'name', surface: 'heading', say: 'Environment variables' },
+      {
+        kind: 'state',
+        surface: 'error',
+        say: 'Build failed: npm run build exited with code 1. Open the build log for the error.',
+        not: "Something went wrong while building your app. We're looking into it.",
+      },
+      { kind: 'state', surface: 'empty', say: 'No API keys. Create one to call the API from a server.' },
+      { kind: 'state', surface: 'toast', say: 'Key copied' },
+      { kind: 'description', surface: 'hint', say: 'A cron expression, run in UTC.', not: 'Choose when you would like this job to run.' },
+      { kind: 'action', surface: 'confirm', say: 'Revoke key' },
+    ],
+  },
+  playful: {
+    doc: "Light and personable, for products people use for fun: games, hobbies, lifestyle. Humor goes where nothing is at stake: empty states, success, onboarding. Errors, payments, deletion and privacy stay plain, since a joke there reads as not taking the problem seriously. One joke a screen at most, never at the reader's expense, and never one a translation can't carry. Contractions throughout; an exclamation mark only for a real success.",
+    formality: 'informal',
+    examples: [
+      { kind: 'name', surface: 'heading', say: 'Up next' },
+      {
+        kind: 'state',
+        surface: 'error',
+        say: "We couldn't load your shelf. Check your connection, then try again.",
+        not: 'Uh-oh, the bookworms ate your shelf!',
+      },
+      { kind: 'state', surface: 'empty', say: 'Nothing on your shelf yet. Add a book to break the silence.' },
+      { kind: 'state', surface: 'toast', say: 'Shelved!' },
+      { kind: 'description', surface: 'hint', say: 'Other readers see this name next to your reviews.' },
+      { kind: 'action', surface: 'confirm', say: 'Delete history', not: 'Yeet it' },
+    ],
+  },
+} satisfies Record<string, Tone>;
+
+// Each English word list reads English text alone, in the source or a translation, as the voice
+// guidelines do; the exclamation mark is every language's.
+const ENGLISH = { locale: ['en'] };
+
+/** What formal copy writes out, which `plain` and `professional` share. */
+const FORMAL: Plugin = {
+  name: 'formal',
+  rules: {
+    expanded: {
+      type: 'substitution',
+      description: 'A negative is written out: `cannot`, `do not`, `was not`.',
+      recommended: 'warn',
+      on: ENGLISH,
+      message: '"{match}" is written out: "{use}"',
+      swap: {
+        "can't": 'cannot',
+        "couldn't": 'could not',
+        "didn't": 'did not',
+        "doesn't": 'does not',
+        "don't": 'do not',
+        "hadn't": 'had not',
+        "hasn't": 'has not',
+        "haven't": 'have not',
+        "isn't": 'is not',
+        "aren't": 'are not',
+        "mustn't": 'must not',
+        "shouldn't": 'should not',
+        "wasn't": 'was not',
+        "weren't": 'were not',
+        "won't": 'will not',
+        "wouldn't": 'would not',
+      },
+    },
+    exclamation: {
+      type: 'existence',
+      description: 'No exclamation marks.',
+      recommended: 'warn',
+      on: { locale: 'all' },
+      patterns: ['[!¡]'],
+      message: 'no exclamation mark: a period, or nothing, says it as plainly',
+    },
+  },
+};
+
+/**
+ * The presets a config extends by name. Each sets a tone and the rules that go with it, over
+ * `lint.extends` and under the config's own `lint.rules`.
+ */
+export const PRESETS: Record<string, Preset> = {
+  formal: {
+    name: 'formal',
+    tone: { formality: 'formal' },
+    lint: { rules: { contractions: 'off' }, plugins: [FORMAL] },
+  },
+  plain: {
+    name: 'plain',
+    extends: ['formal'],
+    tone: TONES.plain,
+    lint: {
+      plugins: [
+        {
+          name: 'plain',
+          rules: {
+            words: {
+              type: 'substitution',
+              description: 'The common word over the official one: `start`, not `commence`.',
+              recommended: 'warn',
+              on: ENGLISH,
+              swap: {
+                'a number of': 'some',
+                additional: 'more',
+                approximately: 'about',
+                ascertain: 'find out',
+                assist: 'help',
+                assistance: 'help',
+                commence: 'start',
+                demonstrate: 'show',
+                endeavour: 'try',
+                endeavor: 'try',
+                facilitate: 'help',
+                'in order to': 'to',
+                'in the event that': 'if',
+                numerous: 'many',
+                obtain: 'get',
+                'prior to': 'before',
+                regarding: 'about',
+                'subsequent to': 'after',
+                sufficient: 'enough',
+                terminate: 'end',
+                utilise: 'use',
+                utilize: 'use',
+                'with regard to': 'about',
+              },
+            },
+            idioms: {
+              type: 'guideline',
+              description:
+                'No idioms or figures of speech, which a reader of the language as a second one takes word by word: `Start again`, not `Back to square one`.',
+            },
+          },
+        },
+      ],
+    },
+  },
+  professional: { name: 'professional', extends: ['formal'], tone: TONES.professional },
+  friendly: { name: 'friendly', tone: TONES.friendly, lint: { rules: { contractions: 'warn' } } },
+  technical: { name: 'technical', tone: TONES.technical },
+  playful: {
+    name: 'playful',
+    tone: TONES.playful,
+    lint: {
+      rules: { contractions: 'warn' },
+      plugins: [
+        {
+          name: 'playful',
+          rules: {
+            'serious-moments': {
+              type: 'guideline',
+              description:
+                'An error or a confirmation stays plain: no joke, wordplay or exclamation mark where something failed or is about to be lost.',
+              on: { surface: ['error', 'confirm'] },
+            },
+          },
+        },
+      ],
     },
   },
 };

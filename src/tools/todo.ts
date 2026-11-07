@@ -12,6 +12,7 @@ import type { ResolvedConfig } from './config.ts';
 import { TYPE, walk } from './icu.ts';
 import { applies, languageName, severityOf } from './lint.ts';
 import { changeOf, type StaleTranslation } from './lock.ts';
+import { formalityOf, toneIn } from './presets.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 export interface Todo {
@@ -100,7 +101,21 @@ function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, an
       ? [rule.description]
       : [],
   );
+  // The tone of each area some entry here is in, said once per tone.
+  const tones = new Map<string, string[]>();
+  for (const m of wanted) {
+    const tone = toneIn(config, m.places === undefined ? m.area : undefined);
+    const said = [tone.doc, tone.notes, tone.formality && `Address the reader with ${formalityOf(tone.formality)}.`]
+      .filter((s): s is string => typeof s === 'string')
+      .join(' ');
+    if (said !== '') tones.set(said, [...(tones.get(said) ?? []), m.key]);
+  }
+  const toneLines =
+    tones.size === 1
+      ? ['', 'Tone:', [...tones.keys()][0]!]
+      : [...tones].flatMap(([said, keys], i) => [...(i === 0 ? ['', 'Tone, by entry:'] : []), `- ${keys.join(', ')}: ${said}`]);
   const legend = [
+    ...toneLines,
     ...(kinds.size > 0 ? ['', 'Kinds of string:'] : []),
     ...[...kinds].map((k) => `- ${k}: ${config.kinds[k]?.doc ?? ''}`),
     ...(surfaces.size > 0 ? ['', 'Surfaces:'] : []),
