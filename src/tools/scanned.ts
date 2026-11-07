@@ -125,13 +125,23 @@ function roleOf(place: Hardcoded): Role {
     return place.where === 'confirm' ? { surface: 'confirm' } : {};
   }
   if (place.via === 'property') return PROPERTIES[place.where] ?? {};
-  if (place.where !== 'text') return ATTRIBUTES[place.where] ?? {};
+  if (place.where !== 'text') {
+    // A `label` is the text its element shows, so it takes the element's role: a `<Tooltip label>` is
+    // a tooltip's, a `<MenuItem label>` an action's. Other attributes say their own role.
+    const own = place.where === 'label' ? elementRole(place.inside?.at(-1) ?? '') : undefined;
+    return own ?? ATTRIBUTES[place.where] ?? {};
+  }
   for (const element of [...(place.inside ?? [])].reverse()) {
     if (INLINE.has(element)) continue;
-    if (/^[a-z]/.test(element)) return ELEMENTS[element] ?? {};
-    return COMPONENTS.find(([name]) => name.test(element))?.[1] ?? {};
+    return elementRole(element) ?? {};
   }
   return {};
+}
+
+/** The role of the text an element shows: HTML's by name, a component's by the last word of its name. */
+function elementRole(element: string): Role | undefined {
+  if (/^[a-z]/.test(element)) return ELEMENTS[element];
+  return COMPONENTS.find(([name]) => name.test(element))?.[1];
 }
 
 /**

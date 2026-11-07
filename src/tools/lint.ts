@@ -413,14 +413,22 @@ const UNITS: Record<string, string> = {
 
 /**
  * The ways a path through menus is written, the separator in a group: an arrow or `›` however
- * spaced, and `>` or `/` only spaced between words or placeholders, with a capital after a slash,
- * since "2 > 1" and "and / or" are no paths. The match takes the spaces around, so the fix spaces
- * the separator.
+ * spaced, and `>` or `/` only spaced, each between words or placeholders, so "View loop →" is an
+ * affordance and "2 > 1" no path. A slash takes a capital after it and, in the check, a second one
+ * in the same text, since "Preference / Context" says "or". The match takes the spaces around, so
+ * the fix spaces the separator.
  */
 const PATH_SEPARATORS = new RegExp(
-  String.raw`\s*(→|->|›)\s*|(?<=[\p{L}${HOLE}])\s+(>)\s+(?=[\p{L}${HOLE}])|(?<=\p{L})\s+(\/)\s+(?=\p{Lu})`,
+  String.raw`(?<=[\p{L}\p{N}${HOLE}])\s*(→|->|›)\s*(?=[\p{L}\p{N}${HOLE}])|(?<=[\p{L}${HOLE}])\s+(>)\s+(?=[\p{L}${HOLE}])|(?<=\p{L})\s+(\/)\s+(?=\p{Lu})`,
   'gu',
 );
+
+/**
+ * A spaced hyphen or en dash between numbers, or a date and a date: "1 - 5", "9am - 5pm",
+ * "Mar 30 - Apr 6". A range, which an en dash writes: unspaced between two single terms, spaced
+ * where a side holds a space.
+ */
+const RANGE = /(?<=\d[\p{L}.]*)\s[–-]\s(?=(?:\p{L}+\.?\s)?\d)/u;
 
 const OFF_SCREEN = new Set(['aria']);
 
@@ -604,10 +612,22 @@ export const CORE_RULES = {
       })),
   },
   'no-em-dash': {
-    description: 'No em-dashes, and no spaced hyphen standing in for one.',
+    description: 'No em-dashes, and no spaced hyphen or en dash standing in for one. A range takes an en dash.',
     check: ({ text }) => {
-      const match = text.variants.map((v) => /—|\s[–-]\s/.exec(v)?.[0]).find((m) => m !== undefined);
-      return match === undefined ? [] : [{ message: 'no em-dash: a comma, a period or a colon does the job', match }];
+      for (const v of text.variants) {
+        const range = RANGE.exec(v);
+        if (range !== null) {
+          if (range[0].trim() === '–') continue;
+          const single = /^\d/.test(v.slice(range.index + range[0].length));
+          const fix = single ? '–' : ' – ';
+          return [{ message: `a range is written with an en dash: "${single ? '1–5' : 'Mar 30 – Apr 6'}"`, match: range[0], fix }];
+        }
+        const found = /—|\s[–-]\s/.exec(v)?.[0];
+        if (found === undefined) continue;
+        const what = found === '—' ? 'an em-dash' : found.includes('–') ? 'a spaced en dash' : 'a spaced hyphen';
+        return [{ message: `${what} stands in for punctuation: a comma, a period or a colon does the job`, match: found }];
+      }
+      return [];
     },
   },
   path: {
@@ -615,8 +635,12 @@ export const CORE_RULES = {
     check: ({ text, config }) => {
       const use = config.lint.pathSeparator;
       for (const v of text.variants) {
-        for (const m of v.matchAll(PATH_SEPARATORS)) {
-          if ((m[1] ?? m[2] ?? m[3]) === use) continue;
+        const found = [...v.matchAll(PATH_SEPARATORS)];
+        // One slash between two words is as often "or" as a path; two make a path.
+        const slashes = found.filter((m) => m[3] !== undefined).length;
+        for (const m of found) {
+          const separator = m[1] ?? m[2] ?? m[3];
+          if (separator === use || (m[3] !== undefined && slashes < 2)) continue;
           return [{ message: `a path is written with a spaced ${use}`, match: m[0], fix: ` ${use} ` }];
         }
       }

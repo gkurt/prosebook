@@ -381,6 +381,43 @@ describe('lint', () => {
     expect(readFileSync(join(config.catalog, 'app.yaml'), 'utf8').match(/Open Settings › General\./g)).toHaveLength(3);
   });
 
+  test('an arrow with no word after it is an affordance, and one slash between words says or', () => {
+    const yaml = [
+      'app.a:\n  kind: action\n  context: A link.\n  en: View loop →',
+      'app.b:\n  kind: name\n  context: A label.\n  en: Preference / Context',
+      'app.c:\n  kind: description\n  context: A hint.\n  en: Open Settings / Privacy / Cookies.',
+      'app.d:\n  kind: description\n  context: A hint.\n  en: Open {page} → Billing.\n  args:\n    page: The page.',
+    ].join('\n');
+    expect(findings(yaml, { extends: 'none', rules: { path: 'error' } })).toEqual([
+      'app.c [path] a path is written with a spaced ›',
+      'app.d [path] a path is written with a spaced ›',
+    ]);
+  });
+
+  test('no-em-dash names the dash it found, and a range asks for an en dash', () => {
+    const yaml = [
+      'app.a:\n  kind: description\n  context: A hint.\n  en: Saved — for now.',
+      'app.b:\n  kind: description\n  context: A hint.\n  en: Saved - for now.',
+      'app.c:\n  kind: description\n  context: A hint.\n  en: Saved – for now.',
+      'app.d:\n  kind: description\n  context: A hint.\n  en: Open 9am - 5pm.',
+      'app.e:\n  kind: description\n  context: A hint.\n  en: Mar 30 - Apr 6',
+      'app.f:\n  kind: description\n  context: A hint.\n  en: Mar 30 – Apr 6',
+    ].join('\n');
+    const rules = { extends: 'none', rules: { 'no-em-dash': 'error' } } as const;
+    expect(findings(yaml, rules)).toEqual([
+      'app.a [no-em-dash] an em-dash stands in for punctuation: a comma, a period or a colon does the job',
+      'app.b [no-em-dash] a spaced hyphen stands in for punctuation: a comma, a period or a colon does the job',
+      'app.c [no-em-dash] a spaced en dash stands in for punctuation: a comma, a period or a colon does the job',
+      'app.d [no-em-dash] a range is written with an en dash: "1–5"',
+      'app.e [no-em-dash] a range is written with an en dash: "Mar 30 – Apr 6"',
+    ]);
+    const config = fixture({ 'copy/catalog/app.yaml': yaml }, { lint: rules });
+    expect(applyFixes(config, loadCatalog(config), lint(loadCatalog(config).messages, config)).fixed).toBe(2);
+    const fixed = readFileSync(join(config.catalog, 'app.yaml'), 'utf8');
+    expect(fixed).toContain('Open 9am–5pm.');
+    expect(fixed.match(/Mar 30 – Apr 6/g)).toHaveLength(2);
+  });
+
   test('a rule or plugin the config cannot place is an error', () => {
     expect(() => fixture({}, { lint: { rules: { 'house/no-we': 'warn' } } })).toThrow('lint.rules.house/no-we is not a rule');
     expect(() => fixture({}, { lint: { plugins: [house, house] } })).toThrow('"house" is added twice');

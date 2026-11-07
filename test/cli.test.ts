@@ -106,3 +106,22 @@ test('generate run again, as after a dev server wrote the files, says they are c
   expect(cli(root, 'generate').stdout).toContain('wrote');
   expect(cli(root, 'generate').stdout).toContain('prosebook: the generated files are current (1 messages, 1 locale(s))');
 });
+
+test("lint's summary counts each rule, says warnings pass, and names the words capitalized often", () => {
+  const entry = (key: string, en: string) => `${key}:\n  kind: action\n  context: A button.\n  en: ${en}\n`;
+  const { root } = fixture({
+    'prosebook.config.ts': "export default { lint: { extends: 'none', rules: { 'sentence-case': 'warn', ellipsis: 'warn' } } };",
+    'copy/catalog/app.yaml': [
+      entry('app.a', 'Open Delta'),
+      entry('app.b', 'Close Delta'),
+      entry('app.c', 'Rename Delta'),
+      entry('app.d', 'Save...'),
+    ].join(''),
+  });
+  const run = cli(root, 'lint');
+  expect(run.code).toBe(0);
+  expect(run.stderr).toContain('0 error(s), 4 warning(s).');
+  expect(run.stderr).toContain('By rule: sentence-case 3, ellipsis 1.');
+  expect(run.stderr).toContain("Warnings alone exit 0: to fail CI on a rule, set it to 'error' under lint.rules, or extend 'strict'.");
+  expect(run.stderr).toContain('lint: { properNouns: ["Delta"] } stops these findings.');
+});

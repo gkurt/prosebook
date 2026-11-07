@@ -90,6 +90,9 @@ const ROLES = `export function Cart() {
       <p>Thanks for shopping.</p>
       <Link href="/returns">Returns</Link>
       <input placeholder="Search" aria-label="Search the shop" title="Find a product" />
+      <Tooltip label="Removes the item from your cart" />
+      <MenuItem label="Empty cart" />
+      <Checkbox label="Gift wrap" />
     </form>
   );
 }
@@ -115,6 +118,10 @@ describe('roles guessed from where text stands', () => {
       Search: [undefined, 'placeholder'],
       'Search the shop': [undefined, 'aria'],
       'Find a product': [undefined, 'tooltip'],
+      // A label is its element's text, so a component's role wins over the attribute's.
+      'Removes the item from your cart': [undefined, 'tooltip'],
+      'Empty cart': ['action', 'action'],
+      'Gift wrap': ['name', 'label'],
     });
     expect(scannedMessages(config, places).find((m) => m.key === 'Check Out Now')!.context).toBe('Text in a <button>.');
   });

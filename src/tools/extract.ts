@@ -17,7 +17,7 @@ import { CatalogError, KEY_PATTERN, loadCatalog, SCHEMA_LINE } from './catalog.t
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage, TYPE, type MessageFormatElement } from './icu.ts';
 import { singularOf } from './lint.ts';
-import { isNonProse, looksLikeCode, shownLiterals } from './scan.ts';
+import { isNonProse, jsxText, looksLikeCode, shownLiterals } from './scan.ts';
 import { writeMessage } from './syntax.ts';
 import { syntaxKind, typescriptOracle, type Span, type ValueInfo, type ValueKind } from './types.ts';
 
@@ -217,25 +217,6 @@ function inSyntax(config: ResolvedConfig, mf1: string): string {
 /** Text written literally inside an ICU message. */
 function escapeIcu(text: string): string {
   return text.replace(/[{}<]/g, (c) => `'${c}'`);
-}
-
-/** JSX text as React renders it: lines trimmed where they meet a line break, blank lines dropped. */
-function jsxText(value: string): string {
-  const lines = value.split(/\r\n|\n|\r/);
-  // As Babel does: a value with no visible characters still keeps its one line, so a lone space renders.
-  let lastNonEmpty = 0;
-  lines.forEach((line, i) => {
-    if (/[^ \t]/.test(line)) lastNonEmpty = i;
-  });
-  let out = '';
-  lines.forEach((line, i) => {
-    let trimmed = line.replace(/\t/g, ' ');
-    if (i !== 0) trimmed = trimmed.replace(/^ +/, '');
-    if (i !== lines.length - 1) trimmed = trimmed.replace(/ +$/, '');
-    if (trimmed === '') return;
-    out += i === lastNonEmpty ? trimmed : `${trimmed} `;
-  });
-  return out;
 }
 
 const SIMPLE_EXPRESSIONS = new Set([

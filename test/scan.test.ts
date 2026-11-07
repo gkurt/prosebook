@@ -76,6 +76,7 @@ export function save() {
       '8:20 header: Name',
     ]);
     expect(found('A.test.tsx', code, options)).toEqual([]);
+    expect(found('A.stories.tsx', 'export const S = () => <Drawer title="Filters">Pick a range</Drawer>;')).toEqual([]);
     // Outside a component, a title or description is as often a model's or an API's.
     expect(found('A.ts', code, options).filter((f) => f.includes(': '))).toEqual([]);
   });
@@ -130,7 +131,7 @@ test('scan.ignore keeps a check out of a folder', () => {
   expect(formatted({ scan: { ignore: { 'formatted-in-code': ['src/server/'] } } })).toEqual(['src/App.tsx']);
   expect(formatted({ scan: { ignore: { 'formatted-in-code': ['./src/server'] } } })).toEqual(['src/App.tsx']);
   const c = fixture(files, { scan: { ignore: { 'formatted-in-code': ['src/server'] } } });
-  expect(scan(c.scan, c.root).hardcoded.map((h) => h.text)).toEqual(['Total']);
+  expect(scan(c.scan, c.root).hardcoded.map((h) => h.text)).toEqual(['Total ${n.toLocaleString()}']);
   expect(() => fixture({}, { scan: { ignore: { formatted: ['src'] } as never } })).toThrow(
     'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code, or * for all',
   );
@@ -158,10 +159,38 @@ test('scan.ignore takes globs, and * for every check', () => {
   });
 });
 
+test('JSX text is one sentence across its values, its entities decoded, and classes are no text', () => {
+  const code = `
+export const A = ({ clientName, user, n }) => (
+  <p className="block h-full">
+    Could not allow access. Use another account or restart from {clientName}.
+    <span>Advanced Settings&nbsp;</span>
+    <b>Agent version &ge; {user.version}</b>
+    <i>Hello{' '}{user.name}, you have {n === 1 ? 'one item' : 'items'}</i>
+    <Tooltip label={cn('px-2', 'Not prose')} title="A &amp; B" />
+  </p>
+);
+const pill = tv({ slots: { label: 'block h-full cursor-[inherit] truncate' } });`;
+  expect(
+    hardcodedText('A.tsx', code, { attributes: ['title', 'label'], properties: ['label'] }).map(
+      (h) => `${h.line}:${h.column} ${whereOf(h) || 'text '}${h.text}`,
+    ),
+  ).toEqual([
+    '4:5 text Could not allow access. Use another account or restart from ${clientName}.',
+    '5:11 text Advanced Settings',
+    '6:8 text Agent version ≥ ${user.version}',
+    '7:8 text Hello ${user.name}, you have',
+    '7:51 text one item',
+    '7:64 text items',
+    '8:52 title=A & B',
+  ]);
+});
+
 test('code-like tokens are not prose', () => {
   const code = ['form.json()', 'src/index.ts', 'snake_case', 'a::b', 'x=1', 'us-west-2', 'api.example.com\n*.example.org'];
+  const classes = ['block h-full cursor-[inherit]', 'md:px-2 text-sm', 'w-1/2', 'hover:bg-red-500/50 !mt-0'];
   const commands = ['sudo apt-get update && sudo apt-get install -y postgresql-client', 'npm install --save-dev x', '$ ls'];
-  expect([...code, ...commands].filter((t) => !looksLikeCode(t))).toEqual([]);
+  expect([...code, ...classes, ...commands].filter((t) => !looksLikeCode(t))).toEqual([]);
   const prose = [
     'Done.',
     'Hello world',
@@ -171,6 +200,8 @@ test('code-like tokens are not prose', () => {
     'Wait 5-10 minutes',
     'Settings > General',
     'Visit example.com today',
+    'sign-in required',
+    'block',
   ];
   expect(prose.filter(looksLikeCode)).toEqual([]);
 });

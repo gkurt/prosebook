@@ -230,8 +230,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
-  in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts
-  and commands out, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
+  in any script and, in components only, `scan.properties`' values, none of it in tests or stories
+  (`NOT_APP`). An element's run of text and values (`isRunValue`: `{name}`, not a ternary) is one string,
+  each value a template's hole, as `jsxText` renders it, with `decodeEntities`, since oxc leaves `&nbsp;`
+  as written; `extract` reads JSX text through the same `jsxText`. `looksLikeCode` keeps IDs, hosts,
+  commands and utility classes (`isClassList`) out, `CLASS_CALLS` and `CLASS_ATTRIBUTES` what builds
+  classes, and `isNonProse` `<kbd>` and `<Kbd>`. `unseenReads`: reads whose key a pruned build
   can't see, found by name (`t`, `rich`, their destructured aliases, `<Text>` from any binding); a read
   through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`, `.svelte`
   or `.astro` file is read as its script blocks, Astro's frontmatter and the expressions in its markup,
@@ -243,7 +247,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   keyed by its words, a template's holes as placeholders; linted each apart (no `duplicate`), its findings
   said at every place, with no fix. `roleOf` guesses a kind and surface from the place: the elements
   `scan` records around JSX text (`Hardcoded.inside`, the nearest past `INLINE` ones deciding), the
-  attribute, the property or the call; `roleIn` keeps what the config defines and drops a guess naming
+  attribute (`label=` its element's role first, `elementRole`), the property or the call; `roleIn` keeps what the config defines and drops a guess naming
   a kind or surface `scan.roles` turns off. Words in two roles are two entries, approved as one. Text in
   code has no area: `severityOf` reads `lint.guessed` for it where its role was guessed, never `lint.areas`. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
   reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.

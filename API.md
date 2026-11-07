@@ -968,7 +968,8 @@ every command carries on with the rest and fails at the end. An edit, fix or imp
 ### Lint
 
 `recommended` checks shape; `strict` adds sentence case, contractions, em dashes, `…`, American spelling, one path separator
-(`Settings › General`) and banned filler words.
+(`Settings › General`) and banned filler words. A spaced hyphen between numbers or dates is a range, which takes an en dash
+(`9am–5pm`, `Mar 30 – Apr 6`); an arrow with nothing after it (`View loop →`) and a single slash (`Read / Write`) are no paths.
 
 | Kind          | Words                                                | Ends with a period                               | No period | Case                       |
 | ------------- | ---------------------------------------------------- | ------------------------------------------------ | --------- | -------------------------- |
@@ -1003,6 +1004,9 @@ translators.
 
 Translations are linted by the rules that hold in any language. Spellings, concepts, contractions, `…`, spacing and punctuation are
 fixable: `prosebook lint --fix` writes them, checking the whole catalog first.
+
+The summary counts each rule's findings, and names words `sentence-case` finds capitalized in 3 or more strings, for
+`lint.properNouns`. Warnings alone exit 0: a rule CI should fail on is set to `'error'` under `lint.rules`.
 
 `duplicate` says each group once, at the entry to keep. `prosebook lint --fix --unsafe` also merges each group: the first entry
 stays (moved into `extract.shared` where the group spans areas), the others go with their translations, and every string literal
@@ -1187,6 +1191,10 @@ what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`
 `confirm`), and in components the values of `scan.properties`. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
 and stories are left out; mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 
+JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,
+`Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes are not text: `className=`, what `cn`, `clsx`,
+`cva`, `tv` and `twMerge` are given, and any string of utility classes (`block h-full cursor-[inherit]`).
+
 It also finds numbers, dates and lists formatted in code, which show the browser's locale rather than the copy's:
 `toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, and in components
 `.join(', ')`. Each says what to read instead, naming the [format](#named-formats) its options match:
@@ -1236,7 +1244,8 @@ error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
   `${user.name}` reads as the placeholder `{name}`.
 - Each takes the [kind and surface](#fields) its place says plainly, where the config defines them: a `<button>` or a
   component named `…Button` or `…MenuItem` is an action; `<h1>`–`<h6>`, `<th>` and `…Title` or `…Heading` a name on a heading;
-  `<label>`, `<legend>`, `<dt>`, `…Label`, and `label=` or `label:` a name on a label; `<option>` a choice; `placeholder=` a
+  `<label>`, `<legend>`, `<dt>`, `…Label`, and `label=` or `label:` a name on a label, though `label=` takes its element's role
+  where it has one (`<Tooltip label>` a tooltip, `<MenuItem label>` an action); `<option>` a choice; `placeholder=` a
   placeholder; `aria-label=` and `alt=` aria; `title=` and `…Tooltip` a tooltip; `toast(…)` a state on a toast, and
   `….error(…)` on an error; a `description:` a description. Words styled in a `<span>` or `<strong>` take the role of the
   element around them. Text anywhere else, in a `<p>` or a `<Link>`, has none, so rules that name one pass it by.

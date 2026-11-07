@@ -113,8 +113,108 @@ export function looksLikeCode(text: string): boolean {
     .map((t) => t.replace(/[.!?:,…]+$/, ''))
     .filter(Boolean);
   if (tokens.length === 0) return false;
-  if (tokens.every(codeToken)) return true;
+  if (tokens.every(codeToken) || isClassList(text)) return true;
   return /(?:^|\s)(?:&&|\|\|)(?=\s)/.test(text) || /(?:^|\s)--?[a-z][\w-]*(?=\s|$)/.test(text) || /^\s*(?:sudo|\$)\s/.test(text);
+}
+
+/** A utility class, as Tailwind's are written: `block`, `h-full`, `md:px-2`, `cursor-[inherit]`, `w-1/2`, `!mt-0`. */
+const UTILITY_CLASS = /^!?-?[a-z][a-z0-9]*(?:[-:/.][a-z0-9]+|-?\[[^\]\s]+\]|:)*$/;
+/** What only a utility class says: a variant, a bracketed value, a number after a dash, a fraction. */
+const UTILITY_TELL = /[:[]|-\d|\/\d|-(?:full|auto|none|screen|px)$/;
+
+/** A list of utility classes, `block h-full cursor-[inherit]`: lowercase, each a class, and one only a class could be. */
+function isClassList(text: string): boolean {
+  const classes = text.trim().split(/\s+/);
+  return classes.every((c) => UTILITY_CLASS.test(c)) && classes.some((c) => UTILITY_TELL.test(c));
+}
+
+/** Calls that build class names, whose strings, objects and slots are classes, never prose. */
+const CLASS_CALLS = new Set(['tv', 'cva', 'cn', 'clsx', 'classnames', 'classNames', 'cx', 'twMerge', 'twJoin']);
+/** Attributes holding classes or styles, which no one reads. */
+const CLASS_ATTRIBUTES = new Set(['className', 'class', 'style']);
+
+/** HTML's character references JSX reads, the ones text is written with: oxc leaves them as written. */
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ensp: ' ',
+  emsp: ' ',
+  thinsp: ' ',
+  zwnj: '‌',
+  zwj: '‍',
+  shy: '­',
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  lsquo: '‘',
+  rsquo: '’',
+  sbquo: '‚',
+  ldquo: '“',
+  rdquo: '”',
+  bdquo: '„',
+  laquo: '«',
+  raquo: '»',
+  lsaquo: '‹',
+  rsaquo: '›',
+  middot: '·',
+  bull: '•',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  deg: '°',
+  times: '×',
+  divide: '÷',
+  plusmn: '±',
+  minus: '−',
+  ge: '≥',
+  le: '≤',
+  ne: '≠',
+  asymp: '≈',
+  larr: '←',
+  rarr: '→',
+  uarr: '↑',
+  darr: '↓',
+  harr: '↔',
+  euro: '€',
+  pound: '£',
+  yen: '¥',
+  cent: '¢',
+  sect: '§',
+  para: '¶',
+  iexcl: '¡',
+  iquest: '¿',
+};
+
+/** JSX text or an attribute's string as it renders: `&nbsp;`, `&ge;` and `&#8594;` as their characters. */
+export function decodeEntities(text: string): string {
+  return text.replace(/&(?:#(\d+)|#[xX]([\da-fA-F]+)|([A-Za-z]+));/g, (whole, dec?: string, hex?: string, name?: string) => {
+    if (name !== undefined) return ENTITIES[name] ?? whole;
+    const point = dec !== undefined ? Number(dec) : Number.parseInt(hex!, 16);
+    return point <= 0x10ffff ? String.fromCodePoint(point) : whole;
+  });
+}
+
+/** JSX text as React renders it: lines trimmed where they meet a line break, blank lines dropped. */
+export function jsxText(value: string): string {
+  const lines = decodeEntities(value).split(/\r\n|\n|\r/);
+  // As Babel does: a value with no visible characters still keeps its one line, so a lone space renders.
+  let lastNonEmpty = 0;
+  lines.forEach((line, i) => {
+    if (/[^ \t]/.test(line)) lastNonEmpty = i;
+  });
+  let out = '';
+  lines.forEach((line, i) => {
+    let trimmed = line.replace(/\t/g, ' ');
+    if (i !== 0) trimmed = trimmed.replace(/^ +/, '');
+    if (i !== lines.length - 1) trimmed = trimmed.replace(/ +$/, '');
+    if (trimmed === '') return;
+    out += i === lastNonEmpty ? trimmed : `${trimmed} `;
+  });
+  return out;
 }
 
 /** Elements whose text is code, keys or markup, not prose: `<kbd>`, and components named for them, `<Kbd>`. */
@@ -206,7 +306,7 @@ const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*\/|-->|
  */
 export function hardcodedText(file: string, code: string, options: Pick<ScanOptions, 'attributes'> & Partial<ScanOptions>): Hardcoded[] {
   const { attributes, calls = [], properties = [] } = options;
-  const app = !NOT_APP.test(file);
+  if (NOT_APP.test(file)) return [];
   // A label map sits in a component; elsewhere, a `title` or `description` is as often a model's or an API's.
   const component = /\.[jt]sx$/.test(file);
   const { program } = parseSync(file, code);
@@ -232,12 +332,41 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   const reportShown = (expr: Node | undefined, where: string, via: Hardcoded['via'], inside: readonly string[] = []) => {
     for (const node of shownLiterals(expr)) {
       if (node.type === 'Literal') {
-        report(node, node.value as string, where, via, inside);
+        report(node, via === 'jsx' ? decodeEntities(node.value as string) : (node.value as string), where, via, inside);
         continue;
       }
       const words = (node.quasis as { value: { cooked: string } }[]).map((q) => q.value.cooked).join('');
       if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via, inside);
     }
+  };
+
+  // JSX text and the values between it, `restart from {clientName}.`, are one sentence: reported as one,
+  // each value a template's hole, so the lint reads it to its end.
+  const inRun = new Set<Node>();
+  const reportRuns = (children: Node[], inside: readonly string[]) => {
+    let run: Node[] = [];
+    const flush = () => {
+      const pieces = run;
+      run = [];
+      const words = pieces.filter((n) => n.type === 'JSXText' || literalIn(n) !== undefined);
+      if (!words.some((n) => LETTER.test(n.type === 'JSXText' ? (n.value as string) : literalIn(n)!))) return;
+      for (const n of pieces) inRun.add(n);
+      const text = pieces
+        .map((n) => {
+          if (n.type === 'JSXText') return jsxText(n.value as string);
+          const expr = n.expression as Node;
+          return expr.type === 'JSXEmptyExpression' ? '' : (literalIn(n) ?? `\${${code.slice(expr.start, expr.end)}}`);
+        })
+        .join('');
+      const first = pieces.find((n) => n.type !== 'JSXText' || (n.value as string).trim() !== '') ?? pieces[0]!;
+      report(first.type === 'JSXText' ? first : (first.expression as Node), text, 'text', 'jsx', inside);
+    };
+    for (const child of children) {
+      if (child.type === 'JSXText' || (child.type === 'JSXExpressionContainer' && isRunValue(child.expression as Node, code)))
+        run.push(child);
+      else flush();
+    }
+    flush();
   };
 
   const visit = (node: Node, inProse: boolean, around: readonly string[]) => {
@@ -248,22 +377,24 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
       if (opening.name.type === 'JSXIdentifier' && isNonProse(opening.name.name ?? '')) prose = false;
       inside = [...around, elementName(opening.name)];
     }
-    if (node.type === 'JSXText' && prose) report(node, node.value as string, 'text', 'jsx', inside);
-    if (node.type === 'JSXExpressionContainer' && prose) reportShown(node.expression as Node, 'text', 'jsx', inside);
+    if ((node.type === 'JSXElement' || node.type === 'JSXFragment') && prose) reportRuns(node.children as Node[], inside);
+    if (node.type === 'JSXExpressionContainer' && prose && !inRun.has(node)) reportShown(node.expression as Node, 'text', 'jsx', inside);
     if (node.type === 'JSXAttribute') {
       const name = node.name as Node & { name?: string };
       const value = node.value as Node | null;
       const attr = name.type === 'JSXIdentifier' ? (name.name ?? '') : '';
+      if (CLASS_ATTRIBUTES.has(attr)) return;
       if (attributes.includes(attr) && value !== null) {
-        if (value.type === 'Literal' && typeof value.value === 'string') report(value, value.value, attr, 'jsx', inside);
+        if (value.type === 'Literal' && typeof value.value === 'string') report(value, decodeEntities(value.value), attr, 'jsx', inside);
         if (value.type === 'JSXExpressionContainer') reportShown(value.expression as Node, attr, 'jsx', inside);
       }
       // Its expression is no child of the element, but may hold JSX of its own, or call `toast`.
       if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose, inside);
       return;
     }
-    if (app && node.type === 'CallExpression') {
+    if (node.type === 'CallExpression') {
       const callee = calleeOf(node.callee as Node);
+      if (callee !== undefined && CLASS_CALLS.has(callee.root)) return;
       if (callee !== undefined && calls.includes(callee.root)) {
         for (const arg of node.arguments as Node[]) {
           if (arg.type !== 'ObjectExpression') reportShown(arg, callee.name, 'call');
@@ -271,7 +402,7 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
         }
       }
     }
-    if (app && component && node.type === 'Property' && node.kind === 'init') {
+    if (component && node.type === 'Property' && node.kind === 'init') {
       const name = propertyName(node);
       if (name !== undefined && properties.includes(name)) reportShown(node.value as Node, name, 'property');
     }
@@ -284,7 +415,27 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     }
   };
   visit(program as unknown as Node, true, []);
-  return found;
+  // An element's text is found as the element is, before its attributes.
+  return found.sort((a, b) => (a.line === b.line ? a.column - b.column : a.line - b.line));
+}
+
+/** A string a JSX child writes as a literal, `{' '}` or `{"Save"}`, which is text where it stands. */
+function literalIn(child: Node): string | undefined {
+  if (child.type !== 'JSXExpressionContainer') return undefined;
+  const expr = child.expression as Node;
+  return expr.type === 'Literal' && typeof expr.value === 'string' ? expr.value : undefined;
+}
+
+/**
+ * An expression that shows one value inside a sentence, `{name}`, `{user.name}`, `{format(date)}`:
+ * a placeholder. Not one that picks words itself (a ternary's arms are text of their own), and not
+ * one holding markup or a function, which no placeholder reads as written.
+ */
+function isRunValue(expr: Node, code: string): boolean {
+  if (expr.type === 'JSXEmptyExpression') return true;
+  if (expr.type === 'Literal') return typeof expr.value === 'string';
+  if (!['Identifier', 'MemberExpression', 'ChainExpression', 'TSNonNullExpression', 'CallExpression'].includes(expr.type)) return false;
+  return !/[{}<\n]|=>/.test(code.slice(expr.start, expr.end));
 }
 
 /** A JSX element's name, the last part of a member's: `Dialog.Title` is `Title`, `svg:title` is `title`. */
