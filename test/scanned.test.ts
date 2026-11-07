@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   approve,
+  hardcodedText,
   judgeCatalog,
   lint,
   loadCatalog,
@@ -65,9 +66,74 @@ describe('text in code as entries', () => {
       via: 'jsx' as const,
       ...(allow && { allow }),
     });
-    const messages = scannedMessages([at(1), at(2), at(3, { 'house/x': 'the link opens a dialog, named beside it' })]);
+    const messages = scannedMessages(resolveConfig('.', {}), [
+      at(1),
+      at(2),
+      at(3, { 'house/x': 'the link opens a dialog, named beside it' }),
+    ]);
     expect(messages.map((m) => m.places!.map((p) => p.line))).toEqual([[1, 2], [3]]);
     expect(messages.every((m) => m.key === 'Click here')).toBe(true);
+  });
+});
+
+const ROLES = `export function Cart() {
+  toast.error('Could not save the cart');
+  toast('Saved');
+  const columns = [{ label: 'Unit price', description: 'Before tax' }];
+  return (
+    <form>
+      <h1>Shopping Cart</h1>
+      <Dialog.Title>Remove item</Dialog.Title>
+      <button><span>Check Out Now</span></button>
+      <SubmitButton>Pay</SubmitButton>
+      <label>Email</label>
+      <p>Thanks for shopping.</p>
+      <Link href="/returns">Returns</Link>
+      <input placeholder="Search" aria-label="Search the shop" title="Find a product" />
+    </form>
+  );
+}
+`;
+
+describe('roles guessed from where text stands', () => {
+  test('by element, component, attribute, property and call, only where the place says it plainly', () => {
+    const config = resolveConfig('.', {});
+    const places = hardcodedText('src/Cart.tsx', ROLES, config.scan);
+    const roles = Object.fromEntries(scannedMessages(config, places).map((m) => [m.key, [m.kind, m.surface]]));
+    expect(roles).toEqual({
+      'Could not save the cart': ['state', 'error'],
+      Saved: ['state', 'toast'],
+      'Unit price': ['name', 'label'],
+      'Before tax': ['description', undefined],
+      'Shopping Cart': ['name', 'heading'],
+      'Remove item': ['name', 'heading'],
+      'Check Out Now': ['action', 'action'],
+      Pay: ['action', 'action'],
+      Email: ['name', 'label'],
+      'Thanks for shopping.': [undefined, undefined],
+      Returns: [undefined, undefined],
+      Search: [undefined, 'placeholder'],
+      'Search the shop': [undefined, 'aria'],
+      'Find a product': [undefined, 'tooltip'],
+    });
+    expect(scannedMessages(config, places).find((m) => m.key === 'Check Out Now')!.context).toBe('Text in a <button>.');
+  });
+
+  test('only the kinds and surfaces the config defines', () => {
+    const config = resolveConfig('.', { kinds: {}, surfaces: { heading: 'Heads a section.' } });
+    const [heading] = scannedMessages(config, hardcodedText('src/A.tsx', 'export const A = () => <h1>Cart</h1>;', config.scan));
+    expect([heading!.kind, heading!.surface]).toEqual([undefined, 'heading']);
+  });
+
+  test('the strict preset holds a button and a heading to their kind', () => {
+    const config = fixture({
+      'prosebook.config.ts': "export default { catalog: false, lint: { extends: 'strict', rules: { 'voice/*': 'off' } } };\n",
+      'src/Cart.tsx': ROLES,
+    });
+    const run = cli(config.root, 'lint');
+    expect(run.stderr).toContain('src/Cart.tsx:7:11 "Shopping Cart": [sentence-case]');
+    expect(run.stderr).toContain('"Check Out Now": [sentence-case]');
+    expect(run.stderr).not.toContain('"Thanks for shopping."');
   });
 });
 

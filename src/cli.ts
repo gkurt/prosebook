@@ -911,7 +911,7 @@ function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, repo
   );
   let lintErrors = 0;
   if (lintToo) {
-    const messages = scannedMessages(result.hardcoded);
+    const messages = scannedMessages(config, result.hardcoded);
     // No approvals: a catalog's lock keeps its entries' verdicts, and this text belongs in the catalog.
     const findings = lintScanned(messages, config);
     reportScanned(config, findings, report);

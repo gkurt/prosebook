@@ -1181,8 +1181,14 @@ prosebook lint
 error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
 ```
 
-- `lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own with no kind or
-  surface, so rules that name one pass it by. A template's `${user.name}` reads as the placeholder `{name}`.
+- `lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own. A template's
+  `${user.name}` reads as the placeholder `{name}`.
+- Each takes the [kind and surface](#fields) its place says plainly, where the config defines them: a `<button>` or a
+  component named `…Button` or `…MenuItem` is an action; `<h1>`–`<h6>`, `<th>` and `…Title` or `…Heading` a name on a heading;
+  `<label>`, `<legend>`, `<dt>`, `…Label`, and `label=` or `label:` a name on a label; `<option>` a choice; `placeholder=` a
+  placeholder; `aria-label=` and `alt=` aria; `title=` and `…Tooltip` a tooltip; `toast(…)` a state on a toast, and
+  `….error(…)` on an error; a `description:` a description. Words styled in a `<span>` or `<strong>` take the role of the
+  element around them. Text anywhere else, in a `<p>` or a `<Link>`, has none, so rules that name one pass it by.
 - An exemption is a comment on the line or the line above, held to the reasons an `allow` is:
   `{/* prosebook-allow voice/stands-alone: the heading above names the sync */}`.
 - `prosebook approve src/Sync.tsx:12`, or the text itself, approves the words: the approval holds wherever they move, and

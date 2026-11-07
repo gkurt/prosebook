@@ -78,6 +78,8 @@ export interface Hardcoded {
   via: 'jsx' | 'call' | 'property';
   /** The lint rules a `prosebook-allow <rule>: <why>` comment on its line or the one above exempts it from, with why. */
   allow?: Record<string, string>;
+  /** For JSX's text and attributes, the elements it is in, outermost first: `Dialog.Title` as `Title`. */
+  inside?: string[];
 }
 
 /** `where` as the code says it: `title=`, `toast.error(…)`, `label:`, or nothing for text. */
@@ -202,44 +204,54 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   const { program } = parseSync(file, code);
   const found: Hardcoded[] = [];
   const { position, ignored, allowed } = lineIndex(code);
-  const report = (node: Node, text: string, where: string, via: Hardcoded['via'] = 'jsx') => {
+  const report = (node: Node, text: string, where: string, via: Hardcoded['via'], inside: readonly string[]) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
     const allow = allowed(at.line);
-    found.push({ file, ...at, text: trimmed, where, via, ...(Object.keys(allow).length > 0 && { allow }) });
+    found.push({
+      file,
+      ...at,
+      text: trimmed,
+      where,
+      via,
+      ...(Object.keys(allow).length > 0 && { allow }),
+      ...(via === 'jsx' && inside.length > 0 && { inside: [...inside] }),
+    });
   };
   // A template's text is its words, so `${a} ${b}` is none; it is shown as written, placeholders and all.
-  const reportShown = (expr: Node | undefined, where: string, via?: Hardcoded['via']) => {
+  const reportShown = (expr: Node | undefined, where: string, via: Hardcoded['via'], inside: readonly string[] = []) => {
     for (const node of shownLiterals(expr)) {
       if (node.type === 'Literal') {
-        report(node, node.value as string, where, via);
+        report(node, node.value as string, where, via, inside);
         continue;
       }
       const words = (node.quasis as { value: { cooked: string } }[]).map((q) => q.value.cooked).join('');
-      if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via);
+      if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via, inside);
     }
   };
 
-  const visit = (node: Node, inProse: boolean) => {
+  const visit = (node: Node, inProse: boolean, around: readonly string[]) => {
     let prose = inProse;
+    let inside = around;
     if (node.type === 'JSXElement') {
       const opening = node.openingElement as Node & { name: Node & { name?: string } };
       if (opening.name.type === 'JSXIdentifier' && isNonProse(opening.name.name ?? '')) prose = false;
+      inside = [...around, elementName(opening.name)];
     }
-    if (node.type === 'JSXText' && prose) report(node, node.value as string, 'text');
-    if (node.type === 'JSXExpressionContainer' && prose) reportShown(node.expression as Node, 'text');
+    if (node.type === 'JSXText' && prose) report(node, node.value as string, 'text', 'jsx', inside);
+    if (node.type === 'JSXExpressionContainer' && prose) reportShown(node.expression as Node, 'text', 'jsx', inside);
     if (node.type === 'JSXAttribute') {
       const name = node.name as Node & { name?: string };
       const value = node.value as Node | null;
       const attr = name.type === 'JSXIdentifier' ? (name.name ?? '') : '';
       if (attributes.includes(attr) && value !== null) {
-        if (value.type === 'Literal' && typeof value.value === 'string') report(value, value.value, attr);
-        if (value.type === 'JSXExpressionContainer') reportShown(value.expression as Node, attr);
+        if (value.type === 'Literal' && typeof value.value === 'string') report(value, value.value, attr, 'jsx', inside);
+        if (value.type === 'JSXExpressionContainer') reportShown(value.expression as Node, attr, 'jsx', inside);
       }
       // Its expression is no child of the element, but may hold JSX of its own, or call `toast`.
-      if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose);
+      if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose, inside);
       return;
     }
     if (app && node.type === 'CallExpression') {
@@ -257,14 +269,21 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
-        for (const child of value) if (isNode(child)) visit(child, prose);
+        for (const child of value) if (isNode(child)) visit(child, prose, inside);
       } else if (isNode(value)) {
-        visit(value, prose);
+        visit(value, prose, inside);
       }
     }
   };
-  visit(program as unknown as Node, true);
+  visit(program as unknown as Node, true, []);
   return found;
+}
+
+/** A JSX element's name, the last part of a member's: `Dialog.Title` is `Title`, `svg:title` is `title`. */
+function elementName(name: Node & { name?: unknown }): string {
+  if (name.type === 'JSXMemberExpression') return elementName(name.property as Node);
+  if (name.type === 'JSXNamespacedName') return elementName(name.name as Node);
+  return typeof name.name === 'string' ? name.name : '';
 }
 
 export interface Formatted {
