@@ -13,7 +13,7 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 - `name`: Identifies a thing so it can be found again. One to four words, a noun phrase, no period.
 - `action`: Says what pressing it does. One to three words, verb first, no period.
 - `description`: Adds only what the name cannot carry. One sentence, two at most, with a period.
-- `state`: Reports what is true right now, in the present tense: a phrase where one does, or one sentence; on an error or empty state, one more saying what to do.
+- `state`: Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.
 
 ## Surfaces
 

@@ -46,7 +46,7 @@ export const DEFAULT_KINDS: Record<string, KindRule> = {
     period: 'always',
   },
   state: {
-    doc: 'Reports what is true right now, in the present tense: a phrase where one does, or one sentence; on an error or empty state, one more saying what to do.',
+    doc: 'Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.',
     maxSentences: 1,
     maxSentencesOn: { error: 2, empty: 2, hint: 2, status: 2 },
     period: ['hint', 'status', 'error', 'empty', 'confirm'],
