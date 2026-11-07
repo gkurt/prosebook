@@ -1,3 +1,7 @@
+## prosebook@0.12.0
+
+### `formatters`: number and date formats of the app's own, as code, named in messages and `copy.number` as any format is
+
 ## prosebook@0.11.0
 
 ### A catalog generated for another runtime than the installed one fails as it loads, saying which to update
