@@ -1,41 +1,72 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The writing guide shows each number and duration format at several values\n\n`WRITING.md` lists a number format at 1,234.5, 12 and -0.25, \"$1,234.50 · $12.00 · ($0.25)\", and a duration format at 850 ms, 4.2 seconds, 3 minutes 5 seconds and over an hour, \"0.9s · 4.2s · 3m 5s · 1h 2m\", so formats that differ only on a whole amount, a negative one or the seconds no longer look alike.\n"
-    filename: guide-duration-samples.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A catalog generated for another runtime than the installed one fails as it loads, saying which to update\n"
+    filename: runtime-contract.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `copy.dir` and `dirOf`: the direction a locale's text runs in, for `<html dir>`\n"
+    filename: copy-dir.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/metro`: the catalog in a React Native or Expo app, pruned in production bundles and updated in place in dev\n"
+    filename: metro-plugin.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A named number format's `steps` show a number otherwise from a size up: `$9.99`, but `$13`\n"
+    filename: number-steps.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/webpack`: the catalog in a webpack or Rspack build, pruned in production and updated in place in dev\n"
+    filename: webpack-plugin.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/playground`: generate, lint and fix a catalog held in memory, in a browser\n"
+    filename: playground-entry.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The `ellipsis` finding reads \"ellipses should be one character: …\"\n"
+    filename: ellipsis-message.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `timeZone`: a copy shows dates in the zone it is given, so a server-rendered date hydrates as the same day\n"
+    filename: copy-time-zone.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - guide-duration-samples.md
+      - runtime-contract.md
+      - copy-dir.md
+      - metro-plugin.md
+      - number-steps.md
+      - webpack-plugin.md
+      - playground-entry.md
+      - ellipsis-message.md
+      - copy-time-zone.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-vite
-    updated: false
   - id: npm:example-bun
-    updated: false
-  - id: npm:example-vue
     updated: false
   - id: npm:example-next
     updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-vite
+    updated: false
   - id: npm:example-tanstack-start
     updated: false
-  - id: npm:example-node
+  - id: npm:example-rspack
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-preact
+  - id: npm:example-node
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-solid
-  - id: npm:example-vite
   - id: npm:example-bun
-  - id: npm:example-vue
   - id: npm:example-next
-  - id: npm:example-tanstack-start
-  - id: npm:example-node
-  - id: npm:example-svelte
   - id: npm:example-preact
+  - id: npm:example-solid
+  - id: npm:example-vue
+  - id: npm:example-vite
+  - id: npm:example-tanstack-start
+  - id: npm:example-rspack
+  - id: npm:example-svelte
+  - id: npm:example-node

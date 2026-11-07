@@ -1,3 +1,21 @@
+## prosebook@0.11.0
+
+### A catalog generated for another runtime than the installed one fails as it loads, saying which to update
+
+### `copy.dir` and `dirOf`: the direction a locale's text runs in, for `<html dir>`
+
+### `prosebook/metro`: the catalog in a React Native or Expo app, pruned in production bundles and updated in place in dev
+
+### A named number format's `steps` show a number otherwise from a size up: `$9.99`, but `$13`
+
+### `prosebook/webpack`: the catalog in a webpack or Rspack build, pruned in production and updated in place in dev
+
+### `prosebook/playground`: generate, lint and fix a catalog held in memory, in a browser
+
+### The `ellipsis` finding reads "ellipses should be one character: …"
+
+### `timeZone`: a copy shows dates in the zone it is given, so a server-rendered date hydrates as the same day
+
 ## prosebook@0.10.3
 
 ### The writing guide shows each number and duration format at several values
