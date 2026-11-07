@@ -40,6 +40,7 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 - A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.
 - A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
 - A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.
+- A message is read alone, without its context or what its writer knew, so it names what it's about rather than pointing at it: `It`, `its`, `they`, `these` or `the questions`, with nothing they stand for earlier in the message, leave the reader guessing. `The workflow's name, instructions and models`, not `Its name, instructions and models`.
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
 - In `de`: Address the shopper as du, never Sie.

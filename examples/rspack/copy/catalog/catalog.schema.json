@@ -179,6 +179,7 @@
             "voice/no-intent",
             "voice/no-instructions",
             "voice/placeholder-values",
+            "voice/stands-alone",
             "shop/error-next",
             "shop/plain",
             "shop/du"

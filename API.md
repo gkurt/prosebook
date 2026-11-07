@@ -577,7 +577,7 @@ checked rule is in it when it says `guide: true`.
 
 #### Voice guidelines
 
-The guide also says five guidelines against the habits of copy written off the code, as an agent tends to write it:
+The guide also says six guidelines against the habits of copy written off the code, as an agent tends to write it:
 
 | Rule                       | Says                                                                                     |
 | -------------------------- | ---------------------------------------------------------------------------------------- |
@@ -586,6 +586,7 @@ The guide also says five guidelines against the habits of copy written off the c
 | `voice/no-intent`          | Things don't want, know, say or tell: `Runs on new issues`, not `The workflow takes in…` |
 | `voice/no-instructions`    | A control names what it does: `Replay`, not `Click this if you want to replay`           |
 | `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` comes to `Sales's usage`   |
+| `voice/stands-alone`       | Read alone, it names what it's about: `The workflow's name`, not `Its name`              |
 
 They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught, but a
 model can judge, with [`prosebook judge`](#judge). They're written in English, so they're on only where the source is. Turn them

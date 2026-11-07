@@ -196,6 +196,14 @@ export const VOICE: Plugin = {
       description:
         "A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.",
     },
+    // The habit of a writer who had the component in view: the pronoun's referent is in the code, the
+    // entry's context or the prompt, never on screen. So the description tells the judge, which sees
+    // the context, to read the message without it.
+    'stands-alone': {
+      type: 'guideline',
+      description:
+        "A message is read alone, without its context or what its writer knew, so it names what it's about rather than pointing at it: `It`, `its`, `they`, `these` or `the questions`, with nothing they stand for earlier in the message, leave the reader guessing. `The workflow's name, instructions and models`, not `Its name, instructions and models`.",
+    },
   },
 };
 

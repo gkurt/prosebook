@@ -178,7 +178,8 @@
             "voice/own-words",
             "voice/no-intent",
             "voice/no-instructions",
-            "voice/placeholder-values"
+            "voice/placeholder-values",
+            "voice/stands-alone"
           ]
         },
         "additionalProperties": {
