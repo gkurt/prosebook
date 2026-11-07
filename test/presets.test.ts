@@ -102,7 +102,11 @@ describe('the tone', () => {
     const guide = writingGuide(project({ extends: 'friendly', tone: { notes: 'We sell to bakeries.', areas: { legal: 'plain' } } }));
     expect(guide).toContain('## Tone\n\nWarm and direct, for apps people choose to use.');
     expect(guide).toContain('errors stay straightforward. We sell to bakeries.');
-    expect(guide).toContain("The copy addresses the reader informally, in every locale's own form of `you`.\n");
+    // A catalog in English alone has no other locale's form of you to speak of.
+    expect(guide).toContain('The copy addresses the reader informally.\n');
+    expect(guide).not.toContain('form of `you`');
+    const translated = writingGuide(project({ extends: 'friendly' }), ['de']);
+    expect(translated).toContain("The copy addresses the reader informally, in each language's own form of `you`.\n");
     expect(guide).toContain(
       '- `state` on `error`: "We couldn\'t save your list. Check your connection, then try again.", not "Oops! Something went wrong."',
     );

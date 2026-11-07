@@ -119,16 +119,18 @@ function formatsSection(config: ResolvedConfig): string[] {
 
 const adverb = (form: Formality) => (form === 'formal' ? 'formally' : 'informally');
 
-/** The form of `you` in every locale, and in each that takes its own, in words for the writer of each. */
-function addressing(formality: Record<string, Formality>, source: string): string[] {
+/**
+ * The form of `you` in every locale, and in each that takes its own, in words for the writer of each.
+ * Each language's own form is said only where the catalog has translations, which a catalog in
+ * English alone, with one `you`, has none of.
+ */
+function addressing(formality: Record<string, Formality>, source: string, translated: boolean): string[] {
   const { '*': every, ...locales } = formality;
   const out: string[] = [];
   if (every !== undefined) {
     const inSource = addressIn(every, source);
-    out.push(
-      `The copy addresses the reader ${adverb(every)}, in every locale's own form of \`you\`.${inSource === undefined ? '' : ` ${inSource}`}`,
-      '',
-    );
+    const inEach = translated ? ", in each language's own form of `you`" : '';
+    out.push(`The copy addresses the reader ${adverb(every)}${inEach}.${inSource === undefined ? '' : ` ${inSource}`}`, '');
   }
   const own = Object.entries(locales);
   if (own.length === 0) return out;
@@ -140,10 +142,10 @@ function addressing(formality: Record<string, Formality>, source: string): strin
 }
 
 /** The tone the presets and the config give, with its examples, and each area's that differs. */
-function toneSection(config: ResolvedConfig): string[] {
+function toneSection(config: ResolvedConfig, translations: readonly string[]): string[] {
   const { tone } = config;
   const areas = Object.entries(tone.areas);
-  const formality = addressing(tone.formality, config.source);
+  const formality = addressing(tone.formality, config.source, translations.length > 0);
   if (tone.doc === undefined && tone.notes === undefined && formality.length === 0 && areas.length === 0) return [];
   const out = ['', '## Tone', ''];
   const said = [tone.doc, tone.notes].filter((s): s is string => s !== undefined);
@@ -170,8 +172,8 @@ function toneSection(config: ResolvedConfig): string[] {
   return out;
 }
 
-/** The guide, as Markdown. */
-export function writingGuide(config: ResolvedConfig): string {
+/** The guide, as Markdown, for a catalog translated into `translations` (none: the source alone). */
+export function writingGuide(config: ResolvedConfig, translations: readonly string[] = []): string {
   const catalog = relative(config.root, config.catalog).replaceAll('\\', '/') || '.';
   const holds = `the message under ${code(config.source)}, in ${SYNTAX_NAME[config.messageFormat]}`;
   const context = config.require.includes('context')
@@ -203,7 +205,7 @@ export function writingGuide(config: ResolvedConfig): string {
 
   out.push(...formatsSection(config));
 
-  out.push(...toneSection(config));
+  out.push(...toneSection(config, translations));
 
   // A rule off but in the areas that turn it on, as an area's preset does, is said for those.
   const inAreas = (name: string, severity: Severity) =>

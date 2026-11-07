@@ -55,6 +55,7 @@
     "schema",
     "README.md",
     "API.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
