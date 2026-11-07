@@ -469,6 +469,12 @@ function selectorOf(name: string, scope: Scope): Selector {
  * for a bare `:number`, which selects as MF1 does.
  */
 function selectionWith(fn: Mf2Function): { selection?: Selection } {
+  // Plural rules take one set of options, where a format with steps rounds a number by its size.
+  if (fn.named !== undefined && 'steps' in fn.named && fn.named.steps !== undefined) {
+    throw new Error(
+      `.match on :${fn.name} format=${fn.options.format}, whose steps show a number by its size: match on a :number of the same value declared apart`,
+    );
+  }
   const pick = <T>(from: Record<string, T>) => Object.fromEntries(Object.entries(from).filter(([k]) => PLURAL_OPTIONS.has(k)));
   const options = pick(intlNumber(fn) as Record<string, unknown>) as Intl.PluralRulesOptions;
   const args = pick(optionArgs(fn).args ?? {});

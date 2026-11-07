@@ -6,7 +6,7 @@
  * ICU, so it carries no parser, needs no `eval`, and a message costs a property read or one call.
  */
 
-import type { DurationFormatOptions, ListFormatOptions } from './formats.ts';
+import type { DurationFormatOptions, ListFormatOptions, NumberFormatOptions } from './formats.ts';
 
 /** What the generator knows about one message: the arguments it takes and the tags it wraps text in. */
 export interface MessageShape {
@@ -61,7 +61,7 @@ export interface Helpers {
    * `{x, number, …}` and the `#` of a plural; `given` holds the options arguments give, in MF2.
    * Nothing where there is no value or `Intl` refuses it, so the message shows `e`'s fallback.
    */
-  n(value: number, options?: Intl.NumberFormatOptions, given?: Intl.NumberFormatOptions): string | undefined;
+  n(value: number, options?: NumberFormatOptions, given?: Intl.NumberFormatOptions): string | undefined;
   /** `{x, date, …}` and `{x, time, …}`, as `n`. */
   d(value: Date | number, options?: Intl.DateTimeFormatOptions, given?: Intl.DateTimeFormatOptions): string | undefined;
   /**

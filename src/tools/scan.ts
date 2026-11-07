@@ -322,7 +322,11 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
       if (given === undefined || (k !== 'number' && k !== 'date') || Object.keys(given).length === 0) return [];
       const shown = resolved(k, locale, given);
       return Object.keys(formats[k] ?? {})
-        .filter((name) => shown !== undefined && resolved(k, locale, formatIn(formats, k, name, locale)!) === shown)
+        .filter((name) => {
+          const options = formatIn(formats, k, name, locale)!;
+          // A format with steps shows numbers as no options written in code do.
+          return shown !== undefined && !('steps' in options && options.steps !== undefined) && resolved(k, locale, options) === shown;
+        })
         .map((name) => `copy.${k}(${value}, '${name}')`);
     });
     const plain = kinds.map((k) => `copy.${k}(${value})`);

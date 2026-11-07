@@ -262,6 +262,11 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
       throw new Error(`{${own.value}} is ${what}: pass it as a plain {${own.value}}, written in code, ${LEAVE_OUT}`);
     }
     if (isNumberElement(el)) {
+      if (numberOptions(el)?.steps !== undefined) {
+        throw new Error(
+          `{${el.value}} is shown by a format with steps, which native code does not show: pass it as a plain {${el.value}}, written in code, ${LEAVE_OUT}`,
+        );
+      }
       const fallback = placeholderOf(el, el.value).fallback;
       placed(el, el.value, { type: 'number', arg: el.value, offset: 0, format: format(formats, locale, numberOptions(el)), fallback });
       continue;

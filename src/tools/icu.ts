@@ -12,7 +12,14 @@ import type {
   TimeElement,
 } from '@formatjs/icu-messageformat-parser';
 
-import { formatIn, type DurationFormatOptions, type DurationUnit, type Formats, type ListFormatOptions } from '#src/runtime/formats.ts';
+import {
+  formatIn,
+  type DurationFormatOptions,
+  type DurationUnit,
+  type Formats,
+  type ListFormatOptions,
+  type NumberFormatOptions,
+} from '#src/runtime/formats.ts';
 
 export type { MessageFormatElement };
 export { TYPE };
@@ -432,7 +439,7 @@ const NUMBER_STYLES: Record<string, Intl.NumberFormatOptions> = {
 const DATE_STYLES = ['short', 'medium', 'long', 'full'] as const;
 
 /** The `Intl` options a number element formats with. Throws, with the fix, where the style is wrong. */
-export function numberOptions(el: NumberElement): Intl.NumberFormatOptions | undefined {
+export function numberOptions(el: NumberElement): NumberFormatOptions | undefined {
   const style = el.style;
   if (style === null || style === undefined) return undefined;
   if (typeof style === 'string') {

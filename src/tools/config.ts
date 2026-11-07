@@ -384,6 +384,7 @@ const FORMAT_OPTIONS = {
       'roundingMode',
       'roundingPriority',
       'trailingZeroDisplay',
+      'steps',
     ],
     // The styles a message names without the config, which a format may not take the name of.
     builtIn: ['integer', 'percent', 'currency'],
@@ -454,14 +455,48 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
       if (largest === 'milliseconds') return `fractionalDigits shows the seconds' fraction, so largest is seconds or larger`;
     }
   }
+  if (kind === 'number' && value.steps !== undefined) {
+    const refused = refusedSteps(value.steps, FORMAT_OPTIONS.number.options);
+    if (refused !== undefined) return refused;
+  }
   try {
-    if (kind === 'number') new Intl.NumberFormat('en', value).resolvedOptions();
-    else if (kind === 'date') new Intl.DateTimeFormat('en', value).resolvedOptions();
-    else if (kind === 'list') new Intl.ListFormat('en', value).resolvedOptions();
+    if (kind === 'number') {
+      // Each step is the format's options with its own over them, so each is checked as one.
+      const steps = (value.steps ?? []) as Record<string, unknown>[];
+      for (const step of [{}, ...steps]) new Intl.NumberFormat('en', { ...value, ...step }).resolvedOptions();
+    } else if (kind === 'date') {
+      new Intl.DateTimeFormat('en', value).resolvedOptions();
+    } else if (kind === 'list') {
+      new Intl.ListFormat('en', value).resolvedOptions();
+    }
     // A Node or Bun without `Intl.DurationFormat` checks only prosebook's options.
-    else if (typeof Intl.DurationFormat === 'function') new Intl.DurationFormat('en', value).resolvedOptions();
+    else if (typeof Intl.DurationFormat === 'function') {
+      new Intl.DurationFormat('en', value).resolvedOptions();
+    }
   } catch (e) {
     return `is refused by ${FORMAT_OPTIONS[kind].intl}: ${(e as Error).message}`;
+  }
+  return undefined;
+}
+
+/** What is wrong with a number format's `steps`, each the format's options over its own from a size up, or nothing. */
+function refusedSteps(steps: unknown, options: readonly string[]): string | undefined {
+  const example = 'steps: [{ from: 10, maximumFractionDigits: 0 }]';
+  if (!Array.isArray(steps) || steps.length === 0) return `steps is a list of options, each from a size up: ${example}`;
+  let last = -Infinity;
+  for (const [i, step] of (steps as unknown[]).entries()) {
+    const at = `steps[${i}]`;
+    if (typeof step !== 'object' || step === null || Array.isArray(step)) return `${at} is options from a size up: ${example}`;
+    const { from, ...own } = step as Record<string, unknown>;
+    if (typeof from !== 'number' || !Number.isFinite(from) || from <= 0)
+      return `${at}.from is the size, above 0, from which the step shows a number: ${example}`;
+    if (from <= last) return `${at}.from is ${from}, not above the step before it: list the steps from the smallest size up`;
+    last = from;
+    for (const key of Object.keys(own)) {
+      if (key === 'steps' || !options.includes(key))
+        return `${at}.${key} is not an option of Intl.NumberFormat, which would ignore it: ${options.filter((o) => o !== 'steps').join(', ')}`;
+    }
+    if (Object.keys(own).length === 0) return `${at} changes nothing from ${from} up: give it the options it shows a number with`;
   }
   return undefined;
 }

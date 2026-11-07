@@ -70,6 +70,11 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   hands back the `Intl` options a duration adds (`display`): 0 shown in the smallest unit, and
   `milliseconds: 'numeric'`, which is how `Intl.DurationFormat` writes them as the seconds' fraction, with
   its `fractionalDigits` unset, so it trims the zeros, except in digital, a clock keeping its width.
+  A number format's `steps` are options over its own from a size up; `stepOf` picks one by the size as
+  shown, rounding through a plain `en` formatter of the step's resolved rounding, so 9.996 carries into
+  the step from 10 (a compact one compares the raw size). `h.n`, `copy.number` and the guide's samples
+  go through it; the `named-format` lint and `formattedInCode` never take a stepped format as a twin,
+  MF2's `.match` on one is refused (plural rules take one set of options), and so are native targets.
 - `src/react/index.tsx`: `CopyProvider`, `useCopy`, `useLocale`, `Text`. `server.ts`: `createServerCopy`,
   a copy per request through React's `cache`, for server components. An entry of its own: the server
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.

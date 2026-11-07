@@ -641,6 +641,7 @@ formats: {
   number: {
     price: { style: 'currency', currency: 'EUR' },
     views: { notation: 'compact', maximumSignificantDigits: 3 },
+    dollars: { style: 'currency', currency: 'USD', steps: [{ from: 10, maximumFractionDigits: 0 }] }, // $9.99, $13
   },
   date: {
     receipt: { dateStyle: 'medium', timeStyle: 'short' },
@@ -684,6 +685,9 @@ copy.duration(took, 'compact');
 - In MF2, `format=` stands alone: a variant is another name.
 - A list format's `max` shows that many items and says the rest with the entry `more` names, given `{count}`, as the last item,
   in each locale's words; `max` and `more` go together, and only in a named format. The entry is kept in every build.
+- A number format's `steps` show a number otherwise from a size up, either side of 0: each is options over the format's
+  own from its `from`, listed from the smallest size up. The size is the number as shown, so 9.996, "$10.00" in cents, is in
+  the step from 10, "$10". A message can't `.match` on a format with steps, and native targets refuse it.
 - A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
   many it shows from the largest it reaches. `fractionalDigits` (1 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
   where milliseconds would show "4s 200ms", rounded to its last digit and without trailing zeros ("12s"). The fraction is one of

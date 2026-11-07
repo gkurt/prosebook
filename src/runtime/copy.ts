@@ -1,4 +1,12 @@
-import { durationParts, formatIn, type DurationFormatOptions, type FormatKind, type Formats, type ListFormatOptions } from './formats.ts';
+import {
+  durationParts,
+  formatIn,
+  stepOf,
+  type DurationFormatOptions,
+  type FormatKind,
+  type Formats,
+  type ListFormatOptions,
+} from './formats.ts';
 import { createHelpers, dateFormat, flatten, shownItems } from './helpers.ts';
 import { chainOf, dirOf, negotiate } from './locale.ts';
 import type {
@@ -419,8 +427,8 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       return () => listeners.delete(listener);
     },
     number(value, format) {
-      const opts = typeof format === 'string' ? named('number', format) : format;
-      return formatter('n', opts, () => new Intl.NumberFormat(locale, opts)).format(value);
+      const make = (o?: Intl.NumberFormatOptions) => formatter('n', o, () => new Intl.NumberFormat(locale, o));
+      return make(stepOf(typeof format === 'string' ? named('number', format) : format, value, make)).format(value);
     },
     date(value, format) {
       const opts = typeof format === 'string' ? named('date', format) : format;

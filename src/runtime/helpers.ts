@@ -1,4 +1,4 @@
-import { durationParts, type ListFormatOptions } from './formats.ts';
+import { durationParts, stepOf, type ListFormatOptions } from './formats.ts';
 import type { Arms, Helpers, Values } from './types.ts';
 
 /** Formatters by options object, then by the options arguments gave, as JSON (`''` for none). */
@@ -36,7 +36,8 @@ export function createHelpers(locale: string, { report, timeZone }: HelperOption
   return {
     locale,
     n(value, options, given) {
-      return attempt(value, () => formatter(numbers, options, given, (o) => new Intl.NumberFormat(locale, o)).format(value));
+      const make = (o?: Intl.NumberFormatOptions) => formatter(numbers, o, given, (all) => new Intl.NumberFormat(locale, all));
+      return attempt(value, () => make(stepOf(options, value, make)).format(value));
     },
     d(value, options, given) {
       return attempt(value, () => formatter(dates, options, given, (o) => dateFormat(locale, timeZone, o)).format(value));

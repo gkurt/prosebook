@@ -746,9 +746,11 @@ export const CORE_RULES = {
         const shown = shownAs(el, locale);
         if (shown === undefined) return;
         // Two formats may show alike in one locale and apart in another, so a placeholder gets one finding naming each.
-        const names = Object.keys(config.formats[kind] ?? {}).filter(
-          (name) => shownAs(el, locale, formatIn(config.formats, kind, name, locale)) === shown,
-        );
+        // A format with steps shows numbers as no options written in a message do.
+        const names = Object.keys(config.formats[kind] ?? {}).filter((name) => {
+          const options = formatIn(config.formats, kind, name, locale);
+          return !(options !== undefined && 'steps' in options && options.steps !== undefined) && shownAs(el, locale, options) === shown;
+        });
         if (names.length === 0) return;
         const written = names.map((name) =>
           config.messageFormat === 2

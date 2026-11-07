@@ -149,11 +149,84 @@ describe('named formats', () => {
   });
 });
 
+describe('number formats with steps', () => {
+  const steps: Formats = {
+    number: {
+      price: {
+        style: 'currency',
+        currency: 'USD',
+        steps: [
+          { from: 10, maximumFractionDigits: 0 },
+          { from: 1_000_000, notation: 'compact' },
+        ],
+      },
+    },
+  };
+  const shown = (version: 1 | 2, text: string, total: number) => {
+    const ast = readMessage(version, text, 'en', { formats: steps, isolate: false });
+    const { m } = compiled([['m', ast]]);
+    return typeof m === 'string' ? m : flatten(m!({ total }, createHelpers('en'))).join('');
+  };
+
+  test('a number is shown by the last step its size reaches, as shown, either side of 0', () => {
+    for (const [version, text] of [
+      [1, '{total, number, price}'],
+      [2, '{$total :number format=price}'],
+    ] as const) {
+      const at = (total: number) => shown(version, text, total);
+      expect([9.99, 10, 12.5, -12.5, 1234.5, 2_500_000].map(at)).toEqual(['$9.99', '$10', '$13', '-$13', '$1,235', '$2.5M']);
+      // Rounded, 9.996 is 10.00, so the step from 10 shows it; and 999,999.6 is a million.
+      expect(at(9.996)).toBe('$10');
+      expect(at(999_999.6)).toBe('$1M');
+    }
+  });
+
+  test('code shows them as messages do, and the writing guide too', () => {
+    const copy = createCopy(defineCatalog({ source: 'en', locales: ['en'], messages: { en: {} }, loaders: {}, formats: steps }));
+    expect([9.99, 12.5, 9.996].map((n) => copy.number(n, 'price'))).toEqual(['$9.99', '$13', '$10']);
+    expect(copy.number(12n, 'price')).toBe('$12');
+    expect(writingGuide(fixture({}, { formats: steps }))).toContain('- `price` (number): $1,235 · $12 · -$0.25');
+  });
+
+  test('a message that spells out the first step is not its twin, and .match refuses them', () => {
+    const config = fixture({ 'copy/catalog/app.yaml': 'app.a: "{t, number, ::currency/USD}"\n' }, { require: [], formats: steps });
+    expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
+    const match = '.input {$n :number format=price}\n.match $n\none {{One}}\n* {{More}}';
+    expect(() => readMessage(2, match, 'en', { formats: steps })).toThrow(
+      '.match on :number format=price, whose steps show a number by its size: match on a :number of the same value declared apart',
+    );
+  });
+});
+
 describe('the formats in the config', () => {
   const refused = (formats: ProsebookConfig['formats']) => () => resolveConfig('.', { formats });
 
   test('are checked as the config loads', () => {
     expect(refused({ number: { price: { style: 'currency' } } })).toThrow('formats.number.price is refused by Intl.NumberFormat:');
+    const price = (steps: unknown) => ({ number: { price: { style: 'currency', currency: 'USD', steps } as never } });
+    expect(refused(price([]))).toThrow(
+      'formats.number.price.steps is a list of options, each from a size up: steps: [{ from: 10, maximumFractionDigits: 0 }]',
+    );
+    expect(refused(price([{ maximumFractionDigits: 0 }]))).toThrow(
+      'formats.number.price.steps[0].from is the size, above 0, from which the step shows a number',
+    );
+    expect(
+      refused(
+        price([
+          { from: 100, notation: 'compact' },
+          { from: 10, maximumFractionDigits: 0 },
+        ]),
+      ),
+    ).toThrow('formats.number.price.steps[1].from is 10, not above the step before it: list the steps from the smallest size up');
+    expect(refused(price([{ from: 10, maxFractionDigits: 0 }]))).toThrow(
+      'formats.number.price.steps[0].maxFractionDigits is not an option of Intl.NumberFormat, which would ignore it',
+    );
+    expect(refused(price([{ from: 10 }]))).toThrow(
+      'formats.number.price.steps[0] changes nothing from 10 up: give it the options it shows a number with',
+    );
+    expect(refused(price([{ from: 10, maximumFractionDigits: 0, minimumFractionDigits: 2 }]))).toThrow(
+      'formats.number.price is refused by Intl.NumberFormat:',
+    );
     expect(refused({ number: { price: { maximumFractionDigit: 2 } as never } })).toThrow(
       'formats.number.price.maximumFractionDigit is not an option of Intl.NumberFormat, which would ignore it:',
     );

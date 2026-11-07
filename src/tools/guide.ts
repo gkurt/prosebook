@@ -8,7 +8,7 @@
  */
 import { relative } from 'node:path';
 
-import { durationParts, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
+import { durationParts, stepOf, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
 import { shownItems } from '#src/runtime/helpers.ts';
 
 import type { ResolvedConfig } from './config.ts';
@@ -76,7 +76,10 @@ function formatsSection(config: ResolvedConfig): string[] {
     ...Object.entries(number).map(([name, o]) => [
       name,
       'number',
-      SAMPLE_NUMBERS.map((n) => new Intl.NumberFormat(config.source, o).format(n)).join(SAMPLES),
+      SAMPLE_NUMBERS.map((n) => {
+        const make = (options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(config.source, options);
+        return make(stepOf(o, n, make)).format(n);
+      }).join(SAMPLES),
     ]),
     // In UTC, so the guide is the same wherever it is generated.
     ...Object.entries(date).map(([name, o]) => [

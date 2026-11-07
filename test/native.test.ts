@@ -251,9 +251,13 @@ describe('native targets', () => {
           'app.when:\n  context: When it was printed.\n  args:\n    when: the time printed\n  en: Printed {when, time, full}.',
           'app.link:\n  context: Points to help.\n  en: Read <a>the guide</a>.',
           'app.big:\n  context: A count.\n  args:\n    count: a count\n  en: "{count, number, ::compact-short}"',
+          'app.price:\n  context: What it costs.\n  args:\n    total: the price\n  en: "{total, number, price}"',
         ].join('\n'),
       },
-      { native: [{ language: 'swift', out: 'Copy.swift' }] },
+      {
+        native: [{ language: 'swift', out: 'Copy.swift' }],
+        formats: { number: { price: { style: 'currency', currency: 'USD', steps: [{ from: 10, maximumFractionDigits: 0 }] } } },
+      },
     );
     let error: unknown;
     try {
@@ -265,6 +269,7 @@ describe('native targets', () => {
     expect((error as CatalogError).problems.map((p) => `${p.key}: ${p.message}`)).toEqual([
       "app.big: swift: native code can't format this number in en: compact notation reads the size of the number at runtime. Format it another way, or leave the key out of this target's `keys`",
       "app.link: swift: <a> is a tag, and native code writes plain text: say it without the tag, or leave the key out of this target's `keys`",
+      "app.price: swift: {total} is shown by a format with steps, which native code does not show: pass it as a plain {total}, written in code, or leave the key out of this target's `keys`",
       "app.when: swift: native code can't format this date in en: it writes the timeZoneName, which native code can't. Format it another way, or leave the key out of this target's `keys`",
     ]);
   });

@@ -32,8 +32,64 @@ export interface DurationFormatOptions {
   readonly fractionalDigits?: number;
 }
 
+/** A number as `Intl.NumberFormat` shows it, and with `steps`, shown otherwise from a size up. */
+export interface NumberFormatOptions extends Intl.NumberFormatOptions {
+  /**
+   * Options over the format's own from a size up, by `from` ascending: `[{ from: 10, maximumFractionDigits: 0 }]`
+   * shows $9.99 and $13. A named format's only.
+   */
+  readonly steps?: readonly NumberStep[];
+}
+
+export interface NumberStep extends Intl.NumberFormatOptions {
+  /** The size, either side of 0, from which the step shows a number: as shown, so 9.996 shown as 10.00 is 10. */
+  readonly from: number;
+}
+
+/** Each format's options at every step, the format's own first, built once so a formatter cache can key on them. */
+const stepped = new WeakMap<NumberFormatOptions, Intl.NumberFormatOptions[]>();
+/** What a formatter rounds a number to, as a plain number to compare. */
+const plain = new WeakMap<Intl.NumberFormat, Intl.NumberFormat>();
+
+/**
+ * The options `value` is shown with: the format's own, or those of the last step its size reaches as
+ * shown. Rounding may carry a number into the next step (9.996 to two digits is 10.00), so it goes on
+ * while the step it is in shows it at the next one's `from`. `make` builds, or finds, a formatter.
+ */
+export function stepOf(
+  options: NumberFormatOptions | undefined,
+  value: number | bigint,
+  make: (options: Intl.NumberFormatOptions) => Intl.NumberFormat,
+): Intl.NumberFormatOptions | undefined {
+  const steps = options?.steps;
+  if (steps === undefined) return options;
+  let all = stepped.get(options!);
+  if (all === undefined) {
+    const own = { ...options, steps: undefined };
+    stepped.set(options!, (all = [own, ...steps.map((step) => ({ ...own, ...step, from: undefined }))]));
+  }
+  const size = Number(value < 0 ? -value : value);
+  let at = 0;
+  while (at < steps.length && (size >= steps[at]!.from || shownSize(make(all[at]!), size) >= steps[at]!.from)) at++;
+  return all[at];
+}
+
+/** A size as `format` rounds it. A compact or scientific number is compared as it is. */
+function shownSize(format: Intl.NumberFormat, size: number): number {
+  const resolved = format.resolvedOptions();
+  if (resolved.notation !== 'standard') return size;
+  let rounding = plain.get(format);
+  // The format's own rounding, written as a plain number. A percent shows the number times 100.
+  if (rounding === undefined) {
+    rounding = new Intl.NumberFormat('en', { ...resolved, style: 'decimal', useGrouping: false, numberingSystem: 'latn' });
+    plain.set(format, rounding);
+  }
+  const scale = resolved.style === 'percent' ? 100 : 1;
+  return Number(rounding.format(size * scale)) / scale;
+}
+
 type OptionsOf = {
-  number: Intl.NumberFormatOptions;
+  number: NumberFormatOptions;
   date: Intl.DateTimeFormatOptions;
   list: ListFormatOptions;
   duration: DurationFormatOptions;
