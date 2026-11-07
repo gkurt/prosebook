@@ -25,7 +25,7 @@ import {
   type MessageFormatElement,
 } from './icu.ts';
 import { asWritten, fixed, HOLE, literalsIn, placesOf, takesInHole, type Literal } from './places.ts';
-import { byLocale, FULL_WIDTH, QUOTED, type KindRule, type Severity } from './presets.ts';
+import { byLocale, formalityIn, FORMS, FULL_WIDTH, QUOTED, toneIn, type Formality, type KindRule, type Severity } from './presets.ts';
 
 /** What a rule is given about one message in one locale. */
 export interface RuleContext {
@@ -859,6 +859,29 @@ export const CORE_RULES = {
       return [...said.values()];
     },
   },
+  formality: {
+    description: 'A locale addresses the reader in one form of `you`: the one `tone.formality` sets, else the one most of its entries use.',
+    recommended: 'warn',
+    on: { locale: 'all' },
+    check: ({ message, locale, text, catalog, config }) => {
+      const forms = byLocale(FORMS, locale);
+      if (forms?.words === undefined) return [];
+      const area = message.places === undefined ? message.area : undefined;
+      const set = formalityIn(toneIn(config, area).formality, locale);
+      const usual = set === undefined ? usualForm(catalog, locale, config.source, forms.words) : undefined;
+      const wanted = set ?? usual?.form;
+      if (wanted === undefined) return [];
+      const other = wanted === 'formal' ? 'informal' : 'formal';
+      const where =
+        set === undefined
+          ? `most of the ${languageName(locale)} copy is ${wanted} (${usual!.count} entries)`
+          : `the ${languageName(locale)} copy is ${wanted} (tone.formality)`;
+      return [...new Set(formWords(text.variants, forms.words[other]))].map((w) => ({
+        message: `"${w}" is the ${other} you, where ${where}: write ${forms[wanted]}`,
+        match: w,
+      }));
+    },
+  },
   'french-spacing': {
     description: 'French sets a narrow no-break space before ; ! ? and inside « », and a no-break space before :.',
     recommended: 'warn',
@@ -947,6 +970,58 @@ export const CORE_RULES = {
 } satisfies Record<string, CheckRule>;
 
 export type CoreRule = keyof typeof CORE_RULES;
+
+/** A word of a form of `you` as it may stand: see `FormsOfYou.words`. */
+function formPattern(word: string): { pattern: RegExp; first: boolean } {
+  if (/\p{Script=Han}/u.test(word)) return { pattern: new RegExp(word, 'gu'), first: true };
+  const bounded = String.raw`(?<![\p{L}\p{N}])${word}(?![\p{L}\p{N}])`;
+  const capital = word !== word.toLowerCase();
+  return { pattern: new RegExp(bounded, capital ? 'gu' : 'giu'), first: !capital };
+}
+
+const FORM_PATTERNS = new Map<string, { pattern: RegExp; first: boolean }>();
+
+/** The words of one form a message's readings say, a capitalized one only past a sentence's start. */
+function formWords(variants: string[], words: string[]): string[] {
+  const found: string[] = [];
+  for (const word of words) {
+    let compiled = FORM_PATTERNS.get(word);
+    if (compiled === undefined) FORM_PATTERNS.set(word, (compiled = formPattern(word)));
+    for (const v of variants) {
+      for (const m of v.matchAll(compiled.pattern)) {
+        const before = v.slice(0, m.index).trimEnd();
+        if (!compiled.first && (before === '' || /[.!?:¿¡"“„«]$/u.test(before))) continue;
+        found.push(m[0]);
+      }
+    }
+  }
+  return found;
+}
+
+// The form most of a locale's entries take, once per catalog read and locale.
+const USUAL = new WeakMap<readonly Message[], Map<string, { form: Formality; count: number } | undefined>>();
+
+/** The form more of a locale's entries take than the other, and how many; none where they're even. */
+function usualForm(catalog: readonly Message[], locale: string, source: string, words: Record<Formality, string[]>) {
+  let byLocale = USUAL.get(catalog);
+  if (byLocale === undefined) USUAL.set(catalog, (byLocale = new Map()));
+  if (byLocale.has(locale)) return byLocale.get(locale);
+  const count = { formal: 0, informal: 0 };
+  for (const m of catalog) {
+    const ast = locale === source ? m.ast : m.translations.get(locale)?.ast;
+    if (ast === undefined) continue;
+    const { variants } = readings(ast);
+    for (const form of ['formal', 'informal'] as const) if (formWords(variants, words[form]).length > 0) count[form]++;
+  }
+  const usual =
+    count.formal === count.informal
+      ? undefined
+      : count.formal > count.informal
+        ? { form: 'formal' as const, count: count.formal }
+        : { form: 'informal' as const, count: count.informal };
+  byLocale.set(locale, usual);
+  return usual;
+}
 
 const fill = (message: string, values: Record<string, string | number | undefined>) =>
   message.replace(/\{(\w+)\}/g, (all, name: string) => (values[name] === undefined ? all : String(values[name])));

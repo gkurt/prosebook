@@ -12,7 +12,7 @@ import type { ResolvedConfig } from './config.ts';
 import { TYPE, walk } from './icu.ts';
 import { applies, languageName, severityOf } from './lint.ts';
 import { changeOf, type StaleTranslation } from './lock.ts';
-import { formalityOf, toneIn } from './presets.ts';
+import { addressIn, formalityIn, toneIn } from './presets.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 export interface Todo {
@@ -105,9 +105,8 @@ function promptFor(config: ResolvedConfig, wanted: Message[], locale: string, an
   const tones = new Map<string, string[]>();
   for (const m of wanted) {
     const tone = toneIn(config, m.places === undefined ? m.area : undefined);
-    const said = [tone.doc, tone.notes, tone.formality && `Address the reader with ${formalityOf(tone.formality)}.`]
-      .filter((s): s is string => typeof s === 'string')
-      .join(' ');
+    const form = formalityIn(tone.formality, locale);
+    const said = [tone.doc, tone.notes, form && addressIn(form, locale)].filter((s): s is string => typeof s === 'string').join(' ');
     if (said !== '') tones.set(said, [...(tones.get(said) ?? []), m.key]);
   }
   const toneLines =

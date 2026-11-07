@@ -111,6 +111,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `atLeast` the one under it (`off` turns a rule off). `tone.areas` gives an area a preset: `presetAreas`
   puts its severities in `lint.areas`, and the rules of a plugin only an area's preset adds are off
   elsewhere. `toneIn` is an entry's tone, which the guide, `todo --prompt` and the judge's `notes` say.
+  Its `formality` is a table by locale, `*` for the rest (`formalityIn`); `FORMS` holds each language's
+  forms of `you`, said by `addressIn`, and the words only one form says, which the `formality` rule
+  (`lint.ts`) finds, holding a locale with no form set to the one most of its entries take (`usualForm`).
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
   servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,

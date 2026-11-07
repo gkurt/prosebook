@@ -233,11 +233,130 @@ export interface ToneExample {
   not?: string;
 }
 
-/** How a translation addresses the reader, in words a writer or a model acts on. */
-export function formalityOf(formality: Formality): string {
-  return formality === 'formal'
-    ? 'the formal form of `you`, where a language has two (Sie, vous, usted)'
-    : 'the informal form of `you`, where a language has two (du, tu, tú)';
+/** A language's two ways of addressing the reader. */
+export interface FormsOfYou {
+  /** Each form, as a writer is told it. */
+  formal: string;
+  informal: string;
+  /**
+   * Words only one form says, for the `formality` rule: lowercase in any case and anywhere,
+   * capitalized as written and not a sentence's first word (German's `Sie` is also "they"), Chinese
+   * characters within a word. Words both forms say, or another meaning does, are left out.
+   */
+  words?: Record<Formality, string[]>;
+}
+
+/** Languages with one form of `you`, which nothing need be said of. */
+const ONE_FORM = new Set(['en', 'sv', 'da', 'nb', 'nn', 'no']);
+
+/** The forms of `you` by language, and by locale where a region's differ. */
+export const FORMS: Record<string, FormsOfYou> = {
+  de: {
+    formal: 'Sie, Ihnen, Ihr',
+    informal: 'du, dich, dir, dein',
+    words: {
+      formal: ['Sie', 'Ihnen', 'Ihr', 'Ihre', 'Ihren', 'Ihrem', 'Ihrer', 'Ihres'],
+      informal: [
+        'du',
+        'dich',
+        'dir',
+        'dein',
+        'deine',
+        'deinen',
+        'deinem',
+        'deiner',
+        'deines',
+        'euch',
+        'euer',
+        'eure',
+        'euren',
+        'eurem',
+        'eurer',
+      ],
+    },
+  },
+  fr: {
+    formal: 'vous, votre, vos',
+    informal: 'tu, te, toi, ta, tes',
+    words: { formal: ['vous', 'votre', 'vos'], informal: ['tu', 'te', 'toi', 'ta', 'tes'] },
+  },
+  es: {
+    formal: 'usted, su',
+    informal: 'tú, te, tu',
+    words: {
+      formal: ['usted'],
+      informal: ['tú', 'ti', 'te', 'tu', 'tus', 'contigo', 'vosotros', 'vosotras', 'vuestro', 'vuestra', 'vuestros', 'vuestras'],
+    },
+  },
+  it: {
+    formal: 'Lei, La, Le, Suo',
+    informal: 'tu, ti, te, tuo',
+    words: { formal: ['Lei', 'Suo', 'Sua', 'Suoi', 'Sue'], informal: ['tu', 'ti', 'te', 'tuo', 'tua', 'tuoi', 'tue'] },
+  },
+  nl: {
+    formal: 'u, uw',
+    informal: 'je, jij, jouw',
+    words: { formal: ['u', 'uw'], informal: ['je', 'jij', 'jou', 'jouw'] },
+  },
+  pt: { formal: 'o senhor, a senhora, or the verb alone', informal: 'tu' },
+  'pt-BR': { formal: 'o senhor, a senhora', informal: 'você' },
+  pl: {
+    formal: 'Pan, Pani, Państwo',
+    informal: 'ty, ciebie, twój',
+    words: {
+      formal: ['Pan', 'Pani', 'Państwo', 'Pana', 'Panu', 'Panią', 'Państwa', 'Państwu'],
+      informal: ['ty', 'ciebie', 'tobie', 'twój', 'twoja', 'twoje', 'twojego', 'twojej', 'twoim', 'twoich', 'twoją'],
+    },
+  },
+  cs: {
+    formal: 'vy, vás, váš',
+    informal: 'ty, tebe, tvůj',
+    words: {
+      formal: ['vy', 'vás', 'vám', 'váš', 'vaše', 'vaši'],
+      informal: ['ty', 'tebe', 'tobě', 'tvůj', 'tvoje', 'tvá', 'tvé', 'tvoji'],
+    },
+  },
+  ru: {
+    formal: 'вы, вас, ваш',
+    informal: 'ты, тебя, твой',
+    words: {
+      formal: ['вы', 'вас', 'вам', 'вами', 'ваш', 'ваша', 'ваше', 'ваши', 'вашего', 'вашей', 'вашим', 'ваших'],
+      informal: ['ты', 'тебя', 'тебе', 'тобой', 'твой', 'твоя', 'твоё', 'твои', 'твоего', 'твоей', 'твоим', 'твоих'],
+    },
+  },
+  uk: {
+    formal: 'ви, вас, ваш',
+    informal: 'ти, тебе, твій',
+    words: {
+      formal: ['ви', 'вас', 'вам', 'вами', 'ваш', 'ваша', 'ваше', 'ваші'],
+      informal: ['ти', 'тебе', 'тобі', 'тобою', 'твій', 'твоя', 'твоє', 'твої'],
+    },
+  },
+  tr: {
+    formal: 'siz, sizin',
+    informal: 'sen, senin',
+    words: { formal: ['siz', 'sizi', 'size', 'sizin', 'sizde', 'sizden'], informal: ['sen', 'seni', 'sana', 'senin', 'sende', 'senden'] },
+  },
+  zh: { formal: '您', informal: '你', words: { formal: ['您'], informal: ['你'] } },
+  ja: { formal: 'the polite forms, です and ます', informal: 'the plain forms, だ and る, which few interfaces use' },
+  ko: { formal: 'the polite forms, 해요 and 합니다', informal: 'the plain forms, 반말, which few interfaces use' },
+};
+
+/** The form of `you` a locale takes: its own, its language's, else every locale's (`*`). */
+export function formalityIn(formality: Record<string, Formality>, locale: string): Formality | undefined {
+  return byLocale(formality, locale) ?? formality['*'];
+}
+
+/**
+ * How to address the reader in a locale, as a writer or a model acts on it; nothing for a language
+ * with one form of `you`.
+ */
+export function addressIn(formality: Formality, locale: string): string | undefined {
+  if (ONE_FORM.has(locale.split('-')[0]!.toLowerCase())) return undefined;
+  const forms = byLocale(FORMS, locale);
+  if (forms === undefined) return `Address the reader with the ${formality} form of \`you\`, where the language has two.`;
+  const other = formality === 'formal' ? 'informal' : 'formal';
+  return `Address the reader ${formality === 'formal' ? 'formally' : 'informally'}: ${forms[formality]}, not ${forms[other]}.`;
 }
 
 /** The tone an entry of an area is written in: its area's, else the config's; text in code has no area. */

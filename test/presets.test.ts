@@ -76,11 +76,11 @@ describe('presets', () => {
     });
     const config = resolveConfig('.', { extends: [house] });
     expect(config.tone.presets).toEqual(['formal', 'professional', 'house']);
-    expect(config.tone.formality).toBe('informal');
+    expect(config.tone.formality).toEqual({ '*': 'informal' });
     expect(config.tone.doc).toStartWith('Calm, exact and brief');
     expect(config.lint.banned).toEqual([{ words: ['synergy'], why: 'is jargon' }]);
     expect(config.lint.rules['contractions']?.severity).toBe('off');
-    expect(resolveConfig('.', { extends: [house], tone: { formality: 'formal' } }).tone.formality).toBe('formal');
+    expect(resolveConfig('.', { extends: [house], tone: { formality: 'formal' } }).tone.formality).toEqual({ '*': 'formal' });
   });
 
   test('a preset is checked: one prosebook lacks, one extending itself, two of a name, a rule no one defines', () => {
@@ -102,12 +102,14 @@ describe('the tone', () => {
     const guide = writingGuide(project({ extends: 'friendly', tone: { notes: 'We sell to bakeries.', areas: { legal: 'plain' } } }));
     expect(guide).toContain('## Tone\n\nWarm and direct, for apps people choose to use.');
     expect(guide).toContain('errors stay straightforward. We sell to bakeries.');
-    expect(guide).toContain('Translations address the reader with the informal form of `you`, where a language has two (du, tu, tú).');
+    expect(guide).toContain("The copy addresses the reader informally, in every locale's own form of `you`.\n");
     expect(guide).toContain(
       '- `state` on `error`: "We couldn\'t save your list. Check your connection, then try again.", not "Oops! Something went wrong."',
     );
     expect(guide).toContain('In `legal.*`, plain: Plain and neutral,');
-    expect(guide).toContain('Translations address the reader with the formal form of `you`, where a language has two (Sie, vous, usted).');
+    expect(guide).toContain(
+      'Say what happened, then what the reader can do. Address the reader as `you`. The reader is addressed formally.',
+    );
     expect(guide).toContain('- In `legal.*`: No idioms or figures of speech');
     expect(writingGuide(project({}))).not.toContain('## Tone');
   });
@@ -116,11 +118,32 @@ describe('the tone', () => {
     const config = project({ extends: 'friendly', tone: { areas: { legal: 'plain' } } });
     const prompt = todoOf(config, render(config).catalog, new Map(), 'de', true).text;
     expect(prompt).toContain('Tone, by entry:\n- app.failed: Warm and direct');
-    expect(prompt).toContain('Address the reader with the informal form of `you`');
+    expect(prompt).toContain('Address the reader informally: du, dich, dir, dein, not Sie, Ihnen, Ihr.');
     expect(prompt).toContain('- legal.failed: Plain and neutral');
-    expect(prompt).toContain('Address the reader with the formal form of `you`');
+    expect(prompt).toContain('Address the reader formally: Sie, Ihnen, Ihr, not du, dich, dir, dein.');
     const one = project({ extends: 'technical' });
     expect(todoOf(one, render(one).catalog, new Map(), 'de', true).text).toContain('Tone:\nTerse and exact');
+  });
+
+  test('formality is set by locale and language over every locale, and each is said in its own words', () => {
+    const config = project({
+      extends: 'friendly',
+      tone: { formality: { fr: 'formal', 'pt-BR': 'formal', sv: 'formal', 'x-new': 'informal' } },
+    });
+    expect(config.tone.formality).toEqual({ '*': 'informal', fr: 'formal', 'pt-BR': 'formal', sv: 'formal', 'x-new': 'informal' });
+    const guide = writingGuide(config);
+    expect(guide).toContain('Except:\n\n- French (`fr`): Address the reader formally: vous, votre, vos, not tu, te, toi, ta, tes.');
+    expect(guide).toContain('(`pt-BR`): Address the reader formally: o senhor, a senhora, not você.');
+    expect(guide).toContain('(`sv`): the reader is addressed formally.');
+    expect(guide).toContain('(`x-new`): Address the reader with the informal form of `you`, where the language has two.');
+    const prompt = (locale: string) => todoOf(config, render(config).catalog, new Map(), locale, true).text;
+    expect(prompt('fr-CA')).toContain('Address the reader formally: vous');
+    expect(prompt('ja')).toContain('Address the reader informally: the plain forms, だ and る');
+    expect(prompt('sv')).not.toContain('Address the reader');
+    expect(() => project({ tone: { formality: { de: 'polite' as never } } })).toThrow(
+      'tone.formality.de is "polite": write formal or informal',
+    );
+    expect(() => project({ tone: { formality: 'polite' as never } })).toThrow('tone.formality is "polite": write formal or informal');
   });
 
   test('the judge reads it in its notes, with its own prompt', async () => {
@@ -137,5 +160,66 @@ describe('the tone', () => {
     await judgeCatalog(config, loadCatalog(config), readLock(config.lock));
     const notes = asked.map((r) => r.state['notes']);
     expect(notes).toContain(`A reading app. ${config.tone.doc!}`);
+  });
+});
+
+const GERMAN = {
+  'copy/catalog/app.yaml': `app.save:
+  context: Saves the list.
+  en: Save your list?
+
+app.share:
+  context: Shares the list.
+  en: Share your list?
+
+app.delete:
+  context: Deletes the list.
+  en: Delete your list?
+
+app.zh:
+  context: A greeting.
+  en: Hello
+`,
+  'copy/locales/de/app.yaml': `app.save: Möchtest du deine Liste speichern?
+app.share: Willst du deine Liste teilen?
+app.delete: Möchten Sie Ihre Liste löschen?
+`,
+  'copy/locales/zh/app.yaml': 'app.zh: 您好，你好\n',
+};
+
+const formality = (config: ProsebookConfig = {}) => {
+  const resolved = fixture(GERMAN, { ...config, lint: { rules: { 'voice/*': 'off' } } });
+  return lint(loadCatalog(resolved).messages, resolved)
+    .filter((f) => f.rule === 'formality')
+    .map((f) => `${f.key} ${f.locale}: ${f.message}`);
+};
+
+describe('the formality rule', () => {
+  test('without tone.formality, it finds the entries that leave the form most of the locale takes', () => {
+    expect(formality()).toEqual([
+      'app.delete de: "Sie" is the formal you, where most of the German copy is informal (2 entries): write du, dich, dir, dein',
+      'app.delete de: "Ihre" is the formal you, where most of the German copy is informal (2 entries): write du, dich, dir, dein',
+    ]);
+  });
+
+  test('with it, every entry of the other form, by locale; a Chinese character within a word', () => {
+    expect(formality({ tone: { formality: { de: 'formal', zh: 'formal' } } })).toEqual([
+      'app.save de: "du" is the informal you, where the German copy is formal (tone.formality): write Sie, Ihnen, Ihr',
+      'app.save de: "deine" is the informal you, where the German copy is formal (tone.formality): write Sie, Ihnen, Ihr',
+      'app.share de: "du" is the informal you, where the German copy is formal (tone.formality): write Sie, Ihnen, Ihr',
+      'app.share de: "deine" is the informal you, where the German copy is formal (tone.formality): write Sie, Ihnen, Ihr',
+      'app.zh zh: "你" is the informal you, where the Chinese copy is formal (tone.formality): write 您',
+    ]);
+  });
+
+  test("a capitalized form is found past a sentence's start alone, where it may mean they", () => {
+    const resolved = fixture(
+      {
+        'copy/catalog/app.yaml': 'app.they:\n  context: Says who shared it.\n  en: They shared it.\n',
+        'copy/locales/de/app.yaml': 'app.they: Sie haben es geteilt.\n',
+      },
+      { tone: { formality: 'informal' } },
+    );
+    expect(lint(loadCatalog(resolved).messages, resolved).filter((f) => f.rule === 'formality')).toEqual([]);
   });
 });

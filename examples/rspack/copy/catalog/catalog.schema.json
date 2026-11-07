@@ -170,6 +170,7 @@
             "plural-forms",
             "plural-unused-form",
             "quotes",
+            "formality",
             "french-spacing",
             "inverted-marks",
             "full-width",

@@ -13,7 +13,7 @@ import { shownItems } from '#src/runtime/helpers.ts';
 
 import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
-import { formalityOf } from './presets.ts';
+import { addressIn, type Formality } from './presets.ts';
 import { SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
@@ -117,15 +117,38 @@ function formatsSection(config: ResolvedConfig): string[] {
   ];
 }
 
+const adverb = (form: Formality) => (form === 'formal' ? 'formally' : 'informally');
+
+/** The form of `you` in every locale, and in each that takes its own, in words for the writer of each. */
+function addressing(formality: Record<string, Formality>, source: string): string[] {
+  const { '*': every, ...locales } = formality;
+  const out: string[] = [];
+  if (every !== undefined) {
+    const inSource = addressIn(every, source);
+    out.push(
+      `The copy addresses the reader ${adverb(every)}, in every locale's own form of \`you\`.${inSource === undefined ? '' : ` ${inSource}`}`,
+      '',
+    );
+  }
+  const own = Object.entries(locales);
+  if (own.length === 0) return out;
+  out.push(every === undefined ? 'The form of `you`:' : 'Except:', '');
+  for (const [locale, form] of own)
+    out.push(`- ${languageName(locale)} (${code(locale)}): ${addressIn(form, locale) ?? `the reader is addressed ${adverb(form)}.`}`);
+  out.push('');
+  return out;
+}
+
 /** The tone the presets and the config give, with its examples, and each area's that differs. */
 function toneSection(config: ResolvedConfig): string[] {
   const { tone } = config;
   const areas = Object.entries(tone.areas);
-  if (tone.doc === undefined && tone.notes === undefined && tone.formality === undefined && areas.length === 0) return [];
+  const formality = addressing(tone.formality, config.source);
+  if (tone.doc === undefined && tone.notes === undefined && formality.length === 0 && areas.length === 0) return [];
   const out = ['', '## Tone', ''];
   const said = [tone.doc, tone.notes].filter((s): s is string => s !== undefined);
   if (said.length > 0) out.push(said.join(' '), '');
-  if (tone.formality !== undefined) out.push(`Translations address the reader with ${formalityOf(tone.formality)}.`, '');
+  out.push(...formality);
   if (tone.examples.length > 0) {
     out.push('As it reads:', '');
     for (const { kind, surface, say, not } of tone.examples)
@@ -137,8 +160,8 @@ function toneSection(config: ResolvedConfig): string[] {
     const head = `In ${code(`${area}.*`)}${named === undefined ? '' : `, ${named}`}:`;
     const parts = [
       own.doc !== tone.doc ? own.doc : undefined,
-      own.formality !== tone.formality && own.formality !== undefined
-        ? `Translations address the reader with ${formalityOf(own.formality)}.`
+      own.formality['*'] !== tone.formality['*'] && own.formality['*'] !== undefined
+        ? `The reader is addressed ${adverb(own.formality['*'])}.`
         : undefined,
     ];
     out.push([head, ...parts.filter((p): p is string => p !== undefined)].join(' '), '');

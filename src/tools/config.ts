@@ -125,8 +125,11 @@ export interface Preset {
 export interface ToneConfig {
   /** What the presets' tone leaves to the app, said after it: who reads the copy, and what it is for. */
   notes?: string;
-  /** The form of `you` translations take, over the presets'. */
-  formality?: Formality;
+  /**
+   * The form of `you` the copy takes, over the presets': one for every locale, or by locale and
+   * language, `*` for the rest: `{ '*': 'informal', fr: 'formal' }`.
+   */
+  formality?: Formality | Record<string, Formality>;
   /**
    * A preset for one area's entries (a key's first segment): `{ legal: 'plain' }`. Its tone is said
    * for them, and its rules hold there alone, so it may not add words, which hold everywhere.
@@ -139,7 +142,8 @@ export interface ResolvedTone {
   /** The presets it comes from, in order. */
   presets: string[];
   doc?: string;
-  formality?: Formality;
+  /** By locale and language, `*` for the rest; `formalityIn` reads it. */
+  formality: Record<string, Formality>;
   examples: ToneExample[];
 }
 
@@ -382,8 +386,8 @@ function presetsOf(list: string | Preset | (string | Preset)[] | undefined, at: 
 }
 
 /** The presets' tone, each field over the ones before it. */
-function toneOf(presets: Preset[]): ResolvedTone {
-  const tone: ResolvedTone = { presets: presets.map((p) => p.name), examples: [] };
+function toneOf(presets: Preset[]): Omit<ResolvedTone, 'formality'> & { formality?: Formality } {
+  const tone: ReturnType<typeof toneOf> = { presets: presets.map((p) => p.name), examples: [] };
   for (const { tone: own } of presets) {
     if (own?.doc !== undefined) tone.doc = own.doc;
     if (own?.formality !== undefined) tone.formality = own.formality;
@@ -416,8 +420,13 @@ const atLeast = (under: Severity, preset: Severity | undefined): Severity =>
 function tonesOf(config: ProsebookConfig) {
   const presets = presetsOf(config.extends, 'extends');
   const own = config.tone ?? {};
-  const tone = toneOf(presets);
-  if (own.formality !== undefined) tone.formality = own.formality;
+  const { formality: fromPresets, ...tone } = toneOf(presets);
+  const { '*': every, ...byLocale } = formalities(own.formality);
+  // The config's own over the presets', which an area's preset is too.
+  const formality = (under: Formality | undefined): Record<string, Formality> => {
+    const all = every ?? under;
+    return { ...(all !== undefined && { '*': all }), ...byLocale };
+  };
   const areas = Object.entries(own.areas ?? {}).map(([area, item]) => {
     const at = `tone.areas.${area}`;
     const named = presetsOf(item, at);
@@ -427,16 +436,26 @@ function tonesOf(config: ProsebookConfig) {
     // What the area's presets leave unsaid is the config's: a doc with its examples, and the form of `you`.
     const local = toneOf(named);
     const said = local.doc === undefined ? tone : local;
-    const formality = own.formality ?? local.formality ?? tone.formality;
     const areaTone: ResolvedTone = {
       presets: local.presets,
       ...(said.doc !== undefined && { doc: said.doc }),
-      ...(formality !== undefined && { formality }),
+      formality: formality(local.formality ?? fromPresets),
       examples: said.examples,
     };
     return { area, tone: areaTone, lint, presets: named };
   });
-  return { presets, tone: { ...tone, ...(own.notes !== undefined && { notes: own.notes }) }, areas };
+  const main: ResolvedTone = { ...tone, formality: formality(fromPresets) };
+  return { presets, tone: { ...main, ...(own.notes !== undefined && { notes: own.notes }) }, areas };
+}
+
+/** `tone.formality` as a table by locale, each value a form: a JSON config is not type-checked. */
+function formalities(formality: ToneConfig['formality']): Record<string, Formality> {
+  const table = typeof formality === 'string' ? { '*': formality } : (formality ?? {});
+  for (const [locale, form] of Object.entries(table)) {
+    if (form !== 'formal' && form !== 'informal')
+      throw new Error(`tone.formality${typeof formality === 'string' ? '' : `.${locale}`} is "${String(form)}": write formal or informal`);
+  }
+  return table;
 }
 
 export const CONFIG_FILES = [

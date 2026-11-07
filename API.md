@@ -610,7 +610,7 @@ export default defineConfig({
   extends: 'friendly',
   tone: {
     notes: 'We sell to bakeries: warm, no puns.', // said after the preset's tone
-    formality: 'informal', // over the preset's: du, tu, tú; or 'formal': Sie, vous, usted
+    formality: { '*': 'informal', fr: 'formal' }, // over the preset's, by locale and language; or one for all: 'formal'
     areas: { legal: 'plain' }, // an area's own preset: its tone said for it, its rules held there alone
   },
 });
@@ -642,6 +642,12 @@ export const house = definePreset({
 ```
 
 An area's preset may not add words (`banned`, `spelling`, `concepts`, `properNouns`), which hold for the whole catalog.
+
+`formality` is said in each language's own words: `du, dich, dir, dein, not Sie, Ihnen, Ihr` to a German translator, the
+polite forms (`です`, `ます`) to a Japanese one, nothing where a language has one form of `you` (English, Swedish, Danish,
+Norwegian). The `formality` rule finds the other form's pronouns in German, French, Spanish, Italian, Dutch, Polish, Czech,
+Russian, Ukrainian, Turkish and Chinese, in the source and every translation; a capitalized one (`Sie`, `Ihr`) only past a
+sentence's start, where it may mean "they". Without `tone.formality`, it holds a locale to the form most of its entries take.
 
 ## Messages
 
@@ -985,6 +991,7 @@ An entry with no kind is held to none of these; `fragment: true` lifts the perio
 | `source-ending`      | a translation ending with a stop where its source doesn't, or the other way     |
 | `duplicate`          | an entry saying what another says, as the same kind on the same surface         |
 | `quotes`             | `"Einstellungen"` in German, which quotes `„Einstellungen“` (`lint.quotes`)     |
+| `formality`          | `Sie` in German copy that says `du`, by `tone.formality` or the most entries    |
 | `french-spacing`     | `Prêt?` in French, which takes a narrow no-break space before `?`               |
 | `inverted-marks`     | a Spanish question that doesn't open with `¿`                                   |
 | `full-width`         | `,` after Chinese or Japanese text, which take `，`                             |
