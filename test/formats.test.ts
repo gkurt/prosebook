@@ -9,7 +9,7 @@ import { withFormatters } from '#src/tools/config.ts';
 
 import { writingGuide } from '#src/tools/guide.ts';
 import { formatsOf } from '#src/tools/icu.ts';
-import { compiled, fixture } from './fixture.ts';
+import { cli, compiled, fixture } from './fixture.ts';
 
 const formats: Formats = {
   number: { price: { style: 'currency', currency: 'EUR' }, compact: { notation: 'compact', maximumSignificantDigits: 3 } },
@@ -267,6 +267,19 @@ describe("the app's own formatters", () => {
       ".match on :number format=money, which the app's own formatter shows: match on a :number of the same value declared apart",
     );
     expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
+  });
+
+  test('the scan leaves the module out: its Intl formatters are the formats of the copy', () => {
+    const { root } = fixture({
+      'prosebook.config.ts': "export default { formatters: 'src/formatters.ts' };\n",
+      'src/formatters.ts': 'export default { number: { money: (value, { locale }) => new Intl.NumberFormat(locale).format(value) } };\n',
+      'src/total.ts': 'export const total = (n) => new Intl.NumberFormat().format(n);\n',
+      'copy/catalog/app.yaml': 'app.title:\n  context: The header.\n  en: My app\n',
+    });
+    cli(root, 'generate');
+    const scan = cli(root, 'scan');
+    expect(scan.stderr).toContain('src/total.ts:1:29 formatted in code');
+    expect(scan.stderr).not.toContain('src/formatters.ts');
   });
 
   test('the module is checked as it loads', async () => {

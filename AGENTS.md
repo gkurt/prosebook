@@ -227,7 +227,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
   finds `toLocale*String` calls, `Intl` formatters and a component's `.join(', ')`, and names the
   copy's method to read, with a named format whose options resolve as the written ones do, and passes by a formatter
-  only asked its `resolvedOptions()`. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
+  only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
   in any script and, in components only, `scan.properties`' values; `looksLikeCode` keeps IDs, hosts

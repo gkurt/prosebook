@@ -33,7 +33,7 @@ import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { applyRename, planMerge, planRename, type MergePlan } from './tools/rename.ts';
 import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
 import { SarifReport } from './tools/sarif.ts';
-import { isReferenced, scan, sourceFiles, whereOf as hardcodedWhere } from './tools/scan.ts';
+import { isReferenced, scan, sourceFiles, unscanned, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { lintScanned, scannedMessages, scannedOf, type PlacedFinding } from './tools/scanned.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 import { todoOf } from './tools/todo.ts';
@@ -867,13 +867,13 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
 function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, report?: SarifReport): number {
   if (config.inCode) {
     // Every string is in the code, by design: what scan finds is what the lint reads.
-    const { hardcoded, files } = scan(config.scan, config.root, [config.out]);
+    const { hardcoded, files } = scan(config.scan, config.root, unscanned(config));
     for (const h of hardcoded) out(`${h.file}:${h.line}:${h.column} ${hardcodedWhere(h)}"${h.text}"`);
     out(`prosebook: scanned ${files} file(s): ${hardcoded.length} string(s), which prosebook lint holds to the writing rules`);
     return lintToo ? runLint(config, report) : 0;
   }
   const { catalog } = rendered(config, report);
-  const result = scan(config.scan, config.root, [config.out], config.formats, config.source);
+  const result = scan(config.scan, config.root, unscanned(config), config.formats, config.source);
   for (const h of result.hardcoded)
     err(`${h.file}:${h.line}:${h.column} hardcoded ${h.where === 'text' ? 'text ' : hardcodedWhere(h)}"${h.text}"`);
   for (const f of result.formatted) err(`${f.file}:${f.line}:${f.column} formatted in code: ${f.code}: read ${f.fix}`);

@@ -9,7 +9,7 @@ import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { parseMessage, type MessageFormatElement } from './icu.ts';
 import { lint, type Finding, type Verdict } from './lint.ts';
-import { scan, whereOf, type Hardcoded } from './scan.ts';
+import { scan, unscanned, whereOf, type Hardcoded } from './scan.ts';
 
 /** A template's `${…}`, read as a placeholder named by its last identifier, so `${user.name}` says `{name}`. */
 const HOLE = /\$\{([^}]*)\}/g;
@@ -197,7 +197,7 @@ function contextOf(place: Hardcoded): string {
 
 /** The text in code under `scan.dirs`, as entries. */
 export function scannedOf(config: ResolvedConfig): Message[] {
-  return scannedMessages(config, scan(config.scan, config.root, [config.out]).hardcoded);
+  return scannedMessages(config, scan(config.scan, config.root, unscanned(config)).hardcoded);
 }
 
 /** A finding at one place its words stand. */

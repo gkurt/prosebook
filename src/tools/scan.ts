@@ -14,9 +14,17 @@ import { parseSync } from 'oxc-parser';
 import { formatIn, type Formats, type FormatTable } from '#src/runtime/formats.ts';
 import { beyondOptions } from '#src/tools/icu.ts';
 
-import type { ScanOptions } from './config.ts';
+import type { ResolvedConfig, ScanOptions } from './config.ts';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git']);
+
+/**
+ * What `scan` leaves out: the generated modules, and the formatters module, whose `Intl` formatters
+ * are the copy's own formats, not text formatted in code.
+ */
+export function unscanned(config: Pick<ResolvedConfig, 'out' | 'formatters'>): string[] {
+  return config.formatters === undefined ? [config.out] : [config.out, config.formatters.file];
+}
 
 export function sourceFiles(dirs: string[], extensions: string[], skip: string[] = []): string[] {
   const files: string[] = [];

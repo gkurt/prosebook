@@ -1196,7 +1196,8 @@ src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'c
 ```
 
 `scan` reports them; `scan --strict` fails on them, as on hardcoded text. A formatter only asked its options, as in
-`Intl.DateTimeFormat().resolvedOptions().timeZone`, formats nothing and isn't reported.
+`Intl.DateTimeFormat().resolvedOptions().timeZone`, formats nothing and isn't reported, nor is the [formatters](#formatters) module,
+whose `Intl` calls are the copy's own formats.
 
 Code whose text no person reads, as a server tool's results, leaves a check out by folder, file or glob:
 
