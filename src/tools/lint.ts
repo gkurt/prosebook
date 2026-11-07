@@ -1131,9 +1131,19 @@ export function severityIn(set: Record<string, Severity> | undefined, name: stri
 export const namesRule = (name: string, rules: Record<string, unknown>): boolean =>
   name in rules || (name.endsWith('/*') && Object.keys(rules).some((r) => r.startsWith(name.slice(0, -1))));
 
-/** A rule's severity for an entry: its area's, where `lint.areas` sets one. */
-export const severityOf = (config: ResolvedConfig, name: string, message: Message): Severity | undefined =>
-  severityIn(config.lint.areas[message.area], name) ?? config.lint.rules[name]?.severity;
+/**
+ * A rule's severity for an entry: its area's, where `lint.areas` sets one; for text in code, which has
+ * no area, `lint.guessed`'s where its role was guessed.
+ */
+export function severityOf(config: ResolvedConfig, name: string, message: Message): Severity | undefined {
+  const own =
+    message.places === undefined
+      ? severityIn(config.lint.areas[message.area], name)
+      : message.kind !== undefined || message.surface !== undefined
+        ? severityIn(config.lint.guessed, name)
+        : undefined;
+  return own ?? config.lint.rules[name]?.severity;
+}
 
 /** `text` with the edits made, leaving out any that overlaps one before it. */
 export function applyEdits(text: string, edits: Edit[]): string {

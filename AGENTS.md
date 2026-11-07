@@ -234,8 +234,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   keyed by its words, a template's holes as placeholders; linted each apart (no `duplicate`), its findings
   said at every place, with no fix. `roleOf` guesses a kind and surface from the place: the elements
   `scan` records around JSX text (`Hardcoded.inside`, the nearest past `INLINE` ones deciding), the
-  attribute, the property or the call; `roleIn` keeps what the config defines. Words in two roles are
-  two entries, approved as one. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
+  attribute, the property or the call; `roleIn` keeps what the config defines and drops a guess naming
+  a kind or surface `scan.roles` turns off. Words in two roles are two entries, approved as one. Text in
+  code has no area: `severityOf` reads `lint.guessed` for it where its role was guessed, never `lint.areas`. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
   reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.

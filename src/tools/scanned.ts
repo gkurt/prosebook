@@ -134,9 +134,15 @@ function roleOf(place: Hardcoded): Role {
   return {};
 }
 
-/** The role guessed, kept to the kinds and surfaces the config defines. */
+/**
+ * The role guessed, kept to the kinds and surfaces the config defines. A guess naming one `scan.roles`
+ * turns off is none at all: `{ heading: false }` leaves a heading no kind either, not a name on nothing.
+ */
 function roleIn(config: ResolvedConfig, place: Hardcoded): Role {
+  const { roles = {} } = config.scan;
+  if (roles === false) return {};
   const { kind, surface } = roleOf(place);
+  if ((kind !== undefined && roles[kind] === false) || (surface !== undefined && roles[surface] === false)) return {};
   return {
     ...(kind !== undefined && config.kinds[kind] !== undefined && { kind }),
     ...(surface !== undefined && config.surfaces[surface] !== undefined && { surface }),

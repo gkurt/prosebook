@@ -77,6 +77,12 @@ export interface LintConfig extends WordLists {
   /** Severities for one area's entries (a key's first segment) over `rules`: `{ native: { 'sentence-case': 'off' } }`. */
   areas?: Record<string, RuleSeverities>;
   /**
+   * Severities for text in code whose kind or surface prosebook guessed from where it stands
+   * (`catalog: false`, `scan --lint`), over `rules`: `{ 'word-budget': 'off' }` keeps a rule to the
+   * catalog's entries, whose roles their writers named.
+   */
+  guessed?: RuleSeverities;
+  /**
    * Reasons many exemptions share, by name: `allow: { period: card-detail }` takes the reason
    * `card-detail` names here, so it is written, reviewed and changed once.
    */
@@ -215,6 +221,11 @@ export interface ProsebookConfig {
      * `*` leaves every check out. Keys the code names still count, so its keys aren't unused.
      */
     ignore?: { [check in ScanCheck | '*']?: string[] };
+    /**
+     * The roles text in code takes from where it stands, for the lint: `false` for none, or a kind or
+     * surface named `false` to guess every other: `{ heading: false }`.
+     */
+    roles?: false | Record<string, false>;
   };
 }
 
@@ -231,6 +242,8 @@ export interface ScanOptions {
   properties: string[];
   /** Paths and globs from the root, with `/`. */
   ignore: Record<ScanCheck, string[]>;
+  /** The kinds and surfaces not guessed, or `false` for every one. */
+  roles?: false | Record<string, false>;
 }
 
 export interface ResolvedConfig {
@@ -258,6 +271,7 @@ export interface ResolvedConfig {
   lint: {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
+    guessed: Record<string, Severity>;
     reasons: Record<string, string>;
   } & Required<WordLists>;
   guide: string | false;
@@ -369,6 +383,17 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     for (const name of Object.keys(severities))
       if (!namesRule(name, rules)) throw new Error(`lint.areas.${area}.${name} ${notARule(rules)}`);
   }
+  for (const name of Object.keys(lint.guessed ?? {}))
+    if (!namesRule(name, rules)) throw new Error(`lint.guessed.${name} ${notARule(rules)}`);
+  const kinds = config.kinds ?? DEFAULT_KINDS;
+  const surfaces = config.surfaces ?? DEFAULT_SURFACES;
+  const roles = config.scan?.roles;
+  for (const [name, off] of Object.entries(roles === false || roles === undefined ? {} : roles)) {
+    if (off) throw new Error(`scan.roles.${name} is ${String(off)}: set it to false to stop guessing it`);
+    if (kinds[name] !== undefined || surfaces[name] !== undefined) continue;
+    const named = [...Object.keys(kinds), ...Object.keys(surfaces)].join(', ');
+    throw new Error(`scan.roles.${name} is neither a kind nor a surface: name one of ${named}`);
+  }
   return {
     root,
     inCode,
@@ -387,11 +412,12 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     language: config.language ?? 'ts',
     importExtension: config.importExtension ?? '.js',
     require: config.require ?? ['context'],
-    kinds: config.kinds ?? DEFAULT_KINDS,
-    surfaces: config.surfaces ?? DEFAULT_SURFACES,
+    kinds,
+    surfaces,
     lint: {
       rules,
       areas: lint.areas ?? {},
+      guessed: lint.guessed ?? {},
       reasons: checkedReasons(lint.reasons ?? {}),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...lint.spelling },
@@ -418,6 +444,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
+      ...(roles !== undefined && { roles }),
     },
     ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
   };

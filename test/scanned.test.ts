@@ -135,6 +135,43 @@ describe('roles guessed from where text stands', () => {
     expect(run.stderr).toContain('"Check Out Now": [sentence-case]');
     expect(run.stderr).not.toContain('"Thanks for shopping."');
   });
+
+  const SEAMLESS = 'export const A = () => <main><h1>Seamless Sync</h1><p>A seamless sync.</p></main>;';
+  const findings = (config: ProsebookConfig) => {
+    const resolved = resolveConfig('.', config);
+    return lint(scannedMessages(resolved, hardcodedText('src/A.tsx', SEAMLESS, resolved.scan)), resolved, []).map(
+      (f) => `${f.key}: ${f.rule}`,
+    );
+  };
+
+  test('lint.guessed sets severities where the role was guessed, and lint.areas reaches no text in code', () => {
+    expect(findings({ lint: { extends: 'strict', rules: { 'voice/*': 'off' } } })).toEqual(
+      expect.arrayContaining(['Seamless Sync: sentence-case', 'Seamless Sync: banned-word', 'A seamless sync.: banned-word']),
+    );
+    const guessed = findings({
+      lint: { extends: 'strict', rules: { 'voice/*': 'off' }, guessed: { 'sentence-case': 'off', 'banned-word': 'off' } },
+    });
+    expect(guessed).toEqual(['A seamless sync.: banned-word']);
+    const areas = findings({ lint: { extends: 'strict', rules: { 'voice/*': 'off' }, areas: { '': { 'banned-word': 'off' } } } });
+    expect(areas).toContain('A seamless sync.: banned-word');
+    expect(() => resolveConfig('.', { lint: { guessed: { nope: 'off' } } })).toThrow('lint.guessed.nope');
+  });
+
+  test('scan.roles turns guesses off, a kind or a surface taking the whole guess with it', () => {
+    const config = resolveConfig('.', {});
+    const places = hardcodedText('src/Cart.tsx', ROLES, config.scan);
+    const roleOf = (roles: false | Record<string, false>, key: string) => {
+      const m = scannedMessages(resolveConfig('.', { scan: { roles } }), places).find((x) => x.key === key)!;
+      return [m.kind, m.surface];
+    };
+    expect(roleOf({ heading: false }, 'Shopping Cart')).toEqual([undefined, undefined]);
+    expect(roleOf({ heading: false }, 'Email')).toEqual(['name', 'label']);
+    expect(roleOf({ name: false }, 'Email')).toEqual([undefined, undefined]);
+    expect(roleOf(false, 'Pay')).toEqual([undefined, undefined]);
+    expect(() => resolveConfig('.', { scan: { roles: { headings: false } } })).toThrow(
+      'scan.roles.headings is neither a kind nor a surface',
+    );
+  });
 });
 
 describe('catalog: false', () => {

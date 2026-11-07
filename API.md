@@ -1189,6 +1189,15 @@ error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
   placeholder; `aria-label=` and `alt=` aria; `title=` and `…Tooltip` a tooltip; `toast(…)` a state on a toast, and
   `….error(…)` on an error; a `description:` a description. Words styled in a `<span>` or `<strong>` take the role of the
   element around them. Text anywhere else, in a `<p>` or a `<Link>`, has none, so rules that name one pass it by.
+- A guess can be wrong, so `lint.guessed` sets severities for text whose role was guessed, as `lint.areas` does for an
+  area, which text in code has none of. `scan.roles` turns guesses off: `false` for all of them, or a kind or surface named
+  `false`, which takes every guess naming it with it.
+
+  ```ts
+  lint: { guessed: { 'word-budget': 'off', 'sentence-case': 'warn' } },
+  scan: { roles: { heading: false } }, // a heading is no name either
+  ```
+
 - An exemption is a comment on the line or the line above, held to the reasons an `allow` is:
   `{/* prosebook-allow voice/stands-alone: the heading above names the sync */}`.
 - `prosebook approve src/Sync.tsx:12`, or the text itself, approves the words: the approval holds wherever they move, and
@@ -1517,6 +1526,7 @@ export default defineConfig({
     plugins: [],
     rules: {},
     areas: {},
+    guessed: {}, // severities for text in code whose role was guessed
     reasons: {},
     quotes: {}, // { de: ['»', '«'] }
     banned: [],
@@ -1529,6 +1539,6 @@ export default defineConfig({
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says
-  scan: { dirs: ['src'] }, // and attributes, calls, properties
+  scan: { dirs: ['src'] }, // and attributes, calls, properties, ignore, roles
 });
 ```
