@@ -99,6 +99,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
 `prosebook/astro`, `prosebook/ai`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
+  `catalog: false` resolves to `inCode`, refusing the options only a catalog reads (`CATALOG_ONLY`).
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
   `loadConfig` imports a config file, and the formatters module, anew once it changed (a query for Node, `require.cache` for Bun),
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
@@ -226,7 +227,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   through a module's `const` map of keys (`keyMapsIn`) counts as seen. A `.vue`, `.svelte`
   or `.astro` file is read as its script blocks, Astro's frontmatter and the expressions in its markup,
   each parsed apart at its offset, so lines and `prosebook-ignore` hold (Astro's as TSX, since its
-  expressions hold markup); Vite reads such a file whole, not the parts its compiler splits off. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
+  expressions hold markup); Vite reads such a file whole, not the parts its compiler splits off.
+  A `prosebook-allow <rule>: <why>` comment on a hardcoded string's line or the one above is its `allow`.
+  `scanned.ts`: that text as entries (`Message.places`), for `catalog: false` (`inCode`, which `loadCatalog`
+  refuses and the CLI's catalog commands too) and `scan --lint`: one per distinct words and set of exemptions,
+  keyed by its words, a template's holes as placeholders; linted each apart (no `duplicate`), its findings
+  said at every place, with no fix. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
   reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.
@@ -364,10 +370,13 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
   each model only what it hasn't answered; raise `PROMPT` when the questions' words change. Several
   models' probabilities are averaged. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`
-  under a hash of the entry's own state and the one guideline, so a new model or prompt keeps it, and
-  an approved guideline is neither asked nor found broken. `reconcile` and
-  `rename` keep `judged` as it was. `lint` takes a `Verdict` (`verdictsOf`) and asks it of each rule
-  compiled from a `guideline` (`isGuideline`, a `WeakSet` filled by `compileRule`); a guideline with
+  (`authorHash`) under a hash of the entry's own state and the one rule's description, text in code by
+  its words alone, so a new model or prompt keeps it, against any rule: those the lint finds broken
+  (`heldTo`), and with a judge every guideline held to. An approved guideline is neither asked nor found
+  broken, and `judgeCatalog` keeps approvals of other rules while they hold. `reconcile` and
+  `rename` keep `judged` as it was. `lint` takes a `Verdict` (`verdictsOf`, with or without a judge),
+  asks it of each rule compiled from a `guideline` (`isGuideline`, a `WeakSet` filled by `compileRule`),
+  and of any other rule that fires, which an approval (`false`) passes; a guideline with
   no verdict is unjudged, so its `allow` isn't called stale. `src/ai.ts` is `prosebook/ai`,
   `decisionJudge`: a `Judge` over an AI SDK decision model through `experimental_decide`, a tsdown
   entry of its own so only it imports `ai`, an optional peer; its cost is the AI Gateway's where it

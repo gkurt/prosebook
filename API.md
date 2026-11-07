@@ -891,25 +891,25 @@ message is padded to the length a translation is likely to reach. Builds through
 
 ## CLI
 
-| Command                  |                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `init`                   | A config and a first catalog file.                                                       |
-| `generate`               | The typed modules (`--check`, `--watch`).                                                |
-| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`).                         |
-| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                    |
-| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                       |
-| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                              |
-| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).              |
-| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).  |
-| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`).                               |
-| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                               |
-| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                         |
-| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                             |
-| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                  |
-| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).       |
-| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).   |
-| `approve [keys]`         | Pass entries against the guidelines as written, until they change ([Judge](#approving)). |
-| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                |
+| Command                  |                                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `init`                   | A config and a first catalog file.                                                              |
+| `generate`               | The typed modules (`--check`, `--watch`).                                                       |
+| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`); [in code](#without-a-catalog). |
+| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                           |
+| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                              |
+| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                                     |
+| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).                     |
+| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).         |
+| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`, `--lint`).                            |
+| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                                      |
+| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                                |
+| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                                    |
+| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                         |
+| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).              |
+| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).          |
+| `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).  |
+| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                       |
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
@@ -1109,18 +1109,19 @@ warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a gu
 
 #### Approving
 
-Where the models are wrong about an entry, its author approves it as written:
+Where the models, or a rule, are wrong about an entry, its author approves it as written:
 
 ```bash
-prosebook approve form.assignee            # every guideline it's held to, in the source
+prosebook approve form.assignee            # every rule it breaks, and every guideline it's held to, in the source
 prosebook approve form.assignee --rule voice/field-names --locale de
-prosebook approve --all                    # every entry found breaking one
+prosebook approve --all                    # every entry breaking one
 ```
 
 An approval is the author's verdict, kept in the lock as `author` beside the models', under a hash of the entry and the
-guideline alone. It passes the entry whatever the models say, and no model is asked of it, until the entry's words, role or
-context change, or the guideline's; a new model or prompt keeps it. `allow: { voice/no-intent: <why> }` passes an entry for
-good instead, through every edit, and is called stale only once a verdict says the entry keeps to the guideline.
+rule alone. It passes the entry whatever the rule or the models say, and no model is asked of it, until the entry's words,
+role or context change, or the rule's description; a new model or prompt keeps it. It needs no `judge` for a rule that isn't
+a guideline. `allow: { voice/no-intent: <why> }` passes an entry for good instead, through every edit, and is called stale
+only once a verdict says the entry keeps to the guideline.
 
 The default threshold is from the guidelines' own examples: Jev judged each bad example broken from 0.7 to 0.96, and none of
 the good ones from 0.7. Below it, the model is more often unsure than right.
@@ -1160,6 +1161,35 @@ scan: {
 
 - Paths are from the config's folder; a folder covers everything under it, and `**/server` every folder named so.
 - The keys an ignored file names still count, so they aren't reported unused.
+
+`scan --lint` holds the hardcoded text to the writing rules too, as [without a catalog](#without-a-catalog), until `extract`
+moves it into the catalog.
+
+### Without a catalog
+
+An app that keeps its text in the code can still hold it to the writing rules:
+
+```ts
+export default defineConfig({ catalog: false, lint: { extends: 'strict' } });
+```
+
+```bash
+prosebook lint
+```
+
+```text
+error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
+```
+
+- `lint`, `judge`, `approve` and `check` read the text `scan` finds, each string an entry of its own with no kind or
+  surface, so rules that name one pass it by. A template's `${user.name}` reads as the placeholder `{name}`.
+- An exemption is a comment on the line or the line above, held to the reasons an `allow` is:
+  `{/* prosebook-allow voice/stands-alone: the heading above names the sync */}`.
+- `prosebook approve src/Sync.tsx:12`, or the text itself, approves the words: the approval holds wherever they move, and
+  ends once they change. Each approval drops those of words no longer in the code.
+- No `--fix`, and the commands that read a catalog, such as `generate` and `status`, are refused. So are config options only a
+  catalog reads (`locales`, `out`, `messageFormat`, `native`, ...).
+- Set `catalog` to a folder and run `prosebook extract` to move the text into a catalog.
 
 ### SARIF
 
@@ -1459,7 +1489,7 @@ native: [{ language: 'apple', out: 'src-tauri/Resources', keys: ['macos'], plist
 import { defineConfig } from 'prosebook/config';
 
 export default defineConfig({
-  catalog: 'copy/catalog', // source YAML
+  catalog: 'copy/catalog', // source YAML; false to lint the text in code
   locales: 'copy/locales', // translations
   out: 'src/copy', // generated modules
   lock: 'copy/lock.json',

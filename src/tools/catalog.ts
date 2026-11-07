@@ -31,6 +31,7 @@ import {
   walk,
   type MessageFormatElement,
 } from './icu.ts';
+import type { Hardcoded } from './scan.ts';
 import { readMessage } from './syntax.ts';
 
 export interface Translation {
@@ -72,6 +73,11 @@ export interface Message {
   tags: string[];
   /** Translations by locale. */
   translations: Map<string, Translation>;
+  /**
+   * Where the text stands in code, for an entry read from there rather than the catalog (`scanned.ts`):
+   * its key is its words, and `file` the first place's.
+   */
+  places?: Hardcoded[];
 }
 
 export interface Problem {
@@ -136,6 +142,12 @@ export function loadCatalog(config: ResolvedConfig, unsaved?: ReadonlyMap<string
   const broken = new Set<string>();
   const rel = (path: string) => relative(config.root, path).replaceAll('\\', '/');
 
+  if (config.inCode) {
+    error(
+      'catalog is false in the config, so there is none to read: set catalog to a folder, or lint the text in code with prosebook lint',
+    );
+    throw new CatalogError(problems);
+  }
   if (!existsSync(config.catalog)) {
     error('no catalog folder here: run `prosebook init`, or set `catalog` in the config', rel(config.catalog));
     throw new CatalogError(problems);

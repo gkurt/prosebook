@@ -119,3 +119,4 @@ export {
   type Reads,
   type UnseenRead,
 } from './scan.ts';
+export { lintScanned, messageOf, scannedMessages, scannedOf, type PlacedFinding } from './scanned.ts';

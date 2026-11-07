@@ -76,6 +76,8 @@ export interface Hardcoded {
   where: string;
   /** How `where` holds it: as JSX's text or an attribute, a call's argument or a property's value. */
   via: 'jsx' | 'call' | 'property';
+  /** The lint rules a `prosebook-allow <rule>: <why>` comment on its line or the one above exempts it from, with why. */
+  allow?: Record<string, string>;
 }
 
 /** `where` as the code says it: `title=`, `toast.error(…)`, `label:`, or nothing for text. */
@@ -174,8 +176,17 @@ function lineIndex(code: string) {
   };
   const ignored = (line: number) =>
     (lines[line - 1] ?? '').includes('prosebook-ignore') || (lines[line - 2] ?? '').includes('prosebook-ignore');
-  return { position, ignored };
+  const allowed = (line: number) => {
+    const allow: Record<string, string> = {};
+    for (const text of [lines[line - 2] ?? '', lines[line - 1] ?? ''])
+      for (const [, rule, why] of text.matchAll(ALLOW_COMMENT)) allow[rule!] = why!.trim();
+    return allow;
+  };
+  return { position, ignored, allowed };
 }
+
+/** `prosebook-allow <rule>: <why>`, in any comment: its reason runs to the comment's end or the next allow. */
+const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*\/|-->|prosebook-allow|$)/g;
 
 /**
  * Literal text a person reads, where it should be a catalog entry: JSX's text and readable attributes,
@@ -190,13 +201,14 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   const component = /\.[jt]sx$/.test(file);
   const { program } = parseSync(file, code);
   const found: Hardcoded[] = [];
-  const { position, ignored } = lineIndex(code);
+  const { position, ignored, allowed } = lineIndex(code);
   const report = (node: Node, text: string, where: string, via: Hardcoded['via'] = 'jsx') => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
-    found.push({ file, ...at, text: trimmed, where, via });
+    const allow = allowed(at.line);
+    found.push({ file, ...at, text: trimmed, where, via, ...(Object.keys(allow).length > 0 && { allow }) });
   };
   // A template's text is its words, so `${a} ${b}` is none; it is shown as written, placeholders and all.
   const reportShown = (expr: Node | undefined, where: string, via?: Hardcoded['via']) => {

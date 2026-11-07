@@ -8,8 +8,9 @@
  * calls a model itself: the config's `judge.models` do, as `prosebook/ai`'s `decisionJudge` makes one
  * from an AI SDK decision model. With several, an entry breaks a guideline by their mean.
  *
- * The author is a judge too, one no request asks: `prosebook approve` records that an entry keeps to
- * its guidelines as written, which passes it whatever the models say, until its words change.
+ * The author is a judge too, one no request asks: `prosebook approve` records that an entry is right
+ * as written, which passes it against a guideline whatever the models say, and against any other rule
+ * whatever the rule finds, until its words change. The lint reads the approvals with or without a judge.
  *
  * Each answer is kept in the lock, beside a hash of everything the request said: the model, the
  * prompt, the entry and the guidelines, every one the entry is held to, as each is weighed with the
@@ -20,7 +21,7 @@
  */
 import type { Catalog, Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { applies, isGuideline, languageName, severityOf, type Verdict } from './lint.ts';
+import { applies, isGuideline, languageName, lint, severityOf, type Verdict } from './lint.ts';
 import { hash, type Lock } from './lock.ts';
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -129,14 +130,17 @@ export interface Asked {
   questions: Map<string, { questions: Questions; hashes: Record<string, string> }>;
 }
 
-/** The entry as the model reads it: its words, and what the catalog and the config say about it. */
+/**
+ * The entry as the model reads it: its words, and what the catalog and the config say about it. Text
+ * in code has no key but its words, which the state says already.
+ */
 function stateOf(config: ResolvedConfig, message: Message, locale: string): JudgeRequest['state'] {
   const translated = locale !== config.source;
   const state: JudgeRequest['state'] = {
     message: translated ? message.translations.get(locale)!.text : message.text,
     language: languageName(locale),
-    key: message.key,
   };
+  if (message.places === undefined) state['key'] = message.key;
   if (translated) state['source'] = message.text;
   if (message.context !== undefined) state['context'] = message.context;
   if (message.kind !== undefined) state['kind'] = named(message.kind, config.kinds[message.kind]?.doc);
@@ -168,8 +172,7 @@ export function askedOf(config: ResolvedConfig, judge: ResolvedJudge, messages: 
         held.map(([name, { rule }]) => {
           const questions = questionsOf(rule.description, judge.prompt !== undefined);
           const hashes = Object.fromEntries(judge.models.map((m) => [m.id, hash(JSON.stringify([PROMPT, m.id, state, questions]))]));
-          // The author approved the words against the guideline, whatever else a model was told.
-          hashes[AUTHOR] = hash(JSON.stringify([AUTHOR, entry, rule.description]));
+          hashes[AUTHOR] = authorHash(config, message, locale, name)!;
           return [name, { questions, hashes }];
         }),
       );
@@ -178,6 +181,30 @@ export function askedOf(config: ResolvedConfig, judge: ResolvedJudge, messages: 
   }
   return asked;
 }
+
+/**
+ * What the author's approval of an entry against a rule is kept under: the entry's words and role and
+ * the rule's description, whatever else a model was told, so a new model or prompt keeps it. Text in
+ * code by its words alone, so moving it keeps it too. None for a rule the config doesn't have.
+ */
+function authorHash(config: ResolvedConfig, message: Message, locale: string, rule: string): string | undefined {
+  const description = config.lint.rules[rule]?.rule.description;
+  if (description === undefined) return undefined;
+  const entry =
+    message.places === undefined
+      ? stateOf(config, message, locale)
+      : { message: locale === config.source ? message.text : message.translations.get(locale)!.text, language: languageName(locale) };
+  return hash(JSON.stringify([AUTHOR, entry, description]));
+}
+
+/** Whether the author approved the entry against the rule, as it is now. */
+function approvedNow(config: ResolvedConfig, verdicts: Verdicts | undefined, message: Message, locale: string, rule: string): boolean {
+  const at = verdicts?.[locale]?.[message.key]?.[rule]?.[AUTHOR]?.split(':')[0];
+  return at !== undefined && at === authorHash(config, message, locale, rule);
+}
+
+/** The entries a rule comparing entries holds one to: not text in code, which has no entries to merge. */
+const comparedWith = (messages: readonly Message[]) => messages.filter((m) => m.places === undefined);
 
 const recorded = (verdicts: Verdicts | undefined, a: Asked, rule: string, id: string) =>
   verdicts?.[a.locale]?.[a.message.key]?.[rule]?.[id];
@@ -202,15 +229,19 @@ export function unanswered(asked: Asked[], verdicts: Verdicts | undefined, model
   });
 }
 
-/** What `lint` asks of a guideline, from the lock's verdicts; none when the config has no `judge`. */
-export function verdictsOf(config: ResolvedConfig, messages: readonly Message[], lock: Lock): Verdict | undefined {
+/**
+ * What `lint` asks of a rule, from the lock's verdicts: whether the author approved the entry against
+ * it, and for a guideline, what the models judged, where the config has a `judge`.
+ */
+export function verdictsOf(config: ResolvedConfig, messages: readonly Message[], lock: Lock): Verdict {
   const { judge } = config;
-  if (judge === undefined) return undefined;
-  const byEntry = new Map(askedOf(config, judge, messages).map((a) => [`${a.locale}\u0000${a.message.key}`, a]));
+  const byEntry = new Map(
+    judge === undefined ? [] : askedOf(config, judge, messages).map((a) => [`${a.locale}\u0000${a.message.key}`, a] as const),
+  );
   return (message, locale, rule) => {
+    if (approvedNow(config, lock.judged, message, locale, rule)) return false;
     const a = byEntry.get(`${locale}\u0000${message.key}`);
-    if (a === undefined) return undefined;
-    if (approved(lock.judged, a, rule)) return false;
+    if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
     const ps = judge.models.map((m) => answerOf(lock.judged, a, rule, m.id));
     if (ps.some((p) => p === undefined)) return undefined;
     return ps.reduce((sum: number, p) => sum + p!, 0) / ps.length >= judge.threshold;
@@ -226,14 +257,31 @@ function keeper(verdicts: Verdicts) {
 export interface ApproveOptions {
   /** The locale approved in: the source by default. */
   locale?: string;
-  /** Only these guidelines: every one the entry is held to by default. */
+  /** Only these rules: by default every rule the entry breaks now, and every guideline it is held to. */
   rules?: readonly string[];
 }
 
 /**
- * The author's approval of entries as written: each passes its guidelines whatever the models say,
- * until its words, its role or the guideline change. Gives back the verdicts with the approvals in,
- * and why a key couldn't be approved.
+ * The rules an entry can be approved against in a locale: those it breaks now, as the lint finds it
+ * with no approval, and where the config has a `judge`, every guideline it is held to, broken or not.
+ * The same words in code may be several entries, each place's exemptions apart, and are approved as one.
+ */
+function heldTo(config: ResolvedConfig, same: readonly Message[], all: readonly Message[], locale: string): Set<string> {
+  const held = new Set<string>();
+  const guidelines = config.judge === undefined ? [] : Object.entries(config.lint.rules).filter(([, { rule }]) => isGuideline(rule));
+  for (const message of same) {
+    for (const [name, { rule }] of guidelines)
+      if (severityOf(config, name, message) !== 'off' && applies(rule, message, locale, config.source)) held.add(name);
+  }
+  for (const f of lint([...same], config, comparedWith(all))) if (f.locale === locale && f.rule !== 'allow') held.add(f.rule);
+  return held;
+}
+
+/**
+ * The author's approval of entries as written: each passes the rules named whatever they or the models
+ * say, until its words, its role or the rule change. Gives back the verdicts with the approvals in, and
+ * why a key couldn't be approved. Text in code (`catalog: false`) keeps no approval of words no longer
+ * found, as nothing else would ever drop it.
  */
 export function approve(
   config: ResolvedConfig,
@@ -242,42 +290,45 @@ export function approve(
   keys: readonly string[],
   options: ApproveOptions = {},
 ): { verdicts: Verdicts; approved: { key: string; rules: string[] }[]; problems: string[] } {
-  const judge = config.judge;
-  if (judge === undefined) throw new Error('judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one');
   const locale = options.locale ?? config.source;
   const next: Verdicts = structuredClone(verdicts ?? {});
+  if (config.inCode) {
+    const found = new Set(messages.map((m) => m.key));
+    for (const keyed of Object.values(next)) for (const key of Object.keys(keyed)) if (!found.has(key)) delete keyed[key];
+  }
   const keep = keeper(next);
-  const byKey = new Map(
-    askedOf(config, judge, messages)
-      .filter((a) => a.locale === locale)
-      .map((a) => [a.message.key, a]),
-  );
   const done: { key: string; rules: string[] }[] = [];
   const problems: string[] = [];
   for (const key of keys) {
-    const a = byKey.get(key);
-    if (a === undefined) {
-      problems.push(`${key} (${locale}) is held to no guideline: check the key, and that it has a translation in ${locale}`);
+    const same = messages.filter((m) => m.key === key && (locale === config.source || m.translations.has(locale)));
+    const shown = config.inCode ? `"${key}"` : key;
+    if (same.length === 0) {
+      problems.push(`${shown} (${locale}) is no entry: check the key, and that it has a translation in ${locale}`);
       continue;
     }
-    const rules = options.rules ?? [...a.questions.keys()];
-    const unheld = rules.filter((r) => !a.questions.has(r));
+    const held = heldTo(config, same, messages, locale);
+    if (held.size === 0) {
+      problems.push(
+        `${shown} (${locale}) breaks no rule${config.judge === undefined ? '' : ' and is held to no guideline'}: nothing to approve`,
+      );
+      continue;
+    }
+    const rules = options.rules ?? [...held];
+    const unheld = rules.filter((r) => !held.has(r));
     if (unheld.length > 0) {
-      problems.push(`${key} (${locale}) is not held to ${unheld.join(', ')}: name one of ${[...a.questions.keys()].join(', ')}`);
+      problems.push(`${shown} (${locale}) is not held to ${unheld.join(', ')}: name one of ${[...held].join(', ')}`);
       continue;
     }
-    for (const rule of rules) keep(locale, key, rule, AUTHOR, `${a.questions.get(rule)!.hashes[AUTHOR]}:0`);
+    for (const rule of rules) keep(locale, key, rule, AUTHOR, `${authorHash(config, same[0]!, locale, rule)!}:0`);
     done.push({ key, rules: [...rules] });
   }
   return { verdicts: next, approved: done, problems };
 }
 
-/** The keys whose guideline findings the author would approve with `--all`: those broken now, in the locale. */
+/** The keys the author would approve with `--all`: those breaking some rule now, in the locale, unapproved. */
 export function brokenKeys(config: ResolvedConfig, messages: readonly Message[], lock: Lock, locale = config.source): string[] {
-  const verdict = verdictsOf(config, messages, lock);
-  if (verdict === undefined) return [];
-  const guidelines = Object.entries(config.lint.rules).filter(([, { rule }]) => isGuideline(rule));
-  return messages.filter((m) => guidelines.some(([name]) => verdict(m, locale, name) === true)).map((m) => m.key);
+  const findings = lint([...messages], config, comparedWith(messages), verdictsOf(config, messages, lock));
+  return [...new Set(findings.filter((f) => f.locale === locale && f.rule !== 'allow').map((f) => f.key))];
 }
 
 /** What a run took. */
@@ -325,7 +376,12 @@ interface Request {
 }
 
 /** Asks the models what the lock can't answer, and gives back the lock's verdicts with the answers in. */
-export async function judgeCatalog(config: ResolvedConfig, catalog: Catalog, lock: Lock, options: JudgeOptions = {}): Promise<JudgeRun> {
+export async function judgeCatalog(
+  config: ResolvedConfig,
+  catalog: Pick<Catalog, 'messages' | 'problems'>,
+  lock: Lock,
+  options: JudgeOptions = {},
+): Promise<JudgeRun> {
   const judge = config.judge;
   if (judge === undefined) throw new Error('judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one');
   const asked = askedOf(config, judge, catalog.messages);
@@ -344,6 +400,15 @@ export async function judgeCatalog(config: ResolvedConfig, catalog: Catalog, loc
     for (const [rule, { hashes }] of a.questions) {
       for (const id of Object.keys(hashes))
         if (answerOf(lock.judged, a, rule, id) !== undefined) keep(a.locale, a.message.key, rule, id, recorded(lock.judged, a, rule, id)!);
+    }
+  }
+  // An approval against a rule no model is asked of, as the entry still is.
+  for (const m of catalog.messages) {
+    for (const locale of [config.source, ...m.translations.keys()]) {
+      for (const [rule, judges] of Object.entries(lock.judged?.[locale]?.[m.key] ?? {})) {
+        const approval = judges[AUTHOR];
+        if (approval !== undefined && approvedNow(config, lock.judged, m, locale, rule)) keep(locale, m.key, rule, AUTHOR, approval);
+      }
     }
   }
   // An entry left out for being broken keeps what the lock said of it, as `keepUnread` keeps its translations.

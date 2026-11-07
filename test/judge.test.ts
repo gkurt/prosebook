@@ -151,7 +151,7 @@ describe('judge', () => {
     const { messages } = loadCatalog(config);
     const result = approve(config, messages, lock.judged, ['form.reporter', 'form.nope']);
     expect(result.approved).toEqual([{ key: 'form.reporter', rules: ['house/labels', 'house/plain'] }]);
-    expect(result.problems).toEqual([expect.stringContaining('form.nope (en) is held to no guideline')]);
+    expect(result.problems).toEqual([expect.stringContaining('form.nope (en) is no entry')]);
     writeFileSync(config.lock, serializeLock({ ...lock, judged: result.verdicts }));
     expect(judged(config)).toEqual([]);
     expect(readLock(config.lock).judged!['en']!['form.reporter']!['house/labels']![AUTHOR]).toMatch(/^[0-9a-f]{10}:0$/);

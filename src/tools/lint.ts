@@ -965,8 +965,9 @@ const GUIDELINES = new WeakSet<CheckRule>();
 export const isGuideline = (rule: CheckRule): boolean => GUIDELINES.has(rule);
 
 /**
- * Whether an entry breaks a guideline in a locale, as the lock's verdicts say (`verdictsOf` in
- * `judge.ts`); undefined where none was given on the entry as it is now.
+ * Whether an entry breaks a rule in a locale, as the lock's verdicts say (`verdictsOf` in `judge.ts`):
+ * `false` where the author approved it as written, whatever the rule; for a guideline, the models'
+ * judgment; undefined where none was given on the entry as it is now.
  */
 export type Verdict = (message: Message, locale: string, rule: string) => boolean | undefined;
 
@@ -1147,8 +1148,8 @@ export function applyEdits(text: string, edits: Edit[]): string {
 }
 
 /**
- * The findings on `messages`, held to the whole `catalog` where a rule compares entries, and to the
- * guidelines where `verdict` gives a model's judgment of them.
+ * The findings on `messages`, held to the whole `catalog` where a rule compares entries, to the
+ * guidelines where `verdict` gives a model's judgment of them, and to none the author approved.
  */
 export function lint(messages: Message[], config: ResolvedConfig, catalog: readonly Message[] = messages, verdict?: Verdict): Finding[] {
   const findings: Finding[] = [];
@@ -1179,6 +1180,8 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
             said = broken === true ? [judgedMessage(rule.description)] : [];
           } else {
             said = rule.check(context);
+            // Approved as written: it passes, as a guideline the author approved does.
+            if (said.length > 0 && verdict?.(message, locale, name) === false) said = [];
           }
         } catch (cause) {
           throw new Error(`lint rule ${name} failed on ${message.key} in ${locale}: fix or turn off the rule`, { cause });

@@ -117,8 +117,11 @@ export interface NativeTarget {
 }
 
 export interface ProsebookConfig {
-  /** The source-language catalog: one `<area>.yaml` per area. */
-  catalog?: string;
+  /**
+   * The source-language catalog: one `<area>.yaml` per area. `false` for none: the copy is the text
+   * written in code, which `prosebook lint` reads where `scan` finds it.
+   */
+  catalog?: string | false;
   /** Translations: `<locale>/<area>.yaml` or `<locale>.yaml`, holding `key: message`. */
   locales?: string;
   /** Where the generated modules go. */
@@ -232,6 +235,8 @@ export interface ScanOptions {
 
 export interface ResolvedConfig {
   root: string;
+  /** `catalog: false`: no catalog, so the commands that lint read the text in code (`scanned.ts`). */
+  inCode: boolean;
   catalog: string;
   locales: string;
   out: string;
@@ -345,19 +350,28 @@ function checkedFormatters(table: unknown, formats: Formats, at: string): Format
   return table;
 }
 
+/** What only a catalog's messages read, which a config with `catalog: false` is refused for naming. */
+const CATALOG_ONLY = ['locales', 'out', 'messageFormat', 'native', 'pseudo', 'bundled', 'stale', 'extract', 'require'] as const;
+
 export function resolveConfig(root: string, config: ProsebookConfig): ResolvedConfig {
   const at = (path: string) => (isAbsolute(path) ? path : resolve(root, path));
   const lint = config.lint ?? {};
   const base = lint.extends ?? 'recommended';
   const strict = base === 'strict';
   const rules = lintRules(lint, config.source ?? 'en');
-  const catalog = at(config.catalog ?? 'copy/catalog');
+  const inCode = config.catalog === false;
+  if (inCode) {
+    for (const name of CATALOG_ONLY)
+      if (config[name] !== undefined) throw new Error(`${name} is for a catalog's messages, and catalog is false: remove it`);
+  }
+  const catalog = at(config.catalog === false || config.catalog === undefined ? 'copy/catalog' : config.catalog);
   for (const [area, severities] of Object.entries(lint.areas ?? {})) {
     for (const name of Object.keys(severities))
       if (!namesRule(name, rules)) throw new Error(`lint.areas.${area}.${name} ${notARule(rules)}`);
   }
   return {
     root,
+    inCode,
     catalog,
     locales: at(config.locales ?? 'copy/locales'),
     out: at(config.out ?? 'src/copy'),
