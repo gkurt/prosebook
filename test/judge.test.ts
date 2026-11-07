@@ -257,7 +257,10 @@ describe('judge', () => {
   test('the CLI: --check fails on an entry not judged, and lint reads the verdicts with no model', async () => {
     const config = fixture({
       'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
-const house = definePlugin({ name: 'house', rules: { labels: { type: 'guideline', description: 'A label names the field, as a noun.' } } });
+const house = definePlugin({ name: 'house', rules: {
+  labels: { type: 'guideline', description: 'A label names the field, as a noun.' },
+  short: { type: 'guideline', description: 'A label is short.' },
+} });
 const model = { id: 'fake/cli', judge: async ({ questions }) => ({ probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.9])) }) };
 export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model] } };
 `,
@@ -266,19 +269,29 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     });
     const check = cli(config.root, 'judge', '--check');
     expect(check.code).toBe(1);
-    expect(check.stderr).toContain('form.reporter (en): not judged on house/labels');
+    expect(check.stderr).toContain('form.reporter (en): not judged on house/labels, house/short');
     const first = cli(config.root, 'judge');
-    expect(first.stdout).toContain('judged 1 of 1 entries (1 requests, 2 questions)');
+    expect(first.stdout).toContain('judged 1 of 1 entries (1 requests, 4 questions)');
     expect(first.stdout).toContain('cost unknown');
-    expect(first.stderr).toContain('[house/labels] breaks a guideline, the model judges');
+    // One line for the entry, and each guideline's words once, after the findings.
+    expect(first.stderr).toContain('form.reporter: [house/labels, house/short] breaks these guidelines, the models judge\n');
+    expect(first.stderr).toContain(
+      '\nGuidelines:\n  house/labels: A label names the field, as a noun.\n  house/short: A label is short.\n',
+    );
+    expect(first.stderr.match(/A label names the field/g)).toHaveLength(1);
+    // Each entry's verdicts stand on one line of the lock.
+    expect(readFileSync(config.lock, 'utf8')).toMatch(
+      /\n {6}"form\.reporter": \{"house\/labels":\{"fake\/cli":"\w+:0.81"\},"house\/short":\{[^\n]*\}\}\n/,
+    );
+    expect(readLock(config.lock).judged!['en']!['form.reporter']!['house/short']!['fake/cli']).toMatch(/:0.81$/);
     expect(first.stderr).toContain('prosebook approve <key>');
     expect(cli(config.root, 'judge').stdout).toContain('nothing was asked');
     expect(cli(config.root, 'judge', '--check').code).toBe(0);
-    expect(cli(config.root, 'lint').stderr).toContain('[house/labels]');
+    expect(cli(config.root, 'lint').stderr).toContain('[house/labels, house/short]');
     expect(readFileSync(config.lock, 'utf8')).toContain('"judged"');
     const approved = cli(config.root, 'approve', '--all');
     expect(approved.stdout).toContain('approved form.reporter (en) against house/labels');
-    expect(cli(config.root, 'lint').stderr).not.toContain('[house/labels]');
+    expect(cli(config.root, 'lint').stderr).not.toContain('house/labels');
     expect(cli(config.root, 'approve', '--all').stderr).toContain('none needs approving');
   });
 });

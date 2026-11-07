@@ -41,7 +41,7 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 - A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
 - A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.
 - A sentence doesn't lean on what only its writer had in view: `It`, `its`, `they`, `these` or `the questions`, standing for nothing named before them, point at what the reader can't see. `The workflow's name, instructions and models`, not `Its name, instructions and models`. A short status or label, `Added` or `Turned off`, sits beside what it's about and names nothing.
-- A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A sentence is for what takes explaining.
+- A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as it needs: `Saved the sandbox to resume later` is one. A sentence, with its subject, is for what takes explaining.
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
 - In `de`: Address the shopper as du, never Sie.

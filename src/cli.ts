@@ -498,8 +498,13 @@ function sayTotals(findings: readonly Finding[], hint: string, what = ''): void 
 
 /** The text in code held to the rules, each finding said at every place its words stand. */
 function reportScanned(config: ResolvedConfig, findings: PlacedFinding[], report?: SarifReport): void {
-  for (const f of findings)
-    err(`${f.severity === 'error' ? 'error' : 'warn '} ${f.file}:${f.line}:${f.column} ${f.where}"${f.key}": [${f.rule}] ${f.message}`);
+  const broken = brokenGuidelines(config, findings);
+  for (const f of findings) {
+    const said = broken.has(f) ? broken.get(f) : `[${f.rule}] ${f.message}`;
+    if (said !== undefined)
+      err(`${f.severity === 'error' ? 'error' : 'warn '} ${f.file}:${f.line}:${f.column} ${f.where}"${f.key}": ${said}`);
+  }
+  sayGuidelines(config, findings);
   sarifFindings(config, findings, report, true);
 }
 
@@ -659,8 +664,15 @@ function printFindings(config: ResolvedConfig, findings: Finding[]) {
   const placed = findings.map((f) => ({ ...f, ...locate(f.file, f.key, f.at?.start, config.source) }));
   // A problem across entries is said once, at the entry it names; SARIF still has a result per entry.
   const said = new Set<string>();
+  const broken = brokenGuidelines(config, placed);
   for (const f of placed) {
     const severity = f.severity === 'error' ? 'error' : 'warn ';
+    if (broken.has(f)) {
+      const line = broken.get(f);
+      if (line !== undefined)
+        err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}${f.locale === config.source ? '' : ` (${f.locale})`}: ${line}`);
+      continue;
+    }
     if (f.group === undefined) {
       err(`${severity} ${f.file}:${f.line}:${f.column} ${f.key}: [${f.rule}] ${f.message}${f.fix === undefined ? '' : ' (fixable)'}`);
       continue;
@@ -671,7 +683,44 @@ function printFindings(config: ResolvedConfig, findings: Finding[]) {
     const { line, column } = locate(file, key, undefined, config.source);
     err(`${severity} ${file}:${line}:${column} ${key}: [${f.rule}] ${message}`);
   }
+  sayGuidelines(config, placed);
   return placed;
+}
+
+const isGuidelineFinding = (config: ResolvedConfig, f: Finding) => {
+  const rule = config.lint.rules[f.rule]?.rule;
+  return rule !== undefined && isGuideline(rule);
+};
+
+/**
+ * The guidelines the models judged an entry to break, said on one line per entry and severity, which
+ * the first of them carries: `[voice/phrases, voice/no-intent]`. Each guideline's words, which run
+ * long, are said once, after all of them (`sayGuidelines`).
+ */
+function brokenGuidelines<F extends Finding>(config: ResolvedConfig, findings: readonly F[]): Map<F, string | undefined> {
+  const byEntry = new Map<string, F[]>();
+  for (const f of findings) {
+    if (!isGuidelineFinding(config, f)) continue;
+    const id = JSON.stringify([f.file, f.key, f.locale, f.severity, 'line' in f ? f.line : 0]);
+    byEntry.set(id, [...(byEntry.get(id) ?? []), f]);
+  }
+  const lines = new Map<F, string | undefined>();
+  for (const [first, ...rest] of byEntry.values()) {
+    lines.set(
+      first!,
+      `[${[first!, ...rest].map((f) => f.rule).join(', ')}] breaks ${rest.length === 0 ? 'this guideline' : 'these guidelines'}, the models judge`,
+    );
+    for (const f of rest) lines.set(f, undefined);
+  }
+  return lines;
+}
+
+/** Each guideline the findings name, with its words, once. */
+function sayGuidelines(config: ResolvedConfig, findings: readonly Finding[]): void {
+  const named = [...new Set(findings.filter((f) => isGuidelineFinding(config, f)).map((f) => f.rule))].sort();
+  if (named.length === 0) return;
+  err('\nGuidelines:');
+  for (const name of named) err(`  ${name}: ${config.lint.rules[name]!.rule.description}`);
 }
 
 function missingKeys(catalog: Catalog, locale: string): string[] {

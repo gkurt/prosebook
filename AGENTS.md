@@ -383,7 +383,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   with `judge.prompt` as `notes` and every guideline it's held to, so each is weighed with the rest,
   and two boolean questions per guideline, whether it concerns the entry's role and whether the entry
   breaks it, multiplied: asked as one, a fast model found a guideline for controls broken by hints.
-  Each answer is kept in the lock's `judged` (per locale, key, rule and judge, `<hash>:<probability>`),
+  Each answer is kept in the lock's `judged` (per locale, key, rule and judge, `<hash>:<probability>`,
+  `serializeLock` writing each entry's on one line, and the CLI `brokenGuidelines` on one per entry),
   the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
   each model only what it hasn't answered; raise `PROMPT` when the questions' words change. Several
   models' probabilities are averaged. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`

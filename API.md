@@ -1142,8 +1142,14 @@ export default defineConfig({
 ```text
 prosebook: judged 1,345 of 1,345 entries (1,345 requests, 18,830 questions) in 35.7s; the lock had the other 0
   207ms a request (median), 451ms at most; 4,250,907 input tokens, 353,735 output; $0.1785
-warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a guideline, the model judges: A label over a value names the field, as a noun: …
+warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names, voice/own-words] breaks these guidelines, the models judge
+
+Guidelines:
+  voice/field-names: A label over a value names the field, as a noun: …
 ```
+
+Each entry's broken guidelines are one line, and each guideline's words are said once, after them; SARIF has a result per
+guideline, with its words.
 
 - **One request per entry, locale and model**, through the AI SDK's `experimental_decide`. The entry is the state: its
   message, key, context, kind, surface, what its placeholders hold, the source beside a translation, the `prompt` as `notes`,
@@ -1153,7 +1159,7 @@ warn  copy/catalog/form.yaml:12:1 form.assignee: [voice/field-names] breaks a gu
 - **Several models** each answer, and an entry breaks a guideline by the mean of their probabilities. A model of your own, for
   one the AI SDK doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
   `judge({ state, questions })` giving each question's probability of a yes.
-- **Verdicts live in the lock**, under `judged`, per locale, key, guideline and judge, each beside a hash of everything its
+- **Verdicts live in the lock**, under `judged`, one line per entry and locale, by guideline and judge, each beside a hash of everything its
   request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
   run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and
   what they cost.

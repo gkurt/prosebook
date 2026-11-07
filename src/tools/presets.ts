@@ -207,7 +207,7 @@ export const VOICE: Plugin = {
     phrases: {
       type: 'guideline',
       description:
-        'A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A sentence is for what takes explaining.',
+        'A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as it needs: `Saved the sandbox to resume later` is one. A sentence, with its subject, is for what takes explaining.',
     },
   },
 };

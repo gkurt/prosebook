@@ -45,27 +45,32 @@ export function readLock(path: string): Lock {
 
 const sortedEntries = <T>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : 1)));
 
+/**
+ * The lock as written: pretty-printed, except that each entry's verdicts in a locale stand on one
+ * line. A catalog judged on every guideline holds thousands of them, one per rule and model, which
+ * pretty-printed run to tens of thousands of lines; an entry that changes is judged anew, so it
+ * changes one line of the diff, not a screen of them.
+ */
 export function serializeLock(lock: Lock): string {
   const translations = Object.fromEntries(
     Object.keys(lock.translations)
       .sort()
       .map((locale) => [locale, sortedEntries(lock.translations[locale]!)]),
   );
-  const judged = Object.fromEntries(
-    Object.keys(lock.judged ?? {})
-      .sort()
-      .map((locale) => [
-        locale,
-        Object.fromEntries(
-          Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => [
-            key,
-            Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)])),
-          ]),
-        ),
-      ]),
-  );
-  const verdicts = Object.keys(judged).length > 0 ? { judged } : {};
-  return `${JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations, ...verdicts }, null, 2)}\n`;
+  const head = JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations }, null, 2);
+  const locales = Object.keys(lock.judged ?? {})
+    .sort()
+    .filter((locale) => Object.keys(lock.judged![locale]!).length > 0);
+  if (locales.length === 0) return `${head}\n`;
+  const judged = locales.map((locale) => {
+    const keys = Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => {
+      const verdicts = Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)]));
+      return `      ${JSON.stringify(key)}: ${JSON.stringify(verdicts)}`;
+    });
+    return `    ${JSON.stringify(locale)}: {\n${keys.join(',\n')}\n    }`;
+  });
+  // The pretty-printed head ends `\n}`: the verdicts go in before that brace.
+  return `${head.slice(0, -2)},\n  "judged": {\n${judged.join(',\n')}\n  }\n}\n`;
 }
 
 export interface StaleTranslation {
