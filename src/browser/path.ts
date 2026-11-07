@@ -44,4 +44,24 @@ export function extname(path: string): string {
   return dot <= 0 ? '' : name.slice(dot);
 }
 
-export default { sep, isAbsolute, join, resolve, relative, dirname, basename, extname };
+/** `path.matchesGlob` for `scan.ignore`: `**` across folders, `*` and `?` within a name, the rest as written. */
+export function matchesGlob(path: string, glob: string): boolean {
+  let pattern = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!;
+    if (c === '*' && glob[i + 1] === '*') {
+      // `**/` is any folders, none included; a trailing `**` is anything.
+      pattern += glob[i + 2] === '/' ? '(?:.*/)?' : '.*';
+      i += glob[i + 2] === '/' ? 2 : 1;
+    } else if (c === '*') {
+      pattern += '[^/]*';
+    } else if (c === '?') {
+      pattern += '[^/]';
+    } else {
+      pattern += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return new RegExp(`^${pattern}$`).test(path);
+}
+
+export default { sep, isAbsolute, join, resolve, relative, dirname, basename, extname, matchesGlob };
