@@ -1,56 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Fewer false positives when scanning and linting text in code\n\n`scan` reads JSX text with values in it (`restart from {clientName}.`) as one sentence, decodes entities such as `&nbsp;`, skips class strings, and skips JSX in tests and stories. `<Tooltip label>` gets the tooltip role. `path` now ignores a trailing arrow and a single slash. `no-em-dash` names the dash it found and asks for an en dash in ranges. The lint summary counts findings per rule, notes that warnings alone exit 0, and suggests `lint.properNouns`.\n"
-    filename: scan-lint-false-positives.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The package ships CHANGELOG.md, and the writing guide mentions each language's form of `you` only when the catalog has translations\n"
-    filename: changelog-and-tone-guide.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### scan leaves the formatters module out, so its `Intl` formatters are not reported as formatted in code\n"
-    filename: scan-skips-formatters.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Judged guidelines are said once per entry, the lock keeps each entry's verdicts on one line, and `voice/phrases` takes a long phrase as a phrase\n\n`lint` and `judge` print one line per entry, listing every guideline it breaks, and print each guideline's text once at the end.\n"
-    filename: judge-output-and-lock.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Linting text in code reads two-string picks in their sentence, names placeholders for their values, and suggests fewer proper nouns\n\nA ternary between two strings stays in its JSX sentence: `{n === 1 ? 'hop' : 'hops'}` reads as a plural on `n`, any other test as a select, so each arm is linted in place. A placeholder is named for the value it shows past formatting calls: `${rate.toFixed(1)}` is `{rate}`, not `{value}`. `path` passes a lone separator with no capital after it (`origin → {hops}`). The `lint.properNouns` suggestion leaves out words the text also writes in lowercase, which are Title Case labels rather than names. Helpers of tests and stories (`A.spec.helper.tsx`) are left out of the scan.\n"
+    filename: scan-lint-picks-and-names.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - scan-lint-false-positives.md
-      - changelog-and-tone-guide.md
-      - scan-skips-formatters.md
-      - judge-output-and-lock.md
+      - scan-lint-picks-and-names.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-solid
+  - id: npm:example-rspack
     updated: false
   - id: npm:example-next
     updated: false
-  - id: npm:example-rspack
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-solid
     updated: false
   - id: npm:example-vite
     updated: false
   - id: npm:example-bun
+    updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-tanstack-start
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-svelte
-  - id: npm:example-preact
-  - id: npm:example-tanstack-start
-  - id: npm:example-vue
-  - id: npm:example-node
-  - id: npm:example-solid
-  - id: npm:example-next
   - id: npm:example-rspack
+  - id: npm:example-next
+  - id: npm:example-node
+  - id: npm:example-vue
+  - id: npm:example-solid
   - id: npm:example-vite
   - id: npm:example-bun
+  - id: npm:example-preact
+  - id: npm:example-svelte
+  - id: npm:example-tanstack-start
