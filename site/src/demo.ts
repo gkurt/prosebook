@@ -339,7 +339,10 @@ app.addEventListener(
     if (inspecting() || e.altKey) {
       e.preventDefault();
       e.stopPropagation();
-      if (el) open(keyOf(el), e.shiftKey);
+      if (el) {
+        outline.style.display = 'none';
+        openDialog(keyOf(el), el);
+      }
       return;
     }
     const act = target.closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -351,7 +354,7 @@ app.addEventListener(
   true,
 );
 
-// The Alt-right-click dialog. In an app the plugin reads and writes the real files and checks the whole
+// The Alt-click dialog. In an app the plugin reads and writes the real files and checks the whole
 // catalog; here it edits the copies above and checks the messages.
 const KINDS = ['name', 'action', 'description', 'state'];
 const SURFACES = [
@@ -424,7 +427,6 @@ function linesFrom(key: string, fields: Fields): string[] {
 /** What is wrong with an edit, as prosebook would say it, or nothing. */
 function check(key: string, catalogLines: string[], translation: string): string[] {
   const problems: string[] = [];
-  if (catalogLines[0] !== `${key}:`) problems.push(`${key}: the entry is still ${key}: rename a key in the code and the catalog together`);
   const fields = fieldsFrom(catalogLines);
   // An empty translation is none: German falls back to the source.
   const messages: [string, string | undefined][] = [
@@ -470,7 +472,7 @@ function findingsOf(text: string, source?: string): Finding[] {
   return found;
 }
 
-// Points at a string lint has something to say about, so its findings are a right-click away. The
+// Points at a string lint has something to say about, so its findings are a click away. The
 // catalog above writes one on purpose: "Check out..." with three periods.
 function noteFindings() {
   const keys = [...new Set([...app.querySelectorAll('[data-key]')].map(keyOf))];
@@ -498,29 +500,29 @@ function make<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function openDialog(key: string, catalog: boolean, x: number, y: number) {
+function openDialog(key: string, anchor: Element) {
   dialog?.remove();
-  const translated = !catalog && source(key) === 'de';
-  let tab: 'fields' | 'yaml' = 'fields';
-  let catalogLines = entryLines('en', key);
-  let translation = message('de', key) ?? '';
+  const locale = source(key);
+  const translated = locale === 'de';
+  const fields = fieldsFrom(entryLines('en', key));
+  // The field last in focus, whose file Open in editor opens.
+  let focused: Locale = locale;
 
-  const area = (name: string, label: string, value: string, prose = false) =>
+  const area = (name: string, label: string, value: string, placeholder = '') =>
     make(
       'label',
       {},
       label,
-      make('textarea', {
-        name,
-        value,
-        rows: Math.min(10, Math.max(2, value.split('\n').length + 1)),
-        className: prose ? 'prose' : '',
-        spellcheck: prose,
-        wrap: prose ? 'soft' : 'off',
-      }),
+      make('textarea', { name, value, placeholder, rows: Math.min(10, Math.max(2, value.split('\n').length + 1)), spellcheck: true }),
     );
-  const hint = (label: HTMLLabelElement, text: string) => {
-    label.querySelector('textarea')!.placeholder = text;
+  /** A locale's text, with what lint says of it underneath. */
+  const text = (l: Locale) => {
+    const label =
+      l === 'en'
+        ? area('message', 'en · source', fields.message ?? '')
+        : area('translation', 'de', message('de', key) ?? '', 'No translation: the en text shows');
+    label.querySelector('textarea')!.addEventListener('focus', () => (focused = l));
+    label.append(make('ul', { className: 'findings' }));
     return label;
   };
   const select = (name: string, value: string, choices: string[]) =>
@@ -530,43 +532,55 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
       make('option', { value: '', textContent: '—' }),
       ...choices.map((c) => make('option', { value: c, textContent: c, selected: c === value })),
     );
+  const checkbox = (name: string, label: string, checked: boolean) =>
+    make('label', { className: 'check' }, make('input', { type: 'checkbox', name, checked }), label);
 
-  const body = make('div', { className: 'body' });
+  const more = make('details', { open: remembered() });
+  more.addEventListener('toggle', () => remember(more.open));
+  more.append(
+    make('summary', {}, 'More', make('span', { className: 'count' })),
+    make(
+      'div',
+      {},
+      ...(translated ? [] : [text('de')]),
+      area('context', 'Context', fields.context),
+      make(
+        'div',
+        { className: 'row' },
+        make('label', {}, 'Kind', select('kind', fields.kind, KINDS)),
+        make('label', {}, 'Surface', select('surface', fields.surface, SURFACES)),
+      ),
+      ...Object.entries(fields.args).map(([n, v]) =>
+        make(
+          'label',
+          {},
+          make('code', { textContent: `{${n}}` }),
+          make('input', { name: `arg.${n}`, value: v, placeholder: 'What it holds' }),
+        ),
+      ),
+      area('comment', 'Comment', fields.comment, 'Ask whoever edits next for a change'),
+      make(
+        'div',
+        { className: 'row' },
+        checkbox('fragment', 'Fragment', fields.fragment),
+        checkbox('remove', 'Mark for removal', fields.remove),
+      ),
+    ),
+  );
+  const body = make('div', { className: 'body' }, text(locale), ...(translated ? [text('en')] : []), more);
   const problems = make('ul', { className: 'problems' });
-  const tabs = {
-    fields: make('button', { type: 'button', textContent: 'Fields' }),
-    yaml: make('button', { type: 'button', textContent: 'YAML' }),
-  };
   const value = (name: string) => body.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[name="${name}"]`)?.value;
-  // Marked for removal, as the dev dialog has it: the YAML tab's to change while that is open.
-  let remove = false;
-  const removeButton = make('button', { type: 'button', className: 'remove' });
-  const showRemove = () => {
-    removeButton.hidden = tab === 'yaml';
-    removeButton.setAttribute('aria-pressed', String(remove));
-    removeButton.textContent = remove ? 'Marked for removal' : 'Mark for removal';
-    panel.classList.toggle('removing', remove && tab === 'fields');
-  };
-  removeButton.addEventListener('click', () => {
-    remove = !remove;
-    showRemove();
-  });
+  const checked = (name: string) => body.querySelector<HTMLInputElement>(`input[name="${name}"]`)!.checked;
 
-  /** A text field with what lint says of it underneath. */
-  const withFindings = (label: HTMLLabelElement) => {
-    label.append(make('ul', { className: 'findings' }));
-    return label;
-  };
   const lintNow = () => {
+    let hidden = 0;
     for (const list of body.querySelectorAll('.findings')) {
       const field = list.parentElement!.querySelector('textarea')!;
-      const source = field.name === 'translation' ? (value('message') ?? fieldsFrom(catalogLines).message) : undefined;
+      const found = findingsOf(field.value, field.name === 'translation' ? value('message') : undefined);
+      if (more.contains(list)) hidden += found.length;
       list.replaceChildren(
-        ...findingsOf(field.value, source).map((f) => {
-          const say =
-            f.match === undefined
-              ? make('span', { className: 'say', textContent: f.message })
-              : make('button', { type: 'button', className: 'say', textContent: f.message });
+        ...found.map((f) => {
+          const say = make('button', { type: 'button', className: 'say', textContent: f.message });
           say.addEventListener('click', () => {
             const at = f.match && new RegExp(f.match.source).exec(field.value);
             if (!at) return;
@@ -575,7 +589,7 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
           });
           const item = make('li', {}, say, make('span', { className: 'rule', textContent: f.rule }));
           if (f.fix !== undefined) {
-            const fix = make('button', { type: 'button', className: 'fix', textContent: 'Fix' });
+            const fix = make('button', { type: 'button', className: 'small', textContent: 'Fix' });
             fix.addEventListener('click', () => {
               field.value = field.value.replace(f.match!, f.fix!);
               lintNow();
@@ -586,81 +600,25 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
         }),
       );
     }
+    more.querySelector('.count')!.textContent = hidden === 0 ? '' : ` · ${hidden} ${hidden === 1 ? 'finding' : 'findings'}`;
   };
   body.addEventListener('input', lintNow);
 
-  const show = () => {
-    tabs.fields.setAttribute('aria-selected', String(tab === 'fields'));
-    tabs.yaml.setAttribute('aria-selected', String(tab === 'yaml'));
-    if (tab === 'yaml') {
-      showRemove();
-      body.replaceChildren(
-        area('yaml.catalog', files.en.path, catalogLines.join('\n')),
-        hint(area('yaml.translation', files.de.path, translation === '' ? '' : `${key}: ${quote(translation)}`), `${key}: …`),
-      );
-      return;
-    }
-    const f = fieldsFrom(catalogLines);
-    remove = f.remove;
-    showRemove();
-    const german = withFindings(
-      hint(
-        area('translation', `Translation · de${translation === '' ? ' · none yet' : ''}`, translation, true),
-        'No translation: the en text shows',
-      ),
-    );
-    // The locale the string was read in comes first, as in the dev dialog.
-    body.replaceChildren(
-      ...(translated ? [german] : []),
-      withFindings(area('message', `${translated ? 'Source' : 'Message'} · en`, f.message ?? '', true)),
-      ...(translated ? [] : [german]),
-      hint(area('comment', 'Comment · for whoever edits next', f.comment, true), 'Ask for a change instead of making it'),
-      area('context', 'Context', f.context, true),
-      make(
-        'div',
-        { className: 'pair' },
-        make('label', {}, 'Kind', select('kind', f.kind, KINDS)),
-        make('label', {}, 'Surface', select('surface', f.surface, SURFACES)),
-      ),
-      ...Object.entries(f.args).map(([n, v]) => make('label', {}, `What {${n}} holds`, make('input', { name: `arg.${n}`, value: v }))),
-    );
-    lintNow();
-  };
-
   /** The edit on screen, as catalog lines and a translation. */
-  const current = (): { lines: string[]; translation: string; renamed?: boolean } => {
-    if (tab === 'yaml') {
-      const line = value('yaml.translation')!.trim();
-      return {
-        lines: value('yaml.catalog')!.replace(/\n+$/, '').split('\n'),
-        translation: line === '' ? '' : unquote(line.slice(`${key}: `.length)),
-        renamed: line !== '' && !line.startsWith(`${key}: `),
-      };
-    }
+  const current = () => {
     const args: Record<string, string> = {};
     for (const input of body.querySelectorAll<HTMLInputElement>('input[name^="arg."]')) args[input.name.slice(4)] = input.value;
-    const fields: Fields = {
+    const edited: Fields = {
       kind: value('kind') ?? '',
       surface: value('surface') ?? '',
       context: value('context') ?? '',
-      fragment: fieldsFrom(catalogLines).fragment,
+      fragment: checked('fragment'),
       args,
       comment: value('comment') ?? '',
-      remove,
+      remove: checked('remove'),
       message: value('message'),
     };
-    return { lines: linesFrom(key, fields), translation: value('translation') ?? '' };
-  };
-
-  const take = () => {
-    const edit = current();
-    const found = check(key, edit.lines, edit.translation);
-    if (edit.renamed) found.push(`${files.de.path} ${key}: the entry is still ${key}: rename a key in the code and the catalog together`);
-    problems.replaceChildren(...found.map((p) => make('li', { textContent: p })));
-    if (found.length > 0) return false;
-    catalogLines = edit.lines;
-    translation = edit.translation;
-    return true;
+    return { lines: linesFrom(key, edited), translation: value('translation') ?? '' };
   };
 
   const close = () => {
@@ -668,14 +626,17 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
     if (dialog === panel) dialog = undefined;
   };
   const save = () => {
-    if (!take()) return;
+    const edit = current();
+    const found = check(key, edit.lines, edit.translation);
+    problems.replaceChildren(...found.map((p) => make('li', { textContent: p })));
+    if (found.length > 0) return;
     const at = locate('en', key)!;
-    files.en.lines.splice(at.start, at.line - at.start + 1, ...catalogLines);
+    files.en.lines.splice(at.start, at.line - at.start + 1, ...edit.lines);
     // German gains the line, changes it, or loses it when left empty.
     const de = locate('de', key);
-    const line = `${key}: ${quote(translation)}`;
-    if (de === undefined && translation !== '') files.de.lines.push(line);
-    else if (de !== undefined && translation === '') files.de.lines.splice(de.line, 1);
+    const line = `${key}: ${quote(edit.translation)}`;
+    if (de === undefined && edit.translation !== '') files.de.lines.push(line);
+    else if (de !== undefined && edit.translation === '') files.de.lines.splice(de.line, 1);
     else if (de !== undefined) files.de.lines[de.line] = line;
     paint();
     if (state.open) open(state.open.key, state.open.locale === 'en' && source(state.open.key) === 'de');
@@ -683,18 +644,12 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
     status.textContent = t('demo.dialog-saved', { key });
     close();
   };
-  const switchTo = (next: typeof tab) => {
-    if (next === tab || !take()) return;
-    tab = next;
-    show();
-  };
-  tabs.fields.addEventListener('click', () => switchTo('fields'));
-  tabs.yaml.addEventListener('click', () => switchTo('yaml'));
   const button = (props: Partial<HTMLButtonElement>, onClick: () => void) => {
     const b = make('button', { type: 'button', ...props });
     b.addEventListener('click', onClick);
     return b;
   };
+  const mac = /Mac|iP/.test(navigator.platform);
 
   const panel = make(
     'div',
@@ -703,23 +658,19 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
       'header',
       {},
       make('span', { className: 'key', textContent: key }),
-      make('span', { className: 'loc', textContent: translated ? 'de' : 'en' }),
       make('span', { className: 'grow' }),
-      make('span', { className: 'tabs' }, tabs.fields, tabs.yaml),
-      button({ className: 'x', textContent: '×', title: 'Close' }, close),
+      button({ className: 'quiet', textContent: 'Open in editor ↗' }, () => {
+        open(key, focused === 'en');
+        close();
+      }),
+      button({ className: 'quiet x', textContent: '×', title: 'Close (Esc)' }, close),
     ),
     body,
     problems,
     make(
       'footer',
       {},
-      button({ className: 'link', textContent: 'Open in editor' }, () => {
-        open(key, catalog);
-        close();
-      }),
-      make('span', { className: 'grow' }),
-      removeButton,
-      button({ textContent: 'Cancel' }, close),
+      make('span', { className: 'hint grow', textContent: `${mac ? '⌘' : 'Ctrl'}+Enter saves · Esc closes` }),
       button({ className: 'save', textContent: 'Save' }, save),
     ),
   );
@@ -729,34 +680,42 @@ function openDialog(key: string, catalog: boolean, x: number, y: number) {
     if (e.key === 'Escape') close();
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
   });
-  show();
-  panel.style.visibility = 'hidden';
+  lintNow();
   document.body.append(panel);
   dialog = panel;
-  // Beside the pointer, inside the window, and moved up if it grows past the bottom.
+  // Below the string, or above it where there is no room, and moved up if it grows past the bottom.
+  const r = anchor.getBoundingClientRect();
   const box = panel.getBoundingClientRect();
-  const below = y + 16;
+  const below = r.bottom + 8;
   Object.assign(panel.style, {
-    left: `${Math.max(12, Math.min(x - 24, innerWidth - box.width - 12))}px`,
-    top: `${below + box.height <= innerHeight - 12 ? below : Math.max(12, y - box.height - 16)}px`,
-    visibility: '',
+    left: `${Math.max(12, Math.min(r.left, innerWidth - box.width - 12))}px`,
+    top: `${below + box.height <= innerHeight - 12 ? below : Math.max(12, r.top - box.height - 8)}px`,
   });
   new ResizeObserver(() => {
     const now = panel.getBoundingClientRect();
     const fitted = Math.max(12, Math.min(now.top, innerHeight - now.height - 12));
     if (fitted !== now.top) panel.style.top = `${fitted}px`;
   }).observe(panel);
-  panel.querySelector('textarea')?.focus();
+  body.querySelector('textarea')?.focus();
 }
 
-// Alt-right-click, or a right-click or long-press while inspecting.
-app.addEventListener('contextmenu', (e) => {
-  const el = (e.target as Element).closest('[data-key]');
-  if (!(e.altKey || state.inspecting) || !el) return;
-  e.preventDefault();
-  outline.style.display = 'none';
-  openDialog(keyOf(el), e.shiftKey, e.clientX, e.clientY);
-});
+// Whether More is open, remembered as the dev dialog does.
+const MORE = 'prosebook:inspector:more';
+function remembered(): boolean {
+  try {
+    return localStorage.getItem(MORE) === 'open';
+  } catch {
+    return false;
+  }
+}
+function remember(open: boolean) {
+  try {
+    localStorage.setItem(MORE, open ? 'open' : '');
+  } catch {
+    // Remembered for this page only.
+  }
+}
+
 // Alt-click on a link would download it; on a button, focus it.
 app.addEventListener('mousedown', (e) => e.altKey && e.preventDefault());
 addEventListener('keydown', (e) => {

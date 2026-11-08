@@ -330,7 +330,7 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     expect(await (await fetch(`${origin}src/copy/en.ts`)).text()).toContain('update("en", next.default)');
     expect(await (await fetch(`${origin}src/copy/index.ts`)).text()).toContain('next.catalog.locales.join() !== catalog.locales.join()');
     const client = await fetch(new URL(/from "([^"]+)"/.exec(entry)![1]!, origin));
-    expect(await client.text()).toContain('export function keyAt');
+    expect(await client.text()).toContain('function install');
     const missing = await fetch(`${origin}__prosebook/open?key=app.gone&locale=en`);
     expect(missing.status).toBe(404);
     expect(await missing.text()).toContain('no entry for "app.gone"');
@@ -340,7 +340,7 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     expect(decodeURIComponent(open.headers.get('location')!)).toMatch(/^\/__open-in-editor\?file=.*copy[\\/]catalog[\\/]app\.yaml:2:1$/);
 
     const read = (await (await fetch(`${origin}__prosebook/entry?key=app.used`)).json()) as EntryView;
-    expect(read.yaml.catalog).toBe('app.used: Used message');
+    expect(read.fields.message).toBe('Used message');
     const post = (body: object, headers: Record<string, string> = {}) =>
       fetch(`${origin}__prosebook/entry`, {
         method: 'POST',
@@ -349,13 +349,13 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
       });
     expect(read.findings).toEqual([]);
     // Checked unsaved, as the dialog does while typing: lint's findings come back, with each fix made.
-    const typed = await post({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Used  message' } } });
+    const typed = await post({ key: 'app.used', fields: { ...read.fields, message: 'Used  message' } });
     const { view } = (await typed.json()) as { view: EntryView };
     expect(view.findings.map((f) => [f.rule, f.at, f.fixed])).toEqual([['whitespace', { start: 4, end: 6 }, 'Used message']]);
     expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe(`${SCHEMA_LINE}\napp.used: Used message\n`);
-    const edit = { key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true };
+    const edit = { key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true };
     expect((await post(edit, { Origin: 'https://elsewhere.example' })).status).toBe(403);
-    expect((await post({ ...edit, edit: { yaml: { catalog: 'app.used: Broken {' } } })).status).toBe(422);
+    expect((await post({ ...edit, fields: { ...read.fields, message: 'Broken {' } })).status).toBe(422);
     expect((await post(edit)).status).toBe(200);
     expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe(`${SCHEMA_LINE}\napp.used: Still used\n`);
   } finally {

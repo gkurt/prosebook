@@ -157,7 +157,7 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   expect(index).toEndWith('installInspector({"base":"/"});\n// index\n');
   // Imported from beside the index, as Turbopack resolves the app's own imports.
   const inspector = /from "(\.[^"]+)"/.exec(index)![1]!;
-  expect(readFileSync(join(config.root, 'src/copy', inspector), 'utf8')).toContain('export function keyAt');
+  expect(readFileSync(join(config.root, 'src/copy', inspector), 'utf8')).toContain('function install');
 
   const path = join(config.root, 'src/copy/de.ts');
   writeFileSync(path, run(rules['de.ts']!, readFileSync(path, 'utf8')));
@@ -189,12 +189,12 @@ test("in dev, a rewrite sends the inspector's requests to a server that edits fr
   expect(launch.searchParams.get('line1')).toBe('1');
 
   const read = (await (await fetch(`${target}entry?key=app.used`, { headers: page })).json()) as EntryView;
-  expect(read.yaml.catalog).toBe('app.used: Used message');
+  expect(read.fields.message).toBe('Used message');
   const post = (origin: string) =>
     fetch(`${target}entry`, {
       method: 'POST',
       headers: { ...page, 'Content-Type': 'application/json', Origin: origin },
-      body: JSON.stringify({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true }),
+      body: JSON.stringify({ key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true }),
     });
   expect((await post('https://elsewhere.example')).status).toBe(403);
   expect((await post('http://localhost:3000')).status).toBe(200);

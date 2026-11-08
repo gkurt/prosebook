@@ -388,6 +388,6 @@ export const HOT_SET = 'globalThis.__PROSEBOOK_HOT__ ??= new Set();\n';
 export const beside = (url: string, name: string) =>
   fileURLToPath(new URL(`./${name}${url.endsWith('.ts') ? '.ts' : '.js'}`, url)).replaceAll('\\', '/');
 
-/** Code that starts the inspector (`inspector.ts`, imported from `path`) on the page, its endpoints under `base`. */
+/** Code that starts the inspector (`inspector/`, imported from `path`) on the page, its endpoints under `base`. */
 export const installInspector = (path: string, base: string) =>
   `import { install as installInspector } from ${JSON.stringify(path)};\ninstallInspector(${JSON.stringify({ base })});\n`;

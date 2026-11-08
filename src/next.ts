@@ -11,7 +11,7 @@
  * read here once, and each pruned module travels to the loader as its options. The index travels too,
  * without the pseudo-locale, which is for dev.
  *
- * In dev the browser's index also starts the inspector (`inspector.ts`). Its endpoints can't be a
+ * In dev the browser's index also starts the inspector (`inspector/index.ts`). Its endpoints can't be a
  * route of the app without a file in it, so a server of their own answers them on a local port, and a
  * rewrite sends `/__prosebook/*` there; an entry opens through Next's own `/__nextjs_launch-editor`.
  *
@@ -92,7 +92,7 @@ const DEV = 'phase-development-server';
 const BUILD = 'phase-production-build';
 
 const loaderPath = beside(import.meta.url, 'loader');
-const inspectorPath = beside(import.meta.url, 'inspector');
+const inspectorPath = beside(import.meta.url, 'inspector/index');
 
 // Next loads its config more than once in a process; one watcher and one inspector server per catalog
 // is enough. Each catalog's config as last loaded, by its folder at start, for the inspector to read.

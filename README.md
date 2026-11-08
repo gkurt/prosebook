@@ -159,7 +159,7 @@ generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 
 ## And more
 
-- [**Inspector**](API.md#inspector): in dev, Alt-click any text on the page to open its entry, or Alt-right-click to edit it there.
+- [**Inspector**](API.md#inspector): in dev, Alt-click any text on the page to edit its entry there.
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.

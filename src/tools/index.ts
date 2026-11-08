@@ -34,11 +34,9 @@ export {
   importTranslations,
   readEntry,
   type Imported,
-  type EntryEdit,
   type EntryFields,
   type EntryFinding,
   type EntryView,
-  type EntryYaml,
 } from './entry.ts';
 export {
   defineConfig,

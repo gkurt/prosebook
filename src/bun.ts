@@ -88,7 +88,7 @@ export interface ProsebookBunOptions {
   inspect?: boolean;
 }
 
-const inspectorPath = beside(import.meta.url, 'inspector');
+const inspectorPath = beside(import.meta.url, 'inspector/index');
 const NAMESPACE = 'prosebook-area';
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));

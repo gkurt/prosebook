@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { editEntry, readEntry, whereOf } from 'prosebook/tools';
+import { editEntry, readEntry } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -33,17 +33,11 @@ const project = () =>
 const read = (config: { root: string }, file: string) => readFileSync(join(config.root, file), 'utf8');
 
 describe('editing an entry in place', () => {
-  test('an entry reads in every locale, as fields and as the YAML written for it', () => {
+  test('an entry reads in every locale, as fields', () => {
     const view = readEntry(project(), 'cart.items');
     expect(view.locales).toEqual(['de', 'fr', 'tr']);
-    expect(view.files).toEqual({
-      catalog: 'copy/catalog/cart.yaml',
-      translations: { de: 'copy/locales/de/cart.yaml', fr: 'copy/locales/fr/cart.yaml', tr: 'copy/locales/tr.yaml' },
-    });
     expect(view.fields).toMatchObject({ kind: 'state', context: 'Counts what is in the cart.', args: { count: 'how many items' } });
     expect(view.fields.translations).toEqual({ de: '{count, plural, other {# Artikel}}', fr: '', tr: '' });
-    expect(view.yaml.catalog).toBe(CATALOG.slice(CATALOG.indexOf('cart.items:')).trimEnd());
-    expect(view.yaml.translations).toEqual({ de: "cart.items: '{count, plural, other {# Artikel}}'", fr: '', tr: '' });
     expect(view.argNames).toEqual(['count']);
   });
 
@@ -57,7 +51,7 @@ describe('editing an entry in place', () => {
       context: 'Heads the cart.',
       translations: { de: 'Dein Warenkorb', fr: 'Panier', tr: 'Sepet: hepsi' },
     };
-    expect(editEntry(config, 'cart.title', { fields }, true).problems).toEqual([]);
+    expect(editEntry(config, 'cart.title', fields, true).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(
       CATALOG.replace('cart.title: Cart', 'cart.title:\n  kind: name\n  context: Heads the cart.\n  en: Your cart'),
     );
@@ -73,20 +67,20 @@ describe('editing an entry in place', () => {
     const view = readEntry(config, 'cart.items');
     expect(view.fields).toMatchObject({ comment: '', remove: false });
     const marked = { ...view.fields, comment: 'Say "in your cart".', remove: true };
-    expect(editEntry(config, 'cart.items', { fields: marked }, true).problems).toEqual([]);
+    expect(editEntry(config, 'cart.items', marked, true).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toContain(
       `    count: how many items\n  comment: Say "in your cart".\n  remove: true\n  en: '{count`,
     );
     expect(readEntry(config, 'cart.items').fields).toMatchObject({ comment: 'Say "in your cart".', remove: true });
 
-    expect(editEntry(config, 'cart.items', { fields: view.fields }, true).problems).toEqual([]);
+    expect(editEntry(config, 'cart.items', view.fields, true).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(CATALOG);
   });
 
   test('a translation left empty is removed, and the locale falls back', () => {
     const config = project();
     const view = readEntry(config, 'cart.title');
-    expect(editEntry(config, 'cart.title', { fields: { ...view.fields, translations: { de: '' } } }, true).problems).toEqual([]);
+    expect(editEntry(config, 'cart.title', { ...view.fields, translations: { de: '' } }, true).problems).toEqual([]);
     expect(read(config, 'copy/locales/de/cart.yaml')).toBe("cart.items: '{count, plural, other {# Artikel}}'\n");
     expect(existsSync(join(config.root, 'copy/locales/fr/cart.yaml'))).toBe(false);
   });
@@ -95,7 +89,7 @@ describe('editing an entry in place', () => {
     const config = project();
     const view = readEntry(config, 'cart.items');
     const fields = { ...view.fields, message: '{n, plural, one {# item} other {# items}}', translations: { tr: 'Sepet {' } };
-    const problems = editEntry(config, 'cart.items', { fields }, true)
+    const problems = editEntry(config, 'cart.items', fields, true)
       .problems.map((p) => p.message)
       .join('\n');
     expect(problems).toContain('args.count is neither a placeholder nor a tag of this message');
@@ -103,36 +97,13 @@ describe('editing an entry in place', () => {
     expect(read(config, 'copy/locales/tr.yaml')).toBe('app.title: Dükkan\n');
   });
 
-  test('YAML replaces the entry as typed, adds and removes translations, and must keep its key', () => {
+  test('an edit checked without writing comes back with what lint says of it', () => {
     const config = project();
-    const yaml =
-      "cart.items:\n  kind: state\n  context: Counts the cart.\n  args:\n    count: how many items\n  en: '{count, plural, one {# thing} other {# things}}'";
-    const preview = editEntry(
-      config,
-      'cart.items',
-      { yaml: { catalog: yaml, translations: { tr: "cart.items: '{count, plural, other {# şey}}'" } } },
-      false,
-    );
-    expect(preview.view?.fields).toMatchObject({ context: 'Counts the cart.', translations: { tr: '{count, plural, other {# şey}}' } });
+    const view = readEntry(config, 'cart.title');
+    const preview = editEntry(config, 'cart.title', { ...view.fields, message: 'Your  cart' }, false);
+    expect(preview.problems).toEqual([]);
+    expect(preview.view?.fields.message).toBe('Your  cart');
+    expect(preview.view?.findings.find((f) => f.rule === 'whitespace')?.fixed).toBe('Your cart');
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(CATALOG);
-
-    const renamed = editEntry(
-      config,
-      'cart.items',
-      { yaml: { catalog: yaml, translations: { tr: "cart.count: '{count, plural, other {# şey}}'" } } },
-      true,
-    );
-    expect(renamed.problems.map(whereOf)).toEqual(['copy/locales/tr.yaml cart.items']);
-
-    const result = editEntry(
-      config,
-      'cart.items',
-      { yaml: { catalog: yaml, translations: { de: '', tr: "cart.items: '{count, plural, other {# şey}}'" } } },
-      true,
-    );
-    expect(result.problems).toEqual([]);
-    expect(read(config, 'copy/catalog/cart.yaml')).toContain('Counts the cart.');
-    expect(read(config, 'copy/locales/de/cart.yaml')).toBe('cart.title: Warenkorb\n');
-    expect(read(config, 'copy/locales/tr.yaml')).toBe("app.title: Dükkan\ncart.items: '{count, plural, other {# şey}}'\n");
   });
 });

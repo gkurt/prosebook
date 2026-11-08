@@ -43,7 +43,7 @@ export type Messages = {
    */
   "demo.editor": { args: {}; tags: never };
   /**
-   * The entry you click opens here, as it would in your editor.
+   * Open in editor, in the dialog, opens the entry here, as it would in yours.
    *
    * Fills the mock editor before an entry is open.
    */
@@ -61,7 +61,7 @@ export type Messages = {
    */
   "demo.fallback": { args: {}; tags: never };
   /**
-   * Lint has a finding on “{text}” ({key}). Right-click that string with Alt held, or while inspecting, to see it and fix it.
+   * Lint has a finding on “{text}” ({key}). Click that string with Alt held, or while inspecting, to see it and fix it.
    *
    * Under the mock shop, points at a string lint has something to say about.
    */
@@ -75,7 +75,7 @@ export type Messages = {
     tags: never;
   };
   /**
-   * Hold <kbd>{key}</kbd> and click a string, or right-click it to edit it here.
+   * Hold <kbd>{key}</kbd> and click a string to edit it here.
    *
    * Under the mock shop. The key is Alt, or Option on a Mac.
    *
@@ -113,7 +113,7 @@ export type Messages = {
    */
   "demo.saved": { args: {}; tags: never };
   /**
-   * Shift-click opens the catalog entry, even for a translated string.
+   * A translated string opens in its locale's file, the source in the catalog.
    *
    * Under the mock editor, before an entry is open.
    */

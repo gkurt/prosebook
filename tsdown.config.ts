@@ -27,7 +27,7 @@ export default defineConfig([
       metro: 'src/metro.ts',
       bun: 'src/bun.ts',
       astro: 'src/astro.ts',
-      inspector: 'src/inspector.ts',
+      'inspector/index': 'src/inspector/index.ts',
       config: 'src/tools/config.ts',
       tools: 'src/tools/index.ts',
       cli: 'src/cli.ts',

@@ -352,16 +352,19 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   page, since a page Astro renders may have no script importing the index. Astro leaves a module the
   browser imports too to the browser's hot update, which can't change the HTML the server wrote, so
   `reloadOnEdit` drops a generated module's update from the server's runner and reloads the page.
-- `src/inspector.ts`: browser code, loaded from beside each integration (a tsdown entry of its own).
-  `install` runs once per page, since Bun and Next run the index again on every change. Matches the text under the pointer to the reads the runtime reported, since the DOM carries no
-  keys, and to those the server reported (`/__prosebook/reads`), asked for again each time Alt goes
-  down. `src/reads.ts` is the record of them both keep. Its test drives `keyAt` over a DOM. `inspector-dialog.ts`: the Alt-right-click dialog, in a
-  shadow root, which edits an entry through the plugin's `/__prosebook/entry`. While typing it posts
-  the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships
-  to the browser. Its comment field and Mark for removal write the entry's `comment` and `remove`:
-  requests for whoever edits next, which `loadCatalog` reports as warnings so agents find them.
-- `src/tools/entry.ts`: an entry in every locale, as fields and as the YAML written for it, and edits
-  to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
+- `src/inspector/`: browser code, loaded from beside each integration (`index.ts`, a tsdown entry of
+  its own). One gesture: Alt shows each string's key, Alt-click opens the dialog. `install` runs once
+  per page, since Bun and Next run the index again on every change. `locate.ts` matches the text under
+  the pointer to the reads the runtime reported, since the DOM carries no keys, and to those the server
+  reported (`/__prosebook/reads`), asked for again each time Alt goes down; its test drives `keyAt`
+  over a DOM. `reads.ts` is the record of them both keep. `dialog.ts`, in a shadow root, edits an
+  entry through the plugin's `/__prosebook/entry`: the text as read and, beside a translation, the
+  source; the rest under More, whose state `localStorage` keeps. While typing it posts the edit unsaved
+  and shows the view's `findings`, each with its `fixed` text, so no lint code ships to the browser.
+  Its comment field and Mark for removal write the entry's `comment` and `remove`: requests for whoever
+  edits next, which `loadCatalog` reports as warnings so agents find them. Keep it lean: what the
+  dialog doesn't show by default belongs under More, and editing as YAML is the editor's.
+- `src/tools/entry.ts`: an entry in every locale, as fields, and edits to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document
   so the rest of the file stays as it was. An empty translation removes the key from its locale.
   `applyFixes` makes the edits lint findings carry, the same way, and `importTranslations` a locale's

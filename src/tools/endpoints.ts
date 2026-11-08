@@ -1,5 +1,5 @@
 /**
- * The dev server's half of the inspector (`inspector.ts`, `inspector-dialog.ts`): `__prosebook/open`,
+ * The dev server's half of the inspector (`inspector/`): `__prosebook/open`,
  * which opens an entry in the editor, `__prosebook/entry`, which reads and edits one, and, where the
  * server renders in this process, `__prosebook/reads`, what those renders read. Written over
  * `Request` and `Response`, so each integration mounts them its own way: Vite as middleware, Bun as
@@ -10,11 +10,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { DevHooks, ReadHook } from '#src/runtime/types.ts';
 
-import { record, type Reads } from '#src/reads.ts';
+import { record, type Reads } from '#src/inspector/reads.ts';
 
 import { CatalogError, entryLocation, loadCatalog, type EntryLocation } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { editEntry, readEntry, type EntryEdit } from './entry.ts';
+import { editEntry, readEntry, type EntryFields } from './entry.ts';
 
 export interface EndpointOptions {
   /** The path the endpoints sit under, ending in `/`: `/` by default. */
@@ -40,8 +40,8 @@ export function inspectorEndpoints(
 }
 
 /**
- * `?key=cart.items&locale=de`: the translation's entry, or the catalog's with `catalog` or when the
- * locale has none. Read from disk, so a key added since the page loaded is found.
+ * `?key=cart.items&locale=de`: the translation's entry, or the catalog's for the source or a locale
+ * with none. Read from disk, so a key added since the page loaded is found.
  */
 async function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions['open']): Promise<Response> {
   const key = url.searchParams.get('key') ?? '';
@@ -53,12 +53,11 @@ async function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions
   }
   if (message === undefined)
     return new Response(`no entry for "${key}" in the catalog: has it been renamed since the page loaded?`, { status: 404 });
-  const locale = url.searchParams.has('catalog') ? undefined : (url.searchParams.get('locale') ?? undefined);
-  return open(entryLocation(config, message, locale));
+  return open(entryLocation(config, message, url.searchParams.get('locale') ?? undefined));
 }
 
 /**
- * The inspector's dialog: GET `?key=…` reads an entry in every locale, POST `{ key, edit, write }`
+ * The inspector's dialog: GET `?key=…` reads an entry in every locale, POST `{ key, fields, write }`
  * applies an edit (`entry.ts`). A POST writes files, so only the page itself may send one: same origin,
  * and JSON, which a form on another site can't send without asking first.
  */
@@ -75,8 +74,8 @@ async function entry(config: ResolvedConfig, req: Request, url: URL): Promise<Re
   if (req.method !== 'POST' || !sameOrigin || req.headers.get('content-type')?.startsWith('application/json') !== true)
     return Response.json({ problems: [{ severity: 'error', message: 'edits come from the page, as JSON' }] }, { status: 403 });
   try {
-    const { key, edit, write } = (await req.json()) as { key: string; edit: EntryEdit; write?: boolean };
-    const result = editEntry(config, key, edit, write === true);
+    const { key, fields, write } = (await req.json()) as { key: string; fields: EntryFields; write?: boolean };
+    const result = editEntry(config, key, fields, write === true);
     return Response.json(result, { status: result.problems.length > 0 ? 422 : 200 });
   } catch (e) {
     return failed(e);

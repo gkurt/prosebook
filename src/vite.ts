@@ -20,7 +20,7 @@
  * hands the new messages to every copy (`HotHook`), which re-renders in the locale and state it was in.
  * The index accepts its own too, since its doc comments change with the source text, and reloads the
  * page only when a locale was added or removed. In the browser the index imports the dev module first,
- * which sets up the hooks and the inspector (`inspector.ts`) before any copy exists, so frameworks that
+ * which sets up the hooks and the inspector (`inspector/index.ts`) before any copy exists, so frameworks that
  * render their own HTML (TanStack Start, React Router) get them too. The server opens the entry the
  * inspector asks for through Vite's own `/__open-in-editor`, so the editor is whichever Vite already
  * launches.
@@ -104,7 +104,7 @@ const AREA_ID = '\0prosebook/area/';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
 
-const inspectorPath = beside(import.meta.url, 'inspector');
+const inspectorPath = beside(import.meta.url, 'inspector/index');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
 const ownDir = normalize(fileURLToPath(new URL('.', import.meta.url)));
 

@@ -1450,17 +1450,14 @@ Under Next the server can't link them; only hydration waits one request more.
 
 ## Inspector
 
-In dev, with any integration:
+In dev, with any integration: hold <kbd>Alt</kbd> to see which entry each string comes from, and Alt-click one to edit it on
+the page.
 
-| Gesture             |                                                          |
-| ------------------- | -------------------------------------------------------- |
-| Alt + point         | Outlines the string and names its key and locale.        |
-| Alt + click         | Opens its entry in your editor: the translation, if any. |
-| Alt + Shift + click | Opens the catalog entry.                                 |
-| Alt + right-click   | Edits the entry in a dialog on the page.                 |
-
-- The dialog shows the source, every translation, context, kind, surface and args, with lint findings as you type and a Fix for
-  each. <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place.
+- The dialog opens on the text as read, in its locale, the source beside a translation, with lint's findings as you type and a
+  **Fix** for each. **More** holds the rest of the entry: its other locales, context, kind, surface, what each placeholder holds,
+  and stays open once opened.
+- <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place.
+  **Open in editor** opens the entry in your editor instead, in the file of the field last in focus.
 - **Comment** and **Mark for removal** write `comment:` and `remove: true`, warnings in `generate` and `check` for whoever edits
   next, a coding agent included.
 - It matches the text under the pointer to what the runtime read: text changed after reading (`.toUpperCase()`) can't be traced.

@@ -555,13 +555,13 @@ h2 {
 .status.err {
   color: var(--err);
 }
-/* The Alt-right-click dialog, as the dev inspector draws it. */
+/* The Alt-click dialog, as the dev inspector draws it. */
 .dlg {
   position: fixed;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  width: min(440px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
   max-height: min(80vh, 640px);
   background: var(--raised);
   color: var(--ink);
@@ -575,14 +575,13 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 .dlg header {
   border-bottom: 1px solid var(--line);
 }
 .dlg footer {
   border-top: 1px solid var(--line);
-  flex-wrap: wrap;
 }
 .dlg .key {
   font: 600 12px/1.5 var(--mono);
@@ -591,18 +590,12 @@ h2 {
   padding: 1px 6px;
   border-radius: 4px;
 }
-.dlg .loc {
-  font: 12px/1 var(--mono);
-  color: var(--muted);
-}
 .dlg .grow {
   flex: 1;
 }
-.dlg .tabs {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  overflow: hidden;
+.dlg .hint {
+  font-size: 12px;
+  color: var(--muted);
 }
 .dlg button {
   font: 500 13px/1 var(--sans);
@@ -613,39 +606,26 @@ h2 {
   padding: 7px 12px;
   cursor: pointer;
 }
-.dlg .tabs button {
-  border: 0;
-  border-radius: 0;
-  padding: 4px 10px;
-}
-.dlg .tabs button[aria-selected='true'],
 .dlg button.save {
   background: #7c3aed;
   border-color: #7c3aed;
   color: #fff;
 }
+.dlg button.quiet {
+  border: 0;
+  padding: 4px;
+  color: var(--muted);
+  background: transparent;
+}
+.dlg button.quiet:hover {
+  color: var(--ink);
+}
 .dlg button.x {
-  border: 0;
-  padding: 2px 6px;
   font-size: 18px;
-  color: var(--muted);
-  background: transparent;
 }
-.dlg button.link {
-  border: 0;
-  padding: 7px 0;
-  color: var(--muted);
-  text-decoration: underline;
-  background: transparent;
-}
-.dlg button.remove[aria-pressed='true'] {
-  color: var(--err);
-  border-color: currentColor;
-}
-.dlg.removing textarea[name='message'],
-.dlg.removing textarea[name='translation'] {
-  text-decoration: line-through;
-  color: var(--muted);
+.dlg button.small {
+  padding: 2px 8px;
+  font-size: 12px;
 }
 .dlg .body {
   padding: 12px;
@@ -663,7 +643,7 @@ h2 {
 .dlg textarea,
 .dlg input,
 .dlg select {
-  font: 13px/1.45 var(--mono);
+  font: 13px/1.45 var(--sans);
   color: var(--ink);
   background: var(--code-bg);
   border: 1px solid var(--line);
@@ -672,18 +652,43 @@ h2 {
   width: 100%;
   resize: vertical;
 }
-.dlg .prose {
-  font-family: var(--sans);
+.dlg code {
+  font: 12px/1.4 var(--mono);
 }
-.dlg .pair {
+.dlg summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.dlg summary .count {
+  color: var(--tok-kw);
+  font-weight: 400;
+}
+.dlg details > div {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.dlg .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.dlg label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 400;
+}
+.dlg label.check input {
+  width: auto;
   margin: 0;
 }
 .dlg .problems {
   margin: 0;
-  padding: 0 12px 0 28px;
+  padding: 0 12px 8px 28px;
   color: var(--err);
 }
 .dlg .problems:empty {
@@ -723,16 +728,12 @@ h2 {
   text-align: left;
   color: inherit;
 }
-.dlg .findings button.say:hover {
+.dlg .findings .say:hover {
   text-decoration: underline;
 }
 .dlg .findings .rule {
   font: 11px/1.4 var(--mono);
   color: var(--muted);
-}
-.dlg .findings button.fix {
-  padding: 2px 8px;
-  font-size: 12px;
 }
 
 /* Playground */

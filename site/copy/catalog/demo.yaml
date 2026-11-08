@@ -30,7 +30,7 @@ demo.hint:
   args:
     key: the name of the key on the keyboard
     kbd: marks the key's name as a key
-  en: Hold <kbd>{key}</kbd> and click a string, or right-click it to edit it here.
+  en: Hold <kbd>{key}</kbd> and click a string to edit it here.
 
 demo.inspect:
   kind: action
@@ -48,13 +48,13 @@ demo.empty:
   kind: state
   surface: empty
   context: Fills the mock editor before an entry is open.
-  en: The entry you click opens here, as it would in your editor.
+  en: Open in editor, in the dialog, opens the entry here, as it would in yours.
 
 demo.start:
   kind: description
   surface: hint
   context: Under the mock editor, before an entry is open.
-  en: Shift-click opens the catalog entry, even for a translated string.
+  en: A translated string opens in its locale's file, the source in the catalog.
 
 demo.translation:
   kind: state
@@ -101,7 +101,7 @@ demo.finding:
   args:
     text: the string, as the shop shows it
     key: its key, such as cart.checkout
-  en: Lint has a finding on “{text}” ({key}). Right-click that string with Alt held, or while inspecting, to see it and fix it.
+  en: Lint has a finding on “{text}” ({key}). Click that string with Alt held, or while inspecting, to see it and fix it.
 
 demo.clean:
   kind: state

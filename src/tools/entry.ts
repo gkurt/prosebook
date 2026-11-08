@@ -1,12 +1,11 @@
 /**
- * One entry as the dev inspector's dialog edits it, in every locale: as fields, or as the YAML written
- * in its files.
+ * One entry as the dev inspector's dialog edits it, as fields, in every locale.
  *
  * An edit is checked as the whole catalog, with the edited files read from memory, before anything is
  * written: a save that would break the build comes back as problems instead, and the dev server never
  * sees it. Fields are written into the parsed document, so comments, order and quoting elsewhere in the
- * file stay as they were; YAML replaces the entry's text as typed. A translation left empty is no
- * translation: one that was there is removed, and the locale falls back.
+ * file stay as they were. A translation left empty is no translation: one that was there is removed,
+ * and the locale falls back.
  */
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -35,24 +34,14 @@ export interface EntryFields {
   remove: boolean;
 }
 
-export interface EntryYaml {
-  /** The entry in the catalog, from its key to the end of its value. */
-  catalog: string;
-  /** By locale, the entry in that locale's file. Empty is no translation. */
-  translations?: Record<string, string>;
-}
-
 export interface EntryView {
   key: string;
   /** The source locale. */
   source: string;
   /** Every translated locale, the source aside. */
   locales: string[];
-  /** Relative to the project root. A locale without the entry names the file it would go in. */
-  files: { catalog: string; translations: Record<string, string> };
   /** With every locale in `translations`, empty where it has none. */
   fields: EntryFields;
-  yaml: Required<EntryYaml>;
   /** The source message's placeholders. */
   argNames: string[];
   kinds: string[];
@@ -66,11 +55,9 @@ export interface EntryFinding extends Finding {
   fixed?: string;
 }
 
-export type EntryEdit = { fields: EntryFields } | { yaml: EntryYaml };
-
 /** The entry for `key`, with its translation in every locale. */
 export function readEntry(config: ResolvedConfig, key: string): EntryView {
-  return viewOf(config, loadCatalog(config, undefined, { partial: true }), key, new Map());
+  return viewOf(config, loadCatalog(config, undefined, { partial: true }), key);
 }
 
 /**
@@ -87,45 +74,29 @@ export function checkEdit(config: ResolvedConfig, unsaved: ReadonlyMap<string, s
 
 /**
  * Applies an edit and checks the catalog with it. With `write`, a clean edit is written; without, it
- * only comes back as the view, which is how the dialog turns fields into YAML and back.
+ * only comes back as the view, with what lint says of it, which is how the dialog checks as you type.
  */
-export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, write: boolean): { view?: EntryView; problems: Problem[] } {
-  const current = viewOf(config, loadCatalog(config, undefined, { partial: true }), key, new Map());
+export function editEntry(
+  config: ResolvedConfig,
+  key: string,
+  fields: EntryFields,
+  write: boolean,
+): { view?: EntryView; problems: Problem[] } {
+  const loaded = loadCatalog(config, undefined, { partial: true });
+  const current = viewOf(config, loaded, key);
+  const message = loaded.messages.find((m) => m.key === key)!;
   const unsaved = new Map<string, string>();
   const text = (file: string) => contentOf(config, file, unsaved);
-  const put = (file: string, content: string) => unsaved.set(resolve(config.root, file), content);
-  // Locales the edit gives a translation, which the checked catalog must then have.
-  const translated: string[] = [];
-
-  if ('yaml' in edit) {
-    put(current.files.catalog, withSnippet(text(current.files.catalog), key, edit.yaml.catalog));
-    for (const locale of current.locales) {
-      const yaml = edit.yaml.translations?.[locale]?.trim() ?? current.yaml.translations[locale]!;
-      if (yaml !== '') translated.push(locale);
-      if (yaml === current.yaml.translations[locale]) continue;
-      put(current.files.translations[locale]!, withSnippet(text(current.files.translations[locale]!), key, yaml));
-    }
-  } else {
-    put(current.files.catalog, withFields(text(current.files.catalog), key, edit.fields, config.source));
-    for (const locale of current.locales) {
-      const next = edit.fields.translations[locale] ?? '';
-      if (next.trim() !== '') translated.push(locale);
-      if (next === current.fields.translations[locale]) continue;
-      put(current.files.translations[locale]!, withTranslation(text(current.files.translations[locale]!), key, next));
-    }
+  unsaved.set(resolve(config.root, message.file), withFields(text(message.file), key, fields, config.source));
+  for (const locale of current.locales) {
+    const next = fields.translations[locale] ?? '';
+    if (next === current.fields.translations[locale]) continue;
+    const file = translationFile(config, message, locale);
+    unsaved.set(resolve(config.root, file), withTranslation(text(file), key, next));
   }
 
   const { catalog, problems } = checkEdit(config, unsaved);
   if (problems.length > 0) return { problems };
-  const message = catalog.messages.find((m) => m.key === key);
-  const renamed = [
-    ...(message === undefined ? [current.files.catalog] : []),
-    ...translated.filter((l) => message?.translations.has(l) !== true).map((l) => current.files.translations[l]!),
-  ];
-  if (renamed.length > 0) {
-    const problem = `the entry is still ${key}: rename a key in the code and the catalog together`;
-    return { problems: renamed.map((file) => ({ severity: 'error', file, key, message: problem })) };
-  }
 
   if (write) {
     for (const [path, content] of unsaved) {
@@ -134,7 +105,7 @@ export function editEntry(config: ResolvedConfig, key: string, edit: EntryEdit, 
       writeFileSync(path, content);
     }
   }
-  return { view: viewOf(config, catalog, key, unsaved), problems: [] };
+  return { view: viewOf(config, catalog, key), problems: [] };
 }
 
 /**
@@ -259,15 +230,13 @@ export function translationFile(config: ResolvedConfig, message: Message, locale
   return relative(config.root, path).replaceAll('\\', '/');
 }
 
-function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: Map<string, string>): EntryView {
+function viewOf(config: ResolvedConfig, catalog: Catalog, key: string): EntryView {
   const message = catalog.messages.find((m) => m.key === key);
   if (message === undefined) throw new Error(`no entry for "${key}" in the catalog: has it been renamed since the page loaded?`);
-  const files = Object.fromEntries(catalog.locales.map((l) => [l, translationFile(config, message, l)]));
   return {
     key,
     source: config.source,
     locales: catalog.locales,
-    files: { catalog: message.file, translations: files },
     fields: {
       message: message.text,
       translations: Object.fromEntries(catalog.locales.map((l) => [l, message.translations.get(l)?.text ?? ''])),
@@ -278,10 +247,6 @@ function viewOf(config: ResolvedConfig, catalog: Catalog, key: string, unsaved: 
       args: Object.fromEntries(message.argDocs),
       comment: message.comment ?? '',
       remove: message.remove,
-    },
-    yaml: {
-      catalog: snippetOf(contentOf(config, message.file, unsaved), key)?.text ?? '',
-      translations: Object.fromEntries(catalog.locales.map((l) => [l, snippetOf(contentOf(config, files[l]!, unsaved), key)?.text ?? ''])),
     },
     argNames: [...message.args.keys()],
     kinds: Object.keys(config.kinds),
@@ -305,18 +270,6 @@ export function snippetOf(file: string, key: string): { start: number; end: numb
   // The last value in a file runs to its final newline; the snippet stops at the text.
   const end = start + file.slice(start, valueEnd).trimEnd().length;
   return { start, end, text: file.slice(start, end) };
-}
-
-/** The file with the entry's text replaced, removed when `yaml` is empty, or added at the end. */
-function withSnippet(file: string, key: string, yaml: string): string {
-  const text = yaml.replace(/\n+$/, '');
-  const at = snippetOf(file, key);
-  if (at !== undefined) {
-    if (text.trim() === '') return file.slice(0, at.start) + file.slice(at.end).replace(/^\n/, '');
-    return file.slice(0, at.start) + text + file.slice(at.end);
-  }
-  if (text.trim() === '') return file;
-  return file.trim() === '' ? `${text}\n` : `${file.replace(/\n*$/, '\n')}${text}\n`;
 }
 
 // As YAML 1.1, so a new value that 1.1 would read differently, like `n`, is quoted (as in migrate.ts).
@@ -343,12 +296,6 @@ function setValue(doc: Document, map: YAMLMap, name: string, value: unknown): vo
 function withFields(file: string, key: string, fields: EntryFields, source: string): string {
   const doc = parse(file);
   let entry = doc.get(key, true);
-  // `key: message` gains a mapping once it has anything to say about itself.
-  if (!isMap(entry)) {
-    entry = doc.createNode({ [source]: fields.message });
-    doc.set(key, entry);
-  }
-  const map = entry as YAMLMap;
   const args = Object.fromEntries(Object.entries(fields.args).filter(([, v]) => v.trim() !== ''));
   const wanted: [string, unknown][] = [
     ['kind', fields.kind.trim() || undefined],
@@ -359,6 +306,14 @@ function withFields(file: string, key: string, fields: EntryFields, source: stri
     ['comment', fields.comment.trim() || undefined],
     ['remove', fields.remove || undefined],
   ];
+  // `key: message` stays one until it has something to say about itself, then gains a mapping.
+  if (!isMap(entry)) {
+    // An empty message is kept as one, for the check to refuse, rather than taking the entry away.
+    if (fields.message.trim() !== '' && wanted.every(([, value]) => value === undefined)) return withTranslation(file, key, fields.message);
+    entry = doc.createNode({ [source]: fields.message });
+    doc.set(key, entry);
+  }
+  const map = entry as YAMLMap;
   for (const [name, value] of wanted) {
     if (value === undefined) {
       map.delete(name);

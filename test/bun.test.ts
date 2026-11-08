@@ -316,7 +316,7 @@ test("under Bun's dev server, the index sets up the hot hooks and the inspector,
   const index = (await load('index.ts'))!.contents;
   expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
   expect(index).toContain('installInspector({"base":"/"})');
-  expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('export function keyAt');
+  expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('function install');
   expect((await load('de.ts'))?.contents).toContain('update("de", next.default)');
   expect(filter.test(join(config.root, 'src', 'main.ts'))).toBe(false);
   // Served in production, the page has no inspector.
@@ -336,13 +336,13 @@ test("the inspector's routes read and edit entries from the page only, and open 
   }
   const entry = routes['/__prosebook/entry']!;
   const read = (await (await entry(new Request('http://localhost:3000/__prosebook/entry?key=app.used'))).json()) as EntryView;
-  expect(read.yaml.catalog).toBe('app.used: Used message');
+  expect(read.fields.message).toBe('Used message');
   const post = (origin: string) =>
     entry(
       new Request('http://localhost:3000/__prosebook/entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Origin: origin },
-        body: JSON.stringify({ key: 'app.used', edit: { yaml: { catalog: 'app.used: Still used' } }, write: true }),
+        body: JSON.stringify({ key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true }),
       }),
     );
   expect((await post('https://elsewhere.example')).status).toBe(403);
