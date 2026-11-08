@@ -74,10 +74,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
           <pre><span class="w">const</span> {'{'} t {'}'} = useCopy();
 
 &lt;p&gt;{'{'}t(<span class="s">'cart.items'</span>, {'{'} count {'}'}){'}'}&lt;/p&gt;
-<span class="c">// "3 items in your cart."</span>
-
-&lt;Text id=<span class="s">"cart.terms"</span> /&gt;
-<span class="c">// "By checking out you agree to our &lt;u&gt;terms of sale&lt;/u&gt;."</span></pre>
+<span class="c">// "3 items in your cart."</span></pre>
         </div>
       </div>
 
@@ -94,78 +91,6 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         <li><a href={api('bun')}>Bun</a></li>
         <li><a href={api('astro')}>Astro</a></li>
       </ul>
-
-      <section class="block">
-        <p class="eyebrow">{t('features.eyebrow')}</p>
-        <h2>{t('features.title')}</h2>
-        <div class="shows">
-          <article>
-            <h3><a href={api('types')}>{t('features.types')}</a></h3>
-            <div class="code">
-              <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
-t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs {'{'} count {'}'}</span>
-t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3 items in your cart."</span></pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('messages')}>{t('features.compiled')}</a></h3>
-            <div class="code">
-              <header>{t('features.generated', { file: 'src/copy/en.ts' })}</header>
-              <pre><span class="s">"cart.title"</span>: <span class="s">"Cart"</span>,
-<span class="s">"cart.total"</span>: (a, h) =&gt; [<span class="s">"Total: "</span>, h.n(a.amount, o2) ?? h.e(<span class="s">"{'{'}amount{'}'}"</span>)],
-<span class="s">"cart.terms"</span>: (a, h) =&gt; [<span class="s">"By checking out you agree to our "</span>, h.t(a, <span class="s">"link"</span>, <span class="s">"terms of sale"</span>), <span class="s">"."</span>],</pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('translations')}>{t('features.translations')}</a></h3>
-            <div class="code">
-              <pre><span class="c">$</span> prosebook check
-<span class="x">error</span> copy/locales/de/cart.yaml cart.items: differs from the source: missing {'{'}count{'}'}; unknown {'{'}anzahl{'}'}</pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('lint')}>{t('features.lint')}</a></h3>
-            <div class="code">
-              <pre><span class="c">$</span> prosebook lint
-<span class="x">error</span> cart.remove: [plural-count] count is followed by "items", which reads "1 items": make it a plural with a "# item" arm
-<span class="x">error</span> cart.total: [formatted-by-hand] "€" is typed before amount: format it as a currency, which puts the symbol where the locale does</pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('builds')}>{t('features.builds')}</a></h3>
-            <div class="code">
-              <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
-<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span>
-
-t(item.key);
-<span class="x">// ✗ 1 read(s) whose key the build can't see, so their
-//   messages would be pruned and the key shown instead</span></pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('native-targets')}>{t('features.native')}</a></h3>
-            <div class="code">
-              <pre><span class="c">// Rust</span>
-copy.recordings(<span class="k">3</span>) <span class="c">// "3 Aufnahmen"</span>
-<span class="c">// Swift</span>
-copy.trayRecordings(count: <span class="k">3</span>)
-<span class="c">// Kotlin</span>
-copy.trayRecordings(<span class="k">3</span>)
-<span class="c">// and Android's and Apple's string resources</span></pre>
-            </div>
-          </article>
-        </div>
-        <p class="more">
-          {t('features.also')}
-          <a href={api('named-formats')}>{t('features.also.named-formats')}</a> ·
-          <a href={api('icu-messageformat')}>{t('features.also.lists')}</a> ·
-          <a href={api('find')}>{t('features.also.find')}</a> ·
-          <a href={api('extract')}>{t('features.also.extract')}</a> ·
-          <a href={api('rename')}>{t('features.also.rename')}</a> ·
-          <a href={api('diff')}>{t('features.also.diff')}</a> ·
-          <a href={api('pseudo-locale')}>{t('features.also.pseudo')}</a>
-        </p>
-      </section>
 
       <section class="block" id="in-context">
         <p class="eyebrow">{t('demo.eyebrow')}</p>
@@ -214,6 +139,50 @@ copy.trayRecordings(<span class="k">3</span>)
         </div>
       </section>
 
+      <section class="block">
+        <p class="eyebrow">{t('features.eyebrow')}</p>
+        <h2>{t('features.title')}</h2>
+        <div class="shows">
+          <article>
+            <h3><a href={api('types')}>{t('features.types')}</a></h3>
+            <div class="code">
+              <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
+t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs {'{'} count {'}'}</span>
+t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3 items in your cart."</span></pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('lint')}>{t('features.lint')}</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook lint
+<span class="x">error</span> cart.remove: [plural-count] count is followed by "items", which reads "1 items": make it a plural with a "# item" arm</pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('stale-translations')}>{t('features.translations')}</a></h3>
+            <div class="code">
+              <pre><span class="c">$</span> prosebook status --verbose
+  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{'{'}+Pay now+{'}'}</span></pre>
+            </div>
+          </article>
+          <article>
+            <h3><a href={api('builds')}>{t('features.builds')}</a></h3>
+            <div class="code">
+              <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
+<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span></pre>
+            </div>
+          </article>
+        </div>
+        <p class="more">
+          {t('features.also')}{' '}
+          <a href={api('native-targets')}>{t('features.also.native')}</a>{' · '}
+          <a href={api('translating-with-a-model')}>{t('features.also.model')}</a>{' · '}
+          <a href={api('extract')}>{t('features.also.extract')}</a>{' · '}
+          <a href={api('rename')}>{t('features.also.rename')}</a>{' · '}
+          <a href={api('diff')}>{t('features.also.diff')}</a>
+        </p>
+      </section>
+
       <section class="block" id="playground">
         <p class="eyebrow">{t('playground.eyebrow')}</p>
         <h2>{t('playground.title')}</h2>
@@ -249,39 +218,6 @@ copy.trayRecordings(<span class="k">3</span>)
               </span>
             </div>
             <div class="out" tabindex="0"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="block">
-        <p class="eyebrow">{t('translators.eyebrow')}</p>
-        <h2>{t('translators.title')}</h2>
-        <div class="pair">
-          <div class="code">
-            <header>{t('site.terminal')}</header>
-            <pre><span class="c">$</span> prosebook status --verbose
-de           13/14  92%        1      2
-  stale   cart.add: Add <span class="add">{'{'}+one +{'}'}</span>to cart
-  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{'{'}+Pay now+{'}'}</span>
-
-<span class="c">$</span> prosebook todo de
-<span class="c"># The button on a product that adds one to the cart.</span>
-<span class="c"># kind: action, surface: action</span>
-<span class="c"># en: Add one to cart</span>
-<span class="c"># stale, the source changed: Add {'{'}+one +{'}'}to cart</span>
-<span class="k">cart.add</span>: In den Warenkorb</pre>
-          </div>
-          <div class="code">
-            <header>{t('site.terminal')}</header>
-            <pre><span class="c"># with any model</span>
-<span class="c">$</span> prosebook todo de --prompt | pbcopy
-<span class="c">$</span> prosebook import de reply.md
-
-<span class="c"># with any translation tool</span>
-<span class="c">$</span> prosebook export de de.xlf
-<span class="c">$</span> prosebook import de de.xlf
-
-<span class="c"># every entry checked before it's written</span></pre>
           </div>
         </div>
       </section>

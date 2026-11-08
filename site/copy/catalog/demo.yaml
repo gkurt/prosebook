@@ -15,7 +15,7 @@ demo.intro:
   kind: description
   surface: hint
   context: Under the demo's heading, above a mock shop and a mock editor.
-  en: 'In your running app, under Vite, Next.js, Bun or Astro. Try it on the shop:'
+  en: 'Alt-click any string in your running app to edit it there. Try it on the shop:'
 
 demo.locale:
   kind: name
@@ -30,7 +30,7 @@ demo.hint:
   args:
     key: the name of the key on the keyboard
     kbd: marks the key's name as a key
-  en: Hold <kbd>{key}</kbd> and click a string to edit it here.
+  en: Hold <kbd>{key}</kbd> and click a string.
 
 demo.inspect:
   kind: action
@@ -48,13 +48,13 @@ demo.empty:
   kind: state
   surface: empty
   context: Fills the mock editor before an entry is open.
-  en: Open in editor, in the dialog, opens the entry here, as it would in yours.
+  en: Open in editor, in the dialog, lands here.
 
 demo.start:
   kind: description
   surface: hint
   context: Under the mock editor, before an entry is open.
-  en: A translated string opens in its locale's file, the source in the catalog.
+  en: A translation opens in its locale's file.
 
 demo.translation:
   kind: state
@@ -84,7 +84,7 @@ demo.saved:
   kind: state
   surface: status
   context: Under the mock editor, once an edit there has changed the mock shop.
-  en: Saved. prosebook regenerated, and the page swapped the message in without reloading.
+  en: Saved. The page swapped the message in without reloading.
 
 demo.dialog-saved:
   kind: state
@@ -92,7 +92,7 @@ demo.dialog-saved:
   context: Under the mock editor, once an edit in the mock dialog has changed the mock shop.
   args:
     key: the key of the entry saved, such as cart.title
-  en: Saved {key} from the dialog. prosebook regenerated, and the page swapped it in without reloading.
+  en: Saved {key}. The page swapped it in without reloading.
 
 demo.finding:
   kind: state
@@ -100,8 +100,7 @@ demo.finding:
   context: Under the mock shop, points at a string lint has something to say about.
   args:
     text: the string, as the shop shows it
-    key: its key, such as cart.checkout
-  en: Lint has a finding on “{text}” ({key}). Click that string with Alt held, or while inspecting, to see it and fix it.
+  en: Lint flags “{text}”. Alt-click it to see why.
 
 demo.clean:
   kind: state

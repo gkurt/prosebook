@@ -423,9 +423,10 @@ page as it is built and by `src/demo.ts` in the browser; code samples and the to
 prosebook says in English, stay in the code. Its in-context demo (`src/demo.ts`) recreates the inspector over a copy of `examples/vite`'s cart catalog, so
 keep it in step when the inspector or that catalog changes. Its playground (`src/playground.ts`, the starting files in `src/playground/starter.ts`) runs `prosebook/playground` on
 a catalog the visitor edits, loaded once the section is near; its preview reads that catalog's keys, which the site's
-pruning can't see, so that read is `prosebook-ignore`. The page shows rather than tells: each feature is a
-heading linking to its section of API.md over a small example, its output copied from the real tools; a new
-feature joins the "Also" line under them rather than adding prose. The copy
+pruning can't see, so that read is `prosebook-ignore`. The page shows rather than tells, and stays lean enough
+to take in at a glance: the hero's catalog and code, the inspector demo, four features (each a heading linking to
+its section of API.md over an example of a few lines, its output copied from the real tools), the playground, and
+setup. A new feature joins the "Also" line under them, never a sample or prose of its own. The copy
 differs on purpose in one string, `cart.checkout`'s "Check out...", so the demo has a lint finding to show.
 `site/public/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are

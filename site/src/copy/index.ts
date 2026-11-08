@@ -19,7 +19,7 @@ export type Messages = {
    */
   "demo.clean": { args: {}; tags: never };
   /**
-   * Saved {key} from the dialog. prosebook regenerated, and the page swapped it in without reloading.
+   * Saved {key}. The page swapped it in without reloading.
    *
    * Under the mock editor, once an edit in the mock dialog has changed the mock shop.
    */
@@ -43,7 +43,7 @@ export type Messages = {
    */
   "demo.editor": { args: {}; tags: never };
   /**
-   * Open in editor, in the dialog, opens the entry here, as it would in yours.
+   * Open in editor, in the dialog, lands here.
    *
    * Fills the mock editor before an entry is open.
    */
@@ -61,7 +61,7 @@ export type Messages = {
    */
   "demo.fallback": { args: {}; tags: never };
   /**
-   * Lint has a finding on “{text}” ({key}). Click that string with Alt held, or while inspecting, to see it and fix it.
+   * Lint flags “{text}”. Alt-click it to see why.
    *
    * Under the mock shop, points at a string lint has something to say about.
    */
@@ -69,13 +69,11 @@ export type Messages = {
     args: {
       /** The string, as the shop shows it. */
       readonly text: string;
-      /** Its key, such as cart.checkout. */
-      readonly key: string;
     };
     tags: never;
   };
   /**
-   * Hold <kbd>{key}</kbd> and click a string to edit it here.
+   * Hold <kbd>{key}</kbd> and click a string.
    *
    * Under the mock shop. The key is Alt, or Option on a Mac.
    *
@@ -95,7 +93,7 @@ export type Messages = {
    */
   "demo.inspect": { args: {}; tags: never };
   /**
-   * In your running app, under Vite, Next.js, Bun or Astro. Try it on the shop:
+   * Alt-click any string in your running app to edit it there. Try it on the shop:
    *
    * Under the demo's heading, above a mock shop and a mock editor.
    */
@@ -107,13 +105,13 @@ export type Messages = {
    */
   "demo.locale": { args: {}; tags: never };
   /**
-   * Saved. prosebook regenerated, and the page swapped the message in without reloading.
+   * Saved. The page swapped the message in without reloading.
    *
    * Under the mock editor, once an edit there has changed the mock shop.
    */
   "demo.saved": { args: {}; tags: never };
   /**
-   * A translated string opens in its locale's file, the source in the catalog.
+   * A translation opens in its locale's file.
    *
    * Under the mock editor, before an entry is open.
    */
@@ -149,29 +147,17 @@ export type Messages = {
    */
   "features.also.extract": { args: {}; tags: never };
   /**
-   * Find
+   * Translate with any model
    *
-   * In the line of more features, links to the docs on `prosebook find`.
+   * In the line of more features, links to the docs on translating with a model.
    */
-  "features.also.find": { args: {}; tags: never };
+  "features.also.model": { args: {}; tags: never };
   /**
-   * Lists and durations
+   * Rust, Swift and Kotlin
    *
-   * In the line of more features, links to the docs on lists and durations in messages.
+   * In the line of more features, links to the docs on the Rust, Swift, Kotlin, Android and Apple targets.
    */
-  "features.also.lists": { args: {}; tags: never };
-  /**
-   * Named formats
-   *
-   * In the line of more features, links to the docs on named formats.
-   */
-  "features.also.named-formats": { args: {}; tags: never };
-  /**
-   * Pseudo-locale
-   *
-   * In the line of more features, links to the docs on the pseudo-locale.
-   */
-  "features.also.pseudo": { args: {}; tags: never };
+  "features.also.native": { args: {}; tags: never };
   /**
    * Rename
    *
@@ -185,29 +171,11 @@ export type Messages = {
    */
   "features.builds": { args: {}; tags: never };
   /**
-   * Compiled, never parsed
-   *
-   * Over a sample of the generated code, where each message is a plain function. Links to the docs on messages.
-   */
-  "features.compiled": { args: {}; tags: never };
-  /**
    * What you get
    *
    * The small line above the heading of the section listing what prosebook does.
    */
   "features.eyebrow": { args: {}; tags: never };
-  /**
-   * {file}, generated
-   *
-   * Heads a code sample, naming the file it comes from.
-   */
-  "features.generated": {
-    args: {
-      /** The file's path, such as src/copy/en.ts. */
-      readonly file: string;
-    };
-    tags: never;
-  };
   /**
    * Held to a writing guide
    *
@@ -215,21 +183,15 @@ export type Messages = {
    */
   "features.lint": { args: {}; tags: never };
   /**
-   * Native too
-   *
-   * Over calls to the same messages from Rust, Swift and Kotlin. Links to the docs on native targets.
-   */
-  "features.native": { args: {}; tags: never };
-  /**
    * Words you can change without touching code, checked like code.
    *
    * Heads the section listing what prosebook does, each with a code sample.
    */
   "features.title": { args: {}; tags: never };
   /**
-   * Translations can't drift
+   * Translators see what changed
    *
-   * Over a check failing on a translation whose placeholders differ from the source's. Links to the docs on translations.
+   * Over a translation marked stale, with the change to its source shown word by word. Links to the docs on stale translations.
    */
   "features.translations": { args: {}; tags: never };
   /**
@@ -429,12 +391,6 @@ export type Messages = {
    */
   "site.license": { args: {}; tags: "link" };
   /**
-   * terminal
-   *
-   * Heads a code sample that shows commands typed in a terminal and what they print.
-   */
-  "site.terminal": { args: {}; tags: never };
-  /**
    * Works with
    *
    * Names the list of frameworks and bundlers under the first example, for a screen reader.
@@ -467,18 +423,6 @@ export type Messages = {
    * Heads the section on setting prosebook up, over three code samples.
    */
   "start.title": { args: {}; tags: never };
-  /**
-   * For translators
-   *
-   * The small line above the heading of the section on translating.
-   */
-  "translators.eyebrow": { args: {}; tags: never };
-  /**
-   * Know what changed since the last translation.
-   *
-   * Heads the section on translating, over the commands that show and fill what is stale.
-   */
-  "translators.title": { args: {}; tags: never };
 };
 
 export const catalog = defineCatalog<Messages, Locale>({

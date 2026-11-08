@@ -35,12 +35,6 @@ site.works-with:
   context: Names the list of frameworks and bundlers under the first example, for a screen reader.
   en: Works with
 
-site.terminal:
-  kind: name
-  surface: label
-  context: Heads a code sample that shows commands typed in a terminal and what they print.
-  en: terminal
-
 site.license:
   kind: description
   surface: hint
