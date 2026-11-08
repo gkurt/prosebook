@@ -718,6 +718,16 @@ function remember(open: boolean) {
 
 // Alt-click on a link would download it; on a button, focus it.
 app.addEventListener('mousedown', (e) => e.altKey && e.preventDefault());
+// A press outside the dialog closes it, as the dev dialog does.
+addEventListener(
+  'mousedown',
+  (e) => {
+    if (dialog === undefined || dialog.contains(e.target as Node)) return;
+    dialog.remove();
+    dialog = undefined;
+  },
+  { capture: true },
+);
 addEventListener('keydown', (e) => {
   if (e.key === 'Alt') state.alt = true;
 });

@@ -186,12 +186,19 @@ class Dialog {
     });
 
     document.body.append(this.host);
+    // A press anywhere else on the page closes it, as Esc does; an Alt-click there opens the next.
+    window.addEventListener('mousedown', this.outside, { capture: true });
     this.place();
     this.field(locale)?.focus();
   }
 
+  private readonly outside = (e: MouseEvent) => {
+    if (!e.composedPath().includes(this.host)) this.close();
+  };
+
   readonly close = () => {
     clearTimeout(this.timer);
+    window.removeEventListener('mousedown', this.outside, { capture: true });
     this.host.remove();
     if (closeOpen === this.close) closeOpen = undefined;
   };
