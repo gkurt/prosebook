@@ -1,3 +1,17 @@
+## prosebook@0.13.3
+
+### Generated files tell linters and formatters to leave them alone
+
+The modules `generate` writes open with `/* eslint-disable */` (ESLint, oxlint, `bun lint`), Biome's, Deno's and dprint's
+whole-file ignores and `@generated`, and put `// prettier-ignore` before each statement for oxfmt, Prettier and `bun fmt`,
+which have no whole-file ignore for JavaScript. `WRITING.md` sits in a `prettier-ignore` range under `markdownlint-disable`;
+the Rust target carries `rustfmt_skip`, Swift `swiftlint:disable all` and `swift-format-ignore-file`, Kotlin ktlint's
+`Suppress`. Ignoring `src/copy/` in your tools' config is still the surest way; `catalog.schema.json`, being JSON, needs it.
+
+### The inspector is one gesture: Alt-click a string to edit it, in a leaner dialog
+
+The dialog opens below the string, on its text in the locale read and the source beside a translation, with lint's findings and fixes; the rest of the entry sits under More, which stays open once opened; a click outside closes it, as Esc does. Open in editor, in the dialog, takes the place of Alt-click and Alt-Shift-click, and opens the file of the field last in focus. The YAML tab is gone, and with it `EntryYaml`: `editEntry(config, key, fields, write)` takes the fields alone, and `EntryView` no longer has `files` or `yaml`.
+
 ## prosebook@0.13.2
 
 ### Linting text in code reads two-string picks in their sentence, names placeholders for their values, and suggests fewer proper nouns
