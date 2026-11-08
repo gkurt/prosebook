@@ -62,8 +62,9 @@ export default withProsebook({/* your Next config */});
 plugins = ["prosebook/bun"]
 ```
 
-Keep `src/copy/`, `copy/catalog/catalog.schema.json` and `copy/catalog/WRITING.md` out of your formatter: `generate --check`
-compares them byte for byte. See [Integrations](API.md#integrations) for Next.js, [webpack and Rspack](API.md#webpack-and-rspack),
+`generate --check` compares what it writes byte for byte. The modules and `WRITING.md` carry the comments that keep linters
+and formatters off them; keep `copy/catalog/catalog.schema.json`, which can't, and ideally `src/copy/` out of yours
+([why](API.md#integrations)). See [Integrations](API.md#integrations) for Next.js, [webpack and Rspack](API.md#webpack-and-rspack),
 [React Native and Expo](API.md#react-native-and-expo), Bun, [Astro](API.md#astro) and shared catalogs.
 
 ## Reading messages

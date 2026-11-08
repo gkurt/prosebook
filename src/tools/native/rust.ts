@@ -399,8 +399,10 @@ mod rt {${usesFormats ? NUMBER : ''}${model.rules.length > 0 ? PLURAL : ''}${use
 ${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${rules === '' ? '' : `\n${rules}`}}
 `;
 
+  // `#![rustfmt::skip]` is unstable as an inner attribute; rustfmt still reads the older spelling.
   return `${banner}
 #![allow(dead_code, non_snake_case, clippy::all)]
+#![cfg_attr(rustfmt, rustfmt_skip)]
 ${usesNumbers ? NUMBER_TRAIT : ''}${usesDates ? DATE_TIME : ''}
 /// A locale the catalog is written or translated in, and its messages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -188,7 +188,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   placeholder and no tag is a plain string; the repo's tsconfig turns `noUnusedParameters` on over the
   example's output, which keeps that so.
 - `src/tools/generate.ts`: the files `generate` writes, the catalog's own included where one lacks its
-  first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. `guide.ts`: the writing guide
+  first line, `SCHEMA_LINE` (`catalog.ts`), so `--check` fails there. Each module opens with `UNLINTED`, the
+  comments that keep linters and formatters off it, and puts `// prettier-ignore` (`verbatim`, `compile.ts`) before each
+  statement, since oxfmt, Prettier and `bun fmt` skip no whole JavaScript file; a new top-level statement needs one too.
+  The guide sits in a `prettier-ignore` range, and each native target carries its language's own. `guide.ts`: the writing guide
   `generate` writes (`guide`, `WRITING.md` in the catalog folder) for whoever writes next: only what
   the lint can't check, the kinds' and surfaces' docs, the named formats and the rules marked `guide`, which every
   `guideline` (a data rule with no check) is. Keep it short; what a rule checks, its finding says. `lock.ts`: stale translations and the source texts

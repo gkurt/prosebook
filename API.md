@@ -22,9 +22,14 @@ The full reference. For an overview, see the [README](README.md).
 
 Without one, run `prosebook generate` yourself. It writes `src/copy/`: a module per locale and an `index.ts` with the types.
 
-What `generate` writes is checked byte for byte by `generate --check`, so keep `src/copy/`, `copy/catalog/catalog.schema.json`
-and `copy/catalog/WRITING.md` out of your formatter and linter (Prettier's `.prettierignore`, oxfmt's `ignorePatterns`, Biome's
-`files.ignore`).
+What `generate` writes is checked byte for byte by `generate --check`, so a formatter or linter must leave it as written. The
+modules say so to every tool that reads a comment for it: `/* eslint-disable */` (ESLint, oxlint, `bun lint`), Biome's
+`biome-ignore-all`, Deno's and dprint's `ignore-file`, and `// prettier-ignore` before each statement, as oxfmt, Prettier and
+`bun fmt` skip no whole JavaScript file; `WRITING.md` sits between `prettier-ignore-start` and `-end`, and native targets carry
+their languages' own (`rustfmt_skip`, `swiftlint:disable all`, ktlint's `Suppress`). JSON takes no comment, so keep
+`copy/catalog/catalog.schema.json` out yourself, and better still `src/copy/` too (Prettier's `.prettierignore`, oxfmt's and
+`bun fmt`'s `ignorePatterns`, Biome's `files.includes`): a rule on the file's name, such as `unicorn/filename-case` on
+`en-XA.ts`, can't be turned off from inside it, and a linter reporting unused disable comments reports the module's own.
 
 ### Vite
 

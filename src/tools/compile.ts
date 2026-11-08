@@ -158,14 +158,21 @@ export function compileLocale(entries: Iterable<Entry>, keep?: (key: string) => 
   return { declarations: hoisted.declarations(), rows };
 }
 
+/**
+ * A statement a formatter leaves as written. oxfmt, Prettier and `bun fmt` have no comment that skips
+ * a whole JavaScript file, only one that skips the statement after it, so a generated module puts one
+ * before each of its own.
+ */
+export const verbatim = (statement: string) => `// prettier-ignore\n${statement}`;
+
 /** The locale as an ES module whose default export is its messages. */
 export function localeModule(compiled: CompiledLocale, banner: string, ts: boolean): string {
-  const head = ts ? `${banner}\nimport type { CompiledMessages } from 'prosebook';\n` : `${banner}\n`;
+  const head = ts ? `${banner}\n${verbatim("import type { CompiledMessages } from 'prosebook';")}\n` : `${banner}\n`;
   // `as const` keeps `style: "currency"` a literal, which is what `Intl`'s option types ask for.
   const declarations = ts ? compiled.declarations.map((d) => d.replace(/;$/, ' as const;')) : compiled.declarations;
-  const consts = declarations.length > 0 ? `\n${declarations.join('\n')}\n` : '';
+  const consts = declarations.length > 0 ? `\n${declarations.map(verbatim).join('\n')}\n` : '';
   const close = ts ? '} satisfies CompiledMessages;' : '};';
-  return `${head}${consts}\nexport default {\n${compiled.rows.join('\n')}\n${close}\n`;
+  return `${head}${consts}\n${verbatim(`export default {\n${compiled.rows.join('\n')}\n${close}`)}\n`;
 }
 
 /** The locale as one expression, for a bundler to inline in place of the module. */

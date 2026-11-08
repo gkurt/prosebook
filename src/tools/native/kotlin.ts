@@ -275,7 +275,7 @@ ${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${r
 `;
 
   return `${banner}
-@file:Suppress("unused", "NAME_SHADOWING", "KotlinConstantConditions", "ConvertTwoComparisonsToRangeCheck")
+@file:Suppress("ktlint", "unused", "NAME_SHADOWING", "KotlinConstantConditions", "ConvertTwoComparisonsToRangeCheck")
 ${target.package === undefined ? '' : `\npackage ${target.package}\n`}
 /** A locale the catalog is written or translated in, and its messages. */
 enum class ${name}(val tag: String) {

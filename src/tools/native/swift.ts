@@ -350,6 +350,8 @@ ${[...model.formats.map(formatConst), ...model.dates.map(dateFn)].join('\n')}${r
 `;
 
   return `${banner}
+// swiftlint:disable all
+// swift-format-ignore-file
 import Foundation
 ${numberProtocol}
 /// A locale the catalog is written or translated in, and its messages.
