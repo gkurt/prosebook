@@ -14,8 +14,8 @@ hero.lede:
 hero.try:
   kind: action
   surface: action
-  context: The main button under the headline. Scrolls to the live demo of the inspector.
-  en: Try it on the page
+  context: The main button under the headline. Scrolls to setting prosebook up.
+  en: Get started
 
 hero.docs:
   kind: action

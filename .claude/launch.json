@@ -61,6 +61,12 @@
       "runtimeArgs": ["run", "dev", "--port", "4321"],
       "port": 4321,
       "url": "http://localhost:4321"
+    },
+    {
+      "name": "site-built",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "site", "astro", "preview", "--port", "4400"],
+      "port": 4400
     }
   ]
 }

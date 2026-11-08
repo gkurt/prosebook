@@ -2,7 +2,7 @@
 playground.eyebrow:
   kind: name
   surface: label
-  context: The small line above the heading of the playground, where a visitor edits a catalog and sees what it compiles to.
+  context: In the top bar, links to the playground, where a visitor edits a catalog and sees what it compiles to.
   en: Playground
 
 playground.title:

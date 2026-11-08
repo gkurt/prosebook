@@ -1,7 +1,7 @@
 ---
 import '#src/site.css';
 
-import { rich, t } from '#src/copy.ts';
+import { reads, rich, t } from '#src/copy.ts';
 import { FILES } from '#src/playground/starter.ts';
 
 const api = (section: string) => `https://github.com/gkurt/prosebook/blob/main/API.md${section === '' ? '' : `#${section}`}`;
@@ -40,7 +40,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
       <div class="bar">
         <a class="mark" href={base}><img src={`${base}icon.svg`} width="28" height="28" alt="" />prose<span>book</span></a>
         <nav>
-          <a href="#in-context">{t('site.in-context')}</a>
+          {import.meta.env.PROD && <button type="button" class="toggle" id="inspect" aria-pressed="false">{t('inspect.toggle')}</button>}
           <a href="#playground">{t('playground.eyebrow')}</a>
           <a href={api('')}>{t('site.docs')}</a>
           <a href={repo}>{t('site.github')}</a>
@@ -51,9 +51,10 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         <h1>{t('hero.title')}</h1>
         <p class="lede">{t('hero.lede')}</p>
         <div class="actions">
-          <a class="btn primary" href="#in-context">{t('hero.try')}</a>
+          <a class="btn primary" href="#start">{t('hero.try')}</a>
           <a class="btn" href={api('')}>{t('hero.docs')}</a>
         </div>
+        <p class="note">{rich('inspect.hint', { key: 'Alt', kbd: (chunks) => <kbd>{chunks}</kbd> })}</p>
       </header>
 
       <div class="pair">
@@ -78,113 +79,40 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
         </div>
       </div>
 
-      <ul class="chips" aria-label={t('site.works-with')}>
-        <li><a href={api('react')}>React</a></li>
-        <li><a href={api('preact')}>Preact</a></li>
-        <li><a href={api('vue')}>Vue</a></li>
-        <li><a href={api('svelte')}>Svelte</a></li>
-        <li><a href={api('solid')}>Solid</a></li>
-        <li><a href={api('plain-javascript')}>JavaScript</a></li>
-        <li class="sep" aria-hidden="true"></li>
-        <li><a href={api('vite')}>Vite</a></li>
-        <li><a href={api('nextjs')}>Next.js</a></li>
-        <li><a href={api('bun')}>Bun</a></li>
-        <li><a href={api('astro')}>Astro</a></li>
-      </ul>
-
-      <section class="block" id="in-context">
-        <p class="eyebrow">{t('demo.eyebrow')}</p>
-        <h2>{t('demo.title')}</h2>
-        <p class="intro">{t('demo.intro')}</p>
-
-        <div class="demo">
-          <div class="window">
-            <div class="chrome">
-              <span class="dots"><i></i><i></i><i></i></span>
-              <span class="grow">localhost:5173</span>
-              <span class="seg" role="group" aria-label={t('demo.locale')}>
-                <button type="button" data-locale="en" aria-pressed="true">en</button>
-                <button type="button" data-locale="de" aria-pressed="false">de</button>
-              </span>
-            </div>
-            <div class="app" id="app">
-              <div class="outline" id="outline"><span></span></div>
-              <h4 data-key="cart.title"></h4>
-              <div data-key="cart.items"></div>
-              <div class="row">
-                <button type="button" class="ui" data-key="cart.add" data-act="add"></button>
-                <button type="button" class="ui" data-key="cart.remove" data-act="empty"></button>
-                <button type="button" class="ui primary" data-key="cart.checkout"></button>
-              </div>
-              <p class="small" data-key="cart.shipping"></p>
-              <p class="small" data-key="cart.terms"></p>
-            </div>
-            <div class="hint">
-              <span id="hint">{rich('demo.hint', { key: 'Alt', kbd: (chunks) => <kbd>{chunks}</kbd> })}</span>
-              <button type="button" class="toggle" id="inspect" aria-pressed="false">{t('demo.inspect')}</button>
-            </div>
-            <div class="lint-note" id="lint-note" aria-live="polite"></div>
-          </div>
-
-          <div class="window">
-            <div class="chrome">
-              <span class="dots"><i></i><i></i><i></i></span>
-              <span class="grow" id="file">{t('demo.editor')}</span>
-            </div>
-            <div class="editor" id="editor">
-              <div class="empty">{t('demo.empty')}</div>
-            </div>
-            <div class="status" id="status" aria-live="polite">{t('demo.start')}</div>
-          </div>
+      <section class="one">
+        <h2><a href={api('types')}>{t('features.types')}</a></h2>
+        <div class="code">
+          <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
+t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs {'{'} count {'}'}</span>
+t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3 items in your cart."</span></pre>
         </div>
       </section>
 
-      <section class="block">
-        <p class="eyebrow">{t('features.eyebrow')}</p>
-        <h2>{t('features.title')}</h2>
-        <div class="shows">
-          <article>
-            <h3><a href={api('types')}>{t('features.types')}</a></h3>
-            <div class="code">
-              <pre>t(<span class="s">'cart.itmes'</span>);            <span class="x">// ✗ not a key</span>
-t(<span class="s">'cart.items'</span>);            <span class="x">// ✗ needs {'{'} count {'}'}</span>
-t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3 items in your cart."</span></pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('lint')}>{t('features.lint')}</a></h3>
-            <div class="code">
-              <pre><span class="c">$</span> prosebook lint
+      <section class="one">
+        <h2><a href={api('lint')}>{t('features.lint')}</a></h2>
+        <div class="code">
+          <pre><span class="c">$</span> prosebook lint
 <span class="x">error</span> cart.remove: [plural-count] count is followed by "items", which reads "1 items": make it a plural with a "# item" arm</pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('stale-translations')}>{t('features.translations')}</a></h3>
-            <div class="code">
-              <pre><span class="c">$</span> prosebook status --verbose
-  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{'{'}+Pay now+{'}'}</span></pre>
-            </div>
-          </article>
-          <article>
-            <h3><a href={api('builds')}>{t('features.builds')}</a></h3>
-            <div class="code">
-              <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
-<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span></pre>
-            </div>
-          </article>
         </div>
-        <p class="more">
-          {t('features.also')}{' '}
-          <a href={api('native-targets')}>{t('features.also.native')}</a>{' · '}
-          <a href={api('translating-with-a-model')}>{t('features.also.model')}</a>{' · '}
-          <a href={api('extract')}>{t('features.also.extract')}</a>{' · '}
-          <a href={api('rename')}>{t('features.also.rename')}</a>{' · '}
-          <a href={api('diff')}>{t('features.also.diff')}</a>
-        </p>
+      </section>
+
+      <section class="one">
+        <h2><a href={api('stale-translations')}>{t('features.translations')}</a></h2>
+        <div class="code">
+          <pre><span class="c">$</span> prosebook status --verbose
+  stale   cart.checkout: <span class="del">[-Check out-]</span><span class="add">{'{'}+Pay now+{'}'}</span></pre>
+        </div>
+      </section>
+
+      <section class="one">
+        <h2><a href={api('builds')}>{t('features.builds')}</a></h2>
+        <div class="code">
+          <pre><span class="w">const</span> Cart = lazy(() =&gt; <span class="w">import</span>(<span class="s">'./Cart.tsx'</span>));
+<span class="c">// cart.* ships in Cart's chunk, and German loads beside it</span></pre>
+        </div>
       </section>
 
       <section class="block" id="playground">
-        <p class="eyebrow">{t('playground.eyebrow')}</p>
         <h2>{t('playground.title')}</h2>
         <p class="intro">{t('playground.intro')}</p>
 
@@ -223,36 +151,30 @@ t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3
       </section>
 
       <section class="block" id="start">
-        <p class="eyebrow">{t('start.eyebrow')}</p>
         <h2>{t('start.title')}</h2>
-        <div class="steps">
-          <div class="code">
-            <header>{t('start.install')}</header>
-            <pre><span class="c">$</span> bun add prosebook
-<span class="c">$</span> bunx prosebook init</pre>
-          </div>
-          <div class="code">
-            <header>2. vite.config.ts</header>
-            <pre><span class="w">import</span> {'{'} prosebook {'}'} <span class="w">from</span> <span class="s">'prosebook/vite'</span>;
+        <div class="code steps">
+          <pre><span class="c">$</span> bun add prosebook
+<span class="c">$</span> bunx prosebook init
 
-plugins: [react(), prosebook()]</pre>
-          </div>
-          <div class="code">
-            <header>3. main.tsx</header>
-            <pre><span class="w">const</span> copy = createCopy(catalog, {'{'}
-  locale: preferredLocales(),
-{'}'});
-&lt;CopyProvider copy={'{'}copy{'}'}&gt;…</pre>
-          </div>
+<span class="c">// vite.config.ts</span>
+plugins: [react(), prosebook()]
+
+<span class="c">// main.tsx</span>
+&lt;CopyProvider copy={'{'}createCopy(catalog){'}'}&gt;…</pre>
         </div>
-        <p class="more">
-          {
-            rich('start.more', {
-              integrations: (chunks) => <a href={api('integrations')}>{chunks}</a>,
-              bindings: (chunks) => <a href={api('bindings')}>{chunks}</a>,
-            })
-          }
-        </p>
+        <ul class="chips" aria-label={t('site.works-with')}>
+          <li><a href={api('react')}>React</a></li>
+          <li><a href={api('preact')}>Preact</a></li>
+          <li><a href={api('vue')}>Vue</a></li>
+          <li><a href={api('svelte')}>Svelte</a></li>
+          <li><a href={api('solid')}>Solid</a></li>
+          <li><a href={api('plain-javascript')}>JavaScript</a></li>
+          <li class="sep" aria-hidden="true"></li>
+          <li><a href={api('vite')}>Vite</a></li>
+          <li><a href={api('nextjs')}>Next.js</a></li>
+          <li><a href={api('bun')}>Bun</a></li>
+          <li><a href={api('astro')}>Astro</a></li>
+        </ul>
       </section>
 
       <footer>
@@ -261,7 +183,12 @@ plugins: [react(), prosebook()]</pre>
       </footer>
     </div>
 
-    <script src="../demo.ts"></script>
+    <script>
+      // In dev, the real inspector covers the page.
+      if (import.meta.env.PROD) void import('#src/inspect.ts');
+    </script>
     <script src="../playground.ts"></script>
+    {/* Last, once every string above is read: what each says and its key, for the inspector. */}
+    <template id="reads" data-reads={JSON.stringify([...reads])}></template>
   </body>
 </html>

@@ -110,6 +110,8 @@ kbd {
   padding: 20px 0;
 }
 .mark {
+  flex: none;
+  white-space: nowrap;
   font: 600 22px/1 var(--serif);
   text-decoration: none;
   letter-spacing: -0.01em;
@@ -123,6 +125,7 @@ kbd {
 }
 .bar nav {
   display: flex;
+  align-items: center;
   gap: 20px;
   font-size: 15px;
 }
@@ -191,6 +194,7 @@ h1 {
 .note {
   font-size: 14px;
   color: var(--muted);
+  margin: 20px 0 0;
 }
 
 /* Code */
@@ -198,7 +202,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  margin: 8px 0 72px;
+  margin: 8px 0 96px;
 }
 .pair pre {
   white-space: pre-wrap;
@@ -261,7 +265,7 @@ h2 {
   gap: 8px;
   list-style: none;
   padding: 0;
-  margin: -48px 0 80px;
+  margin: 0;
 }
 .chips a {
   display: block;
@@ -284,49 +288,26 @@ h2 {
   background: var(--line);
 }
 
-/* Features, each shown */
-.shows {
+/* A feature: its heading beside one example. */
+section.one {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px 16px;
-  margin-top: 32px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 32px;
+  align-items: center;
+  padding: 0 0 96px;
 }
-.shows h3 {
-  font-size: 21px;
-  margin-bottom: 10px;
-}
-.shows h3 a {
-  color: inherit;
+section.one h2 a {
   text-decoration: none;
 }
-.shows h3 a:hover {
+section.one h2 a:hover {
   color: var(--accent);
 }
-.shows pre {
+section.one pre {
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 .x {
   color: var(--err);
-}
-.more {
-  margin: 16px 0 0;
-  color: var(--muted);
-  font-size: 15px;
-}
-.more a {
-  color: var(--ink);
-}
-.more a:hover {
-  color: var(--accent);
-}
-
-/* In-context demo */
-.demo {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 16px;
-  align-items: stretch;
 }
 .window {
   background: var(--raised);
@@ -385,101 +366,6 @@ h2 {
   background: var(--accent);
   color: #fff;
 }
-.app {
-  position: relative;
-  padding: 20px;
-  flex: 1;
-  font-size: 15px;
-}
-.app h4 {
-  margin: 0 0 4px;
-  font: 600 18px/1.3 var(--sans);
-}
-.app .row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 14px 0;
-}
-.app button.ui {
-  font: inherit;
-  font-size: 14px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--raised);
-  color: var(--ink);
-  cursor: pointer;
-}
-.app button.ui.primary {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
-}
-.app .small {
-  color: var(--muted);
-  font-size: 13.5px;
-  margin: 6px 0 0;
-}
-.app a {
-  color: var(--accent);
-}
-.app.inspecting,
-.app.inspecting * {
-  cursor: pointer;
-}
-.outline {
-  position: absolute;
-  display: none;
-  pointer-events: none;
-  outline: 2px solid #7c3aed;
-  background: rgb(124 58 237 / 0.08);
-  z-index: 2;
-}
-.outline span {
-  position: absolute;
-  left: -2px;
-  bottom: 100%;
-  padding: 1px 6px;
-  font: 12px/1.5 var(--mono);
-  white-space: nowrap;
-  color: #fff;
-  background: #7c3aed;
-}
-.hint {
-  padding: 10px 12px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.lint-note {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--ink);
-}
-.lint-note::before {
-  content: '';
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tok-kw);
-}
-.lint-note.clean {
-  color: var(--ok);
-}
-.lint-note.clean::before {
-  background: var(--ok);
-}
 .toggle {
   font: 500 13px/1 var(--sans);
   padding: 7px 12px;
@@ -494,54 +380,6 @@ h2 {
   border-color: var(--accent);
   color: #fff;
 }
-.editor {
-  font: 13px/1.65 var(--mono);
-  background: var(--code-bg);
-  flex: 1;
-  overflow: auto;
-  max-height: 360px;
-  min-height: 260px;
-  position: relative;
-}
-.editor .empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: 24px;
-  color: var(--muted);
-  font-family: var(--sans);
-  font-size: 14px;
-}
-.line {
-  display: flex;
-  white-space: pre;
-  padding-right: 12px;
-}
-.line .n {
-  flex: none;
-  width: 40px;
-  padding-right: 12px;
-  text-align: right;
-  color: var(--tok-com);
-  user-select: none;
-}
-.line.hit {
-  background: var(--accent-soft);
-}
-.line input {
-  font: inherit;
-  color: var(--tok-str);
-  background: var(--raised);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  padding: 0 4px;
-  margin: -1px 0;
-  min-width: 8ch;
-  max-width: 100%;
-  flex: 1;
-}
 .status {
   padding: 10px 12px;
   border-top: 1px solid var(--line);
@@ -555,7 +393,31 @@ h2 {
 .status.err {
   color: var(--err);
 }
-/* The Alt-click dialog, as the dev inspector draws it. */
+/* The inspector over the page: an outline per line of the string under the pointer, and its key. */
+#inspect-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+}
+#inspect-layer i {
+  position: fixed;
+  outline: 2px solid #7c3aed;
+  background: rgb(124 58 237 / 0.08);
+}
+#inspect-layer span {
+  position: fixed;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 12px/1.5 var(--mono);
+  white-space: nowrap;
+  color: #fff;
+  background: #7c3aed;
+}
+html.inspecting body {
+  cursor: pointer;
+}
+/* The dialog, as the dev inspector draws it. */
 .dlg {
   position: fixed;
   z-index: 10;
@@ -611,6 +473,19 @@ h2 {
   border-color: #7c3aed;
   color: #fff;
 }
+.dlg .context {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.dlg a.quiet {
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.dlg a.quiet:hover {
+  color: var(--ink);
+}
 .dlg button.quiet {
   border: 0;
   padding: 4px;
@@ -654,37 +529,6 @@ h2 {
 }
 .dlg code {
   font: 12px/1.4 var(--mono);
-}
-.dlg summary {
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.dlg summary .count {
-  color: var(--tok-kw);
-  font-weight: 400;
-}
-.dlg details > div {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-}
-.dlg .row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.dlg label.check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
-  font-weight: 400;
-}
-.dlg label.check input {
-  width: auto;
-  margin: 0;
 }
 .dlg .problems {
   margin: 0;
@@ -927,10 +771,6 @@ h2 {
   color: var(--muted);
 }
 
-/* Translators */
-.block .pair {
-  margin: 32px 0 0;
-}
 .add {
   color: var(--ok);
 }
@@ -941,12 +781,13 @@ h2 {
 
 /* Start */
 .steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  margin-top: 28px;
 }
-.steps .code pre {
+.steps pre {
   white-space: pre-wrap;
+}
+#start .chips {
+  margin: 20px 0 0;
 }
 
 footer {
@@ -962,11 +803,13 @@ footer {
 
 @media (max-width: 860px) {
   .pair,
-  .demo,
   .play,
-  .shows,
-  .steps {
+  section.one {
     grid-template-columns: minmax(0, 1fr);
+  }
+  section.one {
+    gap: 16px;
+    padding-bottom: 64px;
   }
   .hero {
     padding-top: 32px;
@@ -974,5 +817,14 @@ footer {
   .ed textarea,
   .out {
     min-height: 320px;
+  }
+}
+@media (max-width: 520px) {
+  .bar nav {
+    gap: 14px;
+  }
+  /* The playground is a scroll away and the docs a button under the headline: the bar keeps the rest. */
+  .bar nav a:not(:last-child) {
+    display: none;
   }
 }

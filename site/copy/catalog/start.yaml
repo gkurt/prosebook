@@ -1,27 +1,6 @@
 # yaml-language-server: $schema=./catalog.schema.json
-start.eyebrow:
-  kind: name
-  surface: label
-  context: The small line above the heading of the section on setting prosebook up.
-  en: Get started
-
 start.title:
   kind: description
   surface: heading
-  context: Heads the section on setting prosebook up, over three code samples.
+  context: Heads the section on setting prosebook up, over the commands and code it takes.
   en: Three steps to a typed catalog.
-
-start.install:
-  kind: name
-  surface: label
-  context: Heads the first code sample, the commands that install prosebook.
-  en: 1. Set up
-
-start.more:
-  kind: description
-  surface: hint
-  context: Under the three steps, which show the Vite plugin and React.
-  args:
-    integrations: links to the docs on the integrations
-    bindings: links to the docs on the bindings
-  en: 'Next.js, webpack, Metro, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.'

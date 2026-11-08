@@ -2,7 +2,7 @@
 
 Every string your app shows, in one typed catalog. For React, React Native, Preact, Vue, Svelte, Solid and any JavaScript.
 
-[Homepage](https://gkurt.com/prosebook/) · [Try it on the page](https://gkurt.com/prosebook/#in-context) · [Playground](https://gkurt.com/prosebook/#playground) · [API reference](API.md)
+[Homepage](https://gkurt.com/prosebook/) · [Playground](https://gkurt.com/prosebook/#playground) · [API reference](API.md)
 
 The words live in YAML, one entry per string, with the context a translator needs beside them. The code
 holds only keys, so changing what the app says is an edit to the catalog, not to the code.

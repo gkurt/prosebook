@@ -7,187 +7,17 @@ export type Locale = "en";
 /** Every message in the catalog: the arguments it takes and the tags it wraps text in. */
 export type Messages = {
   /**
-   * The catalog entry.
-   *
-   * Under the mock editor, once it shows the English entry of the string clicked.
-   */
-  "demo.catalog": { args: {}; tags: never };
-  /**
-   * Lint has nothing to say about these strings now.
-   *
-   * Under the mock shop, once lint finds nothing in its strings.
-   */
-  "demo.clean": { args: {}; tags: never };
-  /**
-   * Saved {key}. The page swapped it in without reloading.
-   *
-   * Under the mock editor, once an edit in the mock dialog has changed the mock shop.
-   */
-  "demo.dialog-saved": {
-    args: {
-      /** The key of the entry saved, such as cart.title. */
-      readonly key: string;
-    };
-    tags: never;
-  };
-  /**
-   * Edit the message: the shop updates in place.
-   *
-   * After the sentence saying which entry the mock editor shows.
-   */
-  "demo.edit": { args: {}; tags: never };
-  /**
-   * your editor
-   *
-   * In the mock editor's title bar, before an entry is open.
-   */
-  "demo.editor": { args: {}; tags: never };
-  /**
-   * Open in editor, in the dialog, lands here.
-   *
-   * Fills the mock editor before an entry is open.
-   */
-  "demo.empty": { args: {}; tags: never };
-  /**
-   * In dev
-   *
-   * The small line above the heading of the live demo of the inspector.
-   */
-  "demo.eyebrow": { args: {}; tags: never };
-  /**
-   * No German translation, so the string fell back to the catalog.
-   *
-   * Under the mock editor, once it shows the English entry of a string the German shop shows in English.
-   */
-  "demo.fallback": { args: {}; tags: never };
-  /**
-   * Lint flags “{text}”. Alt-click it to see why.
-   *
-   * Under the mock shop, points at a string lint has something to say about.
-   */
-  "demo.finding": {
-    args: {
-      /** The string, as the shop shows it. */
-      readonly text: string;
-    };
-    tags: never;
-  };
-  /**
-   * Hold <kbd>{key}</kbd> and click a string.
-   *
-   * Under the mock shop. The key is Alt, or Option on a Mac.
-   *
-   * `<kbd>`: Marks the key's name as a key.
-   */
-  "demo.hint": {
-    args: {
-      /** The name of the key on the keyboard. */
-      readonly key: string;
-    };
-    tags: "kbd";
-  };
-  /**
-   * Inspect
-   *
-   * Beside the hint under the mock shop. Turns pointing at strings on and off, for those without a keyboard.
-   */
-  "demo.inspect": { args: {}; tags: never };
-  /**
-   * Alt-click any string in your running app to edit it there. Try it on the shop:
-   *
-   * Under the demo's heading, above a mock shop and a mock editor.
-   */
-  "demo.intro": { args: {}; tags: never };
-  /**
-   * Locale
-   *
-   * Names the two buttons that switch the mock shop between English and German.
-   */
-  "demo.locale": { args: {}; tags: never };
-  /**
-   * Saved. The page swapped the message in without reloading.
-   *
-   * Under the mock editor, once an edit there has changed the mock shop.
-   */
-  "demo.saved": { args: {}; tags: never };
-  /**
-   * A translation opens in its locale's file.
-   *
-   * Under the mock editor, before an entry is open.
-   */
-  "demo.start": { args: {}; tags: never };
-  /**
-   * Point at a string, land on its entry.
-   *
-   * Heads the live demo of the inspector.
-   */
-  "demo.title": { args: {}; tags: never };
-  /**
-   * The German translation.
-   *
-   * Under the mock editor, once it shows the German entry of the string clicked.
-   */
-  "demo.translation": { args: {}; tags: never };
-  /**
-   * Also:
-   *
-   * Starts the line of links to the features with no sample of their own.
-   */
-  "features.also": { args: {}; tags: never };
-  /**
-   * Diff in pull requests
-   *
-   * In the line of more features, links to the docs on `prosebook diff`, which comments on pull requests.
-   */
-  "features.also.diff": { args: {}; tags: never };
-  /**
-   * Extract
-   *
-   * In the line of more features, links to the docs on `prosebook extract`.
-   */
-  "features.also.extract": { args: {}; tags: never };
-  /**
-   * Translate with any model
-   *
-   * In the line of more features, links to the docs on translating with a model.
-   */
-  "features.also.model": { args: {}; tags: never };
-  /**
-   * Rust, Swift and Kotlin
-   *
-   * In the line of more features, links to the docs on the Rust, Swift, Kotlin, Android and Apple targets.
-   */
-  "features.also.native": { args: {}; tags: never };
-  /**
-   * Rename
-   *
-   * In the line of more features, links to the docs on `prosebook rename`.
-   */
-  "features.also.rename": { args: {}; tags: never };
-  /**
    * Only what the code reads ships
    *
    * Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
    */
   "features.builds": { args: {}; tags: never };
   /**
-   * What you get
-   *
-   * The small line above the heading of the section listing what prosebook does.
-   */
-  "features.eyebrow": { args: {}; tags: never };
-  /**
    * Held to a writing guide
    *
-   * Over lint findings on two messages. Links to the docs on lint.
+   * Over a lint finding on a message. Links to the docs on lint.
    */
   "features.lint": { args: {}; tags: never };
-  /**
-   * Words you can change without touching code, checked like code.
-   *
-   * Heads the section listing what prosebook does, each with a code sample.
-   */
-  "features.title": { args: {}; tags: never };
   /**
    * Translators see what changed
    *
@@ -219,11 +49,37 @@ export type Messages = {
    */
   "hero.title": { args: {}; tags: never };
   /**
-   * Try it on the page
+   * Get started
    *
-   * The main button under the headline. Scrolls to the live demo of the inspector.
+   * The main button under the headline. Scrolls to setting prosebook up.
    */
   "hero.try": { args: {}; tags: never };
+  /**
+   * Hold <kbd>{key}</kbd> and click any text on this page to edit it.
+   *
+   * Under the buttons below the headline. Every string on the page can be edited this way. The key is Alt, or Option on a Mac.
+   *
+   * `<kbd>`: Marks the key's name as a key.
+   */
+  "inspect.hint": {
+    args: {
+      /** The name of the key on the keyboard. */
+      readonly key: string;
+    };
+    tags: "kbd";
+  };
+  /**
+   * Edits stay on this page.
+   *
+   * At the foot of the dialog that edits a string of the page. Nothing is sent anywhere.
+   */
+  "inspect.local": { args: {}; tags: never };
+  /**
+   * Inspect
+   *
+   * In the top bar. Turns on clicking a string to edit it, for those without a keyboard.
+   */
+  "inspect.toggle": { args: {}; tags: never };
   /**
    * {count, plural, one {# problem leaves an entry out: see Lint.} other {# problems leave entries out: see Lint.}}
    *
@@ -245,7 +101,7 @@ export type Messages = {
   /**
    * Playground
    *
-   * The small line above the heading of the playground, where a visitor edits a catalog and sees what it compiles to.
+   * In the top bar, links to the playground, where a visitor edits a catalog and sees what it compiles to.
    */
   "playground.eyebrow": { args: {}; tags: never };
   /**
@@ -377,12 +233,6 @@ export type Messages = {
    */
   "site.image": { args: {}; tags: never };
   /**
-   * In context
-   *
-   * In the top bar, links to the live demo of the inspector further down the page.
-   */
-  "site.in-context": { args: {}; tags: never };
-  /**
    * MIT licensed. Made by <link>Gokhan Kurt</link>.
    *
    * In the footer. The link opens the author's site.
@@ -393,34 +243,13 @@ export type Messages = {
   /**
    * Works with
    *
-   * Names the list of frameworks and bundlers under the first example, for a screen reader.
+   * Names the list of frameworks and bundlers under the setup, for a screen reader.
    */
   "site.works-with": { args: {}; tags: never };
   /**
-   * Get started
-   *
-   * The small line above the heading of the section on setting prosebook up.
-   */
-  "start.eyebrow": { args: {}; tags: never };
-  /**
-   * 1. Set up
-   *
-   * Heads the first code sample, the commands that install prosebook.
-   */
-  "start.install": { args: {}; tags: never };
-  /**
-   * Next.js, webpack, Metro, Bun and Astro take one line each, and every framework its own binding: see <integrations>Integrations</integrations> and <bindings>Bindings</bindings>.
-   *
-   * Under the three steps, which show the Vite plugin and React.
-   *
-   * `<bindings>`: Links to the docs on the bindings.
-   * `<integrations>`: Links to the docs on the integrations.
-   */
-  "start.more": { args: {}; tags: "bindings" | "integrations" };
-  /**
    * Three steps to a typed catalog.
    *
-   * Heads the section on setting prosebook up, over three code samples.
+   * Heads the section on setting prosebook up, over the commands and code it takes.
    */
   "start.title": { args: {}; tags: never };
 };

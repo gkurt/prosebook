@@ -1,16 +1,4 @@
 # yaml-language-server: $schema=./catalog.schema.json
-features.eyebrow:
-  kind: name
-  surface: label
-  context: The small line above the heading of the section listing what prosebook does.
-  en: What you get
-
-features.title:
-  kind: description
-  surface: heading
-  context: Heads the section listing what prosebook does, each with a code sample.
-  en: Words you can change without touching code, checked like code.
-
 features.types:
   kind: state
   surface: heading
@@ -26,7 +14,7 @@ features.translations:
 features.lint:
   kind: state
   surface: heading
-  context: Over lint findings on two messages. Links to the docs on lint.
+  context: Over a lint finding on a message. Links to the docs on lint.
   en: Held to a writing guide
 
 features.builds:
@@ -34,39 +22,3 @@ features.builds:
   surface: heading
   context: Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
   en: Only what the code reads ships
-
-features.also:
-  kind: name
-  surface: label
-  context: Starts the line of links to the features with no sample of their own.
-  en: 'Also:'
-
-features.also.native:
-  kind: name
-  surface: label
-  context: In the line of more features, links to the docs on the Rust, Swift, Kotlin, Android and Apple targets.
-  en: Rust, Swift and Kotlin
-
-features.also.model:
-  kind: name
-  surface: label
-  context: In the line of more features, links to the docs on translating with a model.
-  en: Translate with any model
-
-features.also.extract:
-  kind: name
-  surface: label
-  context: In the line of more features, links to the docs on `prosebook extract`.
-  en: Extract
-
-features.also.rename:
-  kind: name
-  surface: label
-  context: In the line of more features, links to the docs on `prosebook rename`.
-  en: Rename
-
-features.also.diff:
-  kind: name
-  surface: label
-  context: In the line of more features, links to the docs on `prosebook diff`, which comments on pull requests.
-  en: Diff in pull requests
