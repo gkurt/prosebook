@@ -29,8 +29,10 @@ const { t } = useCopy();
   changed is marked stale.
 - **Pruned.** Vite, Next.js, webpack, Rspack, Metro, Bun and Astro builds ship only the messages the code reads; Vite, Next.js,
   Bun and Astro can split them by route.
-- **Times as times.** `{at, relative}` says "5 minutes ago" from the time itself, and `<Text>` keeps it fresh:
-  [relative times](API.md#relative-times).
+- **Times as times.** `{at, relative}` says "5 minutes ago" from the time itself, and every binding keeps it fresh, as
+  `<Text>` or as a string from `t`: [relative times](API.md#relative-times).
+- **Numbers by size.** A named format's `ladder` shows "512B", "1.5 kB", "1 MB", and a list's `separator` writes a line of
+  facts, "Ann · Draft": [named formats](API.md#named-formats).
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 
