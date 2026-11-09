@@ -32,8 +32,8 @@ interface Request {
 type Example = { requests: Request[] } | { run: string[]; says: string[] };
 
 const SHOP: Request[] = [
-  { path: '/', language: 'de', says: ['Eckladen', 'Willkommen zurück, Ada.', 'Warenkorb leeren'] },
-  { path: '/', language: 'en', says: ['Corner Shop', 'Welcome back, Ada.', 'Empty cart'] },
+  { path: '/', language: 'de', says: ['Eckladen', 'Willkommen zurück, Ada.', 'Warenkorb leeren', 'Gespeichert: gerade eben.'] },
+  { path: '/', language: 'en', says: ['Corner Shop', 'Welcome back, Ada.', 'Empty cart', 'Saved just now.'] },
   // By weight, not by order: English first.
   { path: '/', language: 'de;q=0.1, en;q=0.9', says: ['Corner Shop', 'Welcome back, Ada.'] },
 ];
@@ -57,8 +57,8 @@ const EXAMPLES: Record<string, Example> = {
       { path: '/', language: 'de', says: ['Eckladen', 'Willkommen zurück, Ada.'] },
       { path: '/', language: 'en', says: ['Corner Shop', 'Welcome back, Ada.'] },
       { path: '/', language: 'de;q=0.1, en;q=0.9', says: ['Corner Shop', 'Welcome back, Ada.'] },
-      { path: '/cart', language: 'de', says: ['Eckladen', 'Warenkorb leeren'] },
-      { path: '/cart', language: 'en', says: ['Corner Shop', 'Empty cart'] },
+      { path: '/cart', language: 'de', says: ['Eckladen', 'Warenkorb leeren', 'Gespeichert: gerade eben.'] },
+      { path: '/cart', language: 'en', says: ['Corner Shop', 'Empty cart', 'Saved just now.'] },
       // Split by area: the cart's messages ship with the cart route's client code, not the home page's.
       { path: '/', scripts: true, says: [], inScripts: ['Language'], notInScripts: ['Add to cart'] },
       { path: '/cart', scripts: true, says: [], inScripts: ['Add to cart'] },

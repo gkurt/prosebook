@@ -22,3 +22,9 @@ features.builds:
   surface: heading
   context: Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
   en: Only what the code reads ships
+
+features.relative:
+  kind: state
+  surface: heading
+  context: Over a code sample where a message takes a time and shows how long ago it was, updating by itself. Links to the docs on relative times.
+  en: How long ago, kept current

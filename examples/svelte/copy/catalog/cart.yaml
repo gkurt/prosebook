@@ -68,3 +68,11 @@ cart.express:
   surface: label
   context: Labels the checkbox that picks next-day delivery.
   en: Express delivery
+
+cart.saved:
+  kind: state
+  surface: hint
+  context: Under the cart's buttons, says when the cart last changed. It moves on by itself as time passes.
+  args:
+    at: when the cart last changed
+  en: Saved {at, relative, recent}.

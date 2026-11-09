@@ -417,7 +417,9 @@ describe('prosebook migrate', () => {
   test('the example catalog goes to MF2 and back, rendering the same throughout', () => {
     const root = fixture({}).root;
     cpSync(join(example, 'copy'), join(root, 'copy'), { recursive: true });
-    const one = resolveConfig(root, { source: 'en', require: [] });
+    // The example's own relative format, which its cart names.
+    const formats = { relative: { recent: { now: 'app.now' } } };
+    const one = resolveConfig(root, { source: 'en', require: [], formats });
     const before = loadCatalog(one);
 
     const toTwo = planMigrate(one, 2);
@@ -432,7 +434,7 @@ describe('prosebook migrate', () => {
     applyMigrate(one, toTwo);
     expect(readFileSync(join(root, 'copy', 'catalog', 'cart.yaml'), 'utf8')).toContain('  context: Heads the shopping cart panel.');
 
-    const two = resolveConfig(root, { source: 'en', require: [], messageFormat: 2 });
+    const two = resolveConfig(root, { source: 'en', require: [], messageFormat: 2, formats });
     const migrated = loadCatalog(two);
     expect(migrated.messages.map((m) => [m.key, [...m.args]])).toEqual(before.messages.map((m) => [m.key, [...m.args]]));
     expect(generate(two).catalog.messages.length).toBe(before.messages.length);

@@ -10,6 +10,8 @@
 import { defineCatalog } from 'prosebook';
 // prettier-ignore
 import m_en from './en.js';
+// prettier-ignore
+import { relativeTime } from 'prosebook';
 
 // prettier-ignore
 export type Locale = "en" | "de" | "tr" | "en-XA";
@@ -44,6 +46,18 @@ export type Messages = {
     args: {
       /** The date and time of the last visit. Formatted as date `medium`, time `short`. */
       readonly when: Date | number;
+    };
+    tags: never;
+  };
+  /**
+   * {tense, select, future {in a moment} other {just now}}
+   *
+   * What a time under a minute from now reads as, in place of "0 minutes ago", wherever the app says how long ago something was.
+   */
+  "app.now": {
+    args: {
+      /** Past, or future for a time just ahead. */
+      readonly tense: "future" | (string & {});
     };
     tags: never;
   };
@@ -102,6 +116,18 @@ export type Messages = {
    */
   "cart.remove": { args: {}; tags: never };
   /**
+   * Saved {at, relative, recent}.
+   *
+   * Under the cart's buttons, says when the cart last changed. It moves on by itself as time passes.
+   */
+  "cart.saved": {
+    args: {
+      /** When the cart last changed. Formatted as relative `recent`. */
+      readonly at: Date | number | string;
+    };
+    tags: never;
+  };
+  /**
    * Arrives in {days, plural, one {# working day} other {# working days}}. {speed, select, express {Express delivery is on.} other {Choose express at checkout for next-day delivery.}}
    *
    * Under the total, says how long delivery takes. The second sentence depends on the delivery speed chosen.
@@ -148,6 +174,8 @@ export const catalog = defineCatalog<Messages, Locale>({
   locales: ["en", "de", "tr", "en-XA"],
   messages: { en: m_en },
   loaders: { de: () => import('./de.js'), tr: () => import('./tr.js'), "en-XA": () => import('./en-XA.js') },
+  formats: {"relative":{"recent":{"now":"app.now"}}},
+  relative: relativeTime,
 });
 
 // prettier-ignore
@@ -155,5 +183,6 @@ declare module 'prosebook' {
   interface Register {
     messages: Messages;
     locale: Locale;
+    formats: { number: never; date: never; list: never; duration: never; relative: "recent" };
   }
 }

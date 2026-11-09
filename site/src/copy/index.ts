@@ -30,6 +30,12 @@ export type Messages = {
    */
   "features.lint": { args: {}; tags: never };
   /**
+   * How long ago, kept current
+   *
+   * Over a code sample where a message takes a time and shows how long ago it was, updating by itself. Links to the docs on relative times.
+   */
+  "features.relative": { args: {}; tags: never };
+  /**
    * Translators see what changed
    *
    * Over a translation marked stale, with the change to its source shown word by word. Links to the docs on stale translations.

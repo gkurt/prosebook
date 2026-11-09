@@ -7,3 +7,4 @@ cart.checkout: Zur Kasse
 cart.terms: Mit der Bestellung stimmst du unseren <link>Verkaufsbedingungen</link> zu.
 cart.place: 'Die {rank, number}. Bestellung heute!'
 cart.express: Expressversand
+cart.saved: 'Gespeichert: {at, relative, recent}.'

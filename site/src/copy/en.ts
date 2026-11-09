@@ -13,6 +13,7 @@ import type { CompiledMessages } from 'prosebook';
 export default {
   "features.builds": "Only what the code reads ships",
   "features.lint": "Held to a writing guide",
+  "features.relative": "How long ago, kept current",
   "features.translations": "Translators see what changed",
   "features.types": "A wrong key doesn't compile",
   "hero.docs": "Read the docs",

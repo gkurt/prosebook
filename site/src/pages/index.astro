@@ -89,6 +89,16 @@ t(<span class="s">'cart.items'</span>, {'{'} count {'}'}); <span class="c">// "3
       </section>
 
       <section class="one">
+        <h2><a href={api('relative-times')}>{t('features.relative')}</a></h2>
+        <div class="code">
+          <pre><span class="k">cart.saved</span>: <span class="s">'Saved {'{'}at, relative, recent{'}'}.'</span>
+
+&lt;Text id=<span class="s">"cart.saved"</span> values={'{'}{'{'} at: savedAt {'}'}{'}'} /&gt;
+<span class="c">// "Saved just now." → "Saved 1 minute ago." → "Saved yesterday."</span></pre>
+        </div>
+      </section>
+
+      <section class="one">
         <h2><a href={api('lint')}>{t('features.lint')}</a></h2>
         <div class="code">
           <pre><span class="c">$</span> prosebook lint

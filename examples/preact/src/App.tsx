@@ -8,6 +8,8 @@ export function App() {
   const copy = useCopy();
   const [count, setCount] = useState(2);
   const [express, setExpress] = useState(false);
+  // When the cart last changed, which <Text> says as how long ago, and says again as time passes.
+  const [savedAt, setSavedAt] = useState(() => Date.now());
   const languageName = (locale: string) => new Intl.DisplayNames([copy.locale], { type: 'language' }).of(locale) ?? locale;
 
   return (
@@ -34,11 +36,26 @@ export function App() {
       <section>
         <h2>{copy.t('cart.title')}</h2>
         <Text id="cart.items" values={{ count }} />
+        <p class="muted">
+          <Text id="cart.saved" values={{ at: savedAt }} />
+        </p>
         <div class="row">
-          <button type="button" onClick={() => setCount((n) => n + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              setCount((n) => n + 1);
+              setSavedAt(Date.now());
+            }}
+          >
             {copy.t('cart.add')}
           </button>
-          <button type="button" onClick={() => setCount(0)}>
+          <button
+            type="button"
+            onClick={() => {
+              setCount(0);
+              setSavedAt(Date.now());
+            }}
+          >
             {copy.t('cart.remove')}
           </button>
           <label>

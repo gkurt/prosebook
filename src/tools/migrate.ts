@@ -9,12 +9,13 @@ import { join } from 'node:path';
 import { isMap, parseDocument, Scalar } from 'yaml';
 
 import { createHelpers, flatten } from '#src/runtime/helpers.ts';
+import { relativeTime } from '#src/runtime/relative.ts';
 import type { CompiledMessages } from '#src/runtime/types.ts';
 
 import { loadCatalog } from './catalog.ts';
 import { compileLocale, localeExpression } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
-import { argsOf, tagsOf, type MessageFormatElement } from './icu.ts';
+import { argsOf, extensionOf, tagsOf, walk, type ExtensionElement, type MessageFormatElement } from './icu.ts';
 import { readMessage, writeMessage, type MessageFormatVersion } from './syntax.ts';
 
 interface Located {
@@ -33,6 +34,25 @@ export interface MigratePlan {
   changed: (Located & { values: string; before: string; after: string })[];
 }
 
+/**
+ * The entries a list's rest and a relative time's now are said by, which the catalog attaches as it
+ * loads, carried to the message read back, by its placeholder, so both render alike.
+ */
+function carryEntries(from: MessageFormatElement[], to: MessageFormatElement[]): void {
+  const said = new Map<string, ExtensionElement>();
+  walk(from, (el) => {
+    const own = extensionOf(el);
+    if (own !== undefined) said.set(`${own.type}:${own.value}`, own);
+  });
+  walk(to, (el) => {
+    const own = extensionOf(el);
+    const was = own === undefined ? undefined : said.get(`${own.type}:${own.value}`);
+    if (own === undefined || was === undefined) return;
+    if (was.more !== undefined) own.more = was.more;
+    if (was.now !== undefined) own.now = was.now;
+  });
+}
+
 export function planMigrate(config: ResolvedConfig, to: MessageFormatVersion): MigratePlan {
   // Both syntaxes read without isolation marks, which MF1 never has, so their renders compare.
   const catalog = loadCatalog({ ...config, isolate: false });
@@ -49,6 +69,7 @@ export function planMigrate(config: ResolvedConfig, to: MessageFormatVersion): M
       try {
         after = writeMessage(to, ast, locale);
         back = readMessage(to, after, locale, { isolate: false, formats: config.formats });
+        carryEntries(ast, back);
       } catch (e) {
         plan.blocked.push({ ...at, reason: (e as Error).message });
         continue;
@@ -87,6 +108,8 @@ const DATE = new Date(Date.UTC(2026, 0, 5, 14, 30, 15));
 function samplesOf(type: string): unknown[] {
   if (type === 'number') return NUMBERS;
   if (type === 'Date | number') return [DATE];
+  // A relative time, read at `DATE`: now, minutes, a day and weeks back, and ahead.
+  if (type === 'Date | number | string') return [20_000, 300_000, 86_400_000, 864_000_000, -7_200_000].map((ago) => DATE.getTime() - ago);
   const named = [...type.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => JSON.parse(`"${m[1]}"`) as string);
   return named.length > 0 ? [...named, 'zzz'] : ['Ada'];
 }
@@ -118,7 +141,7 @@ function renderer(ast: MessageFormatElement[], locale: string): (values: Record<
   // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- evaluating our own compiled message, as the bundle would
   const messages = new Function(`return ${localeExpression(compileLocale([['m', ast]]))};`)() as CompiledMessages;
   const message = messages.m!;
-  const h = createHelpers(locale);
+  const h = createHelpers(locale, { relative: relativeTime, now: () => DATE.getTime() });
   return (values) => (typeof message === 'string' ? message : flatten(message(values, h)).join(''));
 }
 

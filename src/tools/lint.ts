@@ -281,6 +281,9 @@ export function phrase(p: string): RegExp {
   return new RegExp(`(?<![\\p{L}\\p{N}'-])${escaped}(?![\\p{L}\\p{N}'-])`, 'iu');
 }
 
+// "Just now" says when, not that something is easy: a relative time's now reads so.
+const SAYS_WHEN = /(?<![\p{L}\p{N}'-])just\s+now(?![\p{L}\p{N}'-])/giu;
+
 /** The words and phrases of `list` that some reading carries. */
 const listed = (variants: string[], list: string[]) => list.filter((w) => variants.some((v) => phrase(w).test(v)));
 
@@ -587,10 +590,12 @@ export const CORE_RULES = {
   'banned-word': {
     description: 'A word or phrase from the banned lists.',
     recommended: 'warn',
-    check: ({ text, config }) =>
-      config.lint.banned.flatMap(({ words: list, why }) =>
-        listed(text.variants, list).map((w) => ({ message: `"${w}" ${why}`, match: w })),
-      ),
+    check: ({ text, config }) => {
+      const variants = text.variants.map((v) => v.replace(SAYS_WHEN, ''));
+      return config.lint.banned.flatMap(({ words: list, why }) =>
+        listed(variants, list).map((w) => ({ message: `"${w}" ${why}`, match: w })),
+      );
+    },
   },
   spelling: {
     description: 'A spelling the product writes another way.',

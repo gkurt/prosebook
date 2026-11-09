@@ -283,6 +283,8 @@ describe('lint', () => {
     const yaml = [
       'app.a:\n  kind: action\n  context: A button.\n  en: Simply Save',
       'app.b:\n  kind: description\n  context: A hint.\n  en: Could not change the colour.',
+      // "Just now" says when, so it isn't the "just" that says something is easy.
+      'app.c:\n  kind: state\n  context: A status.\n  en: Saved just now.',
     ].join('\n');
     expect(findings(yaml, { extends: 'strict' })).toEqual([
       'app.a [sentence-case] "Save" is capitalized in a sentence-case action: add it to lint.properNouns if it is a name',
@@ -492,8 +494,8 @@ describe('lint', () => {
   });
 
   test('a match taking in a placeholder is named and placed as the message writes it', () => {
-    const canvas = definePlugin({
-      name: 'canvas',
+    const names = definePlugin({
+      name: 'names',
       rules: {
         'no-possessive-name': {
           type: 'existence',
@@ -511,13 +513,13 @@ describe('lint', () => {
     });
     const yaml = [
       'app.a:\n  kind: description\n  context: A chart.\n  args:\n    team: The team.\n  en: "{team}’s usage"',
-      'app.b:\n  kind: description\n  context: A chart.\n  en: Edge Delta’s usage',
+      'app.b:\n  kind: description\n  context: A chart.\n  en: Northwind’s usage',
       'app.c:\n  kind: description\n  context: A tip.\n  en: "Clear <code>npm</code>’s cache"',
       'app.d:\n  kind: description\n  context: A byline.\n  args:\n    name: Who wrote it.\n  en: "Written by {name}"',
     ].join('\n');
     const shown = (files: Record<string, string>, config = {}) => {
-      const rules = { 'canvas/no-possessive-name': 'error', 'canvas/no-trailing-name': 'error' } as const;
-      const loaded = fixture(files, { lint: { extends: 'none', plugins: [canvas], rules }, ...config });
+      const rules = { 'names/no-possessive-name': 'error', 'names/no-trailing-name': 'error' } as const;
+      const loaded = fixture(files, { lint: { extends: 'none', plugins: [names], rules }, ...config });
       return lint(loadCatalog(loaded).messages, loaded).map(
         (f) => `${f.key} ${f.message} ${JSON.stringify(f.at)} ${JSON.stringify(f.fix ?? null)}`,
       );

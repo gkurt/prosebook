@@ -9,6 +9,12 @@ const lastVisit = new Date(2026, 9, 28, 14, 5);
 const copy = useCopy();
 const count = ref(2);
 const express = ref(false);
+// When the cart last changed, which <Text> says as how long ago, and says again as time passes.
+const savedAt = ref(Date.now());
+const change = (to: number) => {
+  count.value = to;
+  savedAt.value = Date.now();
+};
 const languageName = (locale: string) => new Intl.DisplayNames([copy.locale], { type: 'language' }).of(locale) ?? locale;
 const switchTo = (event: Event) => void copy.setLocale((event.target as HTMLSelectElement).value);
 </script>
@@ -33,9 +39,10 @@ const switchTo = (event: Event) => void copy.setLocale((event.target as HTMLSele
     <section>
       <h2>{{ copy.t('cart.title') }}</h2>
       <Text id="cart.items" :values="{ count }" />
+      <p class="muted"><Text id="cart.saved" :values="{ at: savedAt }" /></p>
       <div class="row">
-        <button type="button" @click="count++">{{ copy.t('cart.add') }}</button>
-        <button type="button" @click="count = 0">{{ copy.t('cart.remove') }}</button>
+        <button type="button" @click="change(count + 1)">{{ copy.t('cart.add') }}</button>
+        <button type="button" @click="change(0)">{{ copy.t('cart.remove') }}</button>
         <label><input v-model="express" type="checkbox" />{{ copy.t('cart.express') }}</label>
       </div>
       <div class="row">
