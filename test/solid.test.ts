@@ -104,3 +104,42 @@ test('a <Text> saying a relative time updates once it reads differently, and not
   expect(renders).toBe(1);
   dispose();
 });
+
+test('a relative time read as text stays current, updating only what read it', async () => {
+  const { copy, at } = turning();
+  let lineRuns = 0;
+  let otherRuns = 0;
+  function Line(): JSX.Element {
+    const { t } = useCopy();
+    const text = () => {
+      lineRuns++;
+      return t('a.opened' as never, { at });
+    };
+    return h('span', { title: text }, text) as unknown as JSX.Element;
+  }
+  function Other(): JSX.Element {
+    const copy = useCopy();
+    return h('i', () => {
+      otherRuns++;
+      return copy.locale === 'en' ? '' : copy.locale;
+    }) as unknown as JSX.Element;
+  }
+  const host = document.createElement('div');
+  const dispose = render(
+    () =>
+      createComponent(CopyProvider, {
+        copy,
+        get children() {
+          return [createComponent(Line, {}), createComponent(Other, {})];
+        },
+      }),
+    host,
+  );
+  expect(host.innerHTML).toBe('<span title="Opened now">Opened now</span><i></i>');
+  const before = [lineRuns, otherRuns];
+  await Bun.sleep(150);
+  expect(host.innerHTML).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
+  // Each place that read the text ran once more; what read only the locale didn't.
+  expect([lineRuns, otherRuns]).toEqual([before[0]! * 2, before[1]!]);
+  dispose();
+});

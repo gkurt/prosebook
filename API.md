@@ -228,7 +228,7 @@ await copy.ready;
 | `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads.  |
 | `timeZone`  | The IANA zone dates show in, unless a message names its own. Defaults to the environment's.          |
 | `now`       | What [relative times](#relative-times) are measured from: a clock, or the time a server rendered at. |
-| `live`      | Keeps relative times read outside a `<Text>` fresh, by changing `version` when they next change.     |
+| `live`      | Keeps relative times read outside any binding fresh, by changing `version` when they next change.    |
 
 ### A copy
 
@@ -313,9 +313,10 @@ can't read, newer or much older, throws as it loads and says which to update, ra
 
 ## Bindings
 
-Every binding's reader has `t`, `rich`, `setLocale` and the rest of [a copy](#a-copy), and a `<Text>` component. A `<Text>`
-whose message says a [relative time](#relative-times) renders itself again when it next reads differently, and nothing else
-does.
+Every binding's reader has `t`, `rich`, `setLocale` and the rest of [a copy](#a-copy), and a `<Text>` component. A message
+saying a [relative time](#relative-times) stays current, as a `<Text>` or as a string from `t`: when it next reads
+differently, what read it renders again, and nothing else does. React and Preact render again the component whose
+`useCopy()` read it; Vue, Svelte and Solid run again only the template, effect or `computed` that read it.
 
 ### React
 
@@ -856,10 +857,12 @@ const [copy] = useState(() => createCopy(catalog, { locale, now: renderedAt }));
 ```
 
 **Staying fresh.** Each read notes when its text next reads differently: a count changing, a unit, or turning now or a date.
-`<Text>` waits for it and renders itself again, alone; one timer serves every time on the page, and a hidden tab catches up
-when it shows. A time read with `t` or `rich` in a component is fresh only with `live: true`, which changes the copy's
-`version`, and so renders every reader again, at the soonest such moment. `copy.nextChange()` says when the last read
-changes, for code that keeps its own fresh, and `copy.at(time, run)` waits for it on the same timer.
+A binding waits for it and renders again what read it, alone: a `<Text>`, and a component that read the time as a string
+with `t` (an incident's line, "Service · Triggered 5 minutes ago", measured to truncate) or `rich`. One timer serves every
+time on the page, and a hidden tab catches up when it shows. `live: true` keeps fresh a time read straight from the copy,
+outside any binding, by changing its `version`, which renders every reader again, at the soonest such moment.
+`copy.nextChange()` says when the last read changes, for code that keeps its own fresh, and `copy.at(time, run)` waits for it
+on the same timer.
 
 ### Formatters
 

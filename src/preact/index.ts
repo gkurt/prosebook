@@ -6,7 +6,7 @@
 import { createContext, Fragment, h, isValidElement, type ComponentChildren, type VNode } from 'preact';
 import { useContext, useEffect, useMemo, useState } from 'preact/hooks';
 
-import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
+import { waitingReader, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
 import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
@@ -57,12 +57,20 @@ function useVersion(copy: Copy): number {
   return version;
 }
 
-/** The catalog, in the current locale. Renders the component again when the locale changes, or in dev the catalog. */
+/**
+ * The catalog, in the current locale. Renders the component again when the locale changes, or in dev the catalog, and
+ * when a relative time it read, as text or a node, next reads differently, as `prosebook/react` does.
+ */
 export function useCopy(): PreactCopy {
   const { copy, tags } = useContextOf('useCopy');
   const version = useVersion(copy);
+  const [, refresh] = useState(0);
   // Rebuilt on each version, so its identity changes when what it reads does.
-  return useMemo(() => bindCopy(copy, tags, { tag, whole }), [copy, tags, version]);
+  const { reader, wait } = useMemo(() => waitingReader<ComponentChildren, VNode>(copy, tags, { tag, whole }), [copy, tags, version]);
+  // Renders the component again when a relative time it read next reads differently. After every render, as reads
+  // differ between them; an effect, so a server sets no timer.
+  useEffect(() => wait(() => refresh((n) => n + 1)));
+  return reader;
 }
 
 /** The current locale alone, for components that only format or switch. */
@@ -91,12 +99,5 @@ export type TextProps<K extends MessageKey> = Props<K, ComponentChildren>;
  * stays fresh: the element renders itself again when it next reads differently, and nothing else does.
  */
 export function Text<K extends MessageKey>(props: TextProps<K>): VNode {
-  const copy = useCopy();
-  const [, refresh] = useState(0);
-  const values = (props as { values?: object }).values;
-  const node = copy.rich(props.id as never, values as never);
-  const next = copy.nextChange();
-  // An effect, so a server sets no timer, and a page hydrates before any time moves on.
-  useEffect(() => (next === undefined ? undefined : copy.at(next, () => refresh((n) => n + 1))), [copy, next]);
-  return node;
+  return useCopy().rich(props.id as never, (props as { values?: object }).values as never);
 }

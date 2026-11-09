@@ -72,8 +72,10 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   Its formatters and collators (`compare`, `collator`) are cached by kind and options as JSON, and by the
   options object itself, so a named format or a constant costs no `JSON.stringify` on a hot path.
   `t`, `rich` and `relative` are reads through the catalog's `relative` clock where it has one, which
-  `nextChange` and `at` serve: every binding's `<Text>` asks `nextChange` right after it reads, and in
-  an effect (never on a server) waits with `at` to render itself again.
+  `nextChange` and `at` serve: every binding's reader (`bindCopy`'s `fresh`) asks `nextChange` right after each
+  `t`, `rich` and `relative`, so `<Text>` needs nothing of its own. React and Preact keep the soonest per
+  `useCopy()` and wait with `at` in an effect after each render (never on a server); Vue, Solid and Svelte read
+  a signal per moment (`freshness`), bumped by `at` then, so only what read the text runs again.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, `acceptedLocales` for servers, and `dirOf`, a
   locale's direction from `Intl.Locale`'s likely script, or from the tag's own subtags where Hermes has no `Intl.Locale`.
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
@@ -108,7 +110,9 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   build of React refuses the context `index.tsx` makes as it loads, so nothing there may import it.
 - `src/runtime/bind.ts`: what every framework binding shares. `bindCopy` is a copy read through the
   framework's reactivity: `track` on every read, the provider's tags under each rich read's own, `tag` for
-  what a tag renderer becomes and `whole` for what a rich read returns. Also `<Text>`'s prop types.
+  what a tag renderer becomes, `whole` for what a rich read returns and `fresh` for when a read's relative
+  time next changes (`freshness`: a framework signal per moment, made on first read, gone once bumped, no
+  timer where there is no `document`). Also `<Text>`'s prop types.
 - `src/preact/index.ts`, `src/vue/index.ts`, `src/solid/index.ts`, `src/svelte/index.ts`: one binding
   each, written without JSX or a framework compiler. React and Preact rebuild the reader per version;
   Vue tracks a ref, Solid a signal, Svelte a `createSubscriber`. Vue's `<Text>` takes tags as slots;

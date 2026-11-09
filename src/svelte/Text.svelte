@@ -8,18 +8,7 @@
 
   let { id, values, chunks, ...snippets }: { id?: string; values?: object; chunks?: RichPart[]; [tag: string]: unknown } = $props();
   const copy = getCopy();
-  let tick = $state(0);
-  const read = $derived.by(() => {
-    void tick;
-    if (chunks !== undefined) return { parts: chunks, next: undefined };
-    const parts = copy.rich(id as never, { ...snippets, ...values } as never);
-    return { parts, next: copy.nextChange() };
-  });
-  // An effect, which a server render doesn't run, so it sets no timer.
-  $effect(() => {
-    const { next } = read;
-    if (next !== undefined) return copy.at(next, () => tick++);
-  });
+  const parts = $derived(chunks ?? copy.rich(id as never, { ...snippets, ...values } as never));
 </script>
 
-{#each read.parts as part}{#if typeof part === 'string'}{part}{:else}{@render part.snippet(part.chunks)}{/if}{/each}
+{#each parts as part}{#if typeof part === 'string'}{part}{:else}{@render part.snippet(part.chunks)}{/if}{/each}

@@ -24,11 +24,63 @@ export interface Binding<R> {
   tag?: (render: (chunks: never) => unknown, chunks: unknown[]) => unknown;
   /** What a rich read returns, given its parts. */
   whole: (parts: unknown[]) => R;
+  /**
+   * Told, of a read whose text says a relative time, the moment by the copy's clock it next reads differently, so the
+   * binding renders what read it again then: `t`, `rich` and `relative`. The read is claimed, so a `live` copy leaves it.
+   */
+  fresh?: (next: number) => void;
+}
+
+/**
+ * A reader for a binding that renders a component again, not a read (React's, Preact's): it keeps the soonest moment a
+ * read of it next reads differently, which `wait` waits for, calling `run` then. Kept until then, so an effect run twice
+ * waits twice; a component that stopped reading the time renders once more for nothing.
+ */
+export function waitingReader<N, R>(copy: Copy, tags: Tags, binding: Binding<R>) {
+  let soonest: number | undefined;
+  const reader = bindCopy<N, R>(copy, tags, { ...binding, fresh: (next) => (soonest = Math.min(next, soonest ?? next)) });
+  const wait = (run: () => void) => {
+    const at = soonest;
+    if (at === undefined) return undefined;
+    return copy.at(at, () => {
+      soonest = undefined;
+      run();
+    });
+  };
+  return { reader, wait };
+}
+
+/**
+ * The moments reads next change, each a signal of the framework's that is bumped then: what read the text tracks it, so
+ * that alone runs again. Made on first read and gone once bumped. A server sets no timer: nothing there renders twice.
+ */
+export function freshness(copy: Copy, signal: (wait: (run: () => void) => () => void) => () => void): (next: number) => void {
+  const signals = new Map<number, () => void>();
+  return (next) => {
+    let read = signals.get(next);
+    if (read === undefined) {
+      read = signal((run) => {
+        if (typeof document === 'undefined') return () => {};
+        return copy.at(next, () => {
+          signals.delete(next);
+          run();
+        });
+      });
+      signals.set(next, read);
+    }
+    read();
+  };
 }
 
 /** A reader of `copy` whose reads go through `track`, and whose rich reads get `tags` unless they give their own. */
-export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, whole }: Binding<R>): BoundCopy<N, R> {
+export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, whole, fresh }: Binding<R>): BoundCopy<N, R> {
   const merged = { ...copy.tags, ...tags };
+  // A read, told to `fresh` where its text changes in time.
+  const kept = <T>(out: T): T => {
+    const next = fresh === undefined ? undefined : copy.nextChange();
+    if (next !== undefined) fresh!(next);
+    return out;
+  };
   return {
     get locale() {
       track();
@@ -49,7 +101,7 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
     ready: copy.ready,
     t(key, ...args) {
       track();
-      return copy.t(key, ...args);
+      return kept(copy.t(key, ...args));
     },
     has(key): key is keyof M & string {
       track();
@@ -75,7 +127,7 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
     },
     relative(at, format) {
       track();
-      return copy.relative(at, format);
+      return kept(copy.relative(at, format));
     },
     compare(a, b, options) {
       track();
@@ -95,7 +147,7 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
         for (const [name, value] of Object.entries(all))
           if (typeof value === 'function') all[name] = (chunks: unknown[]) => tag(value as (chunks: never) => unknown, chunks);
       }
-      return whole(copy.rich(key, all as never));
+      return whole(kept(copy.rich(key, all as never)));
     },
   };
 }

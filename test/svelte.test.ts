@@ -5,6 +5,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import type { DevHooks, HotHook } from 'prosebook';
 
 import { copyOf, turning } from './fixture.ts';
+import Line from './svelte/Line.svelte';
 import Opened from './svelte/Opened.svelte';
 import Shop from './svelte/Shop.svelte';
 
@@ -47,5 +48,22 @@ test('a <Text> saying a relative time renders again once it reads differently, a
   flushSync();
   expect(html(host)).toBe('<p>Opened 1 minute ago</p>');
   expect(renders).toBe(1);
+  await unmount(app);
+});
+
+test('a relative time read as text stays current, rendering again only what read it', async () => {
+  const { copy, at } = turning();
+  const renders = { line: 0, other: 0 };
+  const host = document.createElement('div');
+  const app = mount(Line, {
+    target: host,
+    props: { copy, at, line: () => renders.line++, other: () => renders.other++ },
+  });
+  flushSync();
+  expect(html(host)).toBe('<span title="Opened now">Opened now</span><i></i>');
+  await Bun.sleep(150);
+  flushSync();
+  expect(html(host)).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
+  expect(renders).toEqual({ line: 2, other: 1 });
   await unmount(app);
 });

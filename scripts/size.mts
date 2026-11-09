@@ -14,13 +14,14 @@ const CORE = `export { createCopy, defineCatalog, preferredLocales } from ${dist
 // Bytes, gzipped. Raise one only with the reason in the commit: the README says what the runtime weighs.
 const BUDGETS: Record<string, number> = {
   // 4 KB until relative times, whose clock and reads every copy carries; 4.5 KB until `compare`, `collator`, list
-  // separators and the catalog's `ladder` field (the ladder itself ships only where a format has one).
+  // separators and the catalog's `ladder` field (the ladder itself ships only where a format has one). Each binding
+  // carries what keeps a relative time read with `t` current.
   runtime: 4650,
-  react: 5350,
-  preact: 5350,
-  vue: 5400,
-  solid: 5200,
-  svelte: 5100,
+  react: 5450,
+  preact: 5450,
+  vue: 5450,
+  solid: 5300,
+  svelte: 5200,
 };
 
 const EXTERNAL = ['react', 'react/*', 'react-dom', 'preact', 'preact/*', 'vue', 'solid-js', 'solid-js/*', 'svelte', 'svelte/*', '*.svelte'];

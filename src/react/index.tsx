@@ -7,7 +7,7 @@
  */
 import { createContext, Fragment, isValidElement, use, useEffect, useMemo, useReducer, useSyncExternalStore, type ReactNode } from 'react';
 
-import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
+import { waitingReader, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
 import type { MessageKey, RegisteredLocale, TagFn } from '#src/runtime/types.ts';
 
@@ -37,7 +37,10 @@ export function CopyProvider({ copy, tags = NO_TAGS, children }: CopyProviderPro
   return <CopyContext value={value}>{children}</CopyContext>;
 }
 
-/** The catalog, in the current locale. Re-renders the component when the locale changes, or in dev the catalog. */
+/**
+ * The catalog, in the current locale. Re-renders the component when the locale changes, or in dev the catalog, and
+ * when a relative time it read, as text or a node, next reads differently: "5 minutes ago" from `t` stays current.
+ */
 export function useCopy(): ReactCopy {
   const context = use(CopyContext);
   if (context === null) throw new Error('prosebook: useCopy() needs a <CopyProvider> above it');
@@ -47,8 +50,13 @@ export function useCopy(): ReactCopy {
     () => copy.version,
     () => copy.version,
   );
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
   // Rebuilt on each version, so its identity changes when what it reads does.
-  return useMemo(() => bindCopy(copy, tags, { tag, whole }), [copy, tags, version]);
+  const { reader, wait } = useMemo(() => waitingReader<ReactNode, ReactNode>(copy, tags, { tag, whole }), [copy, tags, version]);
+  // Renders the component again when a relative time it read next reads differently. After every render, as reads
+  // differ between them; an effect, so a server sets no timer, and a page hydrates before any time moves on.
+  useEffect(() => wait(refresh));
+  return reader;
 }
 
 /** The current locale alone, for components that only format or switch. */
@@ -83,11 +91,5 @@ export type TextProps<K extends MessageKey> = Props<K, ReactNode>;
  */
 export function Text<K extends MessageKey>(props: TextProps<K>) {
   const copy = useCopy();
-  const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const values = (props as { values?: object }).values;
-  const node = copy.rich(props.id as never, values as never);
-  const next = copy.nextChange();
-  // An effect, so a server sets no timer, and a page hydrates before any time moves on.
-  useEffect(() => (next === undefined ? undefined : copy.at(next, refresh)), [copy, next]);
-  return <>{node}</>;
+  return <>{copy.rich(props.id as never, (props as { values?: object }).values as never)}</>;
 }

@@ -167,8 +167,8 @@ export interface CopyOptions<L extends string> {
   now?: number | (() => number);
   /**
    * Keeps relative times fresh copy-wide: while the copy has subscribers, its `version` changes, and
-   * they render again, when a relative time read outside a `<Text>` next reads differently. `<Text>`
-   * keeps its own fresh either way, rendering only itself again.
+   * they render again, when a relative time read outside any binding next reads differently. A binding
+   * keeps its own reads fresh either way, `<Text>` and `t` alike, rendering only what read them again.
    */
   live?: boolean;
 }
@@ -240,7 +240,7 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   /**
    * When, by the copy's clock, what the latest read (`t`, `rich`, `relative`) said next reads
    * differently, for a relative time in it; nothing where it never will. Whoever asks keeps it fresh
-   * from then on, so a `live` copy leaves that read to them: `<Text>` asks after each render.
+   * from then on, so a `live` copy leaves that read to them: every binding asks after each read.
    */
   nextChange(this: void): number | undefined;
   /**

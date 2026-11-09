@@ -82,3 +82,32 @@ test('a <Text> saying a relative time renders again once it reads differently, a
   expect(renders).toBe(1);
   app.unmount();
 });
+
+test('a relative time read as text stays current, rendering again only the component that read it', async () => {
+  const { copy, at } = turning();
+  const renders = { line: 0, other: 0 };
+  const Line = defineComponent(() => {
+    const { t } = useCopy() as unknown as { t: (key: string, values: object) => string };
+    return () => {
+      renders.line++;
+      const text = t('a.opened', { at });
+      return h('span', { title: text }, text);
+    };
+  });
+  const Other = defineComponent(() => {
+    const copy = useCopy();
+    return () => {
+      renders.other++;
+      return h('i', copy.locale === 'en' ? '' : copy.locale);
+    };
+  });
+  const host = document.createElement('div');
+  const app = createApp(defineComponent(() => () => [h(Line), h(Other)])).use(copyPlugin(copy));
+  app.mount(host);
+  expect(host.innerHTML).toBe('<span title="Opened now">Opened now</span><i></i>');
+  await Bun.sleep(150);
+  await nextTick();
+  expect(host.innerHTML).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
+  expect(renders).toEqual({ line: 2, other: 1 });
+  app.unmount();
+});

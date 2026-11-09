@@ -88,3 +88,26 @@ test('a <Text> saying a relative time renders itself again once it reads differe
   expect(renders).toBe(1);
   await act(() => render(null, host));
 });
+
+test('a relative time read as text stays current, rendering again only the component that read it', async () => {
+  const { copy, at } = turning();
+  let lineRenders = 0;
+  let otherRenders = 0;
+  function Line() {
+    lineRenders++;
+    const text = useCopy().t('a.opened' as never, { at });
+    return h('span', { title: text }, text);
+  }
+  function Other() {
+    otherRenders++;
+    useCopy();
+    return h('i', null);
+  }
+  const host = document.createElement('div');
+  await act(() => render(h(CopyProvider, { copy }, h(Line, null), h(Other, null)), host));
+  expect(host.innerHTML).toBe('<span title="Opened now">Opened now</span><i></i>');
+  await act(() => Bun.sleep(150));
+  expect(host.innerHTML).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
+  expect([lineRenders, otherRenders]).toEqual([2, 1]);
+  await act(() => render(null, host));
+});
