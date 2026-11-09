@@ -220,6 +220,31 @@ describe('copy', () => {
     expect(copy.relative(Date.now() - 86_400_000)).toBe('gestern');
   });
 
+  test.each([
+    ['en', ['b', 'Z', 'a', 'ä'], undefined, ['a', 'ä', 'b', 'Z']],
+    ['sv', ['b', 'Z', 'a', 'ä'], undefined, ['a', 'b', 'Z', 'ä']],
+    ['de', ['file10', 'file9', 'file1'], { numeric: true }, ['file1', 'file9', 'file10']],
+    ['de', ['file10', 'file9', 'file1'], undefined, ['file1', 'file10', 'file9']],
+    ['en', ['résumé', 'Resume', 'resume'], { sensitivity: 'base' as const }, ['résumé', 'Resume', 'resume']],
+  ])('sorts in %s, the copy’s locale: %p with %p', async (locale, items, options, sorted) => {
+    const copy = copyOf({ en: {}, de: {}, sv: {} });
+    await copy.setLocale(locale);
+    expect([...items].sort((a, b) => copy.compare(a, b, options))).toEqual(sorted);
+    expect([...items].sort(copy.collator(options).compare)).toEqual(sorted);
+  });
+
+  test('one collator per locale and options, made again after a switch', async () => {
+    const copy = copyOf({ en: {}, sv: {} });
+    const options = { numeric: true };
+    expect(copy.collator(options)).toBe(copy.collator(options));
+    expect(copy.collator({ numeric: true })).toBe(copy.collator(options));
+    expect(copy.collator()).not.toBe(copy.collator(options));
+    const before = copy.collator(options);
+    await copy.setLocale('sv');
+    expect(copy.collator(options)).not.toBe(before);
+    expect(copy.collator(options).resolvedOptions().locale).toBe('sv');
+  });
+
   test('dates show in the copy’s time zone, unless a message names its own', () => {
     // 23:30 UTC on 31 December: already 1 January in Tokyo.
     const when = Date.UTC(2025, 11, 31, 23, 30);

@@ -240,6 +240,8 @@ copy.date(when, { weekday: 'long' });
 copy.list(['a', 'b', 'c']); // "a, b, and c"; a named format too, with its max and more
 copy.duration(185_400, 'compact'); // "3m 5s": milliseconds, with a named format or options
 copy.relative(openedAt, 'recent'); // "2 hours ago", "yesterday": a Date, milliseconds or ISO string
+repos.sort((a, b) => copy.compare(a.name, b.name, { numeric: true })); // "file9" before "file10", as the locale sorts
+names.sort(copy.collator({ sensitivity: 'base' }).compare); // one collator per locale and options
 copy.has(key); // narrows key to a key of the catalog
 await copy.setLocale('de'); // once its messages and its fallbacks' are loaded
 const stop = copy.subscribe(render); // after each locale switch, and each catalog edit in dev
@@ -1297,7 +1299,9 @@ JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a s
 
 It also finds numbers, dates, lists and relative times formatted in code, which show the browser's locale rather than the
 copy's: `toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, a relative
-time's unit picked in code (`rtf.format(-days, 'day')`), and in components `.join(', ')`. Each says what to read instead, naming the [format](#named-formats) its options match:
+time's unit picked in code (`rtf.format(-days, 'day')`), and in components `.join(', ')`, and text sorted in the environment's
+locale, `a.localeCompare(b)` and `new Intl.Collator()` with no locale given (`copy.compare` sorts in the copy's; ids and ISO times,
+`a.id`, `b.createdAt`, sort as raw strings and aren't reported). Each says what to read instead, naming the [format](#named-formats) its options match:
 
 ```
 src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): read copy.number(…, 'price'), which shows it as the format the config names

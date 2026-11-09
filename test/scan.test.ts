@@ -111,6 +111,36 @@ export const Row = ({ n, when, names, rows }) => (
   expect(found('Row.test.tsx')).toEqual([]);
 });
 
+test.each([
+  ['names.sort((a, b) => a.localeCompare(b))', "a.localeCompare(b): copy.compare(a, b), in the copy's locale"],
+  [
+    'repos.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))',
+    "a.name.localeCompare(b.name, undefined, { numeric: true }): copy.compare(a.name, b.name, { numeric: true }), in the copy's locale",
+  ],
+  [
+    'tools.sort((a, b) => a.label.localeCompare(b.label, []))',
+    "a.label.localeCompare(b.label, []): copy.compare(a.label, b.label), in the copy's locale",
+  ],
+  ['new Intl.Collator().compare', "new Intl.Collator(): copy.collator(), in the copy's locale"],
+  [
+    "new Intl.Collator(undefined, { sensitivity: 'base' })",
+    "new Intl.Collator(undefined, { sensitivity: 'base' }): copy.collator({ sensitivity: 'base' }), in the copy's locale",
+  ],
+  // A locale written in is the code's choice; ids and ISO times sort as raw strings, not as words.
+  ["a.localeCompare(b, 'en')", undefined],
+  ["new Intl.Collator('en')", undefined],
+  ['runs.sort((a, b) => a.createdAt.localeCompare(b.createdAt))', undefined],
+  ['rows.sort((a, b) => a.id.localeCompare(b.id))', undefined],
+  ['rows.sort((a, b) => a.started_at.localeCompare(b.started_at))', undefined],
+  ['rows.sort((a, b) => a.repoId.localeCompare(b.repoId))', undefined],
+  ['rows.sort((a, b) => a.chat.localeCompare(b.chat))', "a.chat.localeCompare(b.chat): copy.compare(a.chat, b.chat), in the copy's locale"],
+])('a sort in a component, %s, is found: %p', (expression, said) => {
+  const code = `export const List = ({ names, repos, tools, runs, rows, a, b }) => <p>{String(${expression})}</p>;`;
+  expect(formattedInCode('List.tsx', code).map((f) => `${f.code}: ${f.fix}`)).toEqual(said === undefined ? [] : [said]);
+  // Outside a component, a sort is as often of data no one reads.
+  expect(formattedInCode('list.ts', code)).toEqual([]);
+});
+
 test('a formatter only asked its options formats nothing', () => {
   const code = [
     'export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;',

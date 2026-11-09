@@ -69,6 +69,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   the module's own, so an area loading after a dev edit ran the index again still reaches its copies.
   A server build's catalog may list `areaFiles`, each area's file per lazy locale in the split client,
   which a copy hands to `preload` as it reads each area, once per file, for the page to link.
+  Its formatters and collators (`compare`, `collator`) are cached by kind and options as JSON, and by the
+  options object itself, so a named format or a constant costs no `JSON.stringify` on a hot path.
   `t`, `rich` and `relative` are reads through the catalog's `relative` clock where it has one, which
   `nextChange` and `at` serve: every binding's `<Text>` asks `nextChange` right after it reads, and in
   an effect (never on a server) waits with `at` to render itself again.
@@ -244,7 +246,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
   finds `toLocale*String` calls, `Intl` formatters, a `.format(n, 'day')` picking a relative time's unit
-  (`RELATIVE_UNIT`) and a component's `.join(', ')`, and names the
+  (`RELATIVE_UNIT`), a component's `.join(', ')`, and its `localeCompare` or `Intl.Collator` with no locale
+  (`noLocale`), past ids and ISO times (`isRawString`, by the name's last word), and names the
   copy's method to read, with a named format whose options resolve as the written ones do, and passes by a formatter
   only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its

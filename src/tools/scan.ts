@@ -482,6 +482,18 @@ const INTL_METHODS: Record<string, string> = {
   DurationFormat: 'duration',
 };
 const RELATIVE_UNIT = /^(?:year|quarter|month|week|day|hour|minute|second)s?$/;
+/**
+ * The last word of what names an id or a time written as ISO 8601, `a.id`, `run.createdAt`, `started_at`:
+ * compared as raw strings, which sort as they should, not as text a person reads.
+ */
+const RAW_STRING = new Set(['id', 'ids', 'key', 'uuid', 'sha', 'hash', 'slug', 'at', 'date', 'time', 'timestamp', 'iso']);
+
+/** Whether an expression, by the last word of its name, holds an id or an ISO time. */
+function isRawString(expression: string): boolean {
+  const name = /([A-Za-z_$][\w$]*)\W*$/.exec(expression)?.[1] ?? '';
+  const last = name.split(/_|(?<=[a-z0-9])(?=[A-Z])/).at(-1)!;
+  return RAW_STRING.has(last.toLowerCase());
+}
 const TO_LOCALE: Record<string, 'date' | undefined> = { toLocaleString: undefined, toLocaleDateString: 'date', toLocaleTimeString: 'date' };
 /** The options only a date formats with, which tell `toLocaleString`'s value apart from a number. */
 const DATE_OPTIONS =
@@ -515,7 +527,8 @@ function resolved(kind: keyof FormatTable, locale: string, options: object): str
  * Numbers, dates, lists and relative times formatted in code rather than by the copy: `toLocaleString()` and
  * `new Intl.NumberFormat()` show the browser's locale, or one written in, where the copy shows its
  * own, and options written out drift from the format the config names. In components, `.join(', ')`
- * is a list only English joins so. Outside tests and stories; lines marked `prosebook-ignore` are left.
+ * is a list only English joins so, and `localeCompare` or `Intl.Collator` given no locale sorts as the
+ * environment does. Outside tests and stories; lines marked `prosebook-ignore` are left.
  */
 export function formattedInCode(file: string, code: string, formats: Formats = {}, locale = 'en'): Formatted[] {
   if (NOT_APP.test(file)) return [];
@@ -528,6 +541,12 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
     if (ignored(at.line)) return;
     const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
     const shown = text.length > 80 ? `${text.slice(0, 77)}...` : text;
+    if (kind === 'compare') {
+      const written = options === undefined ? '' : code.slice(options.start, options.end).replace(/\s+/g, ' ');
+      const given = written === '' || value.endsWith('(') ? written : `, ${written}`;
+      found.push({ file, ...at, code: shown, fix: `${value}${given}), in the copy's locale` });
+      return;
+    }
     if (kind === 'relative') {
       // The unit is worked out in code, which the copy does from the time itself.
       const names = Object.keys(formats.relative ?? {}).map((name) => `copy.relative(at, '${name}')`);
@@ -566,12 +585,19 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
       const args = node.arguments as Node[];
       const intl = callee?.root === 'Intl' ? INTL_METHODS[callee.name.slice('Intl.'.length)] : undefined;
       if (intl !== undefined && !asked.has(node)) say(node, intl, '…', args[1]);
+      // A collator with no locale sorts as the environment does, which a server and a browser rarely share.
+      if (component && callee?.name === 'Intl.Collator' && !asked.has(node) && noLocale(args[0]))
+        say(node, 'compare', 'copy.collator(', args[1]);
       const member = node.callee as Node;
       if (node.type === 'CallExpression' && member.type === 'MemberExpression' && member.computed !== true) {
         const method = nameOf(member.property as Node) ?? '';
         if (method === 'resolvedOptions') asked.add(unwrapped(member.object as Node));
         const value = code.slice((member.object as Node).start, (member.object as Node).end);
         if (Object.hasOwn(TO_LOCALE, method)) say(node, TO_LOCALE[method] ?? 'either', value, args[1]);
+        if (component && method === 'localeCompare' && noLocale(args[1]) && args[0] !== undefined) {
+          const [a, b] = [member.object as Node, args[0]].map((n) => code.slice(n.start, n.end));
+          if (![a, b].some((side) => isRawString(side!))) say(node, 'compare', `copy.compare(${a}, ${b}`, args[2]);
+        }
         const joiner = args[0];
         if (component && method === 'join' && joiner?.type === 'Literal' && joiner.value === ', ') say(node, 'list', value, undefined);
         // `rtf.format(-3, 'day')`: a relative time's unit picked in code, from a formatter made elsewhere.
@@ -590,6 +616,13 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
   };
   visit(program as unknown as Node);
   return found;
+}
+
+/** A locale argument left out, or given as `undefined` or `[]`: the environment's locale. */
+function noLocale(node: Node | undefined): boolean {
+  if (node === undefined) return true;
+  if (node.type === 'Identifier') return node.name === 'undefined';
+  return node.type === 'ArrayExpression' && (node.elements as unknown[]).length === 0;
 }
 
 function isNode(value: unknown): value is Node {

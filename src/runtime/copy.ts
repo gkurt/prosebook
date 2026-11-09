@@ -220,6 +220,17 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
    * (`formats.relative`), as `{at, relative, …}` shows it in a message.
    */
   relative(this: void, at: Date | number | string, format?: OrName<RelativeFormatOptions, RelativeFormatName>): string;
+  /**
+   * Compares two strings as the current locale sorts them, for `items.sort((a, b) => copy.compare(a.name, b.name))`:
+   * `numeric` puts "file9" before "file10", `sensitivity: 'base'` reads "a", "á" and "A" as one. Ids and ISO
+   * times sort as raw strings, with `<`.
+   */
+  compare(this: void, a: string, b: string, options?: Intl.CollatorOptions): number;
+  /**
+   * The current locale's collator for `options`, made once per locale and options: `names.sort(copy.collator().compare)`.
+   * Read it again after a locale switch, as `compare` does on every call.
+   */
+  collator(this: void, options?: Intl.CollatorOptions): Intl.Collator;
   /** The copy's clock: what relative times are measured from (`CopyOptions.now`). */
   now(this: void): number;
   /**
@@ -264,8 +275,10 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   const defaultTags = options.tags ?? {};
   const formatters = new Map<
     string,
-    Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.RelativeTimeFormat | Intl.DurationFormat
+    Intl.NumberFormat | Intl.DateTimeFormat | Intl.ListFormat | Intl.RelativeTimeFormat | Intl.DurationFormat | Intl.Collator
   >();
+  // The same formatters by the options object they were made for, in the current locale.
+  let sameOptions = new WeakMap<object, Record<string, unknown>>();
   const split = catalog.split === undefined ? undefined : registry(catalog.split.id);
   // The key being rendered, which a helper's report names; none while the inspector renders it again.
   let reading: string | undefined;
@@ -379,6 +392,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     locale = target;
     chain = layers(locales);
     formatters.clear();
+    sameOptions = new WeakMap();
     changed();
   }
 
@@ -436,9 +450,15 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
   }
 
   function formatter<F>(kind: string, options: object | undefined, make: () => F): F {
+    // A named format's options, or a module constant, is the same object every call: found by identity,
+    // it costs no `JSON.stringify`, which a value shown every frame or a sort's every comparison would pay.
+    const byKind = options === undefined ? undefined : sameOptions.get(options);
+    const known = byKind?.[kind] as F | undefined;
+    if (known !== undefined) return known;
     const id = `${kind}${JSON.stringify(options ?? {})}`;
     let made = formatters.get(id) as F | undefined;
     if (made === undefined) formatters.set(id, (made = make()) as never);
+    if (options !== undefined) sameOptions.set(options, { ...byKind, [kind]: made });
     return made;
   }
 
@@ -448,6 +468,8 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       return formatWith(catalog.formatters, 'date', opts.formatter, value, { locale, timeZone: options.timeZone });
     return formatter('d', opts, () => dateFormat(locale, options.timeZone, opts)).format(value);
   }
+
+  const collator = (opts?: Intl.CollatorOptions) => formatter('c', opts, () => new Intl.Collator(locale, opts));
 
   const ready = options.locale === undefined ? Promise.resolve() : setLocale(options.locale);
 
@@ -519,6 +541,8 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
         return text;
       });
     },
+    compare: (a, b, opts) => collator(opts).compare(a, b),
+    collator,
     now: () => (times === undefined ? Date.now() : times.now()),
     nextChange: () => times?.nextChange(),
     // Only a catalog that says relative times gives `nextChange` a time to wait for.

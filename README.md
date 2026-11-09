@@ -24,7 +24,7 @@ const { t } = useCopy();
 ```
 
 - **Typed.** A missing key, a misspelled key or a missing argument is a type error, and completing a key shows its text.
-- **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4.5 KB gzipped.
+- **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4.6 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build, and a translation whose source
   changed is marked stale.
 - **Pruned.** Vite, Next.js, webpack, Rspack, Metro, Bun and Astro builds ship only the messages the code reads; Vite, Next.js,

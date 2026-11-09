@@ -77,6 +77,14 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
       track();
       return copy.relative(at, format);
     },
+    compare(a, b, options) {
+      track();
+      return copy.compare(a, b, options);
+    },
+    collator(options) {
+      track();
+      return copy.collator(options);
+    },
     now: copy.now,
     nextChange: copy.nextChange,
     at: copy.at,
