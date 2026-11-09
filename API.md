@@ -599,6 +599,10 @@ Before writing or changing UI copy, read copy/catalog/WRITING.md.
 Claude Code reads it with `@copy/catalog/WRITING.md` in CLAUDE.md. Set `guide` to write it elsewhere, `guide: false` for none. A
 checked rule is in it when it says `guide: true`.
 
+Each format's samples are written as the runtime's `Intl` writes them, which differs between Bun and Node and between ICU
+versions. A guide whose samples differ only that way, its formats unchanged, is kept as it is, so neither runtime rewrites the
+other's and `generate --check` passes on both.
+
 #### Voice guidelines
 
 The guide also says seven guidelines against the habits of copy written off the code, as an agent tends to write it:

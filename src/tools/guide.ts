@@ -6,6 +6,7 @@
  *
  * Generated so it says what the config says, and `generate --check` fails on one the config has moved past.
  */
+import { existsSync, readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 
 import {
@@ -26,6 +27,7 @@ import type { Message } from './catalog.ts';
 import { renderer } from './compile.ts';
 import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
+import { hash } from './lock.ts';
 import { addressIn, type Formality } from './presets.ts';
 import { readMessage, SYNTAX_NAME } from './syntax.ts';
 
@@ -174,8 +176,38 @@ function sampleOwn(config: ResolvedConfig, kind: 'number' | 'date', name: string
   }
 }
 
+/**
+ * What decides the samples, but the runtime: the formats, the formatters' code and the entries a format says.
+ * Its hash rides in the guide, so a guide whose samples another runtime wrote is kept while it holds.
+ */
+function samplesFrom(config: ResolvedConfig, messages: readonly Message[]): string {
+  const said = new Set<string>();
+  const formats = JSON.stringify(config.formats, (key, value: unknown) => {
+    if (key === 'entry' && typeof value === 'string') said.add(value);
+    return value;
+  });
+  const file = config.formatters?.file;
+  const texts = messages.filter((m) => said.has(m.key)).map((m) => [m.key, m.text]);
+  return hash(
+    JSON.stringify([config.source, config.messageFormat, formats, file && existsSync(file) ? readFileSync(file, 'utf8') : '', texts]),
+  );
+}
+
+/** A format's line, its samples left out: what two runtimes agree on. */
+const SAMPLE_LINE = /^(- `[^`\n]+` \((?:number|date|list|duration|relative)\)): .*$/gm;
+const unsampled = (guide: string) => guide.replace(SAMPLE_LINE, '$1');
+
+/**
+ * The guide to write over `current`: `current` itself where only its samples differ from `fresh`'s, from the same
+ * formats. Bun and Node, or two ICU versions, write a date otherwise ("Oct 28, 2026 at 2:05 PM", "…, 2:05 PM"), so
+ * a build under one would otherwise rewrite, and `--check` fail on, the guide the other wrote.
+ */
+export function keptGuide(current: string | undefined, fresh: string): string {
+  return current !== undefined && unsampled(current) === unsampled(fresh) ? current : fresh;
+}
+
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
-function formatsSection(config: ResolvedConfig, say: Say): string[] {
+function formatsSection(config: ResolvedConfig, say: Say, messages: readonly Message[]): string[] {
   const { number = {}, date = {}, list: lists = {}, duration = {}, relative: relatives = {} } = config.formats;
   const rows = [
     ...Object.entries(number).map(([name, o]) => [
@@ -210,6 +242,8 @@ function formatsSection(config: ResolvedConfig, say: Say): string[] {
     '## Formats',
     '',
     `A number, date, list, duration or relative time is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
+    '',
+    `<!-- Samples of ${samplesFrom(config, messages)}, as the runtime that generated this writes them. -->`,
     '',
     ...rows.map(([n, k, shown]) => `- ${code(n!)} (${k}): ${shown}`),
   ];
@@ -307,7 +341,7 @@ export function writingGuide(config: ResolvedConfig, translations: readonly stri
     ...Object.entries(config.surfaces).map(([name, doc]) => `- ${code(name)}: ${doc}`),
   ];
 
-  out.push(...formatsSection(config, sayer(config, messages)));
+  out.push(...formatsSection(config, sayer(config, messages), messages));
 
   out.push(...toneSection(config, translations));
 

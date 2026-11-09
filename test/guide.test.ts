@@ -39,6 +39,26 @@ describe('the writing guide', () => {
     expect(generate(config, { check: true }).changed).toEqual([path]);
   });
 
+  test("samples another runtime wrote stand while the formats do, as Bun's and Node's dates differ", () => {
+    const formats = { date: { when: { dateStyle: 'medium', timeStyle: 'short' } } } as const;
+    const config = fixture(CATALOG, { formats });
+    const path = join(config.catalog, 'WRITING.md');
+    generate(config);
+    const ours = readFileSync(path, 'utf8');
+    // Whichever this runtime writes, the other's.
+    const theirs = ours.replace(
+      /(- `when` \(date\): ).*/,
+      (_, line: string) => line + (ours.includes(' at 2:05') ? 'Oct 28, 2026, 2:05 PM' : 'Oct 28, 2026 at 2:05 PM'),
+    );
+    expect(theirs).not.toBe(ours);
+    writeFileSync(path, theirs);
+    expect(generate(config).changed).toEqual([]);
+    expect(readFileSync(path, 'utf8')).toBe(theirs);
+    const moved = fixture(CATALOG, { formats: { date: { when: { dateStyle: 'long' } } } });
+    writeFileSync(join(moved.catalog, 'WRITING.md'), theirs);
+    expect(generate(moved, { check: true }).changed).toContain(join(moved.catalog, 'WRITING.md'));
+  });
+
   test('it goes where guide says, or nowhere with false', () => {
     const elsewhere = fixture(CATALOG, { guide: 'docs/copy.md' });
     generate(elsewhere);

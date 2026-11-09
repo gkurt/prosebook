@@ -225,7 +225,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   The guide sits in a `prettier-ignore` range, and each native target carries its language's own. `guide.ts`: the writing guide
   `generate` writes (`guide`, `WRITING.md` in the catalog folder) for whoever writes next: only what
   the lint can't check, the kinds' and surfaces' docs, the named formats and the rules marked `guide`, which every
-  `guideline` (a data rule with no check) is. Keep it short; what a rule checks, its finding says. `lock.ts`: stale translations and the source texts
+  `guideline` (a data rule with no check) is. Keep it short; what a rule checks, its finding says. Its format samples are
+  the runtime's `Intl`, which Bun and Node write differently, so `render` keeps the guide on disk (`keptGuide`) where only
+  the samples differ and the hash of what decides them (`samplesFrom`, a comment in the Formats section) holds. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model, which says the rules marked `guide` that read the
   locale and some entry in it (`applies`, as the lint decides). prosebook never calls a model: it writes the prompt, and

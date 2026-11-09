@@ -14,7 +14,7 @@ import type { FormatTable } from '#src/runtime/formats.ts';
 import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions, type Message } from './catalog.ts';
 import { compileLocale, localeExpression, localeModule, verbatim, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
-import { writingGuide } from './guide.ts';
+import { keptGuide, writingGuide } from './guide.ts';
 import { extensionOf, isNullish, RELATIVE, walk, type MessageFormatElement } from './icu.ts';
 import { keepUnread, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
@@ -409,7 +409,10 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
 
   for (const [path, content] of nativeFiles(config, catalog, locales, entries, head)) files.set(path, content);
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
-  if (config.guide !== false) files.set(config.guide, writingGuide(config, catalog.locales, catalog.messages));
+  if (config.guide !== false) {
+    const current = existsSync(config.guide) ? readFileSync(config.guide, 'utf8') : undefined;
+    files.set(config.guide, keptGuide(current, writingGuide(config, catalog.locales, catalog.messages)));
+  }
   // Without its schema line a catalog file has no completion, so generate adds it and --check fails there.
   for (const file of yamlFiles(config.catalog)) {
     const path = join(config.catalog, file);
