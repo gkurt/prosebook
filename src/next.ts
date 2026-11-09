@@ -46,7 +46,8 @@ import {
   type Prune,
   prunedModule,
   scanSources,
-  withoutPseudo,
+  buildGenerated,
+  generatedModule,
   splitIndex,
   unseenMessage,
   watchCatalog,
@@ -122,19 +123,17 @@ export function withProsebook<C extends object>(
     latest.set(config.catalog, config);
     if (config.language === 'ts' && config.importExtension === '.js')
       throw new Error("prosebook: Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config");
+    if (phase === BUILD) return withRules(resolved, buildRules(config, buildGenerated(config), options.prune ?? 'strict', options));
     // In dev a broken entry is left out and said, so the rest of the catalog is still served.
-    const generated = generate(config, { partial: phase === DEV });
-    if (phase === DEV && brokenIn(generated) !== undefined) console.error(brokenIn(generated));
-    if (phase === DEV) {
-      watch(config, options);
-      if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET, options));
-      const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
-      // A relative import, which Turbopack resolves as it would the app's own.
-      const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
-      const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base, options.inspect);
-      return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
-    }
-    return withRules(resolved, buildRules(config, withoutPseudo(config, generated), options.prune ?? 'strict', options));
+    const generated = generate(config, { partial: true });
+    if (brokenIn(generated) !== undefined) console.error(brokenIn(generated));
+    watch(config, options);
+    if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET, options));
+    const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
+    // A relative import, which Turbopack resolves as it would the app's own.
+    const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
+    const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base, options.inspect);
+    return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
   };
 }
 
@@ -249,8 +248,9 @@ function buildRules(config: ResolvedConfig, generated: Generated, prune: Prune, 
     if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
     kept = keeper(refs, options.keep, config.formats);
   }
-  const locales =
-    prune === false ? [] : [...generated.entries].map(([locale, entries]) => rule(config, locale, { code: prunedModule(entries, kept) }));
+  const locales = [...generated.entries].map(([locale, entries]) =>
+    rule(config, locale, { code: prune === false ? (generatedModule(config, generated, locale) ?? '') : prunedModule(entries, kept) }),
+  );
   const index = { code: buildIndex(config, generated) };
   if (options.split !== true) return rulesOf([...locales, rule(config, 'index', index)]);
   return rulesOf([...locales, rule(config, 'index', index, 'server'), ...splitRules(config, generated, options, '', kept)]);

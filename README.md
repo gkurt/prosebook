@@ -44,7 +44,7 @@ bunx prosebook init       # prosebook.config.ts and copy/catalog/app.yaml
 bunx prosebook generate   # src/copy/: a module per locale, and the types
 ```
 
-With a bundler, the plugin generates on start and on every catalog edit, and the page updates in place:
+With a bundler, the dev server generates on start and on every catalog edit, and the page updates in place:
 
 ```ts
 // vite.config.ts

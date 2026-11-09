@@ -2,7 +2,16 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { createCopy, defineCatalog, relativeTime, type CompiledMessages, type CopyOptions } from 'prosebook';
-import { compileLocale, localeExpression, resolveConfig, type ProsebookConfig, type Entry, type ResolvedConfig } from 'prosebook/tools';
+import {
+  compileLocale,
+  generate,
+  loadConfig,
+  localeExpression,
+  resolveConfig,
+  type ProsebookConfig,
+  type Entry,
+  type ResolvedConfig,
+} from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
 import { parseMf2 } from '#src/tools/mf2.ts';
@@ -27,6 +36,16 @@ export function fixture(files: Record<string, string>, config: ProsebookConfig =
   }
   mkdirSync(join(root, 'copy', 'catalog'), { recursive: true });
   return resolveConfig(root, config);
+}
+
+/**
+ * `fixture`, generated as `prosebook generate` would before a build, which writes nothing: with `inline`, the config a
+ * plugin is handed, else its config file's.
+ */
+export async function generated(files: Record<string, string>, inline?: ProsebookConfig): Promise<ResolvedConfig> {
+  const resolved = fixture(files);
+  generate(await loadConfig(resolved.root, inline));
+  return resolved;
 }
 
 /** Compiles entries and evaluates them, as a bundler would the generated module. */

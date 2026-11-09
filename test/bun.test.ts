@@ -1,13 +1,14 @@
 import { expect, spyOn, test } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { OnLoadCallback, PluginBuilder } from 'bun';
 
-import type { EntryView } from 'prosebook/tools';
+import { loadConfig, type EntryView } from 'prosebook/tools';
 
 import { inspector, prosebook } from '#src/bun.ts';
-import { fixture, route, type RouteApp } from './fixture.ts';
+import { buildGenerated } from '#src/tools/bundle.ts';
+import { fixture, generated, route, type RouteApp } from './fixture.ts';
 
 const files = {
   'copy/catalog/app.yaml': 'app.used: Used message\napp.unused: Unused message\n',
@@ -23,7 +24,7 @@ const files = {
 
 /** What `Bun.build` writes, joined, or the error it fails with. */
 async function build(extra: Record<string, string> = {}, prune?: 'loose', pseudo?: string) {
-  const config = fixture({ ...files, ...extra });
+  const config = await generated({ ...files, ...extra }, { require: [], pseudo });
   try {
     const result = await Bun.build({
       entrypoints: [join(config.root, 'src/main.ts')],
@@ -38,13 +39,33 @@ async function build(extra: Record<string, string> = {}, prune?: 'loose', pseudo
   }
 }
 
-test('a build generates first and ships only the messages the code names', async () => {
-  const { config, js } = await build();
-  expect(readdirSync(join(config.root, 'src/copy')).sort()).toEqual(['de.ts', 'en.ts', 'index.ts']);
+test('a build ships only the messages the code names', async () => {
+  const { js } = await build();
   expect(js).toContain('Used message');
   expect(js).toContain('Benutzte Nachricht');
   expect(js).not.toContain('Unused message');
   expect(js).not.toContain('Unbenutzte Nachricht');
+});
+
+test('a build writes nothing: it bundles the catalog as it reads, and fails on a generated module missing', async () => {
+  const config = await generated(files, { require: [] });
+  const stale = readFileSync(join(config.root, 'src/copy/en.ts'), 'utf8');
+  writeFileSync(join(config.catalog, 'app.yaml'), 'app.used: Edited message\napp.unused: Unused message\n');
+  const result = await Bun.build({
+    entrypoints: [join(config.root, 'src/main.ts')],
+    outdir: join(config.root, 'dist'),
+    target: 'bun',
+    conditions: ['prosebook@dev'],
+    plugins: [prosebook({ root: config.root, config: { require: [] } })],
+  });
+  const js = result.outputs.map((o) => readFileSync(o.path, 'utf8')).join('\n');
+  expect(js).toContain('Edited message');
+  expect(js).toContain('Benutzte Nachricht');
+  expect(readFileSync(join(config.root, 'src/copy/en.ts'), 'utf8')).toBe(stale);
+  rmSync(join(config.root, 'src/copy/de.ts'));
+  // Bun reports a plugin's failed setup apart from the build's promise, so the check is called as each plugin calls it.
+  const plugin = await loadConfig(config.root, { require: [] });
+  expect(() => buildGenerated(plugin)).toThrow('src/copy/de.ts missing: run `prosebook generate` before the build');
 });
 
 test('a build leaves the pseudo-locale out, which the generated files keep', async () => {
@@ -76,22 +97,25 @@ const shop = {
 const written = (dir: string) => new Map(readdirSync(dir).map((f) => [f, readFileSync(join(dir, f), 'utf8')]));
 
 test('a split build loads each area with the code that reads it, and each lazy locale by area', async () => {
-  const config = fixture({
-    ...shop,
-    'src/main.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      'export async function first(locale: string) {',
-      '  const errors: string[] = [];',
-      '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
-      '  await copy.ready;',
-      '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
-      "  const before = copy.t(['cart', 'title'].join('.') as never);",
-      "  const { title } = await import('./cart.ts');",
-      "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
-      '}',
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      ...shop,
+      'src/main.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        'export async function first(locale: string) {',
+        '  const errors: string[] = [];',
+        '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
+        '  await copy.ready;',
+        '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
+        "  const before = copy.t(['cart', 'title'].join('.') as never);",
+        "  const { title } = await import('./cart.ts');",
+        "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
+        '}',
+      ].join('\n'),
+    },
+    { require: [] },
+  );
   const outdir = join(config.root, 'dist');
   const options = { root: config.root, config: { require: [] }, split: true, keep: ['promo.*'] };
   const run = (splitting: boolean) =>
@@ -128,7 +152,7 @@ test('a split build loads each area with the code that reads it, and each lazy l
 });
 
 test("a split build loads a lazy locale's areas in one file per chunk", async () => {
-  const config = fixture(route);
+  const config = await generated(route, { require: [] });
   const outdir = join(config.root, 'dist');
   await Bun.build({
     entrypoints: [join(config.root, 'src/main.ts')],
@@ -152,23 +176,26 @@ test("a split build loads a lazy locale's areas in one file per chunk", async ()
 });
 
 test('a full-stack split build splits the page and leaves the server its whole locales', async () => {
-  const config = fixture({
-    ...shop,
-    'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
-    'src/page.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      'const copy = createCopy(catalog);',
-      "document.title = copy.t('app.title');",
-      "document.onclick = () => void import('./cart.ts').then((m) => (document.title = m.title(copy)));",
-    ].join('\n'),
-    'src/server.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      "import page from './index.html';",
-      "export const answer = () => [page, createCopy(catalog).t('cart.title'), createCopy(catalog).t('promo.banner' as never)];",
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      ...shop,
+      'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
+      'src/page.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        'const copy = createCopy(catalog);',
+        "document.title = copy.t('app.title');",
+        "document.onclick = () => void import('./cart.ts').then((m) => (document.title = m.title(copy)));",
+      ].join('\n'),
+      'src/server.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        "import page from './index.html';",
+        "export const answer = () => [page, createCopy(catalog).t('cart.title'), createCopy(catalog).t('promo.banner' as never)];",
+      ].join('\n'),
+    },
+    { require: [] },
+  );
   const outdir = join(config.root, 'dist');
   await Bun.build({
     entrypoints: [join(config.root, 'src/server.ts')],
@@ -204,7 +231,7 @@ const rendering = [
 type Render = (locale: string, keys: string[]) => Promise<string[]>;
 
 test('the server build after a split browser build lists its area files, which a copy hands on as it reads', async () => {
-  const config = fixture({ ...route, 'src/server.ts': rendering });
+  const config = await generated({ ...route, 'src/server.ts': rendering }, { require: [] });
   // The server reads keys it is handed, which a pruned build would refuse.
   const plugins = [prosebook({ root: config.root, config: { require: [] }, split: true, prune: false })];
   const client = join(config.root, 'dist', 'client');
@@ -237,12 +264,15 @@ test('the server build after a split browser build lists its area files, which a
 });
 
 test("a full-stack split build fills in the server's area files once the page's are written, minified", async () => {
-  const config = fixture({
-    ...route,
-    'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
-    'src/page.ts': "import { cart } from './main.ts';\ndocument.onclick = () => void cart('en', 'de');\n",
-    'src/server.ts': `import page from './index.html';\nexport { page };\n${rendering}`,
-  });
+  const config = await generated(
+    {
+      ...route,
+      'src/index.html': '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>',
+      'src/page.ts': "import { cart } from './main.ts';\ndocument.onclick = () => void cart('en', 'de');\n",
+      'src/server.ts': `import page from './index.html';\nexport { page };\n${rendering}`,
+    },
+    { require: [] },
+  );
   const outdir = join(config.root, 'dist');
   await Bun.build({
     entrypoints: [join(config.root, 'src/server.ts')],
@@ -292,7 +322,7 @@ test("under Bun's dev server, a split catalog serves each area its generated loc
 
 /** The plugin's `onLoad` as Bun's dev server sets it up, which names no entry points, under `NODE_ENV`. */
 async function devServer(env: string) {
-  const config = fixture(files);
+  const config = await generated(files, { require: [] });
   const loads: [RegExp, OnLoadCallback][] = [];
   const builder = { config: { target: 'browser' }, onLoad: (o: { filter: RegExp }, cb: OnLoadCallback) => loads.push([o.filter, cb]) };
   const was = process.env.NODE_ENV;

@@ -311,8 +311,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   the code reading it, the pruned locale module, the catalog watcher (`watchCatalog`, which loads the
   config again when its file or the formatters module changes, for the CLI's `--watch`, Next and Bun), and the dev code appended to the
   generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
-  A build leaves the pseudo-locale out (`withoutPseudo`) and loads `buildIndex` in place of the
+  A build writes nothing in the project (`buildGenerated`: `render`, strict, never `writeFiles`), so a
+  checkout stays as committed whichever runtime builds it; only caches under `node_modules/.prosebook`.
+  It serves every generated module from memory (`generatedModule` where unpruned), the files on disk only
+  resolved, and fails on one missing with the fix. It leaves the pseudo-locale out (`withoutPseudo`) and loads `buildIndex` in place of the
   generated index, which lists every locale `generated` holds; the split index and areas read the same.
+  Metro alone still generates as its config loads, since it reads the same config to serve and to bundle.
   And splitting, which every integration shares: `splitIndex`, `areaModule` (its build `inline`
   given by each bundler: Vite's placeholders, Bun's and Next's pruned code), `areasNamed`,
   `importingAreas`, each writing imports through `Specifiers`: `VIRTUAL` for Vite's and Bun's virtual
@@ -345,8 +349,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   area's file per lazy locale to `node_modules/.prosebook/area-files.json` in `generateBundle`, and the
   server build after it loads the index with them as its catalog's `areaFiles`.
   `src/cli.ts`: the `prosebook` command.
-- `src/next.ts`: `withProsebook`, the Next config wrapped. Generates in the dev and build phases only,
-  watches in dev, and hands Turbopack rules for the generated modules, matched by file name then by the
+- `src/next.ts`: `withProsebook`, the Next config wrapped. Generates and watches in the dev phase only, renders
+  in the build phase, and hands Turbopack rules for the generated modules, matched by file name then by the
   path's end (Turbopack's root may be the monorepo's). `loader.ts` is the loader those rules name
   by path (a tsdown entry of its own, shared with `webpack.ts`): in a build each locale's pruned module travels to it as its
   options, so no config is loaded in Turbopack's workers; in dev, in the browser, the index sets the

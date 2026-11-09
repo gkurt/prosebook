@@ -9,7 +9,7 @@ import type { EntryView } from 'prosebook/tools';
 import loader, { type LoaderOptions } from '#src/loader.ts';
 import { withProsebook, type ProsebookNextOptions } from '#src/next.ts';
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
-import { fixture, route } from './fixture.ts';
+import { fixture, generated, route } from './fixture.ts';
 
 type Rule = { condition: unknown; loaders: { loader: string; options: LoaderOptions }[] };
 type Config = { reactStrictMode?: boolean; turbopack?: { rules?: Record<string, Rule> }; rewrites?: () => Promise<unknown> };
@@ -23,7 +23,7 @@ const files = {
 
 /** The config Next gets in a phase, for a project on disk. */
 async function load(phase: string, extra: Record<string, string> = {}, options: ProsebookNextOptions = {}) {
-  const config = fixture({ ...files, ...extra });
+  const config = await generated({ ...files, ...extra }, options.config ?? { require: [], importExtension: '' });
   const next = withProsebook<Config>(
     { reactStrictMode: true },
     { config: { require: [], importExtension: '' }, root: config.root, ...options },
@@ -53,7 +53,8 @@ test('a build leaves the pseudo-locale out of the index, which dev and the gener
   const { config: resolved, next } = await load('phase-production-build', {}, { config, prune: false });
   expect(readFileSync(join(resolved.root, 'src/copy/index.ts'), 'utf8')).toContain('locales: ["en", "de", "en-XA"]');
   const rules = next.turbopack!.rules!;
-  expect(Object.keys(rules)).toEqual(['index.ts']);
+  // Unpruned, each locale is still handed over as rendered, the files on disk only resolved.
+  expect(Object.keys(rules)).toEqual(['en.ts', 'de.ts', 'index.ts']);
   const index = run(rules['index.ts']!);
   expect(index).toContain('locales: ["en", "de"]');
   expect(index).not.toContain('en-XA');
@@ -71,7 +72,7 @@ const shop = {
 
 test('a split build writes each area as files, and has the browser load the index split and each source file its areas', async () => {
   const theirs = { condition: 'browser', loaders: ['svg-loader'] };
-  const config = fixture({ ...files, ...shop });
+  const config = await generated({ ...files, ...shop }, { require: [], importExtension: '' });
   const next = await withProsebook<Config>(
     { turbopack: { rules: { '*.tsx': theirs as never } } },
     { config: { require: [], importExtension: '' }, root: config.root, split: true, keep: ['promo.*'] },

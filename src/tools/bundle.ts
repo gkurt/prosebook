@@ -17,7 +17,7 @@ import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
-import { catalogLiteral, formatsCode, runtimeParts, type Generated } from './generate.ts';
+import { catalogLiteral, formatsCode, render, runtimeParts, type Generated } from './generate.ts';
 import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type KeyRefs, type Reads, type UnseenRead } from './scan.ts';
 
 /** How a build prunes: `strict` also fails on a read whose key it can't see. */
@@ -77,6 +77,25 @@ export function withoutPseudo(config: ResolvedConfig, generated: Generated): Gen
   const entries = new Map(generated.entries);
   entries.delete(config.pseudo);
   return { ...generated, entries };
+}
+
+/**
+ * What a build bundles: the catalog rendered in memory, strict and without the pseudo-locale. A build writes nothing, so a
+ * checkout's files stay as committed, whichever runtime builds it; every generated module is served from here, the files
+ * on disk only resolved, so one missing fails the build with the fix.
+ */
+export function buildGenerated(config: ResolvedConfig): Generated {
+  const generated = withoutPseudo(config, render(config));
+  const ext = config.language === 'ts' ? 'ts' : 'js';
+  const missing = ['index', ...generated.entries.keys()].map((name) => join(config.out, `${name}.${ext}`)).filter((p) => !existsSync(p));
+  if (missing.length === 0) return generated;
+  const at = missing.map((p) => relative(config.root, p).replaceAll('\\', '/')).join(', ');
+  throw new Error(`prosebook: ${at} missing: run \`prosebook generate\` before the build, which writes nothing`);
+}
+
+/** A generated module as `render` wrote it in memory: `name` is `index` or a locale. */
+export function generatedModule(config: ResolvedConfig, generated: Generated, name: string): string | undefined {
+  return generated.files.get(join(config.out, `${name}.${config.language === 'ts' ? 'ts' : 'js'}`));
 }
 
 /**

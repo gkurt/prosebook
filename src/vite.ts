@@ -54,7 +54,8 @@ import {
   lazyAreas,
   membersOf,
   type Prune,
-  withoutPseudo,
+  buildGenerated,
+  generatedModule,
   splitIndex,
   unseenMessage,
   unseenOf,
@@ -173,8 +174,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     buildStart() {
       try {
         // In dev a broken entry is left out and said, so the rest of the catalog is still served.
-        const all = generate(config, { partial: !building });
-        generated = building ? withoutPseudo(config, all) : all;
+        generated = building ? buildGenerated(config) : generate(config, { partial: true });
       } catch (e) {
         this.error(describe(e));
       }
@@ -272,9 +272,10 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
         this.warn('no split client build to link area files from: build the client before the server, or `preload` is handed nothing');
         return index;
       }
-      if (!building || prune === false || generated === undefined) return null;
+      if (!building || generated === undefined) return null;
       const locale = localeOf(id);
       if (locale === undefined) return null;
+      if (prune === false) return generatedModule(config, generated, locale);
       return `export default ${placeholder(locale)};\n`;
     },
 

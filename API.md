@@ -22,6 +22,10 @@ The full reference. For an overview, see the [README](README.md).
 
 Without one, run `prosebook generate` yourself. It writes `src/copy/`: a module per locale and an `index.ts` with the types.
 
+A dev server generates on start and on every edit. A build writes nothing, so a checkout stays as committed whatever builds it:
+it bundles the catalog as it reads then, and needs the generated modules on disk only to resolve their imports. Commit
+`src/copy/`, or run `prosebook generate` before the build; one missing fails it with that fix.
+
 What `generate` writes is checked byte for byte by `generate --check`, so a formatter or linter must leave it as written. The
 modules say so to every tool that reads a comment for it: `/* eslint-disable */` (ESLint, oxlint, `bun lint`), Biome's
 `biome-ignore-all`, Deno's and dprint's `ignore-file`, and `// prettier-ignore` before each statement, as oxfmt, Prettier and
@@ -43,7 +47,7 @@ export default defineConfig({ plugins: [react(), prosebook()] });
 Generates on start and on every catalog edit; the page shows the new text without reloading, in the locale and state it was in.
 TanStack Start, React Router and other frameworks built on Vite take the plugin as it is.
 
-Several apps sharing one catalog each point at its folder, so every app generates the same files:
+Several apps sharing one catalog each point at its folder, so every app reads the same files:
 
 ```ts
 prosebook({ root: '../../packages/copy' });
@@ -59,7 +63,7 @@ export default withProsebook({/* your Next config */});
 ```
 
 - Takes the config as an object or as Next's phase function; [options](#integration-options) go second.
-- `next dev` and `next build` generate first; dev regenerates on every edit.
+- `next dev` generates first and again on every edit; `next build` writes nothing.
 - Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config.
 - Turbopack only: Next 16 fails a Turbopack build whose config has a `webpack` key.
 
@@ -76,8 +80,8 @@ export default {
 };
 ```
 
-- Generates before each build; watching, and so under the dev server, again on every edit, and the page shows the new text
-  without reloading, in the locale and state it was in.
+- In `development` mode, generates before each build; watching, and so under the dev server, again on every edit, and the page
+  shows the new text without reloading, in the locale and state it was in. A `production` build writes nothing.
 - In `production` mode, the default, the build ships only the messages the code reads and leaves the pseudo-locale out.
 - Without `extensionAlias`, set `importExtension: ''` in the prosebook config instead.
 - Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)); not `split`, and no [inspector](#inspector).
@@ -106,7 +110,8 @@ function Cart({ count }: { count: number }) {
 ```
 
 - Generates as Metro reads its config, and again on every edit while the dev server runs; the app shows the new text without
-  reloading, in the locale and state it was in.
+  reloading, in the locale and state it was in. Metro reads the same config to bundle as to serve, so `metro build` and
+  `expo export` generate too.
 - A production bundle ships only the messages the code reads and leaves the pseudo-locale out; a read whose key it can't see
   fails it, as `prune` says, while the dev server still starts.
 - Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)), the Metro config as an object, a promise or a
@@ -544,7 +549,7 @@ test('checks out', async ({ page }) => {
 });
 ```
 
-- It reads the generated modules on disk, so run `prosebook generate` before the tests, as a build does.
+- It reads the generated modules on disk, so run `prosebook generate` before the tests where `src/copy/` isn't committed.
 - A runner that doesn't resolve the index's `./en.js` to `en.ts` runs it with `importExtension: '.ts'`.
 - `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them.
 - A fixed clock, `createCopy(catalog, { now: () => Date.UTC(2026, 10, 9) })`, reads a relative time the same on every run.

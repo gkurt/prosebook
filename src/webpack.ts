@@ -27,7 +27,8 @@ import {
   scanSources,
   unseenMessage,
   watchCatalog,
-  withoutPseudo,
+  buildGenerated,
+  generatedModule,
 } from './tools/bundle.ts';
 import { CatalogError } from './tools/catalog.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
@@ -115,8 +116,8 @@ export class ProsebookPlugin {
           "prosebook: webpack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config, or `resolve.extensionAlias: { '.js': ['.ts', '.js'] }`",
         );
       }
-      const generated = generate(config, { partial: !production() });
-      if (production()) return fill(modules, buildModules(config, withoutPseudo(config, generated), this.#options));
+      if (production()) return fill(modules, buildModules(config, buildGenerated(config), this.#options));
+      const generated = generate(config, { partial: true });
       const broken = brokenIn(generated);
       if (broken !== undefined) console.error(broken);
       fill(modules, devModules(config, generated));
@@ -155,7 +156,11 @@ function devModules(config: ResolvedConfig, generated: Generated): Map<string, L
 function buildModules(config: ResolvedConfig, generated: Generated, options: ProsebookWebpackOptions): Map<string, LoaderOptions> {
   const prune = options.prune ?? 'strict';
   const modules = new Map<string, LoaderOptions>([[generatedPath(config, 'index'), { code: buildIndex(config, generated) }]]);
-  if (prune === false) return modules;
+  if (prune === false) {
+    for (const locale of generated.entries.keys())
+      modules.set(generatedPath(config, locale), { code: generatedModule(config, generated, locale) ?? '' });
+    return modules;
+  }
   const { refs, unseen } = scanSources(config, prune === 'strict');
   if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
   const kept = keeper(refs, options.keep, config.formats);

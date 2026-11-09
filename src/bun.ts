@@ -49,7 +49,8 @@ import {
   type Prune,
   prunedModule,
   scanSources,
-  withoutPseudo,
+  buildGenerated,
+  generatedModule,
   splitIndex,
   unseenMessage,
   watchCatalog,
@@ -108,9 +109,8 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       const building = 'entrypoints' in build.config;
       const dev = !building && process.env.NODE_ENV !== 'production';
       // In dev a broken entry is left out and said, so the rest of the catalog is still served. Out
-      // of dev, the pseudo-locale is left out.
-      let generated: Generated = generate(config, { partial: dev });
-      if (!dev) generated = withoutPseudo(config, generated);
+      // of dev, nothing is written and the pseudo-locale is left out.
+      let generated: Generated = dev ? generate(config, { partial: true }) : buildGenerated(config);
       if (dev && brokenIn(generated) !== undefined) console.error(brokenIn(generated));
       // The generated modules, by path as Bun gives it.
       const filter = new RegExp(`^${folderPattern(config.out)}[\\\\/][^\\\\/]+\\.[jt]s$`);
@@ -160,8 +160,12 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         }
         if (name === 'index' && !dev) return { contents: serverIndex(buildIndex(config, generated)), loader: 'js' };
         const entries = generated.entries.get(name);
-        if (building) return entries === undefined || prune === false ? undefined : { contents: prunedModule(entries, kept), loader: 'js' };
         const loader = args.path.endsWith('.ts') ? 'ts' : 'js';
+        if (!dev) {
+          if (entries === undefined) return undefined;
+          if (building && prune !== false) return { contents: prunedModule(entries, kept), loader: 'js' };
+          return { contents: generatedModule(config, generated, name) ?? '', loader };
+        }
         if (entries !== undefined) return { contents: readFileSync(args.path, 'utf8') + hotLocale(name), loader };
         return name === 'index' ? { contents: HOT_SET + inspector + readFileSync(args.path, 'utf8') + HOT_INDEX, loader } : undefined;
       });

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { rspack } from '@rspack/core';
 
 import { ProsebookPlugin, type ProsebookWebpackOptions } from '#src/webpack.ts';
-import { fixture } from './fixture.ts';
+import { fixture, generated } from './fixture.ts';
 
 const files = {
   'copy/catalog/app.yaml': 'app.used: Used message\napp.unused: Unused message\n',
@@ -51,7 +51,7 @@ function options(root: string, mode: string, plugin: ProsebookWebpackOptions) {
 
 /** What a build wrote, joined, or the error it failed with. */
 async function build(bundler: Bundler, mode: string, extra: Record<string, string> = {}, plugin: ProsebookWebpackOptions = {}) {
-  const config = fixture({ ...files, ...extra });
+  const config = await generated({ ...files, ...extra }, { require: [], language: 'js', ...plugin.config });
   const compiler = bundler(options(config.root, mode, plugin));
   const stats = await new Promise<{ error?: string; stats?: Stats }>((done) =>
     compiler.run((error, stats) => compiler.close(() => done({ error: error?.message, stats }))),
@@ -73,10 +73,9 @@ async function build(bundler: Bundler, mode: string, extra: Record<string, strin
 }
 
 describe.each(BUNDLERS)('%s', (_name, bundler) => {
-  test('a production build generates first and ships only the messages the code names', async () => {
-    const { config, js, error } = await build(bundler, 'production');
+  test('a production build ships only the messages the code names', async () => {
+    const { js, error } = await build(bundler, 'production');
     expect(error).toBeUndefined();
-    expect(readdirSync(join(config.root, 'src/copy')).sort()).toEqual(['de.js', 'en.js', 'index.d.ts', 'index.js']);
     expect(js).toContain('Used message');
     expect(js).toContain('Benutzte Nachricht');
     expect(js).not.toContain('Unused message');

@@ -8,26 +8,29 @@ import type { EntryView } from 'prosebook/tools';
 
 import { SCHEMA_LINE } from '#src/tools/catalog.ts';
 import { prosebook } from '#src/vite.ts';
-import { fixture, route, type RouteApp } from './fixture.ts';
+import { fixture, generated, route, type RouteApp } from './fixture.ts';
 
 test('a build ships only the messages the code names', async () => {
-  const config = fixture({
-    'copy/catalog/app.yaml': [
-      'app.used: Used message',
-      'app.unused: Unused message',
-      'app.status.ok: Status ok',
-      'app.status.down: Status down',
-    ].join('\n'),
-    'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\napp.unused: Unbenutzte Nachricht\n',
-    'index.html': '<script type="module" src="/src/main.ts"></script>',
-    'src/main.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      'const copy = createCopy(catalog);',
-      "const state = location.hash ? 'ok' : 'down';",
-      "document.body.textContent = copy.t('app.used') + copy.t(`app.status.${state}`);",
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      'copy/catalog/app.yaml': [
+        'app.used: Used message',
+        'app.unused: Unused message',
+        'app.status.ok: Status ok',
+        'app.status.down: Status down',
+      ].join('\n'),
+      'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\napp.unused: Unbenutzte Nachricht\n',
+      'index.html': '<script type="module" src="/src/main.ts"></script>',
+      'src/main.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        'const copy = createCopy(catalog);',
+        "const state = location.hash ? 'ok' : 'down';",
+        "document.body.textContent = copy.t('app.used') + copy.t(`app.status.${state}`);",
+      ].join('\n'),
+    },
+    { require: [] },
+  );
   const outDir = join(config.root, 'dist');
   await build({
     root: config.root,
@@ -49,16 +52,19 @@ test('a build ships only the messages the code names', async () => {
 });
 
 test('a build leaves the pseudo-locale out, which the generated files keep', async () => {
-  const config = fixture({
-    'copy/catalog/app.yaml': 'app.used: Used message\n',
-    'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\n',
-    'index.html': '<script type="module" src="/src/main.ts"></script>',
-    'src/main.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      "document.body.textContent = createCopy(catalog).t('app.used') + catalog.locales.join();",
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      'copy/catalog/app.yaml': 'app.used: Used message\n',
+      'copy/locales/de/app.yaml': 'app.used: Benutzte Nachricht\n',
+      'index.html': '<script type="module" src="/src/main.ts"></script>',
+      'src/main.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        "document.body.textContent = createCopy(catalog).t('app.used') + catalog.locales.join();",
+      ].join('\n'),
+    },
+    { require: [], pseudo: 'en-XA' },
+  );
   const outDir = join(config.root, 'dist');
   await build({
     root: config.root,
@@ -77,33 +83,36 @@ test('a build leaves the pseudo-locale out, which the generated files keep', asy
 });
 
 test('a split build loads each area with the code that reads it, and each lazy locale by area', async () => {
-  const config = fixture({
-    'copy/catalog/app.yaml': 'app.title: Shop front\napp.unused: Unused message\n',
-    'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
-    'copy/catalog/promo.yaml': 'promo.banner: Promo banner\n',
-    'copy/locales/de/app.yaml': 'app.title: Ladenfront\n',
-    'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
-    'src/cart.ts': "export const title = (copy: { t(key: string): string }) => copy.t('cart.title');",
-    'src/main.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      'export async function first(locale: string) {',
-      '  const errors: string[] = [];',
-      '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
-      '  await copy.ready;',
-      '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
-      "  const before = copy.t(['cart', 'title'].join('.') as never);",
-      "  const { title } = await import('./cart.ts');",
-      "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
-      '}',
-      'export async function later(start: string, next: string) {',
-      '  const copy = createCopy(catalog, { locale: start });',
-      "  const { title } = await import('./cart.ts');",
-      '  await copy.setLocale(next);',
-      '  return title(copy);',
-      '}',
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      'copy/catalog/app.yaml': 'app.title: Shop front\napp.unused: Unused message\n',
+      'copy/catalog/cart.yaml': 'cart.title: Cart page\n',
+      'copy/catalog/promo.yaml': 'promo.banner: Promo banner\n',
+      'copy/locales/de/app.yaml': 'app.title: Ladenfront\n',
+      'copy/locales/de/cart.yaml': 'cart.title: Warenkorbseite\n',
+      'src/cart.ts': "export const title = (copy: { t(key: string): string }) => copy.t('cart.title');",
+      'src/main.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        'export async function first(locale: string) {',
+        '  const errors: string[] = [];',
+        '  const copy = createCopy(catalog, { locale, onError: (e) => errors.push(e.message) });',
+        '  await copy.ready;',
+        '  // prosebook-ignore: cart.ts names the key, as an ignored read relies on',
+        "  const before = copy.t(['cart', 'title'].join('.') as never);",
+        "  const { title } = await import('./cart.ts');",
+        "  return [copy.t('app.title'), before, title(copy), copy.t('promo.banner'), ...errors];",
+        '}',
+        'export async function later(start: string, next: string) {',
+        '  const copy = createCopy(catalog, { locale: start });',
+        "  const { title } = await import('./cart.ts');",
+        '  await copy.setLocale(next);',
+        '  return title(copy);',
+        '}',
+      ].join('\n'),
+    },
+    { require: [] },
+  );
   const outDir = join(config.root, 'dist');
   await build({
     root: config.root,
@@ -142,7 +151,7 @@ test('a split build loads each area with the code that reads it, and each lazy l
 });
 
 test("a split build loads a lazy locale's areas in one file per chunk", async () => {
-  const config = fixture(route);
+  const config = await generated(route, { require: [] });
   const outDir = join(config.root, 'dist');
   await build({
     root: config.root,
@@ -169,20 +178,23 @@ test("a split build loads a lazy locale's areas in one file per chunk", async ()
 });
 
 test('the server build after a split client lists its area files, which a copy hands on as it reads', async () => {
-  const config = fixture({
-    ...route,
-    'src/server.ts': [
-      "import { createCopy } from 'prosebook';",
-      "import { catalog } from './copy/index.ts';",
-      'export async function render(locale: string, keys: string[]) {',
-      '  const files: string[] = [];',
-      '  const copy = createCopy(catalog, { locale, preload: (href) => files.push(href) });',
-      '  await copy.ready;',
-      '  for (const key of keys) copy.t(key as never);',
-      '  return files;',
-      '}',
-    ].join('\n'),
-  });
+  const config = await generated(
+    {
+      ...route,
+      'src/server.ts': [
+        "import { createCopy } from 'prosebook';",
+        "import { catalog } from './copy/index.ts';",
+        'export async function render(locale: string, keys: string[]) {',
+        '  const files: string[] = [];',
+        '  const copy = createCopy(catalog, { locale, preload: (href) => files.push(href) });',
+        '  await copy.ready;',
+        '  for (const key of keys) copy.t(key as never);',
+        '  return files;',
+        '}',
+      ].join('\n'),
+    },
+    { require: [] },
+  );
   const shared = {
     root: config.root,
     logLevel: 'silent' as const,
@@ -262,7 +274,7 @@ test('a strict build fails on a read whose key it cannot see, unless the line is
   });
   /** The build's error, or nothing when it succeeds. */
   const run = async (marked: boolean, prune?: 'loose') => {
-    const config = fixture(files(marked));
+    const config = await generated(files(marked), { require: [] });
     try {
       await build({
         root: config.root,
@@ -285,10 +297,10 @@ test('a strict build fails on a read whose key it cannot see, unless the line is
   expect(await run(false, 'loose')).toBe('');
 });
 
-test('with root, an app beside the catalog reads its config and generates the same files', async () => {
-  const shared = fixture({
+test('with root, an app beside the catalog reads its config and bundles its catalog', async () => {
+  const shared = await generated({
     'prosebook.config.json': JSON.stringify({ require: [] }),
-    'copy/catalog/app.yaml': 'app.a: A\n',
+    'copy/catalog/app.yaml': 'app.a: Shared title\n',
     'app/index.html': '<script type="module" src="/main.ts"></script>',
     'app/main.ts':
       "import { createCopy } from 'prosebook';\nimport { catalog } from '../src/copy/index.ts';\ndocument.title = createCopy(catalog).t('app.a');",
@@ -301,7 +313,12 @@ test('with root, an app beside the catalog reads its config and generates the sa
     resolve: { alias: ALIASES },
     build: { outDir: join(shared.root, 'dist'), minify: false },
   });
-  expect(readFileSync(join(shared.root, 'src', 'copy', 'index.ts'), 'utf8')).toStartWith('// Generated by prosebook from copy/catalog.');
+  const assets = join(shared.root, 'dist', 'assets');
+  expect(
+    readdirSync(assets)
+      .map((f) => readFileSync(join(assets, f), 'utf8'))
+      .join('\n'),
+  ).toContain('Shared title');
 });
 
 test('in dev, the index brings the hot hooks and the inspector to the page, the generated modules accept their updates, and entries edit from the page only', async () => {
