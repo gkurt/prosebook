@@ -1,19 +1,29 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The inspector's shortcut can be changed\n\n`inspect: { modifiers: ['Control', 'Shift'], button: 'right' }` on any integration holds other keys to show each string's key, and\npresses another button to edit it. The keys are held exactly, so Alt-click no longer opens the inspector with Shift or Control also\nheld.\n"
-    filename: inspector-shortcut.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The writing guide stays as written when Bun and Node format its samples differently\n\nA guide whose format samples another runtime wrote is kept while the formats it shows are unchanged, so a build under Bun no longer rewrites the guide Node generated, and `generate --check` passes on it.\n"
+    filename: guide-samples-across-runtimes.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A build writes nothing\n\nVite, Astro, Next, webpack, Rspack and Bun builds bundle the catalog as it reads, leave `src/copy/`, the writing guide, the schema and the lock as they are, and fail with the fix where a generated module is missing: commit `src/copy/`, or run `prosebook generate` before the build. Dev servers still generate on start and on every edit.\n"
+    filename: builds-write-nothing.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - inspector-shortcut.md
+      - guide-samples-across-runtimes.md
+      - builds-write-nothing.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-solid
+  - id: npm:example-tanstack-start
     updated: false
   - id: npm:example-next
+    updated: false
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-solid
     updated: false
   - id: npm:example-rspack
     updated: false
@@ -21,24 +31,18 @@ core:packages:
     updated: false
   - id: npm:example-bun
     updated: false
-  - id: npm:example-vue
-    updated: false
   - id: npm:example-svelte
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-node
-  - id: npm:example-solid
+  - id: npm:example-tanstack-start
   - id: npm:example-next
+  - id: npm:example-node
+  - id: npm:example-vue
+  - id: npm:example-preact
+  - id: npm:example-solid
   - id: npm:example-rspack
   - id: npm:example-vite
   - id: npm:example-bun
-  - id: npm:example-vue
   - id: npm:example-svelte
-  - id: npm:example-tanstack-start
-  - id: npm:example-preact
