@@ -1,52 +1,68 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `migrate` no longer reports a list with `more` as rendering differently\n\nA list's rest and a relative time's now, said by another entry, render the same in both syntaxes when `migrate` compares them.\n"
-    filename: migrate-keeps-entries.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A list format can join with a separator: \"Ann · Draft · 2 new commits\"\n\nA list format's `separator` joins the items with it alone, in place of `Intl.ListFormat`'s commas and \"and\": `formats.list.facts:\n{ separator: ' · ' }`, set per locale under `formats.locales`, read by `{facts, list, facts}`, `{$facts :list format=facts}` and\n`copy.list(items, 'facts')`, or given in code as options. Every list now leaves out empty items, `null`, `undefined` and `false`,\nso `[author, draft && 'Draft']` needs no filtering; list arguments are typed to take them. The writing guide shows the format,\nand scan reports `.join(…)` in a component with any separator a person reads (`' · '`, `' / '`), naming the list format with that\nseparator, not only `', '`.\n"
+    filename: list-separator.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Relative times: `{at, relative}` says \"5 minutes ago\" from the time itself\n\nA message takes a `Date`, milliseconds or ISO string as `{at, relative}` (MF2 `{$at :relative}`), and code says the same with\n`copy.relative(at, format)`, which replaces `copy.relative(value, unit)`. Named formats under `formats.relative` set the units,\nrounding, `Intl` options, an entry for \"just now\" and a switch to a named date format; formatters can define one in code. The\ncopy's `now` option is its clock, a server's render time held until hydration; `<Text>` in every binding re-renders itself when\nits time next reads differently, and `live: true` refreshes other reads by bumping `version`. The writing guide, scan, types,\npseudo-locale and native targets know it. The generated index imports it only where something says a relative time; the\nruntime's budget is now 4.5 KB.\n"
-    filename: relative-times.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A relative time read as a string stays current in every binding\n\nA component reading a message with `t` (or `rich`, or `relative`) now renders again when a relative time in it next reads\ndifferently, as `<Text>` did, and nothing else does: React and Preact render the component whose `useCopy()` read it, Vue, Solid\nand Svelte rerun only the template, effect or `computed` that read it. It shares the one timer `<Text>` uses, which now goes\nthrough the same reads. `live: true` is left for reads made straight from the copy, outside any binding.\n"
+    filename: fresh-reads.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The strict lint lets \"just now\" through\n\n`banned-word` still finds \"just\" saying something is easy, and passes \"just now\", which says when.\n"
-    filename: banned-word-just-now.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A number format can climb a ladder of units: \"512B\", \"1.5 kB\", \"1 MB\"\n\nA named number format's `ladder` shows a number in the largest of its units it has one whole of: bytes by 1000 or by 1024\n(`per`), bits per second, or any series of `Intl` units, each with its own `per` (60 minutes to the hour) and options\n(`unitDisplay: 'narrow'` on bytes alone). `steps` read the number in its unit, so \"tenths below 10\" is one step, and the unit is\nchecked after rounding: 999,999 bytes is \"1 MB\", not \"1,000 kB\". Messages and `copy.number` show it alike; the writing guide shows\nit in each of its first units and where rounding carries into the next; `.match` and native targets refuse it, as they do steps.\n"
+    filename: number-ladder.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A format's `more`, `separator` and `now` are text or an entry\n\n**Breaking.** A list's `more` and a relative time's `now` no longer take an entry's key as a string: a string is now text, in the\ncatalog's syntax (`now: 'just now'`, `more: '{count, plural, other {# more}}'`), set per locale under `formats.locales`, and\n`{ entry: 'time.now' }` names an entry, translated as any entry is. A config still naming a key fails as the catalog loads, with\nthe fix. A list's `separator` takes the same two. A tag in what a format says, `separator: '<dot> · </dot>'` or\n`now: '<em>just now</em>'`, renders through the renderers a rich read or `<Text>` is given, as the message's own tags do, so a\nseparator, \"and 2 more\" or \"just now\" can be an element; `t` and code read its text.\n"
+    filename: said-text-or-entry.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Scan finds numbers rounded or given a unit in code\n\nIn components, `n.toFixed(1)`, `n.toPrecision(3)` and a value with a unit written after it (`{size} MB`, `` `${ms} ms` ``,\n`pct + '%'`) are reported as formatted in code: they ignore the locale and keep English order. Each names the `copy.number` call\nwith the options it works out (`style: 'unit'`, the fraction digits), or the named format that shows the same. Styles, attributes\nno person reads, CSS units and `Number(n.toFixed(2))` are left alone. API.md says what formatting from code costs per call.\n"
+    filename: scan-rounded-numbers.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `copy.compare` sorts text in the copy's locale\n\n`copy.compare(a, b, options)` compares as the copy's current locale sorts, with `Intl.Collator`'s options (`numeric` puts \"file9\"\nbefore \"file10\", `sensitivity: 'base'`), and `copy.collator(options)` is the collator itself, made once per locale and options.\nEvery binding's reader has both. Scan reports `localeCompare` and `new Intl.Collator()` given no locale in components, except\non ids and ISO times (`a.id`, `b.createdAt`), which sort as raw strings. A format named by the same options object each call,\nas a named format is, now finds its formatter without serializing the options.\n"
+    filename: compare-in-locale.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The writing guide shows what \"now\" and \"more\" say\n\nA relative format with a `now` entry is shown in WRITING.md as the entry reads, past and future where they differ (\"just now / in\na moment\"), not \"(time.now says now)\"; a list format's `more` entry shows as it reads too (\"Ann, Bob, and 2 more\").\n"
+    filename: guide-says-entries.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - migrate-keeps-entries.md
-      - relative-times.md
-      - banned-word-just-now.md
+      - list-separator.md
+      - fresh-reads.md
+      - number-ladder.md
+      - said-text-or-entry.md
+      - scan-rounded-numbers.md
+      - compare-in-locale.md
+      - guide-says-entries.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-vue
+  - id: npm:example-solid
     updated: false
   - id: npm:example-tanstack-start
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-solid
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-vite
     updated: false
   - id: npm:example-bun
+    updated: false
+  - id: npm:example-vue
     updated: false
   - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-next
-  - id: npm:example-node
-  - id: npm:example-rspack
-  - id: npm:example-vite
-  - id: npm:example-vue
+  - id: npm:example-solid
   - id: npm:example-tanstack-start
   - id: npm:example-svelte
-  - id: npm:example-solid
+  - id: npm:example-node
+  - id: npm:example-rspack
+  - id: npm:example-next
+  - id: npm:example-vite
   - id: npm:example-bun
+  - id: npm:example-vue
   - id: npm:example-preact
