@@ -154,7 +154,7 @@ export function shownItems(items: Iterable<ListItem>, options?: ListFormatOption
 }
 
 /** What a message said, as text where it is all text, and as its parts where it holds an element. */
-function textOr(output: unknown): unknown {
+export function textOr(output: unknown): unknown {
   const parts = flatten(output);
   return parts.every((p) => typeof p === 'string') ? parts.join('') : parts;
 }

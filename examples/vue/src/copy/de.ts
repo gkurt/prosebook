@@ -29,7 +29,7 @@ export default {
   "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Dein Warenkorb ist leer.", "one": () => [h.n(a.count) ?? h.e("{count}"), " Artikel im Warenkorb."], "other": () => [h.n(a.count) ?? h.e("{count}"), " Artikel im Warenkorb."] }),
   "cart.place": (a, h) => ["Die ", h.n(a.rank) ?? h.e("{rank}"), ". Bestellung heute!"],
   "cart.remove": "Warenkorb leeren",
-  "cart.saved": (a, h) => ["Gespeichert: ", h.r(a.at, undefined, (tense) => ((a, h) => h.s(a.tense, { "future": () => "gleich", "other": () => "gerade eben" }))({ tense }, h)) ?? h.e("{at}"), "."],
+  "cart.saved": (a, h) => ["Gespeichert: ", h.r(a.at, undefined, (tense) => ((a, h) => h.s(a.tense, { "future": () => "gleich", "other": () => "gerade eben" }))({ ...a, tense }, h)) ?? h.e("{at}"), "."],
   "cart.terms": (a, h) => ["Mit der Bestellung stimmst du unseren ", h.t(a, "link", "Verkaufsbedingungen"), " zu."],
   "cart.title": "Warenkorb",
   "cart.total": (a, h) => ["Summe: ", h.n(a.amount, o2) ?? h.e("{amount}")],

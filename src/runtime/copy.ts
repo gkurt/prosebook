@@ -557,7 +557,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
         const tools = { locale, timeZone: options.timeZone, formatters: catalog.formatters, date };
         const { text, next } = catalog.relative!.text(at, opts, times.now(), tools, said);
         if (next !== undefined) times.due(next);
-        return text;
+        return flatten(text).join('');
       });
     },
     compare: (a, b, opts) => collator(opts).compare(a, b),

@@ -105,10 +105,11 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string 
   const own = extensionOf(el);
   if (own?.type === DURATION) return formatted('u', own.value, durationOptions(own));
   if (own?.type === RELATIVE) {
-    // A time under the smallest unit is said by the entry the format's `now` names, compiled in here.
+    // A time under the smallest unit is said by the format's `now`, compiled in here, given the message's own values,
+    // so a tag in it renders through the renderers the read is given.
     const { now: _, ...options } = relativeOptions(own);
     const said = own.now === undefined ? undefined : message(own.now, hoisted);
-    const now = said === undefined ? '' : `, (tense) => ${said.startsWith('(') ? `(${said})({ tense }, h)` : said}`;
+    const now = said === undefined ? '' : `, (tense) => ${said.startsWith('(') ? `(${said})({ ...a, tense }, h)` : said}`;
     return placed(el, own.value, `h.r(${access(own.value)}${hoisted.arg(options) || (now && ', undefined')}${now})`);
   }
   if (own?.type === LIST) {

@@ -339,6 +339,23 @@ describe('now said as text or by an entry', () => {
   });
 
   test.each([
+    // [now, entries]: text with a tag, and an entry with one
+    ['<em>just now</em>', ''],
+    [{ entry: 'time.now' }, 'time.now: "<em>just now</em>"\n'],
+  ])('a tag in %p renders through the read’s renderers, and reads as its text in t and code', (now, entries) => {
+    const { copy, problems } = opened(now, entries);
+    expect(problems).toEqual([]);
+    const at = NOW - 20 * S;
+    const em = (chunks: string[]) => ({ em: chunks.join('') });
+    expect(copy.rich('pr.opened' as never, { at, em } as never)).toEqual(['Opened ', { em: 'just now' }]);
+    // A tag the read gives no renderer for says what it wraps.
+    expect(copy.t('pr.opened' as never, { at })).toBe('Opened just now');
+    expect(copy.relative(at, 'recent' as never)).toBe('just now');
+    // Past now, a unit says the time, and the renderer goes unused.
+    expect(copy.rich('pr.opened' as never, { at: NOW - 5 * 60 * S, em } as never)).toEqual(['Opened 5 minutes ago']);
+  });
+
+  test.each([
     ['{when} now', '', 'formats.relative.recent.now takes {when}, and is given {tense} alone'],
     // What `now` took before it took text: a key, which would show as itself.
     [

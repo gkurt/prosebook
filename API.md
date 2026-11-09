@@ -846,7 +846,7 @@ formats: {
   is "2 days ago", 23 hours and 40 minutes "yesterday". `down` counts whole units only.
 - `numeric` and `style` are `Intl.RelativeTimeFormat`'s: `auto` (the default) says "yesterday", `always` "1 day ago".
 - Under one of the smallest unit, a time is now: `Intl`'s word for it, or what `now` says, text or an entry, given `{tense}`,
-  `past` or `future`. It is checked as the catalog loads, and reads as text: a tag in it says what it wraps.
+  `past` or `future`. It is checked as the catalog loads; a tag in it renders as the message's own do.
 - Past `date.after` milliseconds either way, the time shows in the date format `date.format` names.
 - A message without a format reads with the defaults; `long`, `short` and `narrow` set the style alone.
 - The generated index imports what says relative times only where a message or a format says one, so an app that says none

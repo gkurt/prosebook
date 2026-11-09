@@ -147,9 +147,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   (`Said`: `more`, given `{count}`, and `separator`) and each relative time's `now` (given `{tense}`): text, read in the
   catalog's syntax in the locale read, or the entry `{ entry }` names, in that locale or its nearest parent, so the compiler
   inlines it, given the message's own values, and no integration resolves one key from another. A string that is an entry's
-  key is refused with the fix, as `more` and `now` took keys before. A list's said tags join the message's (`SAID`).
+  key is refused with the fix, as `more` and `now` took keys before. What it says may hold tags, which join the message's (`SAID`), and
+  `h.l` and `h.r` return parts where it holds an element (`textOr`, `helpers.ts`), which `copy.list` and `copy.relative` flatten.
   `formatsCode` (`generate.ts`) ships the formats with each such text compiled, for `copy.list` and `copy.relative`, which
-  read an `{ entry }` by key; `h.l` returns parts where what is said holds an element (`joinList`). `resolveEntries` does the same for
+  read an `{ entry }` by key. `resolveEntries` does the same for
   `{app.title, entry}`: each reference's `text`, the name in the locale read at the arm its form picks,
   a name being text and selects alone, so a translation of one may add a select the source lacks.
 - `src/tools/icu.ts`: reading ICU ASTs: argument types, tags, number and date options. Parsed without a

@@ -14,7 +14,7 @@ import {
   type RelativeText,
   type RelativeUnit,
 } from './formats.ts';
-import { flatten } from './helpers.ts';
+import { textOr } from './helpers.ts';
 
 const DAY = 86_400_000;
 export const RELATIVE_UNITS: readonly (readonly [RelativeUnit, number])[] = [
@@ -109,8 +109,8 @@ function formatter(locale: string, options: RelativeFormatOptions | undefined, n
 }
 
 /**
- * A point in time as how long ago or ahead of `now` it is. `said` renders the format's `now` entry.
- * Throws where the value is no time.
+ * A point in time as how long ago or ahead of `now` it is. `said` renders what the format's `now` says: text, or parts
+ * where it holds an element, which a rich read renders. Throws where the value is no time.
  */
 export function relativeText(
   value: Date | number | string,
@@ -118,7 +118,7 @@ export function relativeText(
   now: number,
   tools: RelativeTools,
   said?: (tense: 'past' | 'future') => unknown,
-): RelativeText {
+): { text: unknown; next?: number } {
   const at = timeOf(value);
   const { locale } = tools;
   if (options?.formatter !== undefined) {
@@ -135,7 +135,7 @@ export function relativeText(
         : said === undefined
           ? // Now as `Intl` says it, which only `numeric: 'auto'` does: "now", not "in 0 seconds".
             formatter(locale, options, 'auto').format(0, 'second')
-          : flatten(said(shown.now)).join('');
+          : textOr(said(shown.now));
   return { text, next };
 }
 

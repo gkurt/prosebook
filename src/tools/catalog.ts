@@ -459,8 +459,7 @@ const SAID: Record<string, Record<string, { given?: string; what: string; add: s
  * What a format says itself (`Said`): a list's `more` and `separator`, given `{count}` and nothing, and a relative time's
  * `now`, given `{tense}`. Each is read in the locale the placeholder is: text in the catalog's syntax, as that locale's
  * options have it, or the entry it names, in that locale or the nearest one translating it. It is set on the placeholder
- * for the compiler, so every locale module holds what it says. The tags of a list's are the message's, so its rich reads
- * render them.
+ * for the compiler, so every locale module holds what it says. Its tags are the message's, so its rich reads render them.
  */
 function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales: string[], problems: Problem[]): void {
   const error = (message: Pick<Message, 'file' | 'key'> | undefined, text: string) =>
@@ -533,9 +532,8 @@ function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales
           }
           if (text === undefined) continue;
           (own as unknown as Record<string, MessageFormatElement[]>)[option] = text;
-          // A list's parts render among the message's own, through the same renderers; `now` reads as text.
-          if (kind === 'list' && locale === config.source)
-            for (const tag of tagsOf(text)) if (!message.tags.includes(tag)) message.tags.push(tag);
+          // What it says renders among the message's own parts, through the same renderers.
+          if (locale === config.source) for (const tag of tagsOf(text)) if (!message.tags.includes(tag)) message.tags.push(tag);
         }
       });
     }

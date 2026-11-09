@@ -29,7 +29,7 @@ export default {
   "cart.items": (a, h) => h.p(a.count, 0, false, { "=0": () => "Your cart is empty.", "one": () => [h.n(a.count) ?? h.e("{count}"), " item in your cart."], "other": () => [h.n(a.count) ?? h.e("{count}"), " items in your cart."] }),
   "cart.place": (a, h) => ["Today's ", h.p(a.rank, 0, true, { "one": () => [h.n(a.rank) ?? h.e("{rank}"), "st"], "two": () => [h.n(a.rank) ?? h.e("{rank}"), "nd"], "few": () => [h.n(a.rank) ?? h.e("{rank}"), "rd"], "other": () => [h.n(a.rank) ?? h.e("{rank}"), "th"] }), " order!"],
   "cart.remove": "Empty cart",
-  "cart.saved": (a, h) => ["Saved ", h.r(a.at, undefined, (tense) => ((a, h) => h.s(a.tense, { "future": () => "in a moment", "other": () => "just now" }))({ tense }, h)) ?? h.e("{at}"), "."],
+  "cart.saved": (a, h) => ["Saved ", h.r(a.at, undefined, (tense) => ((a, h) => h.s(a.tense, { "future": () => "in a moment", "other": () => "just now" }))({ ...a, tense }, h)) ?? h.e("{at}"), "."],
   "cart.shipping": (a, h) => ["Arrives in ", h.p(a.days, 0, false, { "one": () => [h.n(a.days) ?? h.e("{days}"), " working day"], "other": () => [h.n(a.days) ?? h.e("{days}"), " working days"] }), ". ", h.s(a.speed, { "express": () => "Express delivery is on.", "other": () => "Choose express at checkout for next-day delivery." })],
   "cart.terms": (a, h) => ["By checking out you agree to our ", h.t(a, "link", "terms of sale"), "."],
   "cart.title": "Cart",

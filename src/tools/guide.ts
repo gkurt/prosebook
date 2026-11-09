@@ -159,7 +159,7 @@ function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions, say: S
           return future === undefined || future === past ? past : `${past} / ${future}`;
         };
   try {
-    return SAMPLE_AGES.map((ago) => relativeText(now - ago, o, now, tools, said).text).join(SAMPLES);
+    return SAMPLE_AGES.map((ago) => String(relativeText(now - ago, o, now, tools, said).text)).join(SAMPLES);
   } catch (e) {
     return `(throws: ${(e as Error).message})`;
   }

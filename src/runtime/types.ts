@@ -78,10 +78,11 @@ export interface Helpers {
   /** `{x, duration, …}`: milliseconds, in the units the format shows, as `Intl.DurationFormat` writes them. */
   u(value: number, options?: DurationFormatOptions): string | undefined;
   /**
-   * `{x, relative, …}`: a point in time as how long ago or ahead of now it is. `said` renders the
-   * format's `now` entry, given the tense, for a time under one of its smallest unit.
+   * `{x, relative, …}`: a point in time as how long ago or ahead of now it is. `said` renders what the
+   * format's `now` says, given the tense, for a time under one of its smallest unit: text, or parts where
+   * it holds an element.
    */
-  r(value: Date | number | string, options?: RelativeFormatOptions, said?: (tense: 'past' | 'future') => unknown): string | undefined;
+  r(value: Date | number | string, options?: RelativeFormatOptions, said?: (tense: 'past' | 'future') => unknown): unknown;
   /** A placeholder's fallback, `{x}`, where it has no value or `n` or `d` gave nothing: reports why. */
   e(fallback: string): string;
   /**
