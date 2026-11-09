@@ -1,5 +1,5 @@
 /**
- * Named formats: a number, date, list or duration format the config names once (`price`, `receipt`),
+ * Named formats: a number, date, list, duration or relative format the config names once (`price`, `receipt`),
  * which a message names in place of its options (`{total, number, price}`) and `copy.number(total,
  * 'price')` names in code, so every page shows the same thing the same way and one edit changes it
  * everywhere.
@@ -63,6 +63,22 @@ export interface FormatterContext {
 export interface Formatters {
   readonly number?: { readonly [name: string]: (value: number | bigint, context: FormatterContext) => string };
   readonly date?: { readonly [name: string]: (value: Date | number, context: FormatterContext) => string };
+  /**
+   * A point in time as how long ago or ahead it is, at `context.now`. Return `{ text, next }` to say when
+   * it next reads differently, so `<Text>` and a `live` copy show it fresh; a string alone is never refreshed.
+   */
+  readonly relative?: { readonly [name: string]: (at: Date, context: RelativeContext) => string | RelativeText };
+}
+
+export interface RelativeContext extends FormatterContext {
+  /** The copy's clock, in milliseconds: what the time is measured from. */
+  readonly now: number;
+}
+
+/** A relative time as text, and the moment, by the copy's clock, it next reads differently. */
+export interface RelativeText {
+  readonly text: string;
+  readonly next?: number;
 }
 
 /** Typed formatters, for the module the config's `formatters` names. */
@@ -78,10 +94,19 @@ export function formatWith(
   value: number | bigint | Date,
   context: FormatterContext,
 ): string {
+  return String(formatterOf(formatters, kind, name)(value, context));
+}
+
+/** The formatter `name` of a kind. Throws where the catalog has none of that name. */
+export function formatterOf(
+  formatters: Formatters | undefined,
+  kind: keyof Formatters,
+  name: string,
+): (value: unknown, context: FormatterContext) => unknown {
   const format = formatters?.[kind]?.[name] as ((value: unknown, context: FormatterContext) => unknown) | undefined;
   // The generated index imports the module whose names it lists, so only a catalog written by hand lacks one.
   if (format === undefined) throw new Error(`no ${kind} formatter "${name}"`);
-  return String(format(value, context));
+  return format;
 }
 
 export interface NumberStep extends Intl.NumberFormatOptions {
@@ -136,6 +161,7 @@ type OptionsOf = {
   date: DateFormatOptions;
   list: ListFormatOptions;
   duration: DurationFormatOptions;
+  relative: RelativeFormatOptions;
 };
 
 export type FormatKind = keyof OptionsOf;
@@ -168,10 +194,17 @@ export function formatIn<K extends FormatKind>(
   return own(formats);
 }
 
-/** The entries list formats name for their rest, which a build keeps: the copy reads them for `copy.list`. */
+/**
+ * The entries formats name, which a build keeps: the copy reads them for `copy.list` (a list's `more`)
+ * and `copy.relative` (a relative time's `now`).
+ */
 export function moreKeys(formats: Formats | undefined): string[] {
   const tables = [formats, ...Object.values(formats?.locales ?? {})];
-  return [...new Set(tables.flatMap((t) => Object.values(t?.list ?? {}).flatMap((o) => o.more ?? [])))];
+  const named = (t: FormatTable | undefined) => [
+    ...Object.values(t?.list ?? {}).flatMap((o) => o.more ?? []),
+    ...Object.values(t?.relative ?? {}).flatMap((o) => o.now ?? []),
+  ];
+  return [...new Set(tables.flatMap(named))];
 }
 
 const UNITS: readonly (readonly [DurationUnit, number])[] = [
@@ -233,4 +266,43 @@ export function durationParts(
   // Nothing is 0 seconds, not 0 tenths of one.
   const zero = fraction === undefined ? range[last]![0] : 'seconds';
   return { parts: { [zero]: 0 }, display: { ...folded, [`${zero}Display`]: 'always' } };
+}
+
+export type RelativeUnit = 'year' | 'quarter' | 'month' | 'week' | 'day' | 'hour' | 'minute' | 'second';
+
+/**
+ * A point in time as how long ago or ahead of now it is: "3 days ago", "yesterday", "in 2 hours". It
+ * is counted in the largest unit it has a whole one of, rounded, and below one of the smallest unit
+ * it is now. Units have fixed lengths: a day is 24 hours, a week 7 days, a month 30 days, a quarter
+ * 90 days and a year 365 days.
+ */
+export interface RelativeFormatOptions {
+  /** As `Intl.RelativeTimeFormat` takes it: "3 days ago", "3d ago". Long unless said. */
+  readonly style?: 'long' | 'short' | 'narrow';
+  /** As `Intl.RelativeTimeFormat` takes it: `auto` says a day back as "yesterday", `always` as "1 day ago". Auto unless said. */
+  readonly numeric?: 'always' | 'auto';
+  /** The largest unit counted in: `day` says a month back as "30 days ago". Years unless said. */
+  readonly largest?: RelativeUnit;
+  /** The smallest unit counted in, which a time under one of reads as now. Minutes unless said. */
+  readonly smallest?: RelativeUnit;
+  /** Units between those left out. Quarters unless said: `[]` counts in them too. */
+  readonly skip?: readonly RelativeUnit[];
+  /**
+   * How a time is counted in its unit: `nearest` rounds, so 1 day and 14 hours is "2 days ago", and
+   * reaching the unit above moves to it (23 hours and 40 minutes is "yesterday"); `down` counts whole
+   * units only, "1 day ago". Nearest unless said.
+   */
+  readonly rounding?: 'nearest' | 'down';
+  /**
+   * The key of the entry a time under one of the smallest unit reads as, "just now", given `{tense}`:
+   * `past` or `future`. A named format's only. Unless said, it reads as `Intl` says now in the locale.
+   */
+  readonly now?: string;
+  /**
+   * Past this many milliseconds from now, either way, the time shows as a date, in a date format the
+   * config names: `{ after: 7 * 86_400_000, format: 'short' }`. A named format's only.
+   */
+  readonly date?: { readonly after: number; readonly format: string | DateFormatOptions };
+  /** Set by prosebook, not the config: the name of the formatter that shows the time (`formatters`). */
+  readonly formatter?: string;
 }

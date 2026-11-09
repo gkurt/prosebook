@@ -9,7 +9,7 @@ import { createServerCopy } from 'prosebook/react/server';
 
 import { parseMessage } from '#src/tools/icu.ts';
 
-import { compiled, copyOf } from './fixture.ts';
+import { compiled, copyOf, turning } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
 afterAll(() => GlobalRegistrator.unregister());
@@ -132,5 +132,32 @@ test("useCopy()'s t keeps its identity while the provider re-renders, until the 
   expect(seen[1]).toBe(seen[0]);
   await act(() => copy.setLocale('de'));
   expect(seen.at(-1)).not.toBe(seen[0]);
+  await act(async () => root.unmount());
+});
+
+test('a <Text> saying a relative time renders itself again once it reads differently, and nothing else', async () => {
+  const { copy, at } = turning();
+  let renders = 0;
+  function View() {
+    renders++;
+    return (
+      <p>
+        <Text id={'a.opened' as never} values={{ at } as never} />
+      </p>
+    );
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  await act(async () =>
+    root.render(
+      <CopyProvider copy={copy}>
+        <View />
+      </CopyProvider>,
+    ),
+  );
+  expect(host.innerHTML).toBe('<p>Opened now</p>');
+  await act(() => Bun.sleep(150));
+  expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
+  expect(renders).toBe(1);
   await act(async () => root.unmount());
 });

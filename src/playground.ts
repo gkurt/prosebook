@@ -6,12 +6,13 @@
  */
 import { volume } from './browser/fs.ts';
 import { RUNTIME, type Catalog as RuntimeCatalog } from './runtime/copy.ts';
+import { relativeTime } from './runtime/relative.ts';
 import type { CompiledMessages } from './runtime/types.ts';
 import { CatalogError, loadCatalog, type Message, type Problem } from './tools/catalog.ts';
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { resolveConfig, type ProsebookConfig } from './tools/config.ts';
 import { applyFixes } from './tools/entry.ts';
-import { render } from './tools/generate.ts';
+import { render, saysRelative } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 
 export type { Finding, Message, Problem, ProsebookConfig };
@@ -72,6 +73,7 @@ export function play(files: Files, config: ProsebookConfig = {}): Played {
     messages: Object.fromEntries([...generated.entries].map(([locale, entries]) => [locale, evaluate(entries)])),
     loaders: {},
     ...(Object.keys(resolved.formats).length > 0 && { formats: resolved.formats }),
+    ...(saysRelative(resolved, generated.catalog) && { relative: relativeTime }),
   };
   return {
     generated: Object.fromEntries([...generated.files].map(([path, content]) => [fromRoot(path), content])),

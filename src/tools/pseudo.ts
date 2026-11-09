@@ -4,7 +4,7 @@
  * a glance which text is hardcoded (it is plain), which is clipped (a bracket is missing), and which
  * splices fragments together (brackets inside brackets).
  */
-import { inlined, TYPE, type MessageFormatElement } from './icu.ts';
+import { asElement, extensionOf, inlined, TYPE, type MessageFormatElement } from './icu.ts';
 
 const PLAIN = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const ACCENTED = Array.from('áƀçðéƒĝĥíĵķļɱñóþǫŕšţúṽŵẋýžÁƁÇÐÉƑĜĤÍĴĶĻṀÑÓÞǪŔŠŢÚṼŴẊÝŽ');
@@ -19,6 +19,10 @@ export function pseudoText(text: string): string {
 function transform(elements: MessageFormatElement[]): MessageFormatElement[] {
   return elements.map((el) => {
     if (el.type === TYPE.literal) return { ...el, value: pseudoText(el.value) };
+    // The entry a list's rest or a relative time's now is said by, which the compiler writes in here.
+    const own = extensionOf(el);
+    if (own?.more !== undefined || own?.now !== undefined)
+      return asElement({ ...own, ...(own.more && { more: transform(own.more) }), ...(own.now && { now: transform(own.now) }) });
     if (el.type === TYPE.tag) return { ...el, children: transform(el.children) };
     if (el.type === TYPE.select || el.type === TYPE.plural) {
       const options = Object.fromEntries(Object.entries(el.options).map(([arm, o]) => [arm, { ...o, value: transform(o.value) }]));

@@ -12,6 +12,8 @@ import {
   Fragment,
   h,
   inject,
+  onBeforeUnmount,
+  onMounted,
   onScopeDispose,
   provide,
   shallowRef,
@@ -93,7 +95,9 @@ export type TextProps<K extends MessageKey> = LooseTextProps<K, VNodeChild>;
 
 /**
  * A message in a template: `<Text id="cart.items" :values="{ count }" />`. Its tags render through
- * a slot of the same name, a function in `values` or the provider's renderers, in that order.
+ * a slot of the same name, a function in `values` or the provider's renderers, in that order. A
+ * relative time in the message stays fresh: the component renders again when it next reads
+ * differently, and nothing else does.
  *
  * ```vue
  * <Text id="cart.terms">
@@ -104,11 +108,32 @@ export type TextProps<K extends MessageKey> = LooseTextProps<K, VNodeChild>;
 export const Text = defineComponent(
   (props: { id: string; values?: object }, { slots }: SetupContext) => {
     const copy = useCopy();
+    const tick = shallowRef(0);
+    // Waits only once mounted, so a server render sets no timer.
+    let mounted = false;
+    let next: number | undefined;
+    let waiting: number | undefined;
+    let stop: (() => void) | undefined;
+    const wait = () => {
+      if (!mounted || next === waiting) return;
+      stop?.();
+      waiting = next;
+      stop = next === undefined ? undefined : copy.at(next, () => tick.value++);
+    };
+    onMounted(() => {
+      mounted = true;
+      wait();
+    });
+    onBeforeUnmount(() => stop?.());
     return () => {
+      void tick.value;
       const fromSlots: Record<string, unknown> = {};
       for (const [name, slot] of Object.entries(slots))
         if (slot !== undefined) fromSlots[name] = (chunks: VNodeChild[]) => slot({ chunks: h(Fragment, null, chunks) });
-      return copy.rich(props.id as never, { ...fromSlots, ...props.values } as never);
+      const node = copy.rich(props.id as never, { ...fromSlots, ...props.values } as never);
+      next = copy.nextChange();
+      wait();
+      return node;
     };
   },
   { name: 'Text', props: ['id', 'values'] },

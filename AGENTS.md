@@ -52,18 +52,32 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key. `l`
   joins a list (`shownItems`: its first `max`, and the compiled `more` message for the rest), `u` writes
   a duration (`durationParts` splits the milliseconds); both are refused, as `n` is, where `Intl` can't.
+  `r` says a relative time through the catalog's `relative`, by the copy's clock (`now`), telling `due`
+  when it next reads differently; with no `relative` it shows the fallback and says why (`NO_RELATIVE`).
+- `src/runtime/relative.ts`: relative times, `relativeTime`, which the generated index imports and puts in the
+  catalog's `relative` only where a message or a relative format says one (`saysRelative`, `generate.ts`), so
+  an app saying none ships none of it. `relativeOf` picks the unit (the largest the time has a whole one of,
+  rounded, carried to the unit above where rounding reaches it; under the smallest, now; past `date.after`,
+  a date) and the next moment it reads otherwise, stepping through the marks where it could: half a unit,
+  a unit's length, now and the date. `relativeText` formats it, and `clockOf` is a copy's clock: a number
+  `now` held until the copy is first watched (a binding subscribes once hydrated), each public read's `due`
+  for `nextChange`, and, with `live`, the soonest unclaimed one waited for while watched, which bumps
+  `version`. `clock.ts`: the one timer every wait shares, re-checked when a hidden tab shows.
 - `src/runtime/copy.ts`: `createCopy`, `defineCatalog`: lookup, fallback chain, lazy loading, subscribe.
   A copy's layer per locale fills area by area: a catalog that isn't split is one area, `''`; a split
   one (`split`) starts empty and takes each area `addArea` registers, by `split.id` in a registry of
   the module's own, so an area loading after a dev edit ran the index again still reaches its copies.
   A server build's catalog may list `areaFiles`, each area's file per lazy locale in the split client,
   which a copy hands to `preload` as it reads each area, once per file, for the page to link.
+  `t`, `rich` and `relative` are reads through the catalog's `relative` clock where it has one, which
+  `nextChange` and `at` serve: every binding's `<Text>` asks `nextChange` right after it reads, and in
+  an effect (never on a server) waits with `at` to render itself again.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, `acceptedLocales` for servers, and `dirOf`, a
   locale's direction from `Intl.Locale`'s likely script, or from the tag's own subtags where Hermes has no `Intl.Locale`.
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
   locale, its own over its parents' over the default. The tools read messages through it, and the generated index
-  ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list` and `copy.duration`
-  take names from; `Register`'s `formats` names them for the types. Lists and durations have options of
+  ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list`, `copy.duration` and
+  `copy.relative` take names from (a relative format's units, rounding, `now` entry and `date`, read in `relative.ts`); `Register`'s `formats` names them for the types. Lists and durations have options of
   prosebook's own beside `Intl`'s: a list's `max` and `more` (the entry saying the rest, which `moreKeys`
   keeps in builds), a duration's `largest`, `smallest`, `units` and `fractionalDigits`, which `durationParts`
   reads, the fraction a unit of its own after the seconds (tenths of one, say), so `units` counts it; it
@@ -118,7 +132,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
   servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,
   fix or import is checked for the errors it brings (`checkEdit` in `entry.ts`), not those already there.
-  `entryLocator` finds an entry's line, reading each file once. `attachMore` sets each list's `more`, the
+  `entryLocator` finds an entry's line, reading each file once. `attachMore` sets each list's `more` (and each relative time's `now`, given `{tense}`), the
   message of the entry its format names, in the locale read or its nearest parent, so the compiler
   inlines it and no integration resolves one key from another. `resolveEntries` does the same for
   `{app.title, entry}`: each reference's `text`, the name in the locale read at the arm its form picks,
@@ -129,10 +143,11 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `NamedStyle`: a skeleton to the compiler and the native targets, and its `named` to the writers.
   Argument types are TypeScript text: a select's is its arms and `(string & {})` (`OPEN`), closed by the
   entry's `closed`, a boolean for `true`/`false` arms, and `| null | undefined` with a `null` arm, which
-  the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument. `{x, list}`
-  and `{x, duration}` are prosebook's, not ICU's: `standIns` writes each as a plain placeholder before
+  the runtime's `h.s` picks for an absent value; `unionOf` merges two uses of one argument. `{x, list}`,
+  `{x, duration}` and `{x, relative}` are prosebook's, not ICU's: `standIns` writes each as a plain placeholder before
   formatjs reads the message, past ICU's quotes, and `withExtensions` puts back an `ExtensionElement`
-  (`LIST`, `DURATION`, type numbers past formatjs's, found with `extensionOf`). Code that doesn't know
+  (`LIST`, `DURATION`, `RELATIVE`, type numbers past formatjs's, found with `extensionOf`, named by `kindOf`;
+  `extensionFormat` reads a named one, a relative format's `date` as that date format's options). Code that doesn't know
   them passes them by, so every writer and target checks for them first: the MF1 and MF2 writers,
   the compiler, and the native targets, which refuse them. `{app.title, entry}` (`ENTRY`, `entryOf`)
   reads the same way, a key in the argument's place, and only the writers keep it: the compiler, the
@@ -228,7 +243,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   what each formatter resolves to in the locale with each named format's, so it finds only true twins. No-break spaces are
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
-  finds `toLocale*String` calls, `Intl` formatters and a component's `.join(', ')`, and names the
+  finds `toLocale*String` calls, `Intl` formatters, a `.format(n, 'day')` picking a relative time's unit
+  (`RELATIVE_UNIT`) and a component's `.join(', ')`, and names the
   copy's method to read, with a named format whose options resolve as the written ones do, and passes by a formatter
   only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its

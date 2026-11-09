@@ -7,7 +7,7 @@ The full reference. For an overview, see the [README](README.md).
 - [Bindings](#bindings): [React](#react) · [Preact](#preact) · [Vue](#vue) · [Svelte](#svelte) · [Solid](#solid) ·
   [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server) · [In tests](#in-tests)
 - [The catalog](#the-catalog): [Fields](#fields) · [The writing guide](#the-writing-guide)
-- [Messages](#messages): [ICU](#icu-messageformat) · [Named formats](#named-formats) · [Formatters](#formatters) · [Tags](#tags) ·
+- [Messages](#messages): [ICU](#icu-messageformat) · [Named formats](#named-formats) · [Relative times](#relative-times) · [Formatters](#formatters) · [Tags](#tags) ·
   [MessageFormat 2](#messageformat-2)
 - [Translations](#translations): [Stale](#stale-translations) · [With a model](#translating-with-a-model) ·
   [Translation tools](#translation-tools) · [Pseudo-locale](#pseudo-locale)
@@ -213,18 +213,22 @@ const copy = createCopy(catalog, {
   onError: (error, key, locale) => report(error, { key, locale }),
   preload: (href) => preloadModule(href, { as: 'script' }),
   timeZone: 'Europe/Berlin',
+  now: renderedAt, // what relative times are measured from: a server's render time, or a clock
+  live: false,
 });
 await copy.ready;
 ```
 
-| Option      |                                                                                                     |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| `locale`    | The locale to start in, or the locales a reader prefers. Defaults to the source.                    |
-| `tags`      | Tag renderers every rich read gets unless it passes its own.                                        |
-| `onMissing` | What a key the catalog lacks reads as. Defaults to the key.                                         |
-| `onError`   | Told of a placeholder with no value or one `Intl` refuses. Defaults to `console.error`.             |
-| `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads. |
-| `timeZone`  | The IANA zone dates show in, unless a message names its own. Defaults to the environment's.         |
+| Option      |                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------- |
+| `locale`    | The locale to start in, or the locales a reader prefers. Defaults to the source.                     |
+| `tags`      | Tag renderers every rich read gets unless it passes its own.                                         |
+| `onMissing` | What a key the catalog lacks reads as. Defaults to the key.                                          |
+| `onError`   | Told of a placeholder with no value or one `Intl` refuses. Defaults to `console.error`.              |
+| `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads.  |
+| `timeZone`  | The IANA zone dates show in, unless a message names its own. Defaults to the environment's.          |
+| `now`       | What [relative times](#relative-times) are measured from: a clock, or the time a server rendered at. |
+| `live`      | Keeps relative times read outside a `<Text>` fresh, by changing `version` when they next change.     |
 
 ### A copy
 
@@ -235,7 +239,7 @@ copy.number(9, 'price'); // "€9.00", a named format or Intl options
 copy.date(when, { weekday: 'long' });
 copy.list(['a', 'b', 'c']); // "a, b, and c"; a named format too, with its max and more
 copy.duration(185_400, 'compact'); // "3m 5s": milliseconds, with a named format or options
-copy.relative(-2, 'hour'); // "2 hours ago"
+copy.relative(openedAt, 'recent'); // "2 hours ago", "yesterday": a Date, milliseconds or ISO string
 copy.has(key); // narrows key to a key of the catalog
 await copy.setLocale('de'); // once its messages and its fallbacks' are loaded
 const stop = copy.subscribe(render); // after each locale switch, and each catalog edit in dev
@@ -245,6 +249,9 @@ copy.locales; // every locale of the catalog
 copy.source; // 'en'
 copy.timeZone; // 'Europe/Berlin', or undefined for the environment's
 copy.version; // counts changes to what messages read as
+copy.now(); // the copy's clock, in milliseconds
+copy.nextChange(); // when the last read's relative time next reads differently, or undefined
+copy.at(time, render); // runs render once the copy's clock reaches time; returns what cancels it
 ```
 
 Methods don't use `this`: `const { t, rich } = copy` works.
@@ -298,7 +305,9 @@ can't read, newer or much older, throws as it loads and says which to update, ra
 
 ## Bindings
 
-Every binding's reader has `t`, `rich`, `setLocale` and the rest of [a copy](#a-copy), and a `<Text>` component.
+Every binding's reader has `t`, `rich`, `setLocale` and the rest of [a copy](#a-copy), and a `<Text>` component. A `<Text>`
+whose message says a [relative time](#relative-times) renders itself again when it next reads differently, and nothing else
+does.
 
 ### React
 
@@ -529,6 +538,7 @@ test('checks out', async ({ page }) => {
 - It reads the generated modules on disk, so run `prosebook generate` before the tests, as a build does.
 - A runner that doesn't resolve the index's `./en.js` to `en.ts` runs it with `importExtension: '.ts'`.
 - `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them.
+- A fixed clock, `createCopy(catalog, { now: () => Date.UTC(2026, 10, 9) })`, reads a relative time the same on every run.
 
 ## The catalog
 
@@ -676,6 +686,8 @@ en: 'With {names, list}' # names: readonly string[]; "With Ann, Bob, and Cy", "M
 en: '{names, list, disjunction}' # "Ann, Bob, or Cy"; conjunction, disjunction, unit and long, short, narrow
 en: 'Took {took, duration}' # took: number of milliseconds; "Took 3 min, 5 sec"
 en: '{took, duration, narrow}' # "3m 5s", "850ms"; long, short, narrow, digital ("0:03:05")
+en: 'Opened {at, relative}' # at: Date | number | string; "Opened 3 days ago", "Opened yesterday", "Opened now"
+en: 'Due {at, relative, short}' # "Due in 2 hr."; long, short, narrow
 en: 'By checking out you agree to our <link>terms</link>.' # a tag
 ```
 
@@ -689,6 +701,8 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag
   milliseconds with `Intl.DurationFormat`, from the largest unit it reaches, two units at most, the last rounded. In MF2,
   `{$names :list type=disjunction}` and `{$took :duration style=narrow}`. Where a browser lacks `Intl.DurationFormat`, the
   placeholder's fallback shows and `onError` says why. Native targets refuse both; pass the text formatted in code.
+- `relative` is prosebook's too: `{at, relative}` shows a point in time as how long ago or ahead of now it is, as
+  [relative times](#relative-times) says. In MF2, `{$at :relative style=short}`.
 
 ### Named formats
 
@@ -710,6 +724,9 @@ formats: {
     compact: { style: 'narrow', smallest: 'seconds' }, // "3m 5s"; largest, smallest, units (2)
     tenths: { style: 'narrow', fractionalDigits: 1 }, // "4.2s", "12s", "3m 5s"
   },
+  relative: {
+    recent: { now: 'time.now', date: { after: 7 * 86_400_000, format: 'receipt' } }, // "just now", "5 minutes ago", "Oct 28, 2026"
+  },
   locales: { de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } } },
 },
 ```
@@ -720,6 +737,7 @@ en: 'Ordered {when, date, receipt}'
 en: 'Total: {$total :number format=price}' # MF2; :date, :time and :datetime take format= too
 en: 'Used {tools, list, tools}' # {$tools :list format=tools}
 en: 'Took {took, duration, compact}' # {$took :duration format=compact}
+en: 'Opened {at, relative, recent}' # {$at :relative format=recent}
 ```
 
 ```yaml
@@ -733,6 +751,7 @@ copy.number(total, 'price');
 copy.date(when, 'receipt');
 copy.list(tools, 'tools');
 copy.duration(took, 'compact');
+copy.relative(at, 'recent');
 ```
 
 - One change in the config changes every message and call, in every locale.
@@ -749,7 +768,68 @@ copy.duration(took, 'compact');
   many it shows from the largest it reaches. `fractionalDigits` (1 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
   where milliseconds would show "4s 200ms", rounded to its last digit and without trailing zeros ("12s"). The fraction is one of
   the `units`, so with 2, "3m 5s" shows none; `units: 3` shows "3m 5.2s". Digital keeps every digit, "0:03:05.40".
+- A relative format's options are under [relative times](#relative-times).
 - The `named-format` lint warns of a message that spells out a named format's options.
+
+### Relative times
+
+`{at, relative}` shows a point in time, a `Date`, milliseconds or an ISO 8601 string, as how long ago or ahead of now it is,
+worked out as the message is read. The translator sees a time, not finished text, and code says the same with `copy.relative`:
+
+```yaml
+pr.opened:
+  context: When the pull request was opened, on its card.
+  en: 'Opened {at, relative, recent}'
+time.now:
+  context: A time under a minute from now, in place of "0 minutes ago".
+  en: '{tense, select, future {in a moment} other {just now}}'
+```
+
+```ts
+formats: {
+  date: { day: { dateStyle: 'medium' } },
+  relative: {
+    recent: {
+      now: 'time.now', // what a time under the smallest unit reads as; Intl's "now" unless said
+      date: { after: 7 * 86_400_000, format: 'day' }, // a date past a week, either way
+      // largest: 'year', smallest: 'minute', skip: ['quarter'], rounding: 'nearest',
+      // numeric: 'auto', style: 'long' are the defaults
+    },
+  },
+},
+```
+
+```tsx
+<Text id="pr.opened" values={{ at: pr.createdAt }} /> // "Opened just now", "Opened 5 minutes ago", "Opened yesterday"
+```
+
+- A time is counted in the largest unit it has a whole one of, from `largest` down to `smallest`, `skip` left out (quarters
+  unless said). The units' lengths are fixed: a day is 24 hours, a week 7 days, a month 30 days, a quarter 90 days, a year 365
+  days, so every page and every locale counts alike.
+- `rounding: 'nearest'` (the default) rounds in its unit, and moves to the unit above where it reaches it: 1 day and 14 hours
+  is "2 days ago", 23 hours and 40 minutes "yesterday". `down` counts whole units only.
+- `numeric` and `style` are `Intl.RelativeTimeFormat`'s: `auto` (the default) says "yesterday", `always` "1 day ago".
+- Under one of the smallest unit, a time is now: `Intl`'s word for it, or the entry `now` names, given `{tense}`, `past` or
+  `future`. The entry is checked as the catalog loads and kept in every build.
+- Past `date.after` milliseconds either way, the time shows in the date format `date.format` names.
+- A message without a format reads with the defaults; `long`, `short` and `narrow` set the style alone.
+- The generated index imports what says relative times only where a message or a format says one, so an app that says none
+  ships none of it. `copy.relative` in such an app throws, naming the fix.
+
+**Now.** A copy measures from `Date.now()` unless given `now`. A function is its clock, `() => fixed` in a test. A number is
+the time a server rendered the page at, which the browser's copy reads as now until it is first subscribed to, as a binding
+does once the page has hydrated, so the server's "5 minutes ago" hydrates as the same text:
+
+```tsx
+// the server puts its render time in the page; the browser's copy starts from it
+const [copy] = useState(() => createCopy(catalog, { locale, now: renderedAt }));
+```
+
+**Staying fresh.** Each read notes when its text next reads differently: a count changing, a unit, or turning now or a date.
+`<Text>` waits for it and renders itself again, alone; one timer serves every time on the page, and a hidden tab catches up
+when it shows. A time read with `t` or `rich` in a component is fresh only with `live: true`, which changes the copy's
+`version`, and so renders every reader again, at the soonest such moment. `copy.nextChange()` says when the last read
+changes, for code that keeps its own fresh, and `copy.at(time, run)` waits for it on the same timer.
 
 ### Formatters
 
@@ -770,6 +850,13 @@ export default defineFormatters({
   },
   date: {
     stamp: (value, { locale, timeZone }) => new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'short' }).format(value),
+  },
+  relative: {
+    // Given the time and the copy's clock; `next` says when it reads differently, for <Text> and `live`.
+    hours: (at, { now }) => {
+      const hours = Math.floor((now - at.getTime()) / 3_600_000);
+      return { text: `${hours}h`, next: at.getTime() + (hours + 1) * 3_600_000 };
+    },
   },
 });
 ```
@@ -856,7 +943,8 @@ en: |-
 ```
 
 - Functions: `:string`, `:number`, `:integer`, `:percent`, `:currency`, `:unit`, `:offset`, `:date`, `:time`, `:datetime` (still a
-  draft in the spec, followed as the `messageformat` package does), and prosebook's `:list`, `:duration` and `:pb:entry`.
+  draft in the spec, followed as the `messageformat` package does), and prosebook's `:list`, `:duration`, `:relative` and
+  `:pb:entry`.
 - `.match` selects as MF2 does: an exact number beats its category, and a number matches as shown (`1.0` is `other`).
   `:integer` matches the value rounded, `:percent` times 100.
 - **Text direction.** In right-to-left locales each placeholder is wrapped in isolation marks. `u:dir=ltr` picks a direction;
@@ -1207,9 +1295,9 @@ JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a s
 `Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes are not text: `className=`, what `cn`, `clsx`,
 `cva`, `tv` and `twMerge` are given, and any string of utility classes (`block h-full cursor-[inherit]`).
 
-It also finds numbers, dates and lists formatted in code, which show the browser's locale rather than the copy's:
-`toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, and in components
-`.join(', ')`. Each says what to read instead, naming the [format](#named-formats) its options match:
+It also finds numbers, dates, lists and relative times formatted in code, which show the browser's locale rather than the
+copy's: `toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, a relative
+time's unit picked in code (`rtf.format(-days, 'day')`), and in components `.join(', ')`. Each says what to read instead, naming the [format](#named-formats) its options match:
 
 ```
 src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): read copy.number(…, 'price'), which shows it as the format the config names
@@ -1582,8 +1670,8 @@ export default defineConfig({
   source: 'en',
   messageFormat: 1, // or 2
   isolate: 'rtl', // MF2: isolate placeholders in right-to-left locales; 'always', or false
-  formats: {}, // named number and date formats
-  formatters: undefined, // a module of the app's own number and date formats, as code
+  formats: {}, // named number, date, list, duration and relative formats
+  formatters: undefined, // a module of the app's own number, date and relative formats, as code
   bundled: [], // locales shipped in the main bundle; the rest load on first use
   pseudo: false, // or 'en-XA', in dev only
   stale: 'use', // or 'fallback'

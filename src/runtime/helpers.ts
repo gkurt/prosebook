@@ -1,4 +1,5 @@
-import { durationParts, formatWith, stepOf, type Formatters, type ListFormatOptions } from './formats.ts';
+import { durationParts, formatWith, stepOf, type DateFormatOptions, type Formatters, type ListFormatOptions } from './formats.ts';
+import type { RelativeTime, RelativeTools } from './relative.ts';
 import type { Arms, Helpers, Values } from './types.ts';
 
 /** Formatters by options object, then by the options arguments gave, as JSON (`''` for none). */
@@ -12,9 +13,13 @@ type Cache<F> = Map<object | undefined, Map<string, F>>;
  * A value missing, or one `Intl` refuses, never throws: `n` and `d` give nothing back, and the message
  * shows the placeholder's fallback through `e`, which hands `report` what went wrong. `timeZone` is the
  * zone dates are shown in unless a message names its own. A format naming a `formatter` is the app's
- * own, from `formatters`.
+ * own, from `formatters`. Relative times are formatted by `relative`, the catalog's, read by the
+ * clock `now`, and `due` is told when each one read next reads differently.
  */
-export function createHelpers(locale: string, { report, timeZone, formatters }: HelperOptions = {}): Helpers {
+export function createHelpers(
+  locale: string,
+  { report, timeZone, formatters, relative, now = Date.now, due }: HelperOptions = {},
+): Helpers {
   const context = { locale, timeZone };
   const numbers: Cache<Intl.NumberFormat> = new Map();
   const dates: Cache<Intl.DateTimeFormat> = new Map();
@@ -22,6 +27,12 @@ export function createHelpers(locale: string, { report, timeZone, formatters }: 
   const lists: Cache<Intl.ListFormat> = new Map();
   const durations: Cache<Intl.DurationFormat> = new Map();
   let failure: unknown;
+  const date = (value: Date | number, options?: DateFormatOptions, given?: Intl.DateTimeFormatOptions) =>
+    options?.formatter !== undefined
+      ? formatWith(formatters, 'date', options.formatter, value, context)
+      : formatter(dates, options, given, (o) => dateFormat(locale, timeZone, o)).format(value);
+  // A relative format's date is options already: the compiler read its name in the locale.
+  const tools: RelativeTools = { ...context, formatters, date: date as RelativeTools['date'] };
 
   function attempt(value: unknown, format: () => string): string | undefined {
     failure = undefined;
@@ -44,8 +55,7 @@ export function createHelpers(locale: string, { report, timeZone, formatters }: 
       return attempt(value, () => make(stepOf(options, value, make)).format(value));
     },
     d(value, options, given) {
-      if (options?.formatter !== undefined) return attempt(value, () => formatWith(formatters, 'date', options.formatter!, value, context));
-      return attempt(value, () => formatter(dates, options, given, (o) => dateFormat(locale, timeZone, o)).format(value));
+      return attempt(value, () => date(value, options, given));
     },
     l(value, options, more) {
       return attempt(value, () =>
@@ -60,6 +70,14 @@ export function createHelpers(locale: string, { report, timeZone, formatters }: 
         return formatter(durations, options, display, (o) => new Intl.DurationFormat(locale, o as Intl.DurationFormatOptions)).format(
           parts,
         );
+      });
+    },
+    r(value, options, said) {
+      return attempt(value, () => {
+        if (relative === undefined) throw new Error(NO_RELATIVE);
+        const { text, next } = relative.text(value, options, now(), tools, said);
+        if (next !== undefined) due?.(next);
+        return text;
       });
     },
     e(fallback) {
@@ -101,7 +119,16 @@ export interface HelperOptions {
   timeZone?: string;
   /** The app's own formats, which a format of the config's names (`formatter`). */
   formatters?: Formatters;
+  /** What formats relative times: the catalog's `relative`, where a message or format says one. */
+  relative?: RelativeTime;
+  /** The time relative times are measured from, in milliseconds. `Date.now` unless given. */
+  now?: () => number;
+  /** Told, of each relative time read, the moment by `now` it next reads differently. */
+  due?: (at: number) => void;
 }
+
+/** Why a relative time shows its fallback in a catalog generated before anything said one. */
+export const NO_RELATIVE = 'prosebook: no message or format says a relative time: name one under formats.relative';
 
 /** A date formatter in `timeZone`, under any the options name. */
 export function dateFormat(locale: string, timeZone: string | undefined, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {

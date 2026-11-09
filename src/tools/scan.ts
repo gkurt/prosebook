@@ -481,6 +481,7 @@ const INTL_METHODS: Record<string, string> = {
   RelativeTimeFormat: 'relative',
   DurationFormat: 'duration',
 };
+const RELATIVE_UNIT = /^(?:year|quarter|month|week|day|hour|minute|second)s?$/;
 const TO_LOCALE: Record<string, 'date' | undefined> = { toLocaleString: undefined, toLocaleDateString: 'date', toLocaleTimeString: 'date' };
 /** The options only a date formats with, which tell `toLocaleString`'s value apart from a number. */
 const DATE_OPTIONS =
@@ -511,7 +512,7 @@ function resolved(kind: keyof FormatTable, locale: string, options: object): str
 }
 
 /**
- * Numbers, dates and lists formatted in code rather than by the copy: `toLocaleString()` and
+ * Numbers, dates, lists and relative times formatted in code rather than by the copy: `toLocaleString()` and
  * `new Intl.NumberFormat()` show the browser's locale, or one written in, where the copy shows its
  * own, and options written out drift from the format the config names. In components, `.join(', ')`
  * is a list only English joins so. Outside tests and stories; lines marked `prosebook-ignore` are left.
@@ -525,6 +526,15 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
   const say = (node: Node, kind: string, value: string, options: Node | undefined) => {
     const at = position(node.start);
     if (ignored(at.line)) return;
+    const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
+    const shown = text.length > 80 ? `${text.slice(0, 77)}...` : text;
+    if (kind === 'relative') {
+      // The unit is worked out in code, which the copy does from the time itself.
+      const names = Object.keys(formats.relative ?? {}).map((name) => `copy.relative(at, '${name}')`);
+      const fix = `${names.length > 0 ? names.join(' or ') : 'copy.relative(at)'}, given the time itself, or {at, relative} in the message`;
+      found.push({ file, ...at, code: shown, fix });
+      return;
+    }
     const given = literalObject(options);
     const kinds = kind === 'either' ? (Object.keys(given ?? {}).some((k) => DATE_OPTIONS.test(k)) ? ['date'] : ['number', 'date']) : [kind];
     const named = kinds.flatMap((k) => {
@@ -545,8 +555,7 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
         : given !== undefined && Object.keys(given).length > 0 && kinds.every((k) => k === 'number' || k === 'date')
           ? `${plain.join(' or ')} with these options, or name them under formats.${kinds.join(' or formats.')} and pass the name`
           : `${plain.join(' or ')}, in the copy's locale`;
-    const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
-    found.push({ file, ...at, code: text.length > 80 ? `${text.slice(0, 77)}...` : text, fix });
+    found.push({ file, ...at, code: shown, fix });
   };
   // Formatters only asked their options, as `Intl.DateTimeFormat().resolvedOptions().timeZone` reads the
   // device's time zone: they format nothing a person reads.
@@ -565,6 +574,10 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
         if (Object.hasOwn(TO_LOCALE, method)) say(node, TO_LOCALE[method] ?? 'either', value, args[1]);
         const joiner = args[0];
         if (component && method === 'join' && joiner?.type === 'Literal' && joiner.value === ', ') say(node, 'list', value, undefined);
+        // `rtf.format(-3, 'day')`: a relative time's unit picked in code, from a formatter made elsewhere.
+        const unit = args[1];
+        if (method === 'format' && args.length === 2 && unit?.type === 'Literal' && RELATIVE_UNIT.test(String(unit.value)))
+          say(node, 'relative', value, undefined);
       }
     }
     for (const value of Object.values(node)) {

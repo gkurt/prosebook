@@ -6,7 +6,7 @@ import { act } from 'preact/test-utils';
 import type { DevHooks, HotHook } from 'prosebook';
 import { CopyProvider, Text, useCopy, useLocale } from 'prosebook/preact';
 
-import { copyOf } from './fixture.ts';
+import { copyOf, turning } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
 afterAll(() => GlobalRegistrator.unregister());
@@ -70,5 +70,21 @@ test("useCopy()'s t keeps its identity while the provider renders again, until t
   expect(seen[1]).toBe(seen[0]);
   await act(() => copy.setLocale('de'));
   expect(seen.at(-1)).not.toBe(seen[0]);
+  await act(() => render(null, host));
+});
+
+test('a <Text> saying a relative time renders itself again once it reads differently, and nothing else', async () => {
+  const { copy, at } = turning();
+  let renders = 0;
+  function View() {
+    renders++;
+    return h('p', null, h(Text, { id: 'a.opened' as never, values: { at } as never }));
+  }
+  const host = document.createElement('div');
+  await act(() => render(h(CopyProvider, { copy }, h(View, null)), host));
+  expect(host.innerHTML).toBe('<p>Opened now</p>');
+  await act(() => Bun.sleep(150));
+  expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
+  expect(renders).toBe(1);
   await act(() => render(null, host));
 });

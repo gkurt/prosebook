@@ -14,7 +14,7 @@ import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions,
 import { compileLocale, localeModule, verbatim, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { writingGuide } from './guide.ts';
-import { isNullish } from './icu.ts';
+import { extensionOf, isNullish, RELATIVE, walk, type MessageFormatElement } from './icu.ts';
 import { keepUnread, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
@@ -128,7 +128,7 @@ function typesBlock(catalog: Catalog, locales: string[]): string {
 
 /** The module augmentation that tells `useCopy()`, `<Text>` and `copy.number`'s names the catalog's. */
 function register(config: ResolvedConfig): string {
-  const kinds = ['number', 'date', 'list', 'duration'] as const;
+  const kinds = ['number', 'date', 'list', 'duration', 'relative'] as const;
   const names = (kind: (typeof kinds)[number]) => {
     const named = Object.keys(config.formats[kind] ?? {});
     return named.length > 0 ? named.map(quote).join(' | ') : 'never';
@@ -146,13 +146,32 @@ function register(config: ResolvedConfig): string {
 }
 
 /**
- * The catalog `defineCatalog` is given, and the imports of the locales that ship with it and of the
- * formatters module, as a module in `from` names it: the generated index's folder unless said.
+ * Whether the catalog says relative times: a message in some locale does, or the config names a
+ * relative format, which code may say one in. Only then does the index import what says them.
+ */
+export function saysRelative(config: ResolvedConfig, catalog: Catalog): boolean {
+  const tables = [config.formats, ...Object.values(config.formats.locales ?? {})];
+  if (tables.some((t) => Object.keys(t.relative ?? {}).length > 0)) return true;
+  const says = (ast: MessageFormatElement[]) => {
+    let found = false;
+    walk(ast, (el) => {
+      found ||= extensionOf(el)?.type === RELATIVE;
+    });
+    return found;
+  };
+  return catalog.messages.some((m) => says(m.ast) || [...m.translations.values()].some((t) => says(t.ast)));
+}
+
+/**
+ * The catalog `defineCatalog` is given, and the imports of the locales that ship with it, of the
+ * formatters module and, where it says relative times (`saysRelative`), of what says them, as a
+ * module in `from` names it: the generated index's folder unless said.
  */
 export function catalogLiteral(
   config: ResolvedConfig,
   locales: string[],
   ext: string,
+  times: boolean,
   from = config.out,
 ): { imports: string[]; literal: string } {
   const eager = locales.filter((l) => l === config.source || config.bundled.includes(l));
@@ -164,6 +183,7 @@ export function catalogLiteral(
       ...eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
       // A folder's name may hold a quote or a backslash, which would end the string early.
       ...(formatters === undefined ? [] : [`import formatters from '${formatters.replace(/['\\]/g, '\\$&')}';`]),
+      ...(times ? ["import { relativeTime } from 'prosebook';"] : []),
     ],
     literal: [
       '{',
@@ -174,6 +194,7 @@ export function catalogLiteral(
       `  loaders: { ${lazy.map((l) => `${prop(l)}: () => import('./${l}${ext}')`).join(', ')} },`,
       ...formatsField(config),
       ...(formatters === undefined ? [] : ['  formatters,']),
+      ...(times ? ['  relative: relativeTime,'] : []),
       '}',
     ].join('\n'),
   };
@@ -278,7 +299,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
   for (const [locale, list] of entries)
     files.set(join(config.out, `${locale}.${ts ? 'ts' : 'js'}`), localeModule(compileLocale(list), jsHead, ts));
 
-  const { imports, literal } = catalogLiteral(config, locales, config.importExtension);
+  const { imports, literal } = catalogLiteral(config, locales, config.importExtension, saysRelative(config, catalog));
   const types = typesBlock(catalog, locales);
   if (ts) {
     files.set(

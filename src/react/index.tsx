@@ -5,7 +5,7 @@
  * `ReactNode`: elements are keyed and tag functions receive keyed children, so a sentence with a
  * link inside it is one catalog entry and one call, with no wrapper to remember.
  */
-import { createContext, Fragment, isValidElement, use, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, Fragment, isValidElement, use, useEffect, useMemo, useReducer, useSyncExternalStore, type ReactNode } from 'react';
 
 import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
@@ -78,10 +78,16 @@ export type TextProps<K extends MessageKey> = Props<K, ReactNode>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
- * tags through the provider's renderers and any given in `values`.
+ * tags through the provider's renderers and any given in `values`. A relative time in the message
+ * stays fresh: the element renders itself again when it next reads differently, and nothing else does.
  */
 export function Text<K extends MessageKey>(props: TextProps<K>) {
   const copy = useCopy();
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
   const values = (props as { values?: object }).values;
-  return <>{copy.rich(props.id as never, values as never)}</>;
+  const node = copy.rich(props.id as never, values as never);
+  const next = copy.nextChange();
+  // An effect, so a server sets no timer, and a page hydrates before any time moves on.
+  useEffect(() => (next === undefined ? undefined : copy.at(next, refresh)), [copy, next]);
+  return <>{node}</>;
 }

@@ -217,7 +217,7 @@ describe('copy', () => {
     expect(copy.list(['a', 'b', 'c'])).toBe('a, b, and c');
     await copy.setLocale('de');
     expect(copy.list(['a', 'b', 'c'])).toBe('a, b und c');
-    expect(copy.relative(-1, 'day', { numeric: 'auto' })).toBe('gestern');
+    expect(copy.relative(Date.now() - 86_400_000)).toBe('gestern');
   });
 
   test('dates show in the copy’s time zone, unless a message names its own', () => {

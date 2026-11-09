@@ -99,7 +99,7 @@ describe('named formats', () => {
     const { files } = generate(config, { check: true });
     const index = files.get(join(config.out, 'index.ts'))!;
     expect(index).toContain(`  formats: ${JSON.stringify(formats)},`);
-    expect(index).toContain('formats: { number: "price" | "compact"; date: "receipt"; list: never; duration: never };');
+    expect(index).toContain('formats: { number: "price" | "compact"; date: "receipt"; list: never; duration: never; relative: never };');
     expect(files.get(config.guide as string)).toContain('- `compact` (number): 1.23K · 12 · -0.25');
     // Two prices alike at 1,234.50 differ on a whole amount and a negative one.
     const usd = { style: 'currency', currency: 'USD' } as const;
@@ -245,7 +245,7 @@ describe("the app's own formatters", () => {
       "import formatters from '../o\\'neil/formatters.js';",
     );
     expect(index).toContain('  formatters,\n');
-    expect(index).toContain('formats: { number: "money"; date: "stamp"; list: never; duration: never };');
+    expect(index).toContain('formats: { number: "money"; date: "stamp"; list: never; duration: never; relative: never };');
     expect(files.get(config.guide as string)).toContain('- `money` (number): 1235 in en · 12 in en · -0.25 cents');
     const table = config.formatters?.table;
     const copy = createCopy(

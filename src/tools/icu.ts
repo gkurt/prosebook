@@ -20,6 +20,7 @@ import {
   type DateFormatOptions,
   type ListFormatOptions,
   type NumberFormatOptions,
+  type RelativeFormatOptions,
 } from '#src/runtime/formats.ts';
 
 export type { MessageFormatElement };
@@ -42,28 +43,58 @@ export function parseMessage(text: string, formats?: Formats, locale = 'en'): Me
 
 /**
  * prosebook's placeholders beyond ICU's: `{names, list}`, a list of strings joined as the locale
- * joins one, and `{took, duration}`, milliseconds in the units the locale writes. Their type numbers
- * sit past formatjs's, so code that doesn't know them passes them by, and the writers refuse them.
+ * joins one, `{took, duration}`, milliseconds in the units the locale writes, and `{at, relative}`, a
+ * point in time as how long ago or ahead of now it is. Their type numbers sit past formatjs's, so
+ * code that doesn't know them passes them by, and the writers refuse them.
  */
 export const LIST = 100;
 export const DURATION = 101;
+export const RELATIVE = 103;
 
-/** A list or duration placeholder. `style` is as written; `options`, where a format is named or MF2 gave them. */
+/** Each of prosebook's placeholders by the word that writes it, `{x, list}`, and the function MF2 names. */
+export const EXTENSIONS = { list: LIST, duration: DURATION, relative: RELATIVE } as const;
+export type ExtensionKind = keyof typeof EXTENSIONS;
+
+/** A list, duration or relative placeholder. `style` is as written; `options`, where a format is named or MF2 gave them. */
 export interface ExtensionElement {
-  type: typeof LIST | typeof DURATION;
+  type: typeof LIST | typeof DURATION | typeof RELATIVE;
   value: string;
   style: string | null;
-  options?: ListFormatOptions | DurationFormatOptions;
+  options?: ListFormatOptions | DurationFormatOptions | RelativeFormatOptions;
   /** The format of the config's it names. */
   named?: string;
   /** For a list whose format has `more`: that entry's message in the locale read, set as the catalog loads. */
   more?: MessageFormatElement[];
+  /** For a relative time whose format has `now`: that entry's message, as `more` is a list's. */
+  now?: MessageFormatElement[];
 }
 
-/** The element as a list or duration placeholder, or nothing. */
+/** The element as a list, duration or relative placeholder, or nothing. */
 export function extensionOf(el: MessageFormatElement): ExtensionElement | undefined {
   const type = (el as { type: number }).type;
-  return type === LIST || type === DURATION ? (el as unknown as ExtensionElement) : undefined;
+  return type === LIST || type === DURATION || type === RELATIVE ? (el as unknown as ExtensionElement) : undefined;
+}
+
+/** The word that writes a placeholder of prosebook's: `list`, `duration` or `relative`. */
+export function kindOf(el: ExtensionElement): ExtensionKind {
+  return el.type === LIST ? 'list' : el.type === DURATION ? 'duration' : 'relative';
+}
+
+/**
+ * The options of a format the config names, in `locale`. A relative format's `date` names a date format,
+ * read in the same locale, so the compiler and the runtime take its options as they are.
+ */
+export function extensionFormat(
+  formats: Formats | undefined,
+  kind: ExtensionKind,
+  name: string,
+  locale: string,
+): ExtensionElement['options'] | undefined {
+  const options = formatIn(formats, kind, name, locale);
+  if (kind !== 'relative' || options === undefined) return options;
+  const { date } = options as RelativeFormatOptions;
+  if (typeof date?.format !== 'string') return options;
+  return { ...options, date: { ...date, format: formatIn(formats, 'date', date.format, locale) ?? {} } };
 }
 
 export const asElement = (el: ExtensionElement | EntryReference) => el as unknown as MessageFormatElement;
@@ -111,13 +142,13 @@ export function inlined(ast: MessageFormatElement[]): MessageFormatElement[] {
   return out;
 }
 
-const EXTENSION = /\{\s*([^\s{},#<>']+)\s*,\s*(list|duration|entry)\s*(?:,\s*([^{}]*?))?\s*\}/y;
+const EXTENSION = /\{\s*([^\s{},#<>']+)\s*,\s*(list|duration|relative|entry)\s*(?:,\s*([^{}]*?))?\s*\}/y;
 const STAND_IN = '__prosebook_';
 
 type StandIn = { name: string; kind: string; style: string | undefined };
 
 /**
- * The message with each list, duration and entry placeholder written as a plain one formatjs reads, which
+ * The message with each list, duration, relative and entry placeholder written as a plain one formatjs reads, which
  * `withExtensions` puts back. Quoted text is passed by, as ICU quotes: an apostrophe before a brace,
  * `#`, `|` or a tag's `<` opens a quote, and `''` is an apostrophe.
  */
@@ -167,9 +198,9 @@ function withExtensions(
             throw new Error(`{${name}, entry, ${style}} names a form, which is one arm of the name's select: {${name}, entry, genitive}`);
           return asElement({ type: ENTRY, value: name, form: style ?? null });
         }
-        const options = style === undefined ? undefined : formatIn(formats, kind === 'list' ? 'list' : 'duration', style, locale);
+        const options = style === undefined ? undefined : extensionFormat(formats, kind as ExtensionKind, style, locale);
         return asElement({
-          type: kind === 'list' ? LIST : DURATION,
+          type: EXTENSIONS[kind as ExtensionKind],
           value: name,
           style: style ?? null,
           ...(options && { options, named: style }),
@@ -207,9 +238,24 @@ export function listOptions(el: ExtensionElement): ListFormatOptions {
   return Object.assign({}, ...words.map((w) => LIST_WORDS[w])) as ListFormatOptions;
 }
 
+export const RELATIVE_STYLES = ['long', 'short', 'narrow'] as const;
+
+/** The options a relative placeholder formats with. Throws, with the fix, where its style is wrong. */
+export function relativeOptions(el: ExtensionElement): RelativeFormatOptions {
+  if (el.options !== undefined) return el.options as RelativeFormatOptions;
+  if (el.style === null) return {};
+  const style = RELATIVE_STYLES.find((s) => s === el.style);
+  if (style === undefined) {
+    throw new Error(
+      `{${el.value}} asks for relative style "${el.style}": ${RELATIVE_STYLES.join(', ')}, or a format formats.relative names`,
+    );
+  }
+  return { style };
+}
+
 /** The options a duration placeholder formats with. Throws, with the fix, where its style is wrong. */
 export function durationOptions(el: ExtensionElement): DurationFormatOptions {
-  if (el.options !== undefined) return el.options;
+  if (el.options !== undefined) return el.options as DurationFormatOptions;
   if (el.style === null) return {};
   const style = DURATION_STYLES.find((s) => s === el.style);
   if (style === undefined) {
@@ -302,7 +348,7 @@ export const openType = (type: string) => withNullish(`${baseOf(type)}${OPEN}`, 
  */
 function argType(el: MessageFormatElement): string | undefined {
   const own = extensionOf(el);
-  if (own !== undefined) return own.type === LIST ? 'readonly string[]' : 'number';
+  if (own !== undefined) return own.type === LIST ? 'readonly string[]' : own.type === RELATIVE ? 'Date | number | string' : 'number';
   switch (el.type) {
     case TYPE.argument:
       return 'string';
@@ -538,6 +584,7 @@ export function formatProblems(ast: MessageFormatElement[]): string[] {
       const own = extensionOf(el);
       if (own?.type === LIST) listOptions(own);
       if (own?.type === DURATION) durationOptions(own);
+      if (own?.type === RELATIVE) relativeOptions(own);
     } catch (e) {
       found.push((e as Error).message);
     }
@@ -556,7 +603,7 @@ export function formatsOf(ast: MessageFormatElement[]): Map<string, string> {
   walk(ast, (el) => {
     const own = extensionOf(el);
     if (own !== undefined) {
-      const kind = own.type === LIST ? 'list' : 'duration';
+      const kind = kindOf(own);
       const style = own.named ?? own.style;
       add(own.value, style === null ? kind : `${kind} \`${style}\``);
       return;

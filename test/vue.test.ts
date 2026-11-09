@@ -4,7 +4,7 @@ import type { VNode, VNodeChild } from 'vue';
 
 import type { DevHooks, HotHook } from 'prosebook';
 
-import { copyOf } from './fixture.ts';
+import { copyOf, turning } from './fixture.ts';
 
 // Vue's renderer keeps the `document` it finds as it loads, so it loads once there is one.
 GlobalRegistrator.register();
@@ -62,5 +62,23 @@ test('provideCopy scopes a copy to a subtree, and in dev a catalog edit renders 
   for (const update of hot) update('de', { 'a.title': 'Dein Warenkorb' });
   await nextTick();
   expect(host.innerHTML).toBe('Dein Warenkorb');
+  app.unmount();
+});
+
+test('a <Text> saying a relative time renders again once it reads differently, and nothing else does', async () => {
+  const { copy, at } = turning();
+  let renders = 0;
+  const View = defineComponent(() => () => {
+    renders++;
+    return h('p', h(Text as never, { id: 'a.opened', values: { at } }));
+  });
+  const host = document.createElement('div');
+  const app = createApp(View).use(copyPlugin(copy));
+  app.mount(host);
+  expect(host.innerHTML).toBe('<p>Opened now</p>');
+  await Bun.sleep(150);
+  await nextTick();
+  expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
+  expect(renders).toBe(1);
   app.unmount();
 });

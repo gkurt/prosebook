@@ -10,7 +10,7 @@ import { join, relative, resolve } from 'node:path';
 
 import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
 
-import type { ListFormatOptions } from '#src/runtime/formats.ts';
+import type { ListFormatOptions, RelativeFormatOptions } from '#src/runtime/formats.ts';
 import { chainOf } from '#src/runtime/locale.ts';
 
 import type { ResolvedConfig } from './config.ts';
@@ -21,6 +21,7 @@ import {
   entryOf,
   extensionOf,
   LIST,
+  RELATIVE,
   openType,
   formatProblems,
   formatsOf,
@@ -435,9 +436,11 @@ function resolveEntries(config: ResolvedConfig, byKey: Map<string, Message>, loc
 }
 
 /**
- * A list whose format has `max` says its rest with the entry `more` names, given `{count}`. That
- * entry's message, in the locale the list is read in or the nearest one translating it, is set on the
- * list for the compiler, so every locale module holds what it says without reading the entry.
+ * A list whose format has `max` says its rest with the entry `more` names, given `{count}`, and a
+ * relative time whose format has `now` says a time under its smallest unit with the entry `now` names,
+ * given `{tense}`. That entry's message, in the locale the placeholder is read in or the nearest one
+ * translating it, is set on the placeholder for the compiler, so every locale module holds what it
+ * says without reading the entry.
  */
 function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales: string[], problems: Problem[]): void {
   const error = (message: Message, text: string) =>
@@ -447,23 +450,38 @@ function attachMore(config: ResolvedConfig, byKey: Map<string, Message>, locales
     for (const { locale, ast } of readingsOf(config, message)) {
       walk(ast, (el) => {
         const own = extensionOf(el);
-        const key = own?.type === LIST ? (own.options as ListFormatOptions | undefined)?.more : undefined;
-        if (own === undefined || key === undefined) return;
-        const more = byKey.get(key);
-        const at = `formats.list.${own.named}.more`;
-        if (more === undefined) {
-          if (locale === config.source)
-            error(message, `{${own.value}} is shown as ${at} says, and the catalog has no ${key}: add it, saying the rest with {count}`);
+        if (own === undefined) return;
+        const list = own.type === LIST;
+        const key = list
+          ? (own.options as ListFormatOptions | undefined)?.more
+          : own.type === RELATIVE
+            ? (own.options as RelativeFormatOptions | undefined)?.now
+            : undefined;
+        if (key === undefined) return;
+        const said = byKey.get(key);
+        const at = list ? `formats.list.${own.named}.more` : `formats.relative.${own.named}.now`;
+        const given = list ? 'count' : 'tense';
+        if (said === undefined) {
+          if (locale === config.source) {
+            const what = list ? 'saying the rest with {count}' : 'saying now, as "just now", with {tense} if it tells past from future';
+            error(message, `{${own.value}} is shown as ${at} says, and the catalog has no ${key}: add it, ${what}`);
+          }
           return;
         }
         if (!checked.has(key)) {
           checked.add(key);
-          const others = [...more.args.keys()].filter((a) => a !== 'count');
-          if (others.length > 0 || (more.args.has('count') && more.args.get('count') !== 'number'))
-            error(more, `says the rest of a list (${at}), which gives it {count} alone, a number: say it with {count, plural, …}`);
+          const others = [...said.args.keys()].filter((a) => a !== given);
+          if (list && (others.length > 0 || (said.args.has('count') && said.args.get('count') !== 'number')))
+            error(said, `says the rest of a list (${at}), which gives it {count} alone, a number: say it with {count, plural, …}`);
+          if (!list && others.length > 0) {
+            const fix = '{tense, select, future {in a moment} other {just now}}';
+            error(said, `says now for a relative time (${at}), which gives it {tense} alone, past or future: ${fix}`);
+          }
         }
         const chain = chainOf(locale, [config.source, ...locales], config.source);
-        own.more = chain.map((l) => (l === config.source ? more.ast : more.translations.get(l)?.ast)).find((a) => a !== undefined);
+        const text = chain.map((l) => (l === config.source ? said.ast : said.translations.get(l)?.ast)).find((a) => a !== undefined);
+        if (list) own.more = text;
+        else own.now = text;
       });
     }
   }

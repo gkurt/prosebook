@@ -9,7 +9,7 @@ import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-mes
 import type { PluralElement } from '@formatjs/icu-messageformat-parser';
 import type { Message } from '#src/tools/catalog.ts';
 
-import { extensionOf, LIST, numberOptions, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
+import { extensionOf, kindOf, numberOptions, placeholderOf, selectionOf, TYPE, type MessageFormatElement } from '#src/tools/icu.ts';
 import { docText } from './emit.ts';
 import { LEAVE_OUT } from './model.ts';
 
@@ -107,7 +107,7 @@ export function formatString(elements: MessageFormatElement[], args: string[], p
     }
     const own = extensionOf(el);
     if (own !== undefined) {
-      const what = own.type === LIST ? 'a list' : 'a duration';
+      const what = `a ${kindOf(own) === 'relative' ? 'relative time' : kindOf(own)}`;
       throw new Error(
         `{${own.value}} is ${what}, which ${printf.holder} don't format: pass it formatted, as a plain {${own.value}}, ${LEAVE_OUT}`,
       );

@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { createCopy, defineCatalog, type CompiledMessages, type CopyOptions } from 'prosebook';
+import { createCopy, defineCatalog, relativeTime, type CompiledMessages, type CopyOptions } from 'prosebook';
 import { compileLocale, localeExpression, resolveConfig, type ProsebookConfig, type Entry, type ResolvedConfig } from 'prosebook/tools';
 
 import { parseMessage } from '#src/tools/icu.ts';
@@ -44,7 +44,10 @@ export function copyOf(locales: Record<string, Record<string, string>>, options:
     ]),
   );
   const [source] = Object.keys(locales);
-  return createCopy(defineCatalog({ source: source!, locales: Object.keys(locales), messages, loaders: {} }), options);
+  return createCopy(
+    defineCatalog({ source: source!, locales: Object.keys(locales), messages, loaders: {}, relative: relativeTime }),
+    options,
+  );
 }
 
 /**
@@ -93,4 +96,15 @@ export const route: Record<string, string> = {
 export interface RouteApp {
   cart: (start: string, next: string) => Promise<string[]>;
   account: (locale: string) => Promise<string>;
+}
+
+/**
+ * A copy whose clock reads `at` as now for another 50ms, then as a minute ago, over `a.opened`:
+ * `Opened {at, relative}`. What a `<Text>` keeping itself fresh is tested with.
+ */
+export function turning() {
+  const start = Date.now();
+  const now = Date.UTC(2026, 10, 9, 12);
+  const copy = copyOf({ en: { 'a.opened': 'Opened {at, relative}' } }, { now: () => now + Date.now() - start });
+  return { copy, at: now - 59_950 };
 }

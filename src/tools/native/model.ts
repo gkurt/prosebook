@@ -12,6 +12,7 @@ import type { NativeTarget } from '#src/tools/config.ts';
 import {
   beyondOptions,
   dateOptions,
+  DURATION,
   extensionOf,
   LIST,
   numberOptions,
@@ -267,7 +268,12 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
     }
     const own = extensionOf(el);
     if (own !== undefined) {
-      const what = own.type === LIST ? 'a list, which native code does not join' : 'a duration, which native code does not format';
+      const what =
+        own.type === LIST
+          ? 'a list, which native code does not join'
+          : own.type === DURATION
+            ? 'a duration, which native code does not format'
+            : 'a relative time, which native code does not format';
       throw new Error(`{${own.value}} is ${what}: pass it as a plain {${own.value}}, written in code, ${LEAVE_OUT}`);
     }
     if (isNumberElement(el)) {

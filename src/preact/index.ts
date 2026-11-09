@@ -87,10 +87,16 @@ export type TextProps<K extends MessageKey> = Props<K, ComponentChildren>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
- * tags through the provider's renderers and any given in `values`.
+ * tags through the provider's renderers and any given in `values`. A relative time in the message
+ * stays fresh: the element renders itself again when it next reads differently, and nothing else does.
  */
 export function Text<K extends MessageKey>(props: TextProps<K>): VNode {
   const copy = useCopy();
+  const [, refresh] = useState(0);
   const values = (props as { values?: object }).values;
-  return copy.rich(props.id as never, values as never);
+  const node = copy.rich(props.id as never, values as never);
+  const next = copy.nextChange();
+  // An effect, so a server sets no timer, and a page hydrates before any time moves on.
+  useEffect(() => (next === undefined ? undefined : copy.at(next, () => refresh((n) => n + 1))), [copy, next]);
+  return node;
 }

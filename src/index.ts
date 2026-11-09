@@ -9,6 +9,7 @@ export { addArea, createCopy, defineCatalog, type Catalog, type Copy, type CopyO
 export { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from './runtime/locale.ts';
 export { createHelpers, flatten, type HelperOptions } from './runtime/helpers.ts';
 export { defineFormatters } from './runtime/formats.ts';
+export { relativeTime, type RelativeTime } from './runtime/relative.ts';
 export type {
   DateFormatOptions,
   DurationFormatOptions,
@@ -20,6 +21,10 @@ export type {
   ListFormatOptions,
   NumberFormatOptions,
   NumberStep,
+  RelativeContext,
+  RelativeFormatOptions,
+  RelativeText,
+  RelativeUnit,
 } from './runtime/formats.ts';
 export type {
   AnyTagFn,
@@ -38,6 +43,7 @@ export type {
   MessageShape,
   MessageShapes,
   NumberFormatName,
+  RelativeFormatName,
   ReadHook,
   Register,
   RegisteredLocale,

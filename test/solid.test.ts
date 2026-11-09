@@ -7,7 +7,7 @@ import { render } from 'solid-js/web';
 import type { DevHooks, HotHook } from 'prosebook';
 import { CopyProvider, Text, useCopy, useLocale } from 'prosebook/solid';
 
-import { copyOf } from './fixture.ts';
+import { copyOf, turning } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
 afterAll(() => GlobalRegistrator.unregister());
@@ -77,5 +77,30 @@ test('in dev, a catalog edit updates what reads it, keeping the locale', async (
   expect(host.innerHTML).toBe('Warenkorb');
   for (const update of hot) update('de', { 'a.title': 'Dein Warenkorb' });
   expect(host.innerHTML).toBe('Dein Warenkorb');
+  dispose();
+});
+
+test('a <Text> saying a relative time updates once it reads differently, and nothing else does', async () => {
+  const { copy, at } = turning();
+  let renders = 0;
+  function View(): JSX.Element {
+    renders++;
+    return h('p', createComponent(Text, { id: 'a.opened' as never, values: { at } as never })) as unknown as JSX.Element;
+  }
+  const host = document.createElement('div');
+  const dispose = render(
+    () =>
+      createComponent(CopyProvider, {
+        copy,
+        get children() {
+          return createComponent(View, {});
+        },
+      }),
+    host,
+  );
+  expect(host.innerHTML).toBe('<p>Opened now</p>');
+  await Bun.sleep(150);
+  expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
+  expect(renders).toBe(1);
   dispose();
 });

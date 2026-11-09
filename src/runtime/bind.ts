@@ -73,10 +73,13 @@ export function bindCopy<N, R>(copy: Copy, tags: Tags, { track = () => {}, tag, 
       track();
       return copy.duration(ms, options);
     },
-    relative(value, unit, options) {
+    relative(at, format) {
       track();
-      return copy.relative(value, unit, options);
+      return copy.relative(at, format);
     },
+    now: copy.now,
+    nextChange: copy.nextChange,
+    at: copy.at,
     rich(key, ...values) {
       track();
       const all: Record<string, unknown> = { ...merged, ...(values[0] as object | undefined) };

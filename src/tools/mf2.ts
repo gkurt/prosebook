@@ -32,14 +32,19 @@ import {
   durationOptions,
   ENTRY,
   entryOf,
+  extensionFormat,
   extensionOf,
+  EXTENSIONS,
   FORM,
+  kindOf,
   LIST,
   listOptions,
   namedOf,
+  relativeOptions,
   selectionOf,
   walk,
   type ExtensionElement,
+  type ExtensionKind,
   type MessageFormatElement,
   type NamedStyle,
   type OptionArgs,
@@ -104,9 +109,11 @@ const SIGNIFICANT = ['minimumSignificantDigits', 'maximumSignificantDigits'];
 /** The options each default function takes, from the MF2 spec. */
 const OPTIONS: Record<string, readonly string[]> = {
   string: [],
-  // prosebook's own: a list of strings, and a duration in milliseconds, as MF1's `{x, list}` and `{x, duration}`.
+  // prosebook's own: a list of strings, a duration in milliseconds and a point in time from now, as
+  // MF1's `{x, list}`, `{x, duration}` and `{x, relative}`.
   list: ['format', 'type', 'style'],
   duration: ['format', 'style'],
+  relative: ['format', 'style'],
   // prosebook's own too: another entry's text, a name, said here as MF1's `{app.title, entry}`.
   'pb:entry': ['form'],
   number: ['format', 'select', 'signDisplay', 'useGrouping', ...DIGITS, ...ROUNDING],
@@ -338,7 +345,9 @@ function functionOf(ref: Model.FunctionRef, scope: Scope, r: Reading): Mf2Functi
 /** The options of the format `format=` names, in the locale read. */
 function namedFormat(fn: string, name: string, r: Reading): object {
   const kind = family(fn) as FormatKind;
-  const options = formatIn(r.formats, kind, name, r.locale);
+  const options = Object.hasOwn(EXTENSIONS, kind)
+    ? extensionFormat(r.formats, kind as ExtensionKind, name, r.locale)
+    : formatIn(r.formats, kind, name, r.locale);
   if (options !== undefined) return options;
   const names = Object.keys(r.formats?.[kind] ?? {});
   const known = names.length > 0 ? `: ${names.join(', ')}` : `, and it names none: add ${name} under formats.${kind}`;
@@ -619,15 +628,15 @@ function element(value: Value, r: Reading): Element {
   if (fn === undefined || fn.name === 'string')
     return { type: TYPE.argument, value: name, placeholder, ...(fn?.dir && { dir: fn.dir }) } as Element;
   if (NUMERIC.has(fn.name)) return { type: TYPE.number, value: name, style: numberStyle(fn), placeholder } as Element;
-  if (fn.name === 'list' || fn.name === 'duration') {
+  if (Object.hasOwn(EXTENSIONS, fn.name)) {
     const { format, ...options } = fn.options;
-    // Written as MF1's style would be, so `listOptions` and `durationOptions` check it as they check MF1's.
+    // Written as MF1's style would be, so `listOptions` and the others check it as they check MF1's.
     const style = (fn.name === 'list' ? [options.type, options.style] : [options.style]).filter((o) => o !== undefined).join(' ');
     const own: ExtensionElement & { placeholder: Placeholder } = {
-      type: fn.name === 'list' ? LIST : DURATION,
+      type: EXTENSIONS[fn.name as ExtensionKind],
       value: name,
       style: style === '' ? null : style,
-      // `namedFormat` read the options from `formats.list` or `formats.duration`, by the function's name.
+      // `namedFormat` read the options from `formats.list`, `formats.duration` or `formats.relative`, by the function's name.
       ...(fn.named !== undefined && { options: fn.named as ExtensionElement['options'], named: format }),
       placeholder,
     };
@@ -654,7 +663,7 @@ function entryElement(value: Value): Element {
 function formatLiteral(value: Extract<Value, { kind: 'literal' }>, locale: string): string {
   const { fn } = value;
   if (fn === undefined || fn.name === 'string') return value.value;
-  if (fn.name === 'list' || fn.name === 'duration')
+  if (Object.hasOwn(EXTENSIONS, fn.name))
     throw new Error(`|${value.value}| :${fn.name} formats a value the message is given: {$value :${fn.name}}`);
   const [option, arg] = Object.entries(fn.args ?? {})[0] ?? [];
   if (option !== undefined) {
@@ -995,12 +1004,12 @@ function written(fn: Mf2Function): Model.FunctionRef {
   return functionRef(fn.name, { ...fn.options, ...(fn.dir && { 'u:dir': fn.dir }) }, fn.args);
 }
 
-/** A list or duration as `:list` or `:duration`, its format by name or its options as written. */
+/** A list, duration or relative time as `:list`, `:duration` or `:relative`, its format by name or its options as written. */
 function extensionFunction(el: ExtensionElement): Model.FunctionRef {
-  const name = el.type === LIST ? 'list' : 'duration';
+  const name = kindOf(el);
   if (el.named !== undefined) return functionRef(name, { format: el.named });
-  if (el.type === DURATION) {
-    const { style } = durationOptions(el);
+  if (el.type !== LIST) {
+    const { style } = el.type === DURATION ? durationOptions(el) : relativeOptions(el);
     return functionRef(name, style === undefined ? {} : { style });
   }
   const { type, style } = listOptions(el);

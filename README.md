@@ -24,11 +24,13 @@ const { t } = useCopy();
 ```
 
 - **Typed.** A missing key, a misspelled key or a missing argument is a type error, and completing a key shows its text.
-- **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4 KB gzipped.
+- **Compiled.** ICU MessageFormat or MessageFormat 2, compiled to plain functions. No parser ships; the runtime is under 4.5 KB gzipped.
 - **Checked.** Placeholders that drift between the source and a translation fail the build, and a translation whose source
   changed is marked stale.
 - **Pruned.** Vite, Next.js, webpack, Rspack, Metro, Bun and Astro builds ship only the messages the code reads; Vite, Next.js,
   Bun and Astro can split them by route.
+- **Times as times.** `{at, relative}` says "5 minutes ago" from the time itself, and `<Text>` keeps it fresh:
+  [relative times](API.md#relative-times).
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 

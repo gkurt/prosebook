@@ -5,7 +5,17 @@
  * place when the locale switches; components never run again. `rich` returns what its tag renderers
  * made, beside the text, ready to put in JSX. Written without JSX, so it needs no Solid compiler.
  */
-import { createComponent, createContext, createMemo, createSignal, onCleanup, useContext, type Accessor, type JSX } from 'solid-js';
+import {
+  createComponent,
+  createContext,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  useContext,
+  type Accessor,
+  type JSX,
+} from 'solid-js';
 
 import { bindCopy, type BoundCopy, type TextProps as Props } from '#src/runtime/bind.ts';
 import type { Copy } from '#src/runtime/copy.ts';
@@ -56,10 +66,22 @@ export type TextProps<K extends MessageKey> = Props<K, JSX.Element>;
 
 /**
  * A message as an element: `<Text id="cart.items" values={{ count }} />`. Rich messages render their
- * tags through the provider's renderers and any given in `values`.
+ * tags through the provider's renderers and any given in `values`. A relative time in the message
+ * stays fresh: the element updates when it next reads differently, and nothing else does.
  */
 export function Text<K extends MessageKey>(props: TextProps<K>): JSX.Element {
   const copy = useCopy();
+  const [tick, setTick] = createSignal(0);
+  const read = createMemo(() => {
+    tick();
+    const node = copy.rich(props.id as never, (props as { values?: object }).values as never);
+    return { node, next: copy.nextChange() };
+  });
+  // An effect, which a server render doesn't run, so it sets no timer.
+  createEffect(() => {
+    const { next } = read();
+    if (next !== undefined) onCleanup(copy.at(next, () => setTick((n) => n + 1)));
+  });
   // An accessor is something JSX renders, and runs again when the message or its values change.
-  return createMemo(() => copy.rich(props.id as never, (props as { values?: object }).values as never)) as unknown as JSX.Element;
+  return createMemo(() => read().node) as unknown as JSX.Element;
 }

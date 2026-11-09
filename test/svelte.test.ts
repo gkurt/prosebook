@@ -4,7 +4,8 @@ import { flushSync, mount, unmount } from 'svelte';
 
 import type { DevHooks, HotHook } from 'prosebook';
 
-import { copyOf } from './fixture.ts';
+import { copyOf, turning } from './fixture.ts';
+import Opened from './svelte/Opened.svelte';
 import Shop from './svelte/Shop.svelte';
 
 beforeAll(() => GlobalRegistrator.register());
@@ -32,5 +33,19 @@ test('markup runs again on a locale switch, and tags render through snippets, ne
   for (const update of hot) update('de', { 'a.title': 'Dein Warenkorb' });
   flushSync();
   expect(html(host)).toStartWith('<div lang="de"><h1>Dein Warenkorb</h1>');
+  await unmount(app);
+});
+
+test('a <Text> saying a relative time renders again once it reads differently, and nothing else does', async () => {
+  const { copy, at } = turning();
+  let renders = 0;
+  const host = document.createElement('div');
+  const app = mount(Opened, { target: host, props: { copy, at, rendered: () => renders++ } });
+  flushSync();
+  expect(html(host)).toBe('<p>Opened now</p>');
+  await Bun.sleep(150);
+  flushSync();
+  expect(html(host)).toBe('<p>Opened 1 minute ago</p>');
+  expect(renders).toBe(1);
   await unmount(app);
 });

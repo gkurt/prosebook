@@ -8,8 +8,17 @@
  */
 import { relative } from 'node:path';
 
-import { durationParts, formatWith, stepOf, type DurationFormatOptions, type ListFormatOptions } from '#src/runtime/formats.ts';
+import {
+  durationParts,
+  formatIn,
+  formatWith,
+  stepOf,
+  type DurationFormatOptions,
+  type ListFormatOptions,
+  type RelativeFormatOptions,
+} from '#src/runtime/formats.ts';
 import { shownItems } from '#src/runtime/helpers.ts';
+import { relativeText, type RelativeTools } from '#src/runtime/relative.ts';
 
 import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
@@ -50,9 +59,20 @@ const SAMPLE_ITEMS = ['Ann', 'Bob', 'Cy', 'Dee'];
  * rounding takes off the seconds, so a writer couldn't tell which keeps them, or their fraction.
  */
 const SAMPLE_DURATIONS = [850, 4_237, 185_400, 3_725_400];
+/**
+ * How long ago each sample time is, in milliseconds: under a minute, minutes, a day, weeks, and
+ * ahead, so a writer sees where now ends, which unit a time takes, and the future said.
+ */
+const SAMPLE_AGES = [20_000, 300_000, 93_600_000, 1_814_400_000, -7_200_000];
 /** Between one sample and the next, where a format is shown with several. */
 const SAMPLES = ' · ';
-const MF2_FUNCTION: Record<string, string> = { number: 'number', date: 'datetime', list: 'list', duration: 'duration' };
+const MF2_FUNCTION: Record<string, string> = {
+  number: 'number',
+  date: 'datetime',
+  list: 'list',
+  duration: 'duration',
+  relative: 'relative',
+};
 
 /** A list as a format shows it, the rest past `max` named by the entry that says it. */
 function sampleList(locale: string, o: ListFormatOptions): string {
@@ -71,6 +91,29 @@ function sampleDurations(locale: string, o: DurationFormatOptions): string {
   return shown.join(SAMPLES);
 }
 
+/** The sample times as a format shows them from the sample date, in UTC: "now · 5 minutes ago · yesterday · …". */
+function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions): string {
+  const locale = config.source;
+  const tools: RelativeTools = {
+    locale,
+    timeZone: 'UTC',
+    formatters: config.formatters?.table,
+    date: (at, format) => {
+      const opts = typeof format === 'string' ? (formatIn(config.formats, 'date', format, locale) ?? {}) : format;
+      if (opts.formatter !== undefined)
+        return formatWith(config.formatters?.table, 'date', opts.formatter, at, { locale, timeZone: 'UTC' });
+      return new Intl.DateTimeFormat(locale, { timeZone: 'UTC', ...opts }).format(at);
+    },
+  };
+  const now = SAMPLE_DATE.getTime();
+  const said = o.now === undefined ? undefined : () => `(${o.now} says now)`;
+  try {
+    return SAMPLE_AGES.map((ago) => relativeText(now - ago, o, now, tools, said).text).join(SAMPLES);
+  } catch (e) {
+    return `(throws: ${(e as Error).message})`;
+  }
+}
+
 /** A sample as the app's own formatter shows it in the source, or what it throws. */
 function sampleOwn(config: ResolvedConfig, kind: 'number' | 'date', name: string, value: number | Date): string {
   try {
@@ -82,7 +125,7 @@ function sampleOwn(config: ResolvedConfig, kind: 'number' | 'date', name: string
 
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
 function formatsSection(config: ResolvedConfig): string[] {
-  const { number = {}, date = {}, list: lists = {}, duration = {} } = config.formats;
+  const { number = {}, date = {}, list: lists = {}, duration = {}, relative: relatives = {} } = config.formats;
   const rows = [
     ...Object.entries(number).map(([name, o]) => [
       name,
@@ -103,6 +146,7 @@ function formatsSection(config: ResolvedConfig): string[] {
     ]),
     ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o)]),
     ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDurations(config.source, o)]),
+    ...Object.entries(relatives).map(([name, o]) => [name, 'relative', sampleRelative(config, o)]),
   ];
   if (rows.length === 0) return [];
   const [name, kind] = rows[0]!;
@@ -111,7 +155,7 @@ function formatsSection(config: ResolvedConfig): string[] {
     '',
     '## Formats',
     '',
-    `A number, date, list or duration is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
+    `A number, date, list, duration or relative time is shown in a format the config names, so it reads the same on every page: ${code(example)}. Name the one that fits rather than writing its options in the message; one the config lacks is added there.`,
     '',
     ...rows.map(([n, k, shown]) => `- ${code(n!)} (${k}): ${shown}`),
   ];

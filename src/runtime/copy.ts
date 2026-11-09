@@ -10,9 +10,11 @@ import {
   type Formatters,
   type ListFormatOptions,
   type NumberFormatOptions,
+  type RelativeFormatOptions,
 } from './formats.ts';
-import { createHelpers, dateFormat, flatten, shownItems } from './helpers.ts';
+import { createHelpers, dateFormat, flatten, NO_RELATIVE, shownItems } from './helpers.ts';
 import { chainOf, dirOf, negotiate } from './locale.ts';
+import type { RelativeTime } from './relative.ts';
 import type {
   AnyTagFn,
   ArgsParam,
@@ -27,6 +29,7 @@ import type {
   MessageShapes,
   NumberFormatName,
   RegisteredLocale,
+  RelativeFormatName,
   RegisteredMessages,
   RichKey,
   RichParam,
@@ -74,6 +77,8 @@ export interface Catalog<M extends MessageShapes = MessageShapes, L extends stri
   readonly formats?: Formats;
   /** The app's own formats, from the module the config's `formatters` names, which `formats` name by `formatter`. */
   readonly formatters?: Formatters;
+  /** What says relative times, where a message or a format of the config's says one (`relativeTime`). */
+  readonly relative?: RelativeTime;
   /** Type-only: carries the message shapes from the generated module to `createCopy`. */
   readonly '~messages'?: M;
 }
@@ -149,6 +154,19 @@ export interface CopyOptions<L extends string> {
    * server-rendered date hydrates as another. A zone `Intl` refuses shows dates as their placeholders.
    */
   timeZone?: string;
+  /**
+   * What relative times are measured from. A function is the clock, `() => fixed` in a test. A number
+   * is the moment a server rendered the page at: the copy reads it as now until it is first subscribed
+   * to, which a binding does once the page has hydrated, then reads `Date.now()`, so a "5 minutes ago"
+   * the server wrote hydrates as the same text. `Date.now` unless given.
+   */
+  now?: number | (() => number);
+  /**
+   * Keeps relative times fresh copy-wide: while the copy has subscribers, its `version` changes, and
+   * they render again, when a relative time read outside a `<Text>` next reads differently. `<Text>`
+   * keeps its own fresh either way, rendering only itself again.
+   */
+  live?: boolean;
 }
 
 /** Its methods don't use `this`, so they can be passed around and destructured: `const { t } = copy`. */
@@ -196,8 +214,25 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
   list(this: void, items: Iterable<string>, format?: OrName<ListFormatOptions, ListFormatName>): string;
   /** Milliseconds as a duration in the current locale, `3 min, 5 sec`, with options or a format the config names (`formats.duration`). */
   duration(this: void, ms: number, format?: OrName<DurationFormatOptions, DurationFormatName>): string;
-  /** `in 3 days`, `2 hours ago`, in the current locale. */
-  relative(this: void, value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions): string;
+  /**
+   * A point in time as how long ago or ahead of now it is, `3 days ago`, `yesterday`, in the current
+   * locale: a `Date`, milliseconds or an ISO 8601 string, with options or a format the config names
+   * (`formats.relative`), as `{at, relative, …}` shows it in a message.
+   */
+  relative(this: void, at: Date | number | string, format?: OrName<RelativeFormatOptions, RelativeFormatName>): string;
+  /** The copy's clock: what relative times are measured from (`CopyOptions.now`). */
+  now(this: void): number;
+  /**
+   * When, by the copy's clock, what the latest read (`t`, `rich`, `relative`) said next reads
+   * differently, for a relative time in it; nothing where it never will. Whoever asks keeps it fresh
+   * from then on, so a `live` copy leaves that read to them: `<Text>` asks after each render.
+   */
+  nextChange(this: void): number | undefined;
+  /**
+   * Runs `run` once the copy's clock reaches `time`, as `nextChange` gives it, in a catalog that says
+   * relative times. Returns what cancels it.
+   */
+  at(this: void, time: number, run: () => void): () => void;
 }
 
 /** A locale's messages, from each area loaded in it so far. */
@@ -240,6 +275,10 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     if (options.onError) options.onError(error, key, l);
     else console.error(`prosebook: ${key} in ${l}: ${error.message}`);
   };
+  // What keeps relative times fresh, where the catalog says any: an app saying none carries none of it.
+  const times = catalog.relative?.clock(options.now, options.live === true, () => changed());
+  // A public read, which notes when what it said next reads differently, for `nextChange` and `live`.
+  const read = <T>(run: () => T): T => (times === undefined ? run() : times.read(run));
   const helpers = (l: L) =>
     createHelpers(l, {
       report: (error) => {
@@ -247,6 +286,9 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       },
       timeZone: options.timeZone,
       formatters: catalog.formatters,
+      relative: catalog.relative,
+      now: times?.now,
+      due: times?.due,
     });
 
   const areas = () => (split === undefined ? [WHOLE] : [...split.areas.keys()]);
@@ -400,6 +442,13 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     return made;
   }
 
+  function date(value: Date | number, format?: DateFormatOptions | string): string {
+    const opts: DateFormatOptions | undefined = typeof format === 'string' ? named('date', format) : format;
+    if (opts?.formatter !== undefined)
+      return formatWith(catalog.formatters, 'date', opts.formatter, value, { locale, timeZone: options.timeZone });
+    return formatter('d', opts, () => dateFormat(locale, options.timeZone, opts)).format(value);
+  }
+
   const ready = options.locale === undefined ? Promise.resolve() : setLocale(options.locale);
 
   return {
@@ -418,11 +467,11 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     tags: defaultTags,
     ready,
     t(key, ...args) {
-      const out = render(key, (args[0] as Values | undefined) ?? {});
+      const out = read(() => render(key, (args[0] as Values | undefined) ?? {}));
       return typeof out === 'string' ? out : flatten(out).join('');
     },
     rich(key, ...values) {
-      const out = render(key, { ...defaultTags, ...(values[0] as Values | undefined) });
+      const out = read(() => render(key, { ...defaultTags, ...(values[0] as Values | undefined) }));
       return flatten(out) as Chunks<never>;
     },
     has(key): key is keyof M & string {
@@ -431,7 +480,11 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     setLocale,
     subscribe(listener) {
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      times?.watch(true);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) times?.watch(false);
+      };
     },
     number(value, format) {
       const opts: NumberFormatOptions | undefined = typeof format === 'string' ? named('number', format) : format;
@@ -440,12 +493,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       const make = (o?: Intl.NumberFormatOptions) => formatter('n', o, () => new Intl.NumberFormat(locale, o));
       return make(stepOf(opts, value, make)).format(value);
     },
-    date(value, format) {
-      const opts: DateFormatOptions | undefined = typeof format === 'string' ? named('date', format) : format;
-      if (opts?.formatter !== undefined)
-        return formatWith(catalog.formatters, 'date', opts.formatter, value, { locale, timeZone: options.timeZone });
-      return formatter('d', opts, () => dateFormat(locale, options.timeZone, opts)).format(value);
-    },
+    date,
     list(items, format) {
       const opts = typeof format === 'string' ? named('list', format) : format;
       const more = opts?.more;
@@ -458,8 +506,22 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       const all = display === undefined ? opts : { ...opts, ...display };
       return formatter('u', all, () => new Intl.DurationFormat(locale, all as Intl.DurationFormatOptions)).format(parts);
     },
-    relative(value, unit, opts) {
-      return formatter('r', opts, () => new Intl.RelativeTimeFormat(locale, opts)).format(value, unit);
+    relative(at, format) {
+      if (times === undefined) throw new Error(NO_RELATIVE);
+      return times.read(() => {
+        const opts = typeof format === 'string' ? named('relative', format) : format;
+        const now = opts?.now;
+        const said = now === undefined ? undefined : (tense: string) => render(now, { tense });
+        // A named format names its date format too, which `date` reads in the current locale.
+        const tools = { locale, timeZone: options.timeZone, formatters: catalog.formatters, date };
+        const { text, next } = catalog.relative!.text(at, opts, times.now(), tools, said);
+        if (next !== undefined) times.due(next);
+        return text;
+      });
     },
+    now: () => (times === undefined ? Date.now() : times.now()),
+    nextChange: () => times?.nextChange(),
+    // Only a catalog that says relative times gives `nextChange` a time to wait for.
+    at: (time, run) => times!.at(time, run),
   };
 }

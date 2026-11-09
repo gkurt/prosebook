@@ -22,6 +22,8 @@ import {
   listOptions,
   numberOptions,
   optionArgsOf,
+  RELATIVE,
+  relativeOptions,
   placeholderOf,
   selectionOf,
   staticLiteral,
@@ -99,6 +101,13 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string 
   if (isDateElement(el) || isTimeElement(el)) return formatted('d', el.value, dateOptions(el));
   const own = extensionOf(el);
   if (own?.type === DURATION) return formatted('u', own.value, durationOptions(own));
+  if (own?.type === RELATIVE) {
+    // A time under the smallest unit is said by the entry the format's `now` names, compiled in here.
+    const { now: _, ...options } = relativeOptions(own);
+    const said = own.now === undefined ? undefined : message(own.now, hoisted);
+    const now = said === undefined ? '' : `, (tense) => ${said.startsWith('(') ? `(${said})({ tense }, h)` : said}`;
+    return placed(el, own.value, `h.r(${access(own.value)}${hoisted.arg(options) || (now && ', undefined')}${now})`);
+  }
   if (own?.type === LIST) {
     // The rest of a list past its format's `max` is said by the entry its `more` names, compiled in here.
     const said = own.more === undefined ? undefined : message(own.more, hoisted);

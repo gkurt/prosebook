@@ -6,7 +6,7 @@
  * ICU, so it carries no parser, needs no `eval`, and a message costs a property read or one call.
  */
 
-import type { DateFormatOptions, DurationFormatOptions, ListFormatOptions, NumberFormatOptions } from './formats.ts';
+import type { DateFormatOptions, DurationFormatOptions, ListFormatOptions, NumberFormatOptions, RelativeFormatOptions } from './formats.ts';
 
 /** What the generator knows about one message: the arguments it takes and the tags it wraps text in. */
 export interface MessageShape {
@@ -50,6 +50,8 @@ export type DateFormatName = Register extends { formats: { date: infer N extends
 export type ListFormatName = Register extends { formats: { list: infer N extends string } } ? N : never;
 /** The duration formats the config names (`formats.duration`), which `copy.duration` takes by name. */
 export type DurationFormatName = Register extends { formats: { duration: infer N extends string } } ? N : never;
+/** The relative formats the config names (`formats.relative`), which `copy.relative` takes by name. */
+export type RelativeFormatName = Register extends { formats: { relative: infer N extends string } } ? N : never;
 
 /**
  * The helpers a compiled message calls, bound to the locale its words are in. Names are one letter
@@ -71,6 +73,11 @@ export interface Helpers {
   l(value: Iterable<string>, options?: ListFormatOptions, more?: (count: number) => unknown): string | undefined;
   /** `{x, duration, …}`: milliseconds, in the units the format shows, as `Intl.DurationFormat` writes them. */
   u(value: number, options?: DurationFormatOptions): string | undefined;
+  /**
+   * `{x, relative, …}`: a point in time as how long ago or ahead of now it is. `said` renders the
+   * format's `now` entry, given the tense, for a time under one of its smallest unit.
+   */
+  r(value: Date | number | string, options?: RelativeFormatOptions, said?: (tense: 'past' | 'future') => unknown): string | undefined;
   /** A placeholder's fallback, `{x}`, where it has no value or `n` or `d` gave nothing: reports why. */
   e(fallback: string): string;
   /**

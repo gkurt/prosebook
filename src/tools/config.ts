@@ -7,9 +7,10 @@ import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { Formats, Formatters, FormatTable } from '#src/runtime/formats.ts';
+import { formatIn, type Formats, type Formatters, type FormatTable } from '#src/runtime/formats.ts';
+import { RELATIVE_UNITS } from '#src/runtime/relative.ts';
 
-import { DURATION_STYLES, DURATION_UNITS } from './icu.ts';
+import { DURATION_STYLES, DURATION_UNITS, RELATIVE_STYLES } from './icu.ts';
 import { AUTHOR, type Judge, type JudgeConfig, type ResolvedJudge } from './judge.ts';
 import {
   compileRule,
@@ -207,7 +208,7 @@ export interface ProsebookConfig {
    */
   isolate?: Isolate;
   /**
-   * Number and date formats by name, as `Intl` options: `number: { price: { style: 'currency', currency: 'EUR' } }`.
+   * Number, date, list, duration and relative formats by name, as options: `number: { price: { style: 'currency', currency: 'EUR' } }`.
    * A message names one in place of a style (`{total, number, price}`, `{$total :number format=price}`)
    * and code passes the name to `copy.number` and `copy.date`, so the app shows each the same way
    * everywhere, and one edit here changes it. `locales` shows one differently in a locale or language.
@@ -507,28 +508,33 @@ export async function withFormatters(config: ResolvedConfig): Promise<ResolvedCo
   const mod = (await importAnew(file)) as { default?: unknown };
   const table = checkedFormatters(mod.default, config.formats, at);
   const formats: Record<string, unknown> = { ...config.formats };
-  for (const kind of ['number', 'date'] as const) {
+  for (const kind of FORMATTER_KINDS) {
     const names = Object.keys(table[kind] ?? {});
     if (names.length > 0)
       formats[kind] = { ...config.formats[kind], ...Object.fromEntries(names.map((name) => [name, { formatter: name }])) };
   }
+  checkRelativeDates(formats);
   return { ...config, formats: formats, formatters: { file, table } };
 }
+
+const FORMATTER_KINDS = ['number', 'date', 'relative'] as const;
 
 /** The formatters module's default export, each a function under a name no format of the config's has. */
 function checkedFormatters(table: unknown, formats: Formats, at: string): Formatters {
   const shape = `export default defineFormatters({ number: { money: (value, { locale }) => '…' } })`;
   if (typeof table !== 'object' || table === null) throw new Error(`${at} exports no formatters: ${shape}`);
   for (const [kind, named] of Object.entries(table)) {
-    if (kind !== 'number' && kind !== 'date') throw new Error(`${at}: ${kind} is not a kind of formatter: number, date`);
+    if (!(FORMATTER_KINDS as readonly string[]).includes(kind))
+      throw new Error(`${at}: ${kind} is not a kind of formatter: ${FORMATTER_KINDS.join(', ')}`);
+    const k = kind as (typeof FORMATTER_KINDS)[number];
     if (typeof named !== 'object' || named === null) throw new Error(`${at}: ${kind} is its formatters by name: ${shape}`);
     for (const [name, format] of Object.entries(named)) {
       const path = `${at}: ${kind}.${name}`;
       if (typeof format !== 'function') throw new Error(`${path} is a function of the value and its context, giving the text`);
       if (!FORMAT_NAME.test(name)) throw new Error(`${path}: a format's name is a letter, then letters, digits, _ and -`);
-      if ((FORMAT_OPTIONS[kind].builtIn as readonly string[]).includes(name))
+      if ((FORMAT_OPTIONS[k].builtIn as readonly string[]).includes(name))
         throw new Error(`${path}: "${name}" is a style every message knows already, so name the format for what it shows`);
-      if (formats[kind]?.[name] !== undefined) throw new Error(`${path} is named in formats.${kind} too: rename one`);
+      if (formats[k]?.[name] !== undefined) throw new Error(`${path} is named in formats.${kind} too: rename one`);
     }
   }
   return table;
@@ -582,7 +588,8 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     source: config.source ?? 'en',
     messageFormat: config.messageFormat ?? 1,
     isolate: config.isolate ?? 'rtl',
-    formats: checkedFormats(config.formats ?? {}),
+    // A relative format's date may name a formatter, which only the formatters module, read later, holds.
+    formats: checkedFormats(config.formats ?? {}, config.formatters === undefined),
     ...(config.formatters !== undefined && { formatters: { file: at(config.formatters) } }),
     bundled: config.bundled ?? [],
     pseudo: config.pseudo ?? false,
@@ -711,6 +718,11 @@ const FORMAT_OPTIONS = {
     options: ['style', 'largest', 'smallest', 'units', 'fractionalDigits'],
     builtIn: DURATION_STYLES,
   },
+  relative: {
+    intl: 'Intl.RelativeTimeFormat',
+    options: ['style', 'numeric', 'largest', 'smallest', 'skip', 'rounding', 'now', 'date'],
+    builtIn: RELATIVE_STYLES,
+  },
 } as const;
 
 const KINDS = Object.keys(FORMAT_OPTIONS) as (keyof typeof FORMAT_OPTIONS)[];
@@ -743,6 +755,10 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
       if (largest === 'milliseconds') return `fractionalDigits shows the seconds' fraction, so largest is seconds or larger`;
     }
   }
+  if (kind === 'relative') {
+    const refused = refusedRelative(value);
+    if (refused !== undefined) return refused;
+  }
   if (kind === 'number' && value.steps !== undefined) {
     const refused = refusedSteps(value.steps, FORMAT_OPTIONS.number.options);
     if (refused !== undefined) return refused;
@@ -756,6 +772,8 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
       new Intl.DateTimeFormat('en', value).resolvedOptions();
     } else if (kind === 'list') {
       new Intl.ListFormat('en', value).resolvedOptions();
+    } else if (kind === 'relative') {
+      new Intl.RelativeTimeFormat('en', value).resolvedOptions();
     }
     // A Node or Bun without `Intl.DurationFormat` checks only prosebook's options.
     else if (typeof Intl.DurationFormat === 'function') {
@@ -765,6 +783,53 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
     return `is refused by ${FORMAT_OPTIONS[kind].intl}: ${(e as Error).message}`;
   }
   return undefined;
+}
+
+/** What is wrong with a relative format's own options (its units, `now` and `date`), or nothing. */
+function refusedRelative(value: Record<string, unknown>): string | undefined {
+  const { largest, smallest, skip, rounding, now, date } = value;
+  const at = (unit: unknown) => RELATIVE_UNITS.findIndex(([u]) => u === unit);
+  const names = RELATIVE_UNITS.map(([u]) => u).join(', ');
+  for (const [key, unit] of Object.entries({ largest, smallest }))
+    if (unit !== undefined && at(unit) === -1) return `${key} is a unit: ${names}`;
+  const from = largest === undefined ? 0 : at(largest);
+  const to = smallest === undefined ? 6 : at(smallest);
+  if (from > to) return `largest is ${RELATIVE_UNITS[from]![0]}, which is smaller than smallest`;
+  if (skip !== undefined) {
+    if (!Array.isArray(skip) || skip.some((u) => at(u) === -1)) return `skip is a list of units to leave out: ${names}`;
+    if (RELATIVE_UNITS.slice(from, to + 1).every(([u]) => skip.includes(u)))
+      return 'skip leaves out every unit between largest and smallest: keep one';
+  }
+  if (rounding !== undefined && rounding !== 'nearest' && rounding !== 'down') return 'rounding is nearest or down';
+  if (now !== undefined && (typeof now !== 'string' || now === ''))
+    return 'now is the key of the entry a time under the smallest unit reads as: now: time.now';
+  if (date !== undefined) {
+    const example = "date: { after: 7 * 86_400_000, format: 'short' }";
+    if (typeof date !== 'object' || date === null) return `date is when to show a date instead, and in what format: ${example}`;
+    const { after, format, ...rest } = date as Record<string, unknown>;
+    if (typeof after !== 'number' || !(after > 0)) return `date.after is the milliseconds from now past which a date shows: ${example}`;
+    if (typeof format !== 'string') return `date.format names a date format of the config's: ${example}`;
+    const other = Object.keys(rest)[0];
+    if (other !== undefined) return `date.${other} is not an option of date, which takes after and format: ${example}`;
+  }
+  return undefined;
+}
+
+/** Each relative format's date names a date format of the config's, or of the formatters module. */
+function checkRelativeDates(formats: Formats): void {
+  for (const [at, table] of [
+    ['formats.', formats] as const,
+    ...Object.entries(formats.locales ?? {}).map(([l, t]) => [`formats.locales.${l}.`, t] as const),
+  ]) {
+    for (const [name, options] of Object.entries(table.relative ?? {})) {
+      const date = options.date?.format;
+      if (typeof date !== 'string' || formatIn(formats, 'date', date, 'und') !== undefined) continue;
+      if (Object.values(formats.locales ?? {}).some((t) => t.date?.[date] !== undefined)) continue;
+      const names = Object.keys(formats.date ?? {});
+      const known = names.length > 0 ? `: ${names.join(', ')}` : `, and it names none: add ${date} under formats.date`;
+      throw new Error(`${at}relative.${name}.date.format names ${date}, which is no date format of the config's${known}`);
+    }
+  }
 }
 
 /** What is wrong with a number format's `steps`, each the format's options over its own from a size up, or nothing. */
@@ -792,7 +857,7 @@ function refusedSteps(steps: unknown, options: readonly string[]): string | unde
 const FORMAT_NAME = /^[A-Za-z][\w-]*$/;
 
 /** Each format a name a message can say, and options `Intl` takes: a JSON config is not type-checked. */
-function checkedFormats(formats: Formats): Formats {
+function checkedFormats(formats: Formats, whole: boolean): Formats {
   const check = (table: FormatTable, at: string, defined?: FormatTable) => {
     for (const kind of Object.keys(table)) {
       if (!(KINDS as string[]).includes(kind) && !(defined === undefined && kind === 'locales'))
@@ -822,6 +887,7 @@ function checkedFormats(formats: Formats): Formats {
   };
   check(formats, 'formats.');
   for (const [locale, table] of Object.entries(formats.locales ?? {})) check(table, `formats.locales.${locale}.`, formats);
+  if (whole) checkRelativeDates(formats);
   return formats;
 }
 
