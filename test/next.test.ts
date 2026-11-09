@@ -154,7 +154,7 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   expect(rules['index.ts']!.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
   const index = run(rules['index.ts']!, '// index\n');
   expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();\n');
-  expect(index).toEndWith('installInspector({"base":"/"});\n// index\n');
+  expect(index).toEndWith('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}});\n// index\n');
   // Imported from beside the index, as Turbopack resolves the app's own imports.
   const inspector = /from "(\.[^"]+)"/.exec(index)![1]!;
   expect(readFileSync(join(config.root, 'src/copy', inspector), 'utf8')).toContain('function install');

@@ -39,6 +39,7 @@ import {
   HOT_SET,
   inAreas,
   installInspector,
+  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -79,8 +80,11 @@ export interface ProsebookNextOptions {
    * client code brings only the messages it reads. Server components read whole locales.
    */
   split?: boolean;
-  /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
-  inspect?: boolean;
+  /**
+   * In dev, Alt-click a string on the page to edit its entry. On by default; `{ modifiers, button }`
+   * changes the keys held and the button pressed.
+   */
+  inspect?: Inspect;
 }
 
 type Rules = { [glob: string]: unknown };
@@ -127,7 +131,7 @@ export function withProsebook<C extends object>(
       const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
       // A relative import, which Turbopack resolves as it would the app's own.
       const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
-      const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base);
+      const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base, options.inspect);
       return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
     }
     return withRules(resolved, buildRules(config, withoutPseudo(config, generated), options.prune ?? 'strict', options));

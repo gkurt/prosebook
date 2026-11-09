@@ -186,7 +186,7 @@ class Dialog {
     });
 
     document.body.append(this.host);
-    // A press anywhere else on the page closes it, as Esc does; an Alt-click there opens the next.
+    // A press anywhere else on the page closes it, as Esc does; the inspector's click there opens the next.
     window.addEventListener('mousedown', this.outside, { capture: true });
     this.place();
     this.field(locale)?.focus();

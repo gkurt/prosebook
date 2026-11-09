@@ -326,7 +326,7 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     expect(inspector.status).toBe(200);
     const entry = await inspector.text();
     expect(entry).toContain('globalThis.__PROSEBOOK_HOT__ ??= new Set()');
-    expect(entry).toContain('installInspector({"base":"/"})');
+    expect(entry).toContain('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}})');
     expect(await (await fetch(`${origin}src/copy/en.ts`)).text()).toContain('update("en", next.default)');
     expect(await (await fetch(`${origin}src/copy/index.ts`)).text()).toContain('next.catalog.locales.join() !== catalog.locales.join()');
     const client = await fetch(new URL(/from "([^"]+)"/.exec(entry)![1]!, origin));

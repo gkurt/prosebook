@@ -6,6 +6,8 @@ import { entryLocation, loadCatalog } from 'prosebook/tools';
 
 import { keyAt, rangeOf } from '#src/inspector/locate.ts';
 import { record, type Reads } from '#src/inspector/reads.ts';
+import { checkShortcut, gestureOf, type Modifier } from '#src/inspector/shortcut.ts';
+import { installInspector } from '#src/tools/bundle.ts';
 import { copyOf, fixture } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
@@ -117,4 +119,39 @@ test("an entry is found in the translation's file, or the catalog's", () => {
   expect(where()).toBe('copy/catalog/cart.yaml:3:1');
   expect(where('de')).toBe('copy/locales/de/cart.yaml:1:1');
   expect(where('tr')).toBe('copy/catalog/cart.yaml:3:1');
+});
+
+describe('the gesture', () => {
+  const keys = (flags: Partial<Record<'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey', boolean>>) =>
+    new MouseEvent('click', { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...flags });
+
+  test('is Alt and the left button unset', () => {
+    const gesture = gestureOf(checkShortcut());
+    expect(gesture.button).toBe(0);
+    expect(gesture.held(keys({ altKey: true }))).toBe(true);
+    expect(gesture.isModifier('Alt')).toBe(true);
+  });
+
+  test('holds exactly its keys, so AltGr, Control and Alt, is not Alt', () => {
+    const alt = gestureOf(checkShortcut());
+    expect(alt.held(keys({ altKey: true, ctrlKey: true }))).toBe(false);
+    const both = gestureOf(checkShortcut({ modifiers: ['Control', 'Shift'], button: 'right' }));
+    expect(both.button).toBe(2);
+    expect(both.held(keys({ ctrlKey: true }))).toBe(false);
+    expect(both.held(keys({ ctrlKey: true, shiftKey: true }))).toBe(true);
+    expect(both.isModifier('Shift')).toBe(true);
+    expect(both.isModifier('Alt')).toBe(false);
+  });
+
+  test('refuses no keys, a key it does not know and a button it does not know', () => {
+    expect(() => checkShortcut({ modifiers: [] })).toThrow('hold at least one');
+    expect(() => checkShortcut({ modifiers: ['Ctrl' as Modifier] })).toThrow("has 'Ctrl': name one of 'Alt', 'Control', 'Meta', 'Shift'");
+    expect(() => checkShortcut({ button: 'back' as 'left' })).toThrow("is 'back': name one of 'left', 'middle', 'right'");
+  });
+
+  test('travels to the page in the code that starts the inspector, checked as it is written', () => {
+    expect(installInspector('/i.js', '/', undefined)).toContain('"shortcut":{"modifiers":["Alt"],"button":"left"}');
+    expect(installInspector('/i.js', '/', { button: 'middle' })).toContain('"shortcut":{"modifiers":["Alt"],"button":"middle"}');
+    expect(() => installInspector('/i.js', '/', { modifiers: [] })).toThrow('hold at least one');
+  });
 });

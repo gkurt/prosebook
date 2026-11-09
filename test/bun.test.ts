@@ -315,7 +315,7 @@ test("under Bun's dev server, the index sets up the hot hooks and the inspector,
   const { config, filter, load } = await devServer('development');
   const index = (await load('index.ts'))!.contents;
   expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
-  expect(index).toContain('installInspector({"base":"/"})');
+  expect(index).toContain('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}})');
   expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('function install');
   expect((await load('de.ts'))?.contents).toContain('update("de", next.default)');
   expect(filter.test(join(config.root, 'src', 'main.ts'))).toBe(false);

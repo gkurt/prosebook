@@ -1,17 +1,20 @@
 /**
  * The dev inspector each integration loads into the page. One gesture: hold Alt to see which entry a
  * string comes from, and Alt-click it to edit that entry on the page (`dialog.ts`), which also opens
- * it in the editor.
+ * it in the editor. The keys and the button are the integration's `inspect` (`shortcut.ts`).
  */
 import type { DevHooks } from '#src/runtime/types.ts';
 
 import { openDialog } from './dialog.ts';
 import { caretAt, keyAt, linesOf, rangeOf, type Hit } from './locate.ts';
 import { record, type Read, type Reads } from './reads.ts';
+import { gestureOf, type Shortcut } from './shortcut.ts';
 
 export interface InspectorOptions {
   /** The dev server's base URL, ending in `/`. */
   base: string;
+  /** The gesture, checked and with its defaults (`checkShortcut`). */
+  shortcut: Required<Shortcut>;
 }
 
 const ACCENT = '#7c3aed';
@@ -20,13 +23,13 @@ const ACCENT = '#7c3aed';
  * Starts listening for reads and for Alt on the page, once: Bun and Next call it from the generated
  * index, which runs again whenever it changes.
  */
-export function install({ base }: InspectorOptions): void {
+export function install({ base, shortcut }: InspectorOptions): void {
   const hooks = globalThis as DevHooks;
   if (hooks.__PROSEBOOK_READ__ !== undefined) return;
   const reads: Reads = new Map();
   hooks.__PROSEBOOK_READ__ = (key, text, locale) => record(reads, key, text, locale);
   // What a server render read, as Astro's pages and a framework's first frame are: asked for again each
-  // time Alt goes down, since a page the server renders again after an edit runs no script to say so.
+  // time the keys go down, since a page the server renders again after an edit runs no script to say so.
   let served: Reads = new Map();
   const fetchServed = () =>
     fetch(`${base}__prosebook/reads`)
@@ -43,11 +46,12 @@ export function install({ base }: InspectorOptions): void {
     return target === null ? undefined : keyAt(target, caretAt(x, y), known());
   };
   const overlay = createOverlay();
+  const gesture = gestureOf(shortcut);
 
   let pointer: { x: number; y: number } | undefined;
   let frame = 0;
   const update = (e: MouseEvent | KeyboardEvent) => {
-    if (!e.altKey) return overlay.hide();
+    if (!gesture.held(e)) return overlay.hide();
     if (frame !== 0) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
@@ -64,24 +68,35 @@ export function install({ base }: InspectorOptions): void {
     update(e);
   });
   listen('keydown', (e) => {
-    if (e.key === 'Alt' && !e.repeat) void fetchServed().then(() => update(e));
+    if (gesture.isModifier(e.key) && gesture.held(e) && !e.repeat) void fetchServed().then(() => update(e));
     update(e);
   });
   listen('keyup', update);
   listen('blur', overlay.hide);
-  // Alt-click on a link would otherwise download it, and on a field focus it.
+  // Alt-click on a link would otherwise download it, on a field focus it, and a middle press scroll.
+  let press = {};
+  let opened: object | undefined;
   listen('mousedown', (e) => {
-    if (e.altKey && hitAt(e.clientX, e.clientY) !== undefined) e.preventDefault();
+    press = {};
+    if (gesture.held(e) && e.button === gesture.button && hitAt(e.clientX, e.clientY) !== undefined) e.preventDefault();
   });
-  listen('click', (e) => {
-    if (!e.altKey) return;
+  // A press ends in `click`, `auxclick` or `contextmenu` by its button, and a right one in two of
+  // them, in an order that varies by platform; on macOS Control-click is a left `contextmenu`. Each
+  // is kept from the page, and the first opens the entry.
+  const pressed = (e: MouseEvent) => {
+    if (!gesture.held(e) || e.button !== gesture.button) return;
     const hit = hitAt(e.clientX, e.clientY);
     if (hit === undefined) return;
     e.preventDefault();
     e.stopPropagation();
+    if (opened === press) return;
+    opened = press;
     overlay.hide();
     void openDialog({ base, key: hit.read.key, locale: hit.read.locale, anchor: linesOfHit(hit) });
-  });
+  };
+  listen('click', pressed);
+  listen('auxclick', pressed);
+  listen('contextmenu', pressed);
 }
 
 /** The boxes the text found takes on screen, one per line, or its element's when it has no range. */

@@ -49,6 +49,7 @@ import {
   importingAreas,
   inAreas,
   installInspector,
+  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -93,8 +94,11 @@ export interface ProsebookPluginOptions {
    * catalog lists each area's files, which a copy's `preload` hands on as the render reads them.
    */
   split?: boolean;
-  /** In dev, Alt-click a string on the page to open its entry in the editor. On by default. */
-  inspect?: boolean;
+  /**
+   * In dev, Alt-click a string on the page to edit its entry. On by default; `{ modifiers, button }`
+   * changes the keys held and the button pressed.
+   */
+  inspect?: Inspect;
 }
 
 const PLACEHOLDER = /__PROSEBOOK_LOCALE_(\d+)__/g;
@@ -252,7 +256,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
     load(id, loadOptions) {
       if (id === DEV_ID) {
         if (options.inspect === false) return HOT_SET;
-        return HOT_SET + installInspector(inspectorPath, base);
+        return HOT_SET + installInspector(inspectorPath, base, options.inspect);
       }
       if (id.startsWith(AREA_ID) && generated !== undefined) {
         const [area = '', locale] = id.slice(AREA_ID.length).split('/');

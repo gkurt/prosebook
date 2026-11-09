@@ -392,7 +392,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   browser imports too to the browser's hot update, which can't change the HTML the server wrote, so
   `reloadOnEdit` drops a generated module's update from the server's runner and reloads the page.
 - `src/inspector/`: browser code, loaded from beside each integration (`index.ts`, a tsdown entry of
-  its own). One gesture: Alt shows each string's key, Alt-click opens the dialog. `install` runs once
+  its own). One gesture: Alt shows each string's key, Alt-click opens the dialog. The integrations'
+  `inspect` may name other keys and button (`shortcut.ts`), which `installInspector` checks as it
+  writes the code starting the inspector; a press ends in `click`, `auxclick` or `contextmenu` by its
+  button and platform, each kept from the page, the first opening the dialog. `install` runs once
   per page, since Bun and Next run the index again on every change. `locate.ts` matches the text under
   the pointer to the reads the runtime reported, since the DOM carries no keys, and to those the server
   reported (`/__prosebook/reads`), asked for again each time Alt goes down; its test drives `keyAt`

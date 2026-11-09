@@ -42,6 +42,7 @@ import {
   importingAreas,
   inAreas,
   installInspector,
+  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -84,8 +85,11 @@ export interface ProsebookBunOptions {
    * reads them.
    */
   split?: boolean;
-  /** Under the dev server, Alt-click a string on the page to open its entry in the editor. On by default. */
-  inspect?: boolean;
+  /**
+   * Under the dev server, Alt-click a string on the page to edit its entry. On by default;
+   * `{ modifiers, button }` changes the keys held and the button pressed.
+   */
+  inspect?: Inspect;
 }
 
 const inspectorPath = beside(import.meta.url, 'inspector/index');
@@ -125,7 +129,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
         kept = keeper(refs, options.keep, config.formats);
       }
-      const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/') : '';
+      const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/', options.inspect) : '';
       if (dev) {
         // An edit to the config regenerates with it; the paths it names stay as they were at start.
         const fail = (e: unknown) => console.error(describe(e));

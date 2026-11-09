@@ -10,6 +10,7 @@ import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { checkShortcut, type Shortcut } from '#src/inspector/shortcut.ts';
 import { RUNTIME } from '#src/runtime/copy.ts';
 import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 
@@ -395,6 +396,12 @@ export const HOT_SET = 'globalThis.__PROSEBOOK_HOT__ ??= new Set();\n';
 export const beside = (url: string, name: string) =>
   fileURLToPath(new URL(`./${name}${url.endsWith('.ts') ? '.ts' : '.js'}`, url)).replaceAll('\\', '/');
 
-/** Code that starts the inspector (`inspector/`, imported from `path`) on the page, its endpoints under `base`. */
-export const installInspector = (path: string, base: string) =>
-  `import { install as installInspector } from ${JSON.stringify(path)};\ninstallInspector(${JSON.stringify({ base })});\n`;
+/**
+ * Code that starts the inspector (`inspector/`, imported from `path`) on the page, its endpoints under
+ * `base`, with the gesture `inspect` names, checked here so a wrong one fails the dev server.
+ */
+export const installInspector = (path: string, base: string, inspect: Inspect | undefined) =>
+  `import { install as installInspector } from ${JSON.stringify(path)};\ninstallInspector(${JSON.stringify({ base, shortcut: checkShortcut(typeof inspect === 'object' ? inspect : {}) })});\n`;
+
+/** An integration's `inspect`: off, on, or on with its own keys and button. */
+export type Inspect = boolean | Shortcut;

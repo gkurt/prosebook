@@ -191,7 +191,7 @@ Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (B
 | `prune`   | `'strict'` | Ship only the messages the code reads. `'loose'` skips the [unseen read](#pruning) check, `false` ships all. |
 | `keep`    | `[]`       | Keys a build always keeps, exactly or as `prefix.*`.                                                         |
 | `split`   | `false`    | [Split](#splitting) each locale by area.                                                                     |
-| `inspect` | `true`     | The [inspector](#inspector), in dev.                                                                         |
+| `inspect` | `true`     | The [inspector](#inspector), in dev, and its [shortcut](#inspector).                                         |
 
 In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, webpack, Metro, Bun and `generate --watch`
 regenerate with
@@ -1603,6 +1603,10 @@ the page.
   Under Vite and Astro that includes what the dev server rendered; under Next and Bun, only text read in the browser.
 - The editor: Vite's and Astro's `/__open-in-editor` (`LAUNCH_EDITOR`), Next's `/__nextjs_launch-editor` (`REACT_EDITOR`), Bun's
   `Bun.openInEditor` (`VISUAL`, `EDITOR`). Turn it off with `inspect: false`.
+- Another shortcut, where Alt is taken: `inspect: { modifiers: ['Control', 'Shift'], button: 'right' }`. `modifiers` are held,
+  and no others, to show the keys (`'Alt'`, `'Control'`, `'Meta'`, `'Shift'`; `['Alt']` unset), and `button` is pressed with
+  them to edit (`'left'`, `'middle'`, `'right'`; `'left'` unset). Exactly those keys, so AltGr, which is Control and Alt, is
+  not Alt.
 
 ## Playground
 
