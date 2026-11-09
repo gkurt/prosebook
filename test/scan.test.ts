@@ -141,6 +141,44 @@ test.each([
   expect(formattedInCode('list.ts', code)).toEqual([]);
 });
 
+test.each([
+  // [the expression, as a JSX child; what it is found as, or nothing]
+  ['{n.toFixed(1)}', 'n.toFixed(1): copy.number(n, { minimumFractionDigits: 1, maximumFractionDigits: 1 })'],
+  ['{n.toFixed()}', 'n.toFixed(): copy.number(n, { minimumFractionDigits: 0, maximumFractionDigits: 0 })'],
+  ['{n.toPrecision(3)}', 'n.toPrecision(3): copy.number(n, { minimumSignificantDigits: 3, maximumSignificantDigits: 3 })'],
+  [
+    '{ms.toFixed(1)} ms',
+    "ms.toFixed(1): copy.number(ms, { minimumFractionDigits: 1, maximumFractionDigits: 1, style: 'unit', unit: 'millisecond' })",
+  ],
+  ['{size} MB', "size: copy.number(size, { style: 'unit', unit: 'megabyte' })"],
+  ['{pct}%', "pct: copy.number(pct, { style: 'unit', unit: 'percent' })"],
+  [
+    '{`${rate.toFixed(2)} Mbps`}',
+    "rate.toFixed(2): copy.number(rate, { minimumFractionDigits: 2, maximumFractionDigits: 2, style: 'unit', unit: 'megabit-per-second' })",
+  ],
+  ["{size + ' GB'}", "size: copy.number(size, { style: 'unit', unit: 'gigabyte' })"],
+  ['{temp}&nbsp;°C', "temp: copy.number(temp, { style: 'unit', unit: 'celsius' })"],
+  // Named, where a format of the config's shows the same.
+  ['{n.toFixed(2)}', "n.toFixed(2): copy.number(n, 'fixed'), which shows it as the format the config names"],
+  // Words after a value, a style, arithmetic, digits worked out in code: none is a number shown.
+  ['{count} items', undefined],
+  ['<div style={{ width: `${w.toFixed(2)}px` }} />', undefined],
+  ['<div style={{ width: w.toFixed(0) + "%" }} />', undefined],
+  ['<div data-ratio={r.toFixed(2)} />', undefined],
+  ['{`${w.toFixed(1)}px`}', undefined],
+  ['{Number(n.toFixed(2))}', undefined],
+  ['{+n.toFixed(2)}', undefined],
+  ['{n.toFixed(digits)}', undefined],
+  ['{n.toPrecision()}', undefined],
+  ["{t('size.mb', { size })} MB", undefined],
+])('a number shown in a component, %s, is found: %p', (shown, said) => {
+  const formats = { number: { fixed: { minimumFractionDigits: 2, maximumFractionDigits: 2 } } } as const;
+  const code = `export const Metric = ({ n, ms, size, pct, rate, temp, w, r, count, digits, t }) => <p>${shown}</p>;`;
+  const fix = (f: { fix: string }) => f.fix.replace(/, in the copy's locale$|, or name them under formats\.number and pass the name$/, '');
+  expect(formattedInCode('Metric.tsx', code, formats).map((f) => `${f.code}: ${fix(f)}`)).toEqual(said === undefined ? [] : [said]);
+  expect(formattedInCode('metric.ts', `export const m = (n) => \`\${n.toFixed(1)} ms\`;`)).toEqual([]);
+});
+
 test('a formatter only asked its options formats nothing', () => {
   const code = [
     'export const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;',

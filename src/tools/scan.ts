@@ -14,7 +14,7 @@ import { parseSync } from 'oxc-parser';
 import { formatIn, type Formats, type FormatTable } from '#src/runtime/formats.ts';
 import { beyondOptions } from '#src/tools/icu.ts';
 
-import type { ResolvedConfig, ScanOptions } from './config.ts';
+import { READABLE_ATTRIBUTES, type ResolvedConfig, type ScanOptions } from './config.ts';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git']);
 
@@ -494,6 +494,50 @@ function isRawString(expression: string): boolean {
   const last = name.split(/_|(?<=[a-z0-9])(?=[A-Z])/).at(-1)!;
   return RAW_STRING.has(last.toLowerCase());
 }
+/** A unit written after a number, as `Intl.NumberFormat` names it, which shows it in the locale's order and words. */
+const UNITS: Record<string, string> = {
+  ms: 'millisecond',
+  sec: 'second',
+  min: 'minute',
+  h: 'hour',
+  hr: 'hour',
+  hrs: 'hour',
+  B: 'byte',
+  kB: 'kilobyte',
+  KB: 'kilobyte',
+  MB: 'megabyte',
+  GB: 'gigabyte',
+  TB: 'terabyte',
+  PB: 'petabyte',
+  kbps: 'kilobit-per-second',
+  Kbps: 'kilobit-per-second',
+  Mbps: 'megabit-per-second',
+  Gbps: 'gigabit-per-second',
+  '%': 'percent',
+  '°C': 'celsius',
+  '°F': 'fahrenheit',
+  km: 'kilometer',
+  cm: 'centimeter',
+  mm: 'millimeter',
+  kg: 'kilogram',
+  mi: 'mile',
+  ft: 'foot',
+};
+/** The unit a text starts with, after at most one space (a no-break one too), as a word of its own. */
+const UNIT_AFTER = new RegExp(`^[   ]?(${Object.keys(UNITS).join('|')})(?![\\p{L}\\d])`, 'u');
+/** A CSS length or angle: a number beside it is a style, which no person reads. */
+const CSS_UNIT = /^(?:px|r?em|v[hw]|vmin|vmax|deg|rad|turn|fr|ch|ex|pt|dvh|svh|lvh)(?![\p{L}\d])/u;
+/** The reads that format in the copy's locale: what a unit after them is already said by, or wrongly beside. */
+const COPY_READS = new Set(['t', 'rich', 'number', 'date', 'list', 'duration', 'relative']);
+/** What turns a rounded number back into one, so the rounding is arithmetic, not text. */
+const TO_NUMBER = new Set(['Number', 'parseFloat', 'parseInt']);
+
+/** Options as a literal, to write in a fix: `{ style: 'unit', unit: 'megabyte' }`. */
+const literalOf = (options: Record<string, unknown>) =>
+  `{ ${Object.entries(options)
+    .map(([k, v]) => `${k}: ${typeof v === 'string' ? `'${v}'` : String(v)}`)
+    .join(', ')} }`;
+
 const TO_LOCALE: Record<string, 'date' | undefined> = { toLocaleString: undefined, toLocaleDateString: 'date', toLocaleTimeString: 'date' };
 /** The options only a date formats with, which tell `toLocaleString`'s value apart from a number. */
 const DATE_OPTIONS =
@@ -536,13 +580,13 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
   const { program } = parseSync(file, code);
   const { position, ignored } = lineIndex(code);
   const found: Formatted[] = [];
-  const say = (node: Node, kind: string, value: string, options: Node | undefined) => {
+  const say = (node: Node, kind: string, value: string, options: Node | Record<string, unknown> | undefined) => {
     const at = position(node.start);
     if (ignored(at.line)) return;
     const text = code.slice(node.start, node.end).replace(/\s+/g, ' ');
     const shown = text.length > 80 ? `${text.slice(0, 77)}...` : text;
     if (kind === 'compare') {
-      const written = options === undefined ? '' : code.slice(options.start, options.end).replace(/\s+/g, ' ');
+      const written = !isNode(options) ? '' : code.slice(options.start, options.end).replace(/\s+/g, ' ');
       const given = written === '' || value.endsWith('(') ? written : `, ${written}`;
       found.push({ file, ...at, code: shown, fix: `${value}${given}), in the copy's locale` });
       return;
@@ -554,7 +598,9 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
       found.push({ file, ...at, code: shown, fix });
       return;
     }
-    const given = literalObject(options);
+    // Options worked out from the code (`toFixed(1)`, a unit after it) rather than written as an object.
+    const worked = options !== undefined && !isNode(options);
+    const given = worked ? options : literalObject(options);
     const kinds = kind === 'either' ? (Object.keys(given ?? {}).some((k) => DATE_OPTIONS.test(k)) ? ['date'] : ['number', 'date']) : [kind];
     const named = kinds.flatMap((k) => {
       if (given === undefined || (k !== 'number' && k !== 'date') || Object.keys(given).length === 0) return [];
@@ -567,19 +613,85 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
         })
         .map((name) => `copy.${k}(${value}, '${name}')`);
     });
-    const plain = kinds.map((k) => `copy.${k}(${value})`);
+    const plain = kinds.map((k) => (worked ? `copy.${k}(${value}, ${literalOf(given!)})` : `copy.${k}(${value})`));
     const fix =
       named.length > 0
         ? `${named.join(' or ')}, which shows it as the format the config names`
         : given !== undefined && Object.keys(given).length > 0 && kinds.every((k) => k === 'number' || k === 'date')
-          ? `${plain.join(' or ')} with these options, or name them under formats.${kinds.join(' or formats.')} and pass the name`
+          ? `${plain.join(' or ')}${worked ? '' : ' with these options'}, or name them under formats.${kinds.join(' or formats.')} and pass the name`
           : `${plain.join(' or ')}, in the copy's locale`;
     found.push({ file, ...at, code: shown, fix });
   };
   // Formatters only asked their options, as `Intl.DateTimeFormat().resolvedOptions().timeZone` reads the
   // device's time zone: they format nothing a person reads.
   const asked = new Set<Node>();
+  // A number rounded or given a unit in code, in a component, found once: where text follows it, or alone.
+  const rounded = new Set<Node>();
+  const ancestors: Node[] = [];
+  /** Whether the node is a style, a class or an attribute no person reads, or turned back into a number. */
+  const unread = (node: Node) => {
+    const parent = ancestors.at(-1);
+    if (parent?.type === 'UnaryExpression' && parent.operator === '+') return true;
+    if (parent?.type === 'CallExpression' && parent.callee !== node && TO_NUMBER.has(calleeOf(parent.callee as Node)?.name ?? ''))
+      return true;
+    return ancestors.some((a) => {
+      if (a.type === 'JSXAttribute') return !READABLE_ATTRIBUTES.includes(elementName(a.name as Node));
+      return a.type === 'Property' && propertyName(a) === 'style';
+    });
+  };
+  /** A number shown in code: `n.toFixed(1)`, `n.toPrecision(3)`, or any value with a unit written after it. */
+  const shownNumber = (node: Node, after: string | undefined) => {
+    if (!component || rounded.has(node) || unread(node)) return;
+    const callee = node.type === 'CallExpression' ? (node.callee as Node) : undefined;
+    const method = callee?.type === 'MemberExpression' ? nameOf(callee.property as Node) : undefined;
+    // A message or a value the copy formatted already says its unit in the locale's words.
+    if (callee !== undefined && COPY_READS.has(method ?? nameOf(callee) ?? '')) return;
+    const digits = (node.arguments as Node[] | undefined)?.[0];
+    const count = digits === undefined ? 0 : digits.type === 'Literal' && typeof digits.value === 'number' ? digits.value : undefined;
+    const options: Record<string, unknown> = {};
+    if (method === 'toFixed' || method === 'toPrecision') {
+      // `toPrecision()` is `toString()`, and digits worked out in code can't be written as a format.
+      if (count === undefined || (method === 'toPrecision' && digits === undefined)) return;
+      const [min, max] =
+        method === 'toFixed'
+          ? ['minimumFractionDigits', 'maximumFractionDigits']
+          : ['minimumSignificantDigits', 'maximumSignificantDigits'];
+      Object.assign(options, { [min]: count, [max]: count });
+    }
+    if (after !== undefined && CSS_UNIT.test(after)) {
+      rounded.add(node);
+      return;
+    }
+    const unit = after === undefined ? undefined : UNIT_AFTER.exec(after)?.[1];
+    if (unit !== undefined) Object.assign(options, { style: 'unit', unit: UNITS[unit] });
+    if (Object.keys(options).length === 0) return;
+    rounded.add(node);
+    const target = method === undefined ? node : (callee!.object as Node);
+    say(node, 'number', code.slice(target.start, target.end), options);
+  };
+  /** Each value in a run of text, with the text after it. */
+  const besides = (node: Node) => {
+    if (node.type === 'TemplateLiteral') {
+      const quasis = node.quasis as { value: { cooked: string | null } }[];
+      (node.expressions as Node[]).forEach((e, i) => shownNumber(unwrapped(e), quasis[i + 1]?.value.cooked ?? undefined));
+    } else if (node.type === 'JSXElement' || node.type === 'JSXFragment') {
+      const children = node.children as Node[];
+      children.forEach((child, i) => {
+        const next = children[i + 1];
+        const expression = child.type === 'JSXExpressionContainer' ? (child.expression as Node) : undefined;
+        if (expression !== undefined && expression.type !== 'JSXEmptyExpression' && next?.type === 'JSXText')
+          shownNumber(unwrapped(expression), decodeEntities(next.value as string));
+      });
+    } else if (node.type === 'BinaryExpression' && node.operator === '+') {
+      const right = node.right as Node;
+      if (right.type === 'Literal' && typeof right.value === 'string') shownNumber(unwrapped(node.left as Node), right.value);
+    }
+  };
   const visit = (node: Node) => {
+    besides(node);
+    const callee = node.type === 'CallExpression' ? (node.callee as Node) : undefined;
+    const method = callee?.type === 'MemberExpression' ? nameOf(callee.property as Node) : undefined;
+    if (method === 'toFixed' || method === 'toPrecision') shownNumber(node, undefined);
     if (node.type === 'NewExpression' || node.type === 'CallExpression') {
       const callee = calleeOf(node.callee as Node);
       const args = node.arguments as Node[];
@@ -606,6 +718,7 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
           say(node, 'relative', value, undefined);
       }
     }
+    ancestors.push(node);
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
         for (const child of value) if (isNode(child)) visit(child);
@@ -613,6 +726,7 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
         visit(value);
       }
     }
+    ancestors.pop();
   };
   visit(program as unknown as Node);
   return found;

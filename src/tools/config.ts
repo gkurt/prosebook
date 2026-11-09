@@ -543,6 +543,9 @@ function checkedFormatters(table: unknown, formats: Formats, at: string): Format
 /** What only a catalog's messages read, which a config with `catalog: false` is refused for naming. */
 const CATALOG_ONLY = ['locales', 'out', 'messageFormat', 'native', 'pseudo', 'bundled', 'stale', 'extract', 'require'] as const;
 
+/** The attributes whose values a person reads, which `scan.attributes` defaults to. */
+export const READABLE_ATTRIBUTES = ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'];
+
 export function resolveConfig(root: string, config: ProsebookConfig): ResolvedConfig {
   const at = (path: string) => (isAbsolute(path) ? path : resolve(root, path));
   const lint = config.lint ?? {};
@@ -631,7 +634,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte', '.astro'],
-      attributes: config.scan?.attributes ?? ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'],
+      attributes: config.scan?.attributes ?? READABLE_ATTRIBUTES,
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),

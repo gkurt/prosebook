@@ -246,7 +246,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
   finds `toLocale*String` calls, `Intl` formatters, a `.format(n, 'day')` picking a relative time's unit
-  (`RELATIVE_UNIT`), a component's `.join(', ')`, and its `localeCompare` or `Intl.Collator` with no locale
+  (`RELATIVE_UNIT`), a component's `.join(', ')`, its numbers rounded as text or given a unit (`shownNumber`: `toFixed`,
+  `toPrecision`, a value before one of `UNITS` in a template, JSX or `+`, not in a style, an attribute no person reads, before a
+  CSS unit or turned back into a number), and its `localeCompare` or `Intl.Collator` with no locale
   (`noLocale`), past ids and ISO times (`isRawString`, by the name's last word), and names the
   copy's method to read, with a named format whose options resolve as the written ones do, and passes by a formatter
   only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of

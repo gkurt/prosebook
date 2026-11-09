@@ -258,6 +258,11 @@ copy.at(time, render); // runs render once the copy's clock reaches time; return
 
 Methods don't use `this`: `const { t, rich } = copy` works.
 
+Formatting from code is cheap enough for a value that changes every frame: each formatter is made once per locale and
+options, so `copy.number(fps, 'rate')` costs what `Intl.NumberFormat`'s `format` does, under a microsecond (about 0.4 µs in Bun
+on a laptop, against 16 ms a frame). A named format, or options kept in a constant, is found by the object itself; options
+written inline at the call, `{ maximumFractionDigits: 1 }`, are serialized each call to find it, about 0.2 µs more.
+
 ### Locales
 
 ```ts
@@ -1299,12 +1304,16 @@ JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a s
 
 It also finds numbers, dates, lists and relative times formatted in code, which show the browser's locale rather than the
 copy's: `toLocaleString()`, `toLocaleDateString()`, `new Intl.NumberFormat(…)` and the other `Intl` formatters, a relative
-time's unit picked in code (`rtf.format(-days, 'day')`), and in components `.join(', ')`, and text sorted in the environment's
+time's unit picked in code (`rtf.format(-days, 'day')`), and in components: `.join(', ')`, numbers rounded as text,
+`n.toFixed(1)` and `n.toPrecision(3)`, which ignore the locale (1.5 stays "1.5" in German), a value with a unit written after it,
+`{size} MB` or `` `${ms} ms` ``, which keeps English order and words, and text sorted in the environment's
 locale, `a.localeCompare(b)` and `new Intl.Collator()` with no locale given (`copy.compare` sorts in the copy's; ids and ISO times,
-`a.id`, `b.createdAt`, sort as raw strings and aren't reported). Each says what to read instead, naming the [format](#named-formats) its options match:
+`a.id`, `b.createdAt`, sort as raw strings and aren't reported). A rounded number in a style or an attribute no person reads,
+before a CSS unit (`${w.toFixed(1)}px`) or turned back into a number (`Number(n.toFixed(2))`) isn't reported either. Each says what to read instead, naming the [format](#named-formats) its options match:
 
 ```
 src/Usage.tsx:4:13 formatted in code: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }): read copy.number(…, 'price'), which shows it as the format the config names
+src/Metric.tsx:7:9 formatted in code: ms.toFixed(1): read copy.number(ms, { minimumFractionDigits: 1, maximumFractionDigits: 1, style: 'unit', unit: 'millisecond' }), or name them under formats.number and pass the name
 ```
 
 `scan` reports them; `scan --strict` fails on them, as on hardcoded text. A formatter only asked its options, as in
