@@ -1,3 +1,58 @@
+## prosebook@0.15.0
+
+### A list format can join with a separator: "Ann · Draft · 2 new commits"
+
+A list format's `separator` joins the items with it alone, in place of `Intl.ListFormat`'s commas and "and": `formats.list.facts:
+{ separator: ' · ' }`, set per locale under `formats.locales`, read by `{facts, list, facts}`, `{$facts :list format=facts}` and
+`copy.list(items, 'facts')`, or given in code as options. Every list now leaves out empty items, `null`, `undefined` and `false`,
+so `[author, draft && 'Draft']` needs no filtering; list arguments are typed to take them. The writing guide shows the format,
+and scan reports `.join(…)` in a component with any separator a person reads (`' · '`, `' / '`), naming the list format with that
+separator, not only `', '`.
+
+### A relative time read as a string stays current in every binding
+
+A component reading a message with `t` (or `rich`, or `relative`) now renders again when a relative time in it next reads
+differently, as `<Text>` did, and nothing else does: React and Preact render the component whose `useCopy()` read it, Vue, Solid
+and Svelte rerun only the template, effect or `computed` that read it. It shares the one timer `<Text>` uses, which now goes
+through the same reads. `live: true` is left for reads made straight from the copy, outside any binding.
+
+### A number format can climb a ladder of units: "512B", "1.5 kB", "1 MB"
+
+A named number format's `ladder` shows a number in the largest of its units it has one whole of: bytes by 1000 or by 1024
+(`per`), bits per second, or any series of `Intl` units, each with its own `per` (60 minutes to the hour) and options
+(`unitDisplay: 'narrow'` on bytes alone). `steps` read the number in its unit, so "tenths below 10" is one step, and the unit is
+checked after rounding: 999,999 bytes is "1 MB", not "1,000 kB". Messages and `copy.number` show it alike; the writing guide shows
+it in each of its first units and where rounding carries into the next; `.match` and native targets refuse it, as they do steps.
+
+### A format's `more`, `separator` and `now` are text or an entry
+
+**Breaking.** A list's `more` and a relative time's `now` no longer take an entry's key as a string: a string is now text, in the
+catalog's syntax (`now: 'just now'`, `more: '{count, plural, other {# more}}'`), set per locale under `formats.locales`, and
+`{ entry: 'time.now' }` names an entry, translated as any entry is. A config still naming a key fails as the catalog loads, with
+the fix. A list's `separator` takes the same two. A tag in what a format says, `separator: '<dot> · </dot>'` or
+`now: '<em>just now</em>'`, renders through the renderers a rich read or `<Text>` is given, as the message's own tags do, so a
+separator, "and 2 more" or "just now" can be an element; `t` and code read its text.
+
+### Scan finds numbers rounded or given a unit in code
+
+In components, `n.toFixed(1)`, `n.toPrecision(3)` and a value with a unit written after it (`{size} MB`, `` `${ms} ms` ``,
+`pct + '%'`) are reported as formatted in code: they ignore the locale and keep English order. Each names the `copy.number` call
+with the options it works out (`style: 'unit'`, the fraction digits), or the named format that shows the same. Styles, attributes
+no person reads, CSS units and `Number(n.toFixed(2))` are left alone. API.md says what formatting from code costs per call.
+
+### `copy.compare` sorts text in the copy's locale
+
+`copy.compare(a, b, options)` compares as the copy's current locale sorts, with `Intl.Collator`'s options (`numeric` puts "file9"
+before "file10", `sensitivity: 'base'`), and `copy.collator(options)` is the collator itself, made once per locale and options.
+Every binding's reader has both. Scan reports `localeCompare` and `new Intl.Collator()` given no locale in components, except
+on ids and ISO times (`a.id`, `b.createdAt`), which sort as raw strings. A format named by the same options object each call,
+as a named format is, now finds its formatter without serializing the options.
+
+### The writing guide shows what "now" and "more" say
+
+A relative format with a `now` entry is shown in WRITING.md as the entry reads, past and future where they differ ("just now / in
+a moment"), not "(time.now says now)"; a list format's `more` entry shows as it reads too ("Ann, Bob, and 2 more").
+
 ## prosebook@0.14.0
 
 ### `migrate` no longer reports a list with `more` as rendering differently
