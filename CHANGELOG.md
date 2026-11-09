@@ -1,3 +1,13 @@
+## prosebook@0.17.0
+
+### The writing guide stays as written when Bun and Node format its samples differently
+
+A guide whose format samples another runtime wrote is kept while the formats it shows are unchanged, so a build under Bun no longer rewrites the guide Node generated, and `generate --check` passes on it.
+
+### A build writes nothing
+
+Vite, Astro, Next, webpack, Rspack and Bun builds bundle the catalog as it reads, leave `src/copy/`, the writing guide, the schema and the lock as they are, and fail with the fix where a generated module is missing: commit `src/copy/`, or run `prosebook generate` before the build. Dev servers still generate on start and on every edit.
+
 ## prosebook@0.16.0
 
 ### The inspector's shortcut can be changed
