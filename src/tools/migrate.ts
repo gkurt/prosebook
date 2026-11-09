@@ -8,12 +8,10 @@ import { join } from 'node:path';
 
 import { isMap, parseDocument, Scalar } from 'yaml';
 
-import { createHelpers, flatten } from '#src/runtime/helpers.ts';
 import { relativeTime } from '#src/runtime/relative.ts';
-import type { CompiledMessages } from '#src/runtime/types.ts';
 
 import { loadCatalog } from './catalog.ts';
-import { compileLocale, localeExpression } from './compile.ts';
+import { renderer } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { argsOf, extensionOf, tagsOf, walk, type ExtensionElement, type MessageFormatElement } from './icu.ts';
 import { readMessage, writeMessage, type MessageFormatVersion } from './syntax.ts';
@@ -104,6 +102,8 @@ export function applyMigrate(config: ResolvedConfig, plan: MigratePlan): string[
 
 const NUMBERS = [0, 1, 2, 3, 5, 11, 21, 101, 1.5, 1234.5];
 const DATE = new Date(Date.UTC(2026, 0, 5, 14, 30, 15));
+/** The helpers' clock: relative times read at `DATE`. */
+const sampleClock = { relative: relativeTime, now: () => DATE.getTime() };
 
 function samplesOf(type: string): unknown[] {
   if (type === 'number') return NUMBERS;
@@ -137,17 +137,9 @@ function* samples(a: MessageFormatElement[], b: MessageFormatElement[]): Generat
   for (const [i, n] of names.entries()) for (const value of lists[i]!) yield { ...tags, ...base, [n]: value };
 }
 
-function renderer(ast: MessageFormatElement[], locale: string): (values: Record<string, unknown>) => string {
-  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- evaluating our own compiled message, as the bundle would
-  const messages = new Function(`return ${localeExpression(compileLocale([['m', ast]]))};`)() as CompiledMessages;
-  const message = messages.m!;
-  const h = createHelpers(locale, { relative: relativeTime, now: () => DATE.getTime() });
-  return (values) => (typeof message === 'string' ? message : flatten(message(values, h)).join(''));
-}
-
 function firstDifference(a: MessageFormatElement[], b: MessageFormatElement[], locale: string) {
-  const before = renderer(a, locale);
-  const after = renderer(b, locale);
+  const before = renderer(a, locale, sampleClock);
+  const after = renderer(b, locale, sampleClock);
   for (const values of samples(a, b)) {
     const x = before(values);
     const y = after(values);

@@ -282,6 +282,18 @@ describe('a relative format the config names', () => {
       '- `terse` (relative): 20s ago · 5m ago · 1d ago · 21d ago · in 2h',
     ]);
   });
+
+  test.each([
+    ['"{tense, select, future {in a moment} other {just now}}"', 'just now / in a moment'],
+    ['"just now"', 'just now'],
+    ['"{tense, select, past {a moment ago} other {now}}"', 'a moment ago / now'],
+  ])('the writing guide says now as its entry %s does: %s', (entry, said) => {
+    const { config, catalog } = project(entry);
+    const line = writingGuide(config, [], catalog.messages)
+      .split('\n')
+      .find((l) => l.startsWith('- `recent`'));
+    expect(line).toBe(`- \`recent\` (relative): ${said} · 5 minutes ago · yesterday · Oct 7, 2026 · in 2 hours`);
+  });
 });
 
 describe('what ships', () => {

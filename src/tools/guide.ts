@@ -20,6 +20,8 @@ import {
 import { shownItems } from '#src/runtime/helpers.ts';
 import { relativeText, type RelativeTools } from '#src/runtime/relative.ts';
 
+import type { Message } from './catalog.ts';
+import { renderer } from './compile.ts';
 import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
 import { addressIn, type Formality } from './presets.ts';
@@ -74,9 +76,21 @@ const MF2_FUNCTION: Record<string, string> = {
   relative: 'relative',
 };
 
-/** A list as a format shows it, the rest past `max` named by the entry that says it. */
-function sampleList(locale: string, o: ListFormatOptions): string {
-  const rest = o.more === undefined ? undefined : () => `… (${o.more} says the rest)`;
+/** An entry's source as it reads given `values`, or nothing where the catalog has no entry of that key. */
+type Say = (key: string, values: Record<string, unknown>) => string | undefined;
+
+function sayer(config: ResolvedConfig, messages: readonly Message[]): Say {
+  const byKey = new Map(messages.map((m) => [m.key, m]));
+  return (key, values) => {
+    const message = byKey.get(key);
+    return message === undefined ? undefined : renderer(message.ast, config.source)(values);
+  };
+}
+
+/** A list as a format shows it, the rest past `max` said by the entry `more` names. */
+function sampleList(locale: string, o: ListFormatOptions, say: Say): string {
+  const more = o.more;
+  const rest = more === undefined ? undefined : (count: number) => say(more, { count }) ?? `… (${more} says the rest)`;
   return new Intl.ListFormat(locale, o).format(shownItems(SAMPLE_ITEMS, o, rest));
 }
 
@@ -92,7 +106,7 @@ function sampleDurations(locale: string, o: DurationFormatOptions): string {
 }
 
 /** The sample times as a format shows them from the sample date, in UTC: "now · 5 minutes ago · yesterday · …". */
-function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions): string {
+function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions, say: Say): string {
   const locale = config.source;
   const tools: RelativeTools = {
     locale,
@@ -106,7 +120,16 @@ function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions): strin
     },
   };
   const now = SAMPLE_DATE.getTime();
-  const said = o.now === undefined ? undefined : () => `(${o.now} says now)`;
+  const entry = o.now;
+  // Now as the entry says it, ahead of time too where that reads otherwise: "just now / in a moment".
+  const said =
+    entry === undefined
+      ? undefined
+      : () => {
+          const [past, future] = (['past', 'future'] as const).map((tense) => say(entry, { tense }));
+          if (past === undefined) return `(${entry} says now)`;
+          return future === undefined || future === past ? past : `${past} / ${future}`;
+        };
   try {
     return SAMPLE_AGES.map((ago) => relativeText(now - ago, o, now, tools, said).text).join(SAMPLES);
   } catch (e) {
@@ -124,7 +147,7 @@ function sampleOwn(config: ResolvedConfig, kind: 'number' | 'date', name: string
 }
 
 /** The formats the config names, each with what it shows in the source, so a number or date is written in one of them. */
-function formatsSection(config: ResolvedConfig): string[] {
+function formatsSection(config: ResolvedConfig, say: Say): string[] {
   const { number = {}, date = {}, list: lists = {}, duration = {}, relative: relatives = {} } = config.formats;
   const rows = [
     ...Object.entries(number).map(([name, o]) => [
@@ -144,9 +167,9 @@ function formatsSection(config: ResolvedConfig): string[] {
         ? new Intl.DateTimeFormat(config.source, { timeZone: 'UTC', ...o }).format(SAMPLE_DATE)
         : sampleOwn(config, 'date', o.formatter, SAMPLE_DATE),
     ]),
-    ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o)]),
+    ...Object.entries(lists).map(([name, o]) => [name, 'list', sampleList(config.source, o, say)]),
     ...Object.entries(duration).map(([name, o]) => [name, 'duration', sampleDurations(config.source, o)]),
-    ...Object.entries(relatives).map(([name, o]) => [name, 'relative', sampleRelative(config, o)]),
+    ...Object.entries(relatives).map(([name, o]) => [name, 'relative', sampleRelative(config, o, say)]),
   ];
   if (rows.length === 0) return [];
   const [name, kind] = rows[0]!;
@@ -216,8 +239,11 @@ function toneSection(config: ResolvedConfig, translations: readonly string[]): s
   return out;
 }
 
-/** The guide, as Markdown, for a catalog translated into `translations` (none: the source alone). */
-export function writingGuide(config: ResolvedConfig, translations: readonly string[] = []): string {
+/**
+ * The guide, as Markdown, for a catalog translated into `translations` (none: the source alone), whose
+ * `messages` say the entries formats name (a list's `more`, a relative time's `now`) in its samples.
+ */
+export function writingGuide(config: ResolvedConfig, translations: readonly string[] = [], messages: readonly Message[] = []): string {
   const catalog = relative(config.root, config.catalog).replaceAll('\\', '/') || '.';
   const holds = `the message under ${code(config.source)}, in ${SYNTAX_NAME[config.messageFormat]}`;
   const context = config.require.includes('context')
@@ -250,7 +276,7 @@ export function writingGuide(config: ResolvedConfig, translations: readonly stri
     ...Object.entries(config.surfaces).map(([name, doc]) => `- ${code(name)}: ${doc}`),
   ];
 
-  out.push(...formatsSection(config));
+  out.push(...formatsSection(config, sayer(config, messages)));
 
   out.push(...toneSection(config, translations));
 

@@ -12,6 +12,9 @@
  */
 import { isDateElement, isNumberElement, isTimeElement } from '@formatjs/icu-messageformat-parser';
 
+import { createHelpers, flatten, type HelperOptions } from '#src/runtime/helpers.ts';
+import type { CompiledMessages } from '#src/runtime/types.ts';
+
 import {
   dateOptions,
   DURATION,
@@ -187,4 +190,17 @@ export function localeModule(compiled: CompiledLocale, banner: string, ts: boole
 /** The locale as one expression, for a bundler to inline in place of the module. */
 export function localeExpression(compiled: CompiledLocale): string {
   return `(() => {\n${compiled.declarations.join('\n')}\nreturn {\n${compiled.rows.join('\n')}\n};\n})()`;
+}
+
+/** A message compiled and run as the bundle would, as the text it says given `values`, for tools that show it. */
+export function renderer(
+  ast: MessageFormatElement[],
+  locale: string,
+  options?: HelperOptions,
+): (values?: Record<string, unknown>) => string {
+  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- evaluating our own compiled message, as the bundle would
+  const messages = new Function(`return ${localeExpression(compileLocale([['m', ast]]))};`)() as CompiledMessages;
+  const message = messages.m!;
+  const h = createHelpers(locale, options);
+  return (values = {}) => (typeof message === 'string' ? message : flatten(message(values, h)).join(''));
 }

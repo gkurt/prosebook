@@ -39,7 +39,7 @@ Before adding an entry, look for one that says it already: `prosebook find "Save
 
 A number, date, list, duration or relative time is shown in a format the config names, so it reads the same on every page: `{value, relative, recent}`. Name the one that fits rather than writing its options in the message; one the config lacks is added there.
 
-- `recent` (relative): (app.now says now) · 5 minutes ago · yesterday · 3 weeks ago · in 2 hours
+- `recent` (relative): just now / in a moment · 5 minutes ago · yesterday · 3 weeks ago · in 2 hours
 
 ## Guidelines
 

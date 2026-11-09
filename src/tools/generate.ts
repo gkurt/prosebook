@@ -345,7 +345,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
 
   for (const [path, content] of nativeFiles(config, catalog, locales, entries, head)) files.set(path, content);
   files.set(join(config.catalog, 'catalog.schema.json'), `${JSON.stringify(catalogSchema(config), null, 2)}\n`);
-  if (config.guide !== false) files.set(config.guide, writingGuide(config, catalog.locales));
+  if (config.guide !== false) files.set(config.guide, writingGuide(config, catalog.locales, catalog.messages));
   // Without its schema line a catalog file has no completion, so generate adds it and --check fails there.
   for (const file of yamlFiles(config.catalog)) {
     const path = join(config.catalog, file);
