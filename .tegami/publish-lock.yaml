@@ -1,48 +1,52 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Generated files tell linters and formatters to leave them alone\n\nThe modules `generate` writes open with `/* eslint-disable */` (ESLint, oxlint, `bun lint`), Biome's, Deno's and dprint's\nwhole-file ignores and `@generated`, and put `// prettier-ignore` before each statement for oxfmt, Prettier and `bun fmt`,\nwhich have no whole-file ignore for JavaScript. `WRITING.md` sits in a `prettier-ignore` range under `markdownlint-disable`;\nthe Rust target carries `rustfmt_skip`, Swift `swiftlint:disable all` and `swift-format-ignore-file`, Kotlin ktlint's\n`Suppress`. Ignoring `src/copy/` in your tools' config is still the surest way; `catalog.schema.json`, being JSON, needs it.\n"
-    filename: generated-files-unlinted.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `migrate` no longer reports a list with `more` as rendering differently\n\nA list's rest and a relative time's now, said by another entry, render the same in both syntaxes when `migrate` compares them.\n"
+    filename: migrate-keeps-entries.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The inspector is one gesture: Alt-click a string to edit it, in a leaner dialog\n\nThe dialog opens below the string, on its text in the locale read and the source beside a translation, with lint's findings and fixes; the rest of the entry sits under More, which stays open once opened; a click outside closes it, as Esc does. Open in editor, in the dialog, takes the place of Alt-click and Alt-Shift-click, and opens the file of the field last in focus. The YAML tab is gone, and with it `EntryYaml`: `editEntry(config, key, fields, write)` takes the fields alone, and `EntryView` no longer has `files` or `yaml`.\n"
-    filename: inspector-one-gesture.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Relative times: `{at, relative}` says \"5 minutes ago\" from the time itself\n\nA message takes a `Date`, milliseconds or ISO string as `{at, relative}` (MF2 `{$at :relative}`), and code says the same with\n`copy.relative(at, format)`, which replaces `copy.relative(value, unit)`. Named formats under `formats.relative` set the units,\nrounding, `Intl` options, an entry for \"just now\" and a switch to a named date format; formatters can define one in code. The\ncopy's `now` option is its clock, a server's render time held until hydration; `<Text>` in every binding re-renders itself when\nits time next reads differently, and `live: true` refreshes other reads by bumping `version`. The writing guide, scan, types,\npseudo-locale and native targets know it. The generated index imports it only where something says a relative time; the\nruntime's budget is now 4.5 KB.\n"
+    filename: relative-times.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The strict lint lets \"just now\" through\n\n`banned-word` still finds \"just\" saying something is easy, and passes \"just now\", which says when.\n"
+    filename: banned-word-just-now.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - generated-files-unlinted.md
-      - inspector-one-gesture.md
+      - migrate-keeps-entries.md
+      - relative-times.md
+      - banned-word-just-now.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-vue
+  - id: npm:example-next
     updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-next
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-rspack
-  - id: npm:example-solid
-  - id: npm:example-vite
-  - id: npm:example-bun
-  - id: npm:example-svelte
-  - id: npm:example-preact
-  - id: npm:example-tanstack-start
-  - id: npm:example-vue
-  - id: npm:example-node
   - id: npm:example-next
+  - id: npm:example-node
+  - id: npm:example-rspack
+  - id: npm:example-vite
+  - id: npm:example-vue
+  - id: npm:example-tanstack-start
+  - id: npm:example-svelte
+  - id: npm:example-solid
+  - id: npm:example-bun
+  - id: npm:example-preact

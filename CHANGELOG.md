@@ -1,3 +1,23 @@
+## prosebook@0.14.0
+
+### `migrate` no longer reports a list with `more` as rendering differently
+
+A list's rest and a relative time's now, said by another entry, render the same in both syntaxes when `migrate` compares them.
+
+### Relative times: `{at, relative}` says "5 minutes ago" from the time itself
+
+A message takes a `Date`, milliseconds or ISO string as `{at, relative}` (MF2 `{$at :relative}`), and code says the same with
+`copy.relative(at, format)`, which replaces `copy.relative(value, unit)`. Named formats under `formats.relative` set the units,
+rounding, `Intl` options, an entry for "just now" and a switch to a named date format; formatters can define one in code. The
+copy's `now` option is its clock, a server's render time held until hydration; `<Text>` in every binding re-renders itself when
+its time next reads differently, and `live: true` refreshes other reads by bumping `version`. The writing guide, scan, types,
+pseudo-locale and native targets know it. The generated index imports it only where something says a relative time; the
+runtime's budget is now 4.5 KB.
+
+### The strict lint lets "just now" through
+
+`banned-word` still finds "just" saying something is easy, and passes "just now", which says when.
+
 ## prosebook@0.13.3
 
 ### Generated files tell linters and formatters to leave them alone
