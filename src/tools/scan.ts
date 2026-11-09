@@ -591,6 +591,18 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
       found.push({ file, ...at, code: shown, fix: `${value}${given}), in the copy's locale` });
       return;
     }
+    const separator = (options as { separator?: string } | undefined)?.separator;
+    if (kind === 'list' && separator !== undefined) {
+      const named = Object.keys(formats.list ?? {})
+        .filter((name) => formatIn(formats, 'list', name, locale)?.separator === separator)
+        .map((name) => `copy.list(${value}, '${name}')`);
+      const fix =
+        named.length > 0
+          ? `${named.join(' or ')}, which leaves out empty items and joins the rest as the format the config names`
+          : `copy.list(${value}, { separator: '${separator}' }), or name a list format with this separator under formats.list, which a locale can set its own of, and pass the name`;
+      found.push({ file, ...at, code: shown, fix });
+      return;
+    }
     if (kind === 'relative') {
       // The unit is worked out in code, which the copy does from the time itself.
       const names = Object.keys(formats.relative ?? {}).map((name) => `copy.relative(at, '${name}')`);
@@ -625,6 +637,10 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
   // Formatters only asked their options, as `Intl.DateTimeFormat().resolvedOptions().timeZone` reads the
   // device's time zone: they format nothing a person reads.
   const asked = new Set<Node>();
+  const listed = (node: Node) => {
+    const items = listedNode(node);
+    return code.slice(items.start, items.end);
+  };
   // A number rounded or given a unit in code, in a component, found once: where text follows it, or alone.
   const rounded = new Set<Node>();
   const ancestors: Node[] = [];
@@ -711,7 +727,9 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
           if (![a, b].some((side) => isRawString(side!))) say(node, 'compare', `copy.compare(${a}, ${b}`, args[2]);
         }
         const joiner = args[0];
-        if (component && method === 'join' && joiner?.type === 'Literal' && joiner.value === ', ') say(node, 'list', value, undefined);
+        const joined = component && method === 'join' && joiner?.type === 'Literal' && typeof joiner.value === 'string';
+        if (joined && isSeparator(joiner.value as string) && !unread(node))
+          say(node, 'list', listed(member.object as Node), joiner.value === ', ' ? undefined : { separator: joiner.value as string });
         // `rtf.format(-3, 'day')`: a relative time's unit picked in code, from a formatter made elsewhere.
         const unit = args[1];
         if (method === 'format' && args.length === 2 && unit?.type === 'Literal' && RELATIVE_UNIT.test(String(unit.value)))
@@ -730,6 +748,30 @@ export function formattedInCode(file: string, code: string, formats: Formats = {
   };
   visit(program as unknown as Node);
   return found;
+}
+
+/**
+ * A text joining items a person reads: one with a mark in it and space around it, `', '` or `' · '`, or a mark alone
+ * that only separates (`'·'`). Not `','`, `'/'` or `'-'`, which build ids, paths and query strings, nor spaces alone.
+ */
+function isSeparator(text: string): boolean {
+  const mark = text.trim();
+  return mark !== '' && (mark !== text || /^[·•|–—]$/.test(mark));
+}
+
+/** What a list joins: `items` of `items.filter(Boolean)`, whose empty items `copy.list` leaves out itself. */
+function listedNode(node: Node): Node {
+  const callee = node.type === 'CallExpression' ? (node.callee as Node) : undefined;
+  if (callee?.type !== 'MemberExpression' || nameOf(callee.property as Node) !== 'filter') return node;
+  const [test] = node.arguments as Node[];
+  if (test?.type === 'Identifier' && test.name === 'Boolean') return callee.object as Node;
+  // `(x) => x` and `(x) => !!x`.
+  const [param] = test?.type === 'ArrowFunctionExpression' ? (test.params as Node[]) : [];
+  let body = test?.body as Node | undefined;
+  while (body?.type === 'UnaryExpression' && body.operator === '!' && (body.argument as Node).type === 'UnaryExpression')
+    body = (body.argument as Node).argument as Node;
+  const truthy = param?.type === 'Identifier' && body?.type === 'Identifier' && body.name === param.name;
+  return truthy ? (callee.object as Node) : node;
 }
 
 /** A locale argument left out, or given as `undefined` or `[]`: the environment's locale. */

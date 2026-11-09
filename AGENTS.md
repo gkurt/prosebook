@@ -79,7 +79,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
   locale, its own over its parents' over the default. The tools read messages through it, and the generated index
   ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list`, `copy.duration` and
-  `copy.relative` take names from (a relative format's units, rounding, `now` entry and `date`, read in `relative.ts`); `Register`'s `formats` names them for the types. Lists and durations have options of
+  `copy.relative` take names from (a relative format's units, rounding, `now` entry and `date`, read in `relative.ts`); `Register`'s `formats` names them for the types. A list's `separator` joins its items with that alone (`joinList`, `helpers.ts`), and
+  every list leaves out empty items, `null` and `false` (`shownItems`). Lists and durations have options of
   prosebook's own beside `Intl`'s: a list's `max` and `more` (the entry saying the rest, which `moreKeys`
   keeps in builds), a duration's `largest`, `smallest`, `units` and `fractionalDigits`, which `durationParts`
   reads, the fraction a unit of its own after the seconds (tenths of one, say), so `units` counts it; it
@@ -246,7 +247,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   written as escapes (`NBSP`, `NARROW_NBSP`), never as the characters, which no editor shows.
   `scan.ts`: hardcoded text, key references, `formattedInCode`, and `unseenReads`. `formattedInCode`
   finds `toLocale*String` calls, `Intl` formatters, a `.format(n, 'day')` picking a relative time's unit
-  (`RELATIVE_UNIT`), a component's `.join(', ')`, its numbers rounded as text or given a unit (`shownNumber`: `toFixed`,
+  (`RELATIVE_UNIT`), a component's items joined as text (`isSeparator`: `', '`, `' · '`, a mark with space around it; the
+  receiver of a `.filter(Boolean)` is what `copy.list` takes, `listedNode`), its numbers rounded as text or given a unit (`shownNumber`: `toFixed`,
   `toPrecision`, a value before one of `UNITS` in a template, JSX or `+`, not in a style, an attribute no person reads, before a
   CSS unit or turned back into a number), and its `localeCompare` or `Intl.Collator` with no locale
   (`noLocale`), past ids and ISO times (`isRawString`, by the name's last word), and names the

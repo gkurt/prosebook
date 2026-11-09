@@ -1,6 +1,6 @@
 import { durationParts, formatWith, stepOf, type DateFormatOptions, type Formatters, type ListFormatOptions } from './formats.ts';
 import type { RelativeTime, RelativeTools } from './relative.ts';
-import type { Arms, Helpers, Values } from './types.ts';
+import type { Arms, Helpers, ListItem, Values } from './types.ts';
 
 /** Formatters by options object, then by the options arguments gave, as JSON (`''` for none). */
 type Cache<F> = Map<object | undefined, Map<string, F>>;
@@ -59,7 +59,9 @@ export function createHelpers(
     },
     l(value, options, more) {
       return attempt(value, () =>
-        formatter(lists, options, undefined, (o) => new Intl.ListFormat(locale, o)).format(shownItems(value, options, more)),
+        joinList(shownItems(value, options, more), options, () =>
+          formatter(lists, options, undefined, (o) => new Intl.ListFormat(locale, o)),
+        ),
       );
     },
     u(value, options) {
@@ -135,13 +137,19 @@ export function dateFormat(locale: string, timeZone: string | undefined, options
   return new Intl.DateTimeFormat(locale, timeZone === undefined ? options : { timeZone, ...options });
 }
 
-/** A list's items as text, the first `max` of them and the `more` entry saying the rest. */
-export function shownItems(items: Iterable<unknown>, options?: ListFormatOptions, more?: (count: number) => unknown): string[] {
-  const all = Array.from(items, String);
+/** A list's items as text, empty ones left out, the first `max` of them and the `more` entry saying the rest. */
+export function shownItems(items: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown): string[] {
+  const all: string[] = [];
+  for (const item of items) if (item !== null && item !== undefined && item !== false && item !== '') all.push(String(item));
   const max = options?.max;
   if (max === undefined || all.length <= max) return all;
   const rest = all.length - max;
   return more === undefined ? all.slice(0, max) : [...all.slice(0, max), flatten(more(rest)).join('')];
+}
+
+/** Items joined by the format's `separator`, or by the locale's words for a list, from `format`. */
+export function joinList(items: string[], options: ListFormatOptions | undefined, format: () => Intl.ListFormat): string {
+  return options?.separator === undefined ? format().format(items) : items.join(options.separator);
 }
 
 function formatter<O extends object, F>(cache: Cache<F>, options: O | undefined, given: O | undefined, make: (o?: O) => F): F {

@@ -39,6 +39,7 @@ export type {
   DevHooks,
   HotHook,
   ListFormatName,
+  ListItem,
   MessageKey,
   MessageShape,
   MessageShapes,

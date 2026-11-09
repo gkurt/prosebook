@@ -57,6 +57,9 @@ export type RelativeFormatName = Register extends { formats: { relative: infer N
  * The helpers a compiled message calls, bound to the locale its words are in. Names are one letter
  * because they appear once per placeholder in every generated module.
  */
+/** An item of a list: an empty one, `null`, `undefined` or `false` included, is left out, so `draft && 'Draft'` reads. */
+export type ListItem = string | number | null | undefined | false;
+
 export interface Helpers {
   readonly locale: string;
   /**
@@ -70,7 +73,7 @@ export interface Helpers {
    * `{x, list, …}`: the items joined as the locale joins a list. A format with `max` shows that many,
    * and `more`, the entry its format names, rendered with the number of the rest as the last item.
    */
-  l(value: Iterable<string>, options?: ListFormatOptions, more?: (count: number) => unknown): string | undefined;
+  l(value: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown): string | undefined;
   /** `{x, duration, …}`: milliseconds, in the units the format shows, as `Intl.DurationFormat` writes them. */
   u(value: number, options?: DurationFormatOptions): string | undefined;
   /**

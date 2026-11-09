@@ -43,12 +43,76 @@ describe('lists', () => {
   test('a list is typed as strings, and a style no one knows is refused with the fix', () => {
     expect(argsOf(readMessage(1, '{names, list} for {took, duration}', 'en'))).toEqual(
       new Map([
-        ['names', 'readonly string[]'],
+        ['names', 'readonly (string | number | null | undefined | false)[]'],
         ['took', 'number'],
       ]),
     );
     expect(formatProblems(readMessage(1, '{names, list, oxford}', 'en'))).toEqual([
       '{names} asks for list style "oxford": conjunction, disjunction, unit, long, short, narrow, or a format formats.list names',
+    ]);
+  });
+});
+
+describe('a list format with a separator', () => {
+  const facts = {
+    list: { facts: { separator: ' · ' }, path: { separator: ' / ', max: 2, more: 'app.more' } },
+    locales: { ja: { list: { facts: { separator: '・' } } } },
+  } as const;
+  const said = (version: 1 | 2, text: string, locale: string, values: Record<string, unknown>) => {
+    const ast = readMessage(version, text, locale, { formats: facts, isolate: false });
+    const { m } = compiled([['m', ast]]);
+    return typeof m === 'string' ? m : flatten(m!(values, createHelpers(locale))).join('');
+  };
+
+  test.each([
+    // [items, locale, what the line says]
+    [['Ann', 'Draft', '2 new commits'], 'en', 'Ann · Draft · 2 new commits'],
+    [['Ann', false, null, undefined, '', '2 new commits'], 'en', 'Ann · 2 new commits'],
+    [['Critical', 'Triggered'], 'de', 'Critical · Triggered'],
+    [['重大', 'トリガー済み'], 'ja', '重大・トリガー済み'],
+    [['Ann'], 'en', 'Ann'],
+    [[], 'en', ''],
+    [[false, null], 'en', ''],
+    [[3, 'files'], 'en', '3 · files'],
+  ])('%p in %s says %p, in a message and in code, in either syntax', (items, locale, line) => {
+    expect(said(1, '{items, list, facts}', locale, { items })).toBe(line);
+    expect(said(2, '{$items :list format=facts}', locale, { items })).toBe(line);
+    const copy = createCopy(
+      defineCatalog({ source: 'en', locales: ['en', 'de', 'ja'], messages: { en: {}, de: {}, ja: {} }, loaders: {}, formats: facts }),
+      {
+        locale,
+      },
+    );
+    return copy.ready.then(() => {
+      expect(copy.list(items as never, 'facts' as never)).toBe(line);
+      // Options in code, as a format's.
+      expect(copy.list(items as never, { separator: locale === 'ja' ? '・' : ' · ' })).toBe(line);
+    });
+  });
+
+  test('every list leaves out empty items, a separator or not', () => {
+    expect(said(1, '{items, list}', 'en', { items: ['Ann', '', null, 'Bob'] })).toBe('Ann and Bob');
+  });
+
+  test.each([
+    [{ separator: '' }, "formats.list.f.separator is the text between every two items: separator: ' · '"],
+    [{ separator: 3 }, "formats.list.f.separator is the text between every two items: separator: ' · '"],
+    [
+      { separator: ' · ', type: 'unit' },
+      "formats.list.f.separator joins the items itself, so type and style, which pick the locale's words, say nothing: remove them",
+    ],
+  ])('%p is refused: %p', (options, message) => {
+    expect(() => fixture({}, { formats: { list: { f: options } } as never })).toThrow(message);
+  });
+
+  test('the writing guide shows it', () => {
+    const config = fixture({ 'copy/catalog/app.yaml': 'app.more: "{count, plural, other {# more}}"\n' }, { require: [], formats: facts });
+    const lines = writingGuide(config, [], loadCatalog(config).messages)
+      .split('\n')
+      .filter((l) => l.includes('(list)'));
+    expect(lines).toEqual([
+      '- `facts` (list): Ann · Bob · Cy · Dee, an empty item left out',
+      '- `path` (list): Ann / Bob / 2 more, an empty item left out',
     ]);
   });
 });

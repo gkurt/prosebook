@@ -12,7 +12,7 @@ import {
   type NumberFormatOptions,
   type RelativeFormatOptions,
 } from './formats.ts';
-import { createHelpers, dateFormat, flatten, NO_RELATIVE, shownItems } from './helpers.ts';
+import { createHelpers, dateFormat, flatten, joinList, NO_RELATIVE, shownItems } from './helpers.ts';
 import { chainOf, dirOf, negotiate } from './locale.ts';
 import type { RelativeTime } from './relative.ts';
 import type {
@@ -31,6 +31,7 @@ import type {
   RegisteredLocale,
   RelativeFormatName,
   RegisteredMessages,
+  ListItem,
   RichKey,
   RichParam,
   Values,
@@ -211,7 +212,7 @@ export interface Copy<M extends MessageShapes = MessageShapes, L extends string 
    * Joins items as a list in the current locale, `a, b and c`, with `Intl` options or a format the config
    * names (`formats.list`), whose `max` shows that many and says the rest with the entry its `more` names.
    */
-  list(this: void, items: Iterable<string>, format?: OrName<ListFormatOptions, ListFormatName>): string;
+  list(this: void, items: Iterable<ListItem>, format?: OrName<ListFormatOptions, ListFormatName>): string;
   /** Milliseconds as a duration in the current locale, `3 min, 5 sec`, with options or a format the config names (`formats.duration`). */
   duration(this: void, ms: number, format?: OrName<DurationFormatOptions, DurationFormatName>): string;
   /**
@@ -520,7 +521,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       const opts = typeof format === 'string' ? named('list', format) : format;
       const more = opts?.more;
       const rest = more === undefined ? undefined : (count: number) => render(more, { count });
-      return formatter('l', opts, () => new Intl.ListFormat(locale, opts)).format(shownItems(items, opts, rest));
+      return joinList(shownItems(items, opts, rest), opts, () => formatter('l', opts, () => new Intl.ListFormat(locale, opts)));
     },
     duration(ms, format) {
       const opts = typeof format === 'string' ? named('duration', format) : format;

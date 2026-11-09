@@ -713,7 +713,7 @@ const FORMAT_OPTIONS = {
   },
   list: {
     intl: 'Intl.ListFormat',
-    options: ['type', 'style', 'max', 'more'],
+    options: ['type', 'style', 'max', 'more', 'separator'],
     builtIn: ['conjunction', 'disjunction', 'unit', 'long', 'short', 'narrow'],
   },
   duration: {
@@ -737,6 +737,11 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
     const { max, more } = value;
     if (max !== undefined && !whole(max)) return 'max is a whole number of items, 1 or more';
     if (more !== undefined && typeof more !== 'string') return 'more is the key of the entry saying the rest: more: common.more';
+    const { separator, type, style } = value;
+    if (separator !== undefined && (typeof separator !== 'string' || separator === ''))
+      return "separator is the text between every two items: separator: ' · '";
+    if (separator !== undefined && (type !== undefined || style !== undefined))
+      return "separator joins the items itself, so type and style, which pick the locale's words, say nothing: remove them";
     if ((max === undefined) !== (more === undefined))
       return 'max and more go together: the first max items, and the entry more names for the rest, given {count}';
   }

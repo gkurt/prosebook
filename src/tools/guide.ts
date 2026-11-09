@@ -17,7 +17,7 @@ import {
   type ListFormatOptions,
   type RelativeFormatOptions,
 } from '#src/runtime/formats.ts';
-import { shownItems } from '#src/runtime/helpers.ts';
+import { joinList, shownItems } from '#src/runtime/helpers.ts';
 import { relativeText, type RelativeTools } from '#src/runtime/relative.ts';
 
 import type { Message } from './catalog.ts';
@@ -91,7 +91,9 @@ function sayer(config: ResolvedConfig, messages: readonly Message[]): Say {
 function sampleList(locale: string, o: ListFormatOptions, say: Say): string {
   const more = o.more;
   const rest = more === undefined ? undefined : (count: number) => say(more, { count }) ?? `… (${more} says the rest)`;
-  return new Intl.ListFormat(locale, o).format(shownItems(SAMPLE_ITEMS, o, rest));
+  const shown = joinList(shownItems(SAMPLE_ITEMS, o, rest), o, () => new Intl.ListFormat(locale, o));
+  // A line of facts, whose optional ones the code leaves empty.
+  return o.separator === undefined ? shown : `${shown}, an empty item left out`;
 }
 
 /** The sample durations as a format shows them: "850ms · 4.2s · 3m 5s · 1h 2m". */

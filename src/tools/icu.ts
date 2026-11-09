@@ -346,9 +346,12 @@ export const openType = (type: string) => withNullish(`${baseOf(type)}${OPEN}`, 
  * A `select` narrows to the arms it names, and still takes any string, since `other` catches the rest;
  * one whose arms are `true` and `false` takes a boolean.
  */
+/** An item of a list placeholder: `ListItem`, written out, as the generated types import nothing for it. */
+const LIST_ITEM = '(string | number | null | undefined | false)';
+
 function argType(el: MessageFormatElement): string | undefined {
   const own = extensionOf(el);
-  if (own !== undefined) return own.type === LIST ? 'readonly string[]' : own.type === RELATIVE ? 'Date | number | string' : 'number';
+  if (own !== undefined) return own.type === LIST ? `readonly ${LIST_ITEM}[]` : own.type === RELATIVE ? 'Date | number | string' : 'number';
   switch (el.type) {
     case TYPE.argument:
       return 'string';

@@ -112,6 +112,42 @@ export const Row = ({ n, when, names, rows }) => (
 });
 
 test.each([
+  // [the join, as a JSX child; what it is found as, or nothing]
+  [
+    "{[author, draft && 'Draft', commits].filter(Boolean).join(' · ')}",
+    "[author, draft && 'Draft', commits].filter(Boolean).join(' · '): copy.list([author, draft && 'Draft', commits], 'facts'), which leaves out empty items and joins the rest as the format the config names",
+  ],
+  [
+    "{parts.filter((p) => !!p).join(' · ')}",
+    "parts.filter((p) => !!p).join(' · '): copy.list(parts, 'facts'), which leaves out empty items and joins the rest as the format the config names",
+  ],
+  [
+    "{parts.filter((p) => p.length > 2).join(' · ')}",
+    "parts.filter((p) => p.length > 2).join(' · '): copy.list(parts.filter((p) => p.length > 2), 'facts'), which leaves out empty items and joins the rest as the format the config names",
+  ],
+  [
+    "{crumbs.join(' / ')}",
+    "crumbs.join(' / '): copy.list(crumbs, { separator: ' / ' }), or name a list format with this separator under formats.list, which a locale can set its own of, and pass the name",
+  ],
+  [
+    "{parts.join('•')}",
+    "parts.join('•'): copy.list(parts, { separator: '•' }), or name a list format with this separator under formats.list, which a locale can set its own of, and pass the name",
+  ],
+  ["{names.join(', ')}", "names.join(', '): copy.list(names), in the copy's locale"],
+  // Ids, paths, query strings, classes and lines are built, not read as a list.
+  ["{ids.join(',')}", undefined],
+  ["{segments.join('/')}", undefined],
+  ["{words.join(' ')}", undefined],
+  ["{lines.join('\\n')}", undefined],
+  ["{chars.join('')}", undefined],
+  ["<div className={classes.join(' · ')} />", undefined],
+])('a list joined in a component, %s, is found: %p', (shown, said) => {
+  const formats = { list: { facts: { separator: ' · ' } } } as const;
+  const code = `export const Line = ({ author, draft, commits, parts, crumbs, names, ids, segments, words, lines, chars, classes }) => <p>${shown}</p>;`;
+  expect(formattedInCode('Line.tsx', code, formats).map((f) => `${f.code}: ${f.fix}`)).toEqual(said === undefined ? [] : [said]);
+});
+
+test.each([
   ['names.sort((a, b) => a.localeCompare(b))', "a.localeCompare(b): copy.compare(a, b), in the copy's locale"],
   [
     'repos.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))',

@@ -5,8 +5,17 @@
  * everywhere.
  */
 
-/** A list as `Intl.ListFormat` joins it, and with `max`, its first items and the entry `more` names for the rest. */
+/**
+ * A list as `Intl.ListFormat` joins it, or with `separator`, each item after the one before it, and with `max`, its first
+ * items and the entry `more` names for the rest. An empty item, `null`, `undefined` or `false`, is left out, so an
+ * optional one needs no filtering: `[author, draft && 'Draft']`.
+ */
 export interface ListFormatOptions extends Intl.ListFormatOptions {
+  /**
+   * What goes between every two items, in place of the locale's commas and "and": `' · '` writes a line of facts,
+   * "Ann · Draft · 2 new commits". Set it per locale under `formats.locales`. A named format's, or options in code.
+   */
+  readonly separator?: string;
   /** The most items shown; the rest are counted by the `more` entry, as a last item: "a, b, and 3 more". */
   readonly max?: number;
   /** The key of the entry that says the rest, given their number as `{count}`. A named format's only. */
