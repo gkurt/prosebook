@@ -33,7 +33,7 @@ export interface MigratePlan {
 }
 
 /**
- * The entries a list's rest and a relative time's now are said by, which the catalog attaches as it
+ * What a list's rest and separator and a relative time's now say, which the catalog attaches as it
  * loads, carried to the message read back, by its placeholder, so both render alike.
  */
 function carryEntries(from: MessageFormatElement[], to: MessageFormatElement[]): void {
@@ -48,6 +48,7 @@ function carryEntries(from: MessageFormatElement[], to: MessageFormatElement[]):
     if (own === undefined || was === undefined) return;
     if (was.more !== undefined) own.more = was.more;
     if (was.now !== undefined) own.now = was.now;
+    if (was.separator !== undefined) own.separator = was.separator;
   });
 }
 

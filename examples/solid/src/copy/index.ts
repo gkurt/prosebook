@@ -174,7 +174,7 @@ export const catalog = defineCatalog<Messages, Locale>({
   locales: ["en", "de", "tr", "en-XA"],
   messages: { en: m_en },
   loaders: { de: () => import('./de.js'), tr: () => import('./tr.js'), "en-XA": () => import('./en-XA.js') },
-  formats: {"relative":{"recent":{"now":"app.now"}}},
+  formats: {"relative":{"recent":{"now":{"entry":"app.now"}}}},
   relative: relativeTime,
 });
 

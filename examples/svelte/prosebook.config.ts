@@ -7,6 +7,6 @@ export default {
   source: 'en',
   pseudo: 'en-XA',
   // "Saved just now.", "Saved 5 minutes ago.": a time under a minute reads as app.now.
-  formats: { relative: { recent: { now: 'app.now' } } },
+  formats: { relative: { recent: { now: { entry: 'app.now' } } } },
   lint: { extends: 'strict', properNouns: ['Corner', 'Shop'] },
 } satisfies ProsebookConfig;

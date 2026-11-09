@@ -6,6 +6,7 @@
  */
 import { volume } from './browser/fs.ts';
 import { RUNTIME, type Catalog as RuntimeCatalog } from './runtime/copy.ts';
+import type { Formats } from './runtime/formats.ts';
 import { numberLadder } from './runtime/ladder.ts';
 import { relativeTime } from './runtime/relative.ts';
 import type { CompiledMessages } from './runtime/types.ts';
@@ -13,7 +14,7 @@ import { CatalogError, loadCatalog, type Message, type Problem } from './tools/c
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { resolveConfig, type ProsebookConfig } from './tools/config.ts';
 import { applyFixes } from './tools/entry.ts';
-import { render, runtimeParts } from './tools/generate.ts';
+import { formatsCode, render, runtimeParts } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 
 export type { Finding, Message, Problem, ProsebookConfig };
@@ -69,13 +70,15 @@ export function play(files: Files, config: ProsebookConfig = {}): Played {
     generated.catalog.problems.push(...problems);
   }
   const locales = [...generated.entries.keys()];
+  const formats = formatsCode(resolved);
   const catalog: RuntimeCatalog = {
     runtime: RUNTIME,
     source: resolved.source,
     locales,
     messages: Object.fromEntries([...generated.entries].map(([locale, entries]) => [locale, evaluate(entries)])),
     loaders: {},
-    ...(Object.keys(resolved.formats).length > 0 && { formats: resolved.formats }),
+    // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- the formats as the generated index ships them, each text compiled
+    ...(formats !== undefined && { formats: new Function(`return ${formats};`)() as Formats }),
     ...Object.fromEntries(runtimeParts(resolved, generated.catalog).map((p) => [p.field, PARTS[p.name]])),
   };
   return {

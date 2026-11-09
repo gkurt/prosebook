@@ -19,10 +19,12 @@ export function pseudoText(text: string): string {
 function transform(elements: MessageFormatElement[]): MessageFormatElement[] {
   return elements.map((el) => {
     if (el.type === TYPE.literal) return { ...el, value: pseudoText(el.value) };
-    // The entry a list's rest or a relative time's now is said by, which the compiler writes in here.
+    // What a list's rest and separator or a relative time's now say, which the compiler writes in here.
     const own = extensionOf(el);
-    if (own?.more !== undefined || own?.now !== undefined)
-      return asElement({ ...own, ...(own.more && { more: transform(own.more) }), ...(own.now && { now: transform(own.now) }) });
+    if (own?.more !== undefined || own?.now !== undefined || own?.separator !== undefined) {
+      const said = (['more', 'separator', 'now'] as const).flatMap((k) => (own[k] === undefined ? [] : [[k, transform(own[k])]]));
+      return asElement({ ...own, ...Object.fromEntries(said) });
+    }
     if (el.type === TYPE.tag) return { ...el, children: transform(el.children) };
     if (el.type === TYPE.select || el.type === TYPE.plural) {
       const options = Object.fromEntries(Object.entries(el.options).map(([arm, o]) => [arm, { ...o, value: transform(o.value) }]));

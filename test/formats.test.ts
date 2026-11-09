@@ -462,9 +462,9 @@ describe('the formats in the config', () => {
     expect(refused({ date: { '2fa': {} } })).toThrow("formats.date.2fa: a format's name is a letter, then letters, digits, _ and -");
     expect(refused({ time: {} } as never)).toThrow('formats.time is not a kind of format: number, date, list, duration');
     expect(refused({ list: { tools: { max: 3 } } })).toThrow(
-      'formats.list.tools.max and more go together: the first max items, and the entry more names for the rest, given {count}',
+      'formats.list.tools.max and more go together: the first max items, and more saying the rest, given {count}',
     );
-    expect(refused({ list: { tools: { max: 0, more: 'app.more' } } })).toThrow(
+    expect(refused({ list: { tools: { max: 0, more: { entry: 'app.more' } } } })).toThrow(
       'formats.list.tools.max is a whole number of items, 1 or more',
     );
     expect(refused({ list: { tools: { type: 'and' as never } } })).toThrow('formats.list.tools is refused by Intl.ListFormat:');

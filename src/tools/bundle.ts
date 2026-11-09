@@ -16,7 +16,7 @@ import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
-import { catalogLiteral, runtimeParts, type Generated } from './generate.ts';
+import { catalogLiteral, formatsCode, runtimeParts, type Generated } from './generate.ts';
 import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type KeyRefs, type Reads, type UnseenRead } from './scan.ts';
 
 /** How a build prunes: `strict` also fails on a read whose key it can't see. */
@@ -262,11 +262,15 @@ const generatedPath = (config: ResolvedConfig, name: string) =>
 export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: string[], where = VIRTUAL): string {
   const locales = [...generated.entries.keys()];
   const split = { id: splitId(config), areas: [...areasOf(generated)] };
-  const formats = Object.keys(config.formats).length > 0 && { formats: config.formats };
-  const literal = JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split, ...formats });
+  const literal = JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split });
   const formatters = config.formatters?.file;
   const parts = runtimeParts(config, generated.catalog);
-  const own = [...(formatters === undefined ? [] : ['formatters']), ...parts.map((p) => `${p.field}: ${p.name}`)];
+  const formats = formatsCode(config);
+  const own = [
+    ...(formats === undefined ? [] : [`formats: ${formats}`]),
+    ...(formatters === undefined ? [] : ['formatters']),
+    ...parts.map((p) => `${p.field}: ${p.name}`),
+  ];
   return [
     `import { ${['defineCatalog', ...parts.map((p) => p.name)].join(', ')} } from 'prosebook';`,
     ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),

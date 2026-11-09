@@ -15,6 +15,7 @@ import {
   type DurationFormatOptions,
   type NumberFormatOptions,
   type ListFormatOptions,
+  type Said,
   type RelativeFormatOptions,
 } from '#src/runtime/formats.ts';
 import { joinList, shownItems } from '#src/runtime/helpers.ts';
@@ -26,7 +27,7 @@ import { renderer } from './compile.ts';
 import type { ResolvedConfig, Severity } from './config.ts';
 import { isGuideline, languageName, severityIn, type CheckRule } from './lint.ts';
 import { addressIn, type Formality } from './presets.ts';
-import { SYNTAX_NAME } from './syntax.ts';
+import { readMessage, SYNTAX_NAME } from './syntax.ts';
 
 const code = (s: string) => `\`${s}\``;
 // Not Intl.ListFormat, whose English has the serial comma this prose doesn't.
@@ -92,22 +93,31 @@ const MF2_FUNCTION: Record<string, string> = {
   relative: 'relative',
 };
 
-/** An entry's source as it reads given `values`, or nothing where the catalog has no entry of that key. */
-type Say = (key: string, values: Record<string, unknown>) => string | undefined;
+/** What a format says itself, in the source, given `values`: its text, or its entry's. Nothing where it can't be read. */
+type Say = (said: Said, values: Record<string, unknown>) => string | undefined;
 
 function sayer(config: ResolvedConfig, messages: readonly Message[]): Say {
   const byKey = new Map(messages.map((m) => [m.key, m]));
-  return (key, values) => {
-    const message = byKey.get(key);
-    return message === undefined ? undefined : renderer(message.ast, config.source)(values);
+  return (said, values) => {
+    try {
+      const ast = typeof said === 'string' ? readMessage(config.messageFormat, said, config.source, config) : byKey.get(said.entry)?.ast;
+      return ast === undefined ? undefined : renderer(ast, config.source)(values);
+    } catch {
+      // The catalog's load says what is wrong with it.
+      return undefined;
+    }
   };
 }
 
-/** A list as a format shows it, the rest past `max` said by the entry `more` names. */
+/** What a format says itself, by name where it can't be shown: `common.more`. */
+const nameOf = (said: Said) => (typeof said === 'string' ? JSON.stringify(said) : said.entry);
+
+/** A list as a format shows it, between its items what its `separator` says, and the rest past `max` what its `more` does. */
 function sampleList(locale: string, o: ListFormatOptions, say: Say): string {
-  const more = o.more;
-  const rest = more === undefined ? undefined : (count: number) => say(more, { count }) ?? `… (${more} says the rest)`;
-  const shown = joinList(shownItems(SAMPLE_ITEMS, o, rest), o, () => new Intl.ListFormat(locale, o));
+  const { more, separator } = o;
+  const rest = more === undefined ? undefined : (count: number) => say(more, { count }) ?? `… (${nameOf(more)} says the rest)`;
+  const between = separator === undefined ? undefined : (say(separator, {}) ?? ` (${nameOf(separator)}) `);
+  const shown = String(joinList(shownItems(SAMPLE_ITEMS, o, rest), between, () => new Intl.ListFormat(locale, o)));
   // A line of facts, whose optional ones the code leaves empty.
   return o.separator === undefined ? shown : `${shown}, an empty item left out`;
 }
@@ -145,7 +155,7 @@ function sampleRelative(config: ResolvedConfig, o: RelativeFormatOptions, say: S
       ? undefined
       : () => {
           const [past, future] = (['past', 'future'] as const).map((tense) => say(entry, { tense }));
-          if (past === undefined) return `(${entry} says now)`;
+          if (past === undefined) return `(${nameOf(entry)} says now)`;
           return future === undefined || future === past ? past : `${past} / ${future}`;
         };
   try {

@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import { createCopy, createHelpers, defineCatalog, flatten } from 'prosebook';
+import { createCopy, createHelpers, defineCatalog, flatten, type Formats } from 'prosebook';
 import { generate, loadCatalog, readMessage, writeMessage, type ProsebookConfig } from 'prosebook/tools';
 
 import { durationParts } from '#src/runtime/formats.ts';
 import type { Entry } from '#src/tools/compile.ts';
+import { formatsCode } from '#src/tools/generate.ts';
 import { writingGuide } from '#src/tools/guide.ts';
 import { argsOf, formatProblems } from '#src/tools/icu.ts';
 import { cli, compiled, fixture } from './fixture.ts';
@@ -55,13 +56,42 @@ describe('lists', () => {
 
 describe('a list format with a separator', () => {
   const facts = {
-    list: { facts: { separator: ' · ' }, path: { separator: ' / ', max: 2, more: 'app.more' } },
+    list: {
+      facts: { separator: ' · ' },
+      path: { separator: ' / ', max: 2, more: '{count, plural, other {# more}}' },
+      dotted: { separator: { entry: 'app.dot' } },
+      tagged: { separator: '<dot> · </dot>', max: 1, more: { entry: 'app.more' } },
+    },
     locales: { ja: { list: { facts: { separator: '・' } } } },
   } as const;
-  const said = (version: 1 | 2, text: string, locale: string, values: Record<string, unknown>) => {
-    const ast = readMessage(version, text, locale, { formats: facts, isolate: false });
-    const { m } = compiled([['m', ast]]);
-    return typeof m === 'string' ? m : flatten(m!(values, createHelpers(locale))).join('');
+  const CATALOG = {
+    'copy/catalog/app.yaml': [
+      'app.facts: "{items, list, facts}"',
+      'app.path: "{items, list, path}"',
+      'app.dotted: "{items, list, dotted}"',
+      'app.tagged: "{items, list, tagged}"',
+      'app.plain: "{items, list}"',
+      'app.dot: " • "',
+      'app.more: "<more>{count, plural, other {# more}}</more>"',
+      '',
+    ].join('\n'),
+    // A format's own text in a locale is said where a message is read in it: here, translated.
+    'copy/locales/de.yaml': 'app.dot: " – "\napp.dotted: "{items, list, dotted}"\n',
+    'copy/locales/ja.yaml': 'app.facts: "{items, list, facts}"\n',
+  };
+  /** A copy over `files` as generate ships it, each text a format says compiled, in `version`'s syntax. */
+  const shipped = (files: Record<string, string> = CATALOG, version: 1 | 2 = 1, formats: object = facts) => {
+    const config = fixture(files, { require: [], formats: formats, messageFormat: version });
+    const catalog = loadCatalog(config);
+    const entries = (locale: string): Entry[] =>
+      catalog.messages.flatMap((m): Entry[] => {
+        const ast = locale === 'en' ? m.ast : m.translations.get(locale)?.ast;
+        return ast === undefined ? [] : [[m.key, ast]];
+      });
+    // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- the formats as the generated index ships them
+    const shippedFormats = new Function(`return ${formatsCode(config)!};`)() as Formats;
+    const messages = { en: compiled(entries('en')), de: compiled(entries('de')), ja: compiled(entries('ja')) };
+    return createCopy(defineCatalog({ source: 'en', locales: ['en', 'de', 'ja'], messages, loaders: {}, formats: shippedFormats }));
   };
 
   test.each([
@@ -74,29 +104,67 @@ describe('a list format with a separator', () => {
     [[], 'en', ''],
     [[false, null], 'en', ''],
     [[3, 'files'], 'en', '3 · files'],
-  ])('%p in %s says %p, in a message and in code, in either syntax', (items, locale, line) => {
-    expect(said(1, '{items, list, facts}', locale, { items })).toBe(line);
-    expect(said(2, '{$items :list format=facts}', locale, { items })).toBe(line);
-    const copy = createCopy(
-      defineCatalog({ source: 'en', locales: ['en', 'de', 'ja'], messages: { en: {}, de: {}, ja: {} }, loaders: {}, formats: facts }),
-      {
-        locale,
-      },
-    );
-    return copy.ready.then(() => {
+  ])('%p in %s says %p, in a message in either syntax and in code', async (items, locale, line) => {
+    const mf2 = {
+      'copy/catalog/app.yaml': 'app.facts: "{$items :list format=facts}"\n',
+      'copy/locales/ja.yaml': 'app.facts: "{$items :list format=facts}"\n',
+    };
+    // MF2's formats say their text in MF2: the separators alone, which read the same in either.
+    const separators = { list: { facts: facts.list.facts }, locales: facts.locales };
+    for (const copy of [shipped(), shipped(mf2, 2, separators)]) {
+      await copy.setLocale(locale);
+      expect(copy.t('app.facts' as never, { items })).toBe(line);
       expect(copy.list(items as never, 'facts' as never)).toBe(line);
-      // Options in code, as a format's.
-      expect(copy.list(items as never, { separator: locale === 'ja' ? '・' : ' · ' })).toBe(line);
-    });
-  });
-
-  test('every list leaves out empty items, a separator or not', () => {
-    expect(said(1, '{items, list}', 'en', { items: ['Ann', '', null, 'Bob'] })).toBe('Ann and Bob');
+    }
   });
 
   test.each([
-    [{ separator: '' }, "formats.list.f.separator is the text between every two items: separator: ' · '"],
-    [{ separator: 3 }, "formats.list.f.separator is the text between every two items: separator: ' · '"],
+    // [format, locale, items, what the line says]
+    ['path', 'en', ['a', 'b', 'c', 'd'], 'a / b / 2 more'],
+    ['dotted', 'en', ['a', 'b'], 'a • b'],
+    // An entry is translated as any is.
+    ['dotted', 'de', ['a', 'b'], 'a – b'],
+    ['plain', 'en', ['Ann', '', null, 'Bob'], 'Ann and Bob'],
+    // Read as text, tags say what they wrap.
+    ['tagged', 'en', ['a', 'b', 'c'], 'a · 2 more'],
+  ])('%s in %s says %p as %p: text or an entry', async (format, locale, items, line) => {
+    const copy = shipped();
+    await copy.setLocale(locale);
+    expect(copy.t(`app.${format}` as never, { items })).toBe(line);
+    if (format !== 'plain') expect(copy.list(items as never, format as never)).toBe(line);
+  });
+
+  test('a rich read renders the tags in what a format says, through the renderers it is given', () => {
+    const copy = shipped();
+    const parts = copy.rich(
+      'app.tagged' as never,
+      {
+        items: ['a', 'b', 'c'],
+        dot: (chunks: string[]) => ({ dot: chunks.join('') }),
+        more: (chunks: string[]) => ({ more: chunks.join('') }),
+      } as never,
+    );
+    expect(parts).toEqual(['a', { dot: ' · ' }, { more: '2 more' }]);
+  });
+
+  test('code given options says them as plain text', () => {
+    expect(shipped().list(['a', 'b'], { separator: ' | ' })).toBe('a | b');
+  });
+
+  test.each([
+    [
+      { separator: '' },
+      "formats.list.f.separator is text, in the catalog's syntax, or the entry that says it: separator: ' · ', or separator: { entry: 'common.separator' }",
+    ],
+    [{ separator: 3 }, "formats.list.f.separator is text, in the catalog's syntax, or the entry that says it"],
+    [
+      { separator: { entry: 'app.dot', text: ' · ' } },
+      "formats.list.f.separator is text, in the catalog's syntax, or the entry that says it",
+    ],
+    [
+      { max: 2, more: { key: 'app.more' } },
+      "formats.list.f.more is text, in the catalog's syntax, or the entry that says it: more: '{count, plural, other {# more}}', or more: { entry: 'common.more' }",
+    ],
     [
       { separator: ' · ', type: 'unit' },
       "formats.list.f.separator joins the items itself, so type and style, which pick the locale's words, say nothing: remove them",
@@ -105,21 +173,52 @@ describe('a list format with a separator', () => {
     expect(() => fixture({}, { formats: { list: { f: options } } as never })).toThrow(message);
   });
 
-  test('the writing guide shows it', () => {
-    const config = fixture({ 'copy/catalog/app.yaml': 'app.more: "{count, plural, other {# more}}"\n' }, { require: [], formats: facts });
+  test.each([
+    // [the format, what loading the catalog says]
+    [
+      { separator: '{who} · ' },
+      "formats.list.f.separator takes {who}, and is given nothing: say it as text, as ' · ', with a tag around it if it is an element",
+    ],
+    [{ max: 1, more: '{n} more' }, 'formats.list.f.more takes {n}, and is given {count} alone: say it with {count, plural, …}'],
+    [{ separator: '{oops' }, 'formats.list.f.separator is not a message: '],
+    // What `more` took before it took text: a key, which would show as itself.
+    [
+      { max: 1, more: 'app.more' },
+      "formats.list.f.more is text, and app.more is an entry's key: write more: { entry: 'app.more' } to say it with the entry",
+    ],
+    [
+      { separator: { entry: 'app.nothing' } },
+      '{items} is shown as formats.list.f.separator says, and the catalog has no app.nothing: add it, saying what goes between two items',
+    ],
+  ])('%p is refused as the catalog loads: %p', (options, message) => {
+    const config = fixture(
+      { 'copy/catalog/app.yaml': 'app.l: "{items, list, f}"\napp.more: "{count, plural, other {# more}}"\n' },
+      { require: [], formats: { list: { f: options } } },
+    );
+    expect(
+      loadCatalog(config, undefined, { partial: true })
+        .problems.map((p) => p.message)
+        .join('\n'),
+    ).toContain(message);
+  });
+
+  test('the writing guide shows it, as text and as entries say it', () => {
+    const config = fixture(CATALOG, { require: [], formats: facts });
     const lines = writingGuide(config, [], loadCatalog(config).messages)
       .split('\n')
       .filter((l) => l.includes('(list)'));
     expect(lines).toEqual([
       '- `facts` (list): Ann · Bob · Cy · Dee, an empty item left out',
       '- `path` (list): Ann / Bob / 2 more, an empty item left out',
+      '- `dotted` (list): Ann • Bob • Cy • Dee, an empty item left out',
+      '- `tagged` (list): Ann · 3 more, an empty item left out',
     ]);
   });
 });
 
 const SHOP = {
   require: [],
-  formats: { list: { tools: { max: 2, more: 'app.more' } }, duration: { compact: { style: 'narrow' } } },
+  formats: { list: { tools: { max: 2, more: { entry: 'app.more' } } }, duration: { compact: { style: 'narrow' } } },
 } satisfies ProsebookConfig;
 
 describe('a list format with max', () => {
@@ -177,7 +276,7 @@ describe('a list format with max', () => {
     );
     const missing = fixture(
       { 'copy/catalog/app.yaml': 'app.used: "Used {tools, list, tools}."\n' },
-      { require: [], formats: { list: { tools: { max: 2, more: 'app.more' } } } },
+      { require: [], formats: { list: { tools: { max: 2, more: { entry: 'app.more' } } } } },
     );
     expect(loadCatalog(missing, undefined, { partial: true }).problems.map((p) => p.message)).toEqual([
       '{tools} is shown as formats.list.tools.more says, and the catalog has no app.more: add it, saying the rest with {count}',

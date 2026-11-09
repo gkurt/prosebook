@@ -35,7 +35,7 @@ export function createHelpers(
   // A relative format's date is options already: the compiler read its name in the locale.
   const tools: RelativeTools = { ...context, formatters, date: date as RelativeTools['date'] };
 
-  function attempt(value: unknown, format: () => string): string | undefined {
+  function attempt<T>(value: unknown, format: () => T): T | undefined {
     failure = undefined;
     // `value !== value`: NaN, which `Intl` prints as "NaN".
     if (value === undefined || value === null || value !== value) return undefined;
@@ -61,9 +61,9 @@ export function createHelpers(
     d(value, options, given) {
       return attempt(value, () => date(value, options, given));
     },
-    l(value, options, more) {
+    l(value, options, more, separator) {
       return attempt(value, () =>
-        joinList(shownItems(value, options, more), options, () =>
+        joinList(shownItems(value, options, more), separator, () =>
           formatter(lists, options, undefined, (o) => new Intl.ListFormat(locale, o)),
         ),
       );
@@ -144,18 +144,34 @@ export function dateFormat(locale: string, timeZone: string | undefined, options
 }
 
 /** A list's items as text, empty ones left out, the first `max` of them and the `more` entry saying the rest. */
-export function shownItems(items: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown): string[] {
-  const all: string[] = [];
+export function shownItems(items: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown): unknown[] {
+  const all: unknown[] = [];
   for (const item of items) if (item !== null && item !== undefined && item !== false && item !== '') all.push(String(item));
   const max = options?.max;
   if (max === undefined || all.length <= max) return all;
   const rest = all.length - max;
-  return more === undefined ? all.slice(0, max) : [...all.slice(0, max), flatten(more(rest)).join('')];
+  return more === undefined ? all.slice(0, max) : [...all.slice(0, max), textOr(more(rest))];
 }
 
-/** Items joined by the format's `separator`, or by the locale's words for a list, from `format`. */
-export function joinList(items: string[], options: ListFormatOptions | undefined, format: () => Intl.ListFormat): string {
-  return options?.separator === undefined ? format().format(items) : items.join(options.separator);
+/** What a message said, as text where it is all text, and as its parts where it holds an element. */
+function textOr(output: unknown): unknown {
+  const parts = flatten(output);
+  return parts.every((p) => typeof p === 'string') ? parts.join('') : parts;
+}
+
+/**
+ * Items joined by `separator`, or by the locale's words for a list from `format`, each item put back where it stands in
+ * them: text where all of it is, and parts where the separator or the rest holds an element, which a rich read renders.
+ */
+export function joinList(items: unknown[], separator: unknown, format: () => Intl.ListFormat): unknown {
+  let at = 0;
+  return textOr(
+    separator === undefined
+      ? format()
+          .formatToParts(items.map((_, i) => String(i)))
+          .map((p) => (p.type === 'element' ? items[at++] : p.value))
+      : items.flatMap((item, i) => (i === 0 ? [item] : [separator, item])),
+  );
 }
 
 function formatter<O extends object, F>(cache: Cache<F>, options: O | undefined, given: O | undefined, make: (o?: O) => F): F {

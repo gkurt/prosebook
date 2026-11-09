@@ -418,7 +418,7 @@ describe('prosebook migrate', () => {
     const root = fixture({}).root;
     cpSync(join(example, 'copy'), join(root, 'copy'), { recursive: true });
     // The example's own relative format, which its cart names.
-    const formats = { relative: { recent: { now: 'app.now' } } };
+    const formats = { relative: { recent: { now: { entry: 'app.now' } } } };
     const one = resolveConfig(root, { source: 'en', require: [], formats });
     const before = loadCatalog(one);
 

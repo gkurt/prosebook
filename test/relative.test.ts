@@ -1,11 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 
-import { createCopy, createHelpers, defineCatalog, flatten, relativeTime, type Catalog, type RelativeFormatOptions } from 'prosebook';
+import {
+  createCopy,
+  createHelpers,
+  defineCatalog,
+  flatten,
+  relativeTime,
+  type Catalog,
+  type Formats,
+  type RelativeFormatOptions,
+} from 'prosebook';
 import { generate, loadCatalog, readMessage, writeMessage, type ProsebookConfig } from 'prosebook/tools';
 
 import { relativeOf } from '#src/runtime/relative.ts';
 import type { Entry } from '#src/tools/compile.ts';
+import { formatsCode } from '#src/tools/generate.ts';
 import { writingGuide } from '#src/tools/guide.ts';
 import { argsOf, formatProblems } from '#src/tools/icu.ts';
 import { pseudoAst } from '#src/tools/pseudo.ts';
@@ -21,7 +31,7 @@ const D = 24 * H;
 const formats = {
   date: { day: { dateStyle: 'medium', timeZone: 'UTC' } },
   relative: {
-    recent: { now: 'time.now', date: { after: 7 * D, format: 'day' } },
+    recent: { now: { entry: 'time.now' }, date: { after: 7 * D, format: 'day' } },
     terse: { style: 'narrow', smallest: 'second', largest: 'day', numeric: 'always' },
   },
 } as const satisfies ProsebookConfig['formats'];
@@ -293,6 +303,51 @@ describe('a relative format the config names', () => {
       .split('\n')
       .find((l) => l.startsWith('- `recent`'));
     expect(line).toBe(`- \`recent\` (relative): ${said} · 5 minutes ago · yesterday · Oct 7, 2026 · in 2 hours`);
+  });
+});
+
+describe('now said as text or by an entry', () => {
+  /** A copy as generate ships it, saying `pr.opened` with `now` as given, at NOW. */
+  const opened = (now: unknown, entries = '') => {
+    const config = fixture(
+      { 'copy/catalog/pr.yaml': 'pr.opened: "Opened {at, relative, recent}"\n', ...(entries && { 'copy/catalog/time.yaml': entries }) },
+      { require: [], formats: { relative: { recent: { now } } } as never },
+    );
+    const catalog = loadCatalog(config, undefined, { partial: true });
+    const messages = { en: compiled(catalog.messages.map((m): Entry => [m.key, m.ast])) };
+    // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- the formats as the generated index ships them
+    const formats = new Function(`return ${formatsCode(config)!};`)() as Formats;
+    const copy = createCopy(defineCatalog({ source: 'en', locales: ['en'], messages, loaders: {}, formats, relative: relativeTime }), {
+      now: () => NOW,
+    });
+    return { copy, problems: catalog.problems.map((p) => p.message) };
+  };
+
+  test.each([
+    // [now, entries, a time just past, and just ahead]
+    ['just now', '', 'just now', 'just now'],
+    ['{tense, select, future {in a moment} other {a moment ago}}', '', 'a moment ago', 'in a moment'],
+    [{ entry: 'time.now' }, 'time.now: "{tense, select, future {soon} other {right now}}"\n', 'right now', 'soon'],
+  ])('%p says %p, in a message and in code', (now, entries, past, future) => {
+    const { copy, problems } = opened(now, entries);
+    expect(problems).toEqual([]);
+    expect([
+      copy.t('pr.opened' as never, { at: NOW - 20 * S } as never),
+      copy.t('pr.opened' as never, { at: NOW + 20 * S } as never),
+    ]).toEqual([`Opened ${past}`, `Opened ${future}`]);
+    expect([copy.relative(NOW - 20 * S, 'recent' as never), copy.relative(NOW + 20 * S, 'recent' as never)]).toEqual([past, future]);
+  });
+
+  test.each([
+    ['{when} now', '', 'formats.relative.recent.now takes {when}, and is given {tense} alone'],
+    // What `now` took before it took text: a key, which would show as itself.
+    [
+      'time.now',
+      'time.now: "just now"\n',
+      "formats.relative.recent.now is text, and time.now is an entry's key: write now: { entry: 'time.now' } to say it with the entry",
+    ],
+  ])('%p is refused as the catalog loads', (now, entries, message) => {
+    expect(opened(now, entries).problems.join('\n')).toContain(message);
   });
 });
 

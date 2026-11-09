@@ -63,9 +63,11 @@ export interface ExtensionElement {
   options?: ListFormatOptions | DurationFormatOptions | RelativeFormatOptions;
   /** The format of the config's it names. */
   named?: string;
-  /** For a list whose format has `more`: that entry's message in the locale read, set as the catalog loads. */
+  /** For a list whose format has `more`: what it says, in the locale read, set as the catalog loads (`Said`). */
   more?: MessageFormatElement[];
-  /** For a relative time whose format has `now`: that entry's message, as `more` is a list's. */
+  /** For a list whose format has `separator`: what it says, as `more` is set. */
+  separator?: MessageFormatElement[];
+  /** For a relative time whose format has `now`: what it says, as `more` is a list's. */
   now?: MessageFormatElement[];
 }
 

@@ -15,13 +15,14 @@ const CORE = `export { createCopy, defineCatalog, preferredLocales } from ${dist
 const BUDGETS: Record<string, number> = {
   // 4 KB until relative times, whose clock and reads every copy carries; 4.5 KB until `compare`, `collator`, list
   // separators and the catalog's `ladder` field (the ladder itself ships only where a format has one). Each binding
-  // carries what keeps a relative time read with `t` current.
-  runtime: 4650,
-  react: 5450,
-  preact: 5450,
-  vue: 5450,
-  solid: 5300,
-  svelte: 5200,
+  // carries what keeps a relative time read with `t` current. 4.65 KB until what a format says itself, text or an entry,
+  // and lists returned as parts where what is said holds an element.
+  runtime: 4800,
+  react: 5600,
+  preact: 5600,
+  vue: 5600,
+  solid: 5450,
+  svelte: 5350,
 };
 
 const EXTERNAL = ['react', 'react/*', 'react-dom', 'preact', 'preact/*', 'vue', 'solid-js', 'solid-js/*', 'svelte', 'svelte/*', '*.svelte'];

@@ -112,10 +112,20 @@ function node(el: MessageFormatElement, hoisted: Hoisted, pound: Pound): string 
     return placed(el, own.value, `h.r(${access(own.value)}${hoisted.arg(options) || (now && ', undefined')}${now})`);
   }
   if (own?.type === LIST) {
-    // The rest of a list past its format's `max` is said by the entry its `more` names, compiled in here.
-    const said = own.more === undefined ? undefined : message(own.more, hoisted);
-    const more = said === undefined ? '' : `, (count) => ${said.startsWith('(') ? `(${said})({ count }, h)` : said}`;
-    return placed(el, own.value, `h.l(${access(own.value)}${hoisted.arg(listOptions(own)) || (more && ', undefined')}${more})`);
+    // What the format says itself, the rest past `max` and the separator, is compiled in here, given the message's own
+    // values, so a tag in it renders through the renderers the read is given.
+    const { more: _, separator: __, ...options } = listOptions(own);
+    const said = (ast: MessageFormatElement[], values: string) => {
+      const m = message(ast, hoisted);
+      return m.startsWith('(') ? `(${m})(${values}, h)` : m;
+    };
+    const args = [
+      hoisted.arg(options).slice(2) || 'undefined',
+      own.more === undefined ? 'undefined' : `(count) => ${said(own.more, '{ ...a, count }')}`,
+      own.separator === undefined ? 'undefined' : said(own.separator, 'a'),
+    ];
+    while (args.at(-1) === 'undefined') args.pop();
+    return placed(el, own.value, `h.l(${[access(own.value), ...args].join(', ')})`);
   }
   switch (el.type) {
     case TYPE.literal:

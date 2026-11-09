@@ -6,20 +6,27 @@
  */
 
 /**
+ * What a format says itself: text, as a message in the catalog's syntax (`'{count, plural, other {# more}}'`, `' · '`), set
+ * per locale under `formats.locales`; or the catalog entry that says it, translated as any entry is: `{ entry: 'common.more' }`.
+ * A tag in either renders as the message's own do, through the renderers its read is given.
+ */
+export type Said = string | { readonly entry: string };
+
+/**
  * A list as `Intl.ListFormat` joins it, or with `separator`, each item after the one before it, and with `max`, its first
- * items and the entry `more` names for the rest. An empty item, `null`, `undefined` or `false`, is left out, so an
- * optional one needs no filtering: `[author, draft && 'Draft']`.
+ * items and `more` saying the rest. An empty item, `null`, `undefined` or `false`, is left out, so an optional one needs
+ * no filtering: `[author, draft && 'Draft']`.
  */
 export interface ListFormatOptions extends Intl.ListFormatOptions {
   /**
    * What goes between every two items, in place of the locale's commas and "and": `' · '` writes a line of facts,
-   * "Ann · Draft · 2 new commits". Set it per locale under `formats.locales`. A named format's, or options in code.
+   * "Ann · Draft · 2 new commits". In code's own options, plain text.
    */
-  readonly separator?: string;
-  /** The most items shown; the rest are counted by the `more` entry, as a last item: "a, b, and 3 more". */
+  readonly separator?: Said;
+  /** The most items shown; the rest are counted by `more`, as a last item: "a, b, and 3 more". */
   readonly max?: number;
-  /** The key of the entry that says the rest, given their number as `{count}`. A named format's only. */
-  readonly more?: string;
+  /** What says the rest, given their number as `{count}`. A named format's only. */
+  readonly more?: Said;
 }
 
 export type DurationUnit = 'days' | 'hours' | 'minutes' | 'seconds' | 'milliseconds';
@@ -228,9 +235,10 @@ export function formatIn<K extends FormatKind>(
  */
 export function moreKeys(formats: Formats | undefined): string[] {
   const tables = [formats, ...Object.values(formats?.locales ?? {})];
+  const entry = (said: Said | undefined) => (typeof said === 'object' ? [said.entry] : []);
   const named = (t: FormatTable | undefined) => [
-    ...Object.values(t?.list ?? {}).flatMap((o) => o.more ?? []),
-    ...Object.values(t?.relative ?? {}).flatMap((o) => o.now ?? []),
+    ...Object.values(t?.list ?? {}).flatMap((o) => [...entry(o.more), ...entry(o.separator)]),
+    ...Object.values(t?.relative ?? {}).flatMap((o) => entry(o.now)),
   ];
   return [...new Set(tables.flatMap(named))];
 }
@@ -322,10 +330,10 @@ export interface RelativeFormatOptions {
    */
   readonly rounding?: 'nearest' | 'down';
   /**
-   * The key of the entry a time under one of the smallest unit reads as, "just now", given `{tense}`:
-   * `past` or `future`. A named format's only. Unless said, it reads as `Intl` says now in the locale.
+   * What a time under one of the smallest unit reads as, "just now", given `{tense}`: `past` or `future`. A named
+   * format's only. Unless said, it reads as `Intl` says now in the locale.
    */
-  readonly now?: string;
+  readonly now?: Said;
   /**
    * Past this many milliseconds from now, either way, the time shows as a date, in a date format the
    * config names: `{ after: 7 * 86_400_000, format: 'short' }`. A named format's only.

@@ -73,7 +73,8 @@ export interface Helpers {
    * `{x, list, …}`: the items joined as the locale joins a list. A format with `max` shows that many,
    * and `more`, the entry its format names, rendered with the number of the rest as the last item.
    */
-  l(value: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown): string | undefined;
+  /** A list: text, or parts where what `more` or `separator` say holds an element. */
+  l(value: Iterable<ListItem>, options?: ListFormatOptions, more?: (count: number) => unknown, separator?: unknown): unknown;
   /** `{x, duration, …}`: milliseconds, in the units the format shows, as `Intl.DurationFormat` writes them. */
   u(value: number, options?: DurationFormatOptions): string | undefined;
   /**

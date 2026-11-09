@@ -9,16 +9,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
 import { RUNTIME } from '#src/runtime/copy.ts';
+import type { FormatTable } from '#src/runtime/formats.ts';
 
 import { loadCatalog, withSchemaLine, yamlFiles, type Catalog, type LoadOptions, type Message } from './catalog.ts';
-import { compileLocale, localeModule, verbatim, type Entry } from './compile.ts';
+import { compileLocale, localeExpression, localeModule, verbatim, type Entry } from './compile.ts';
 import type { ResolvedConfig } from './config.ts';
 import { writingGuide } from './guide.ts';
 import { extensionOf, isNullish, RELATIVE, walk, type MessageFormatElement } from './icu.ts';
 import { keepUnread, readLock, reconcile, serializeLock, type Lock, type StaleTranslation } from './lock.ts';
 import { nativeFiles } from './native/index.ts';
 import { pseudoAst } from './pseudo.ts';
-import { SYNTAX_NAME } from './syntax.ts';
+import { readMessage, SYNTAX_NAME } from './syntax.ts';
 
 const quote = (s: string) => JSON.stringify(s);
 const prop = (name: string) => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : quote(name));
@@ -235,7 +236,51 @@ export function formattersSpecifier(config: ResolvedConfig, from = config.out): 
 
 /** The formats the config names, for `copy.number` and `copy.date` to take by name; nothing where it names none. */
 export function formatsField(config: ResolvedConfig): string[] {
-  return Object.keys(config.formats).length === 0 ? [] : [`  formats: ${JSON.stringify(config.formats)},`];
+  const code = formatsCode(config);
+  return code === undefined ? [] : [`  formats: ${code},`];
+}
+
+/** Where each compiled text goes in the formats' JSON, as no format's own text would read. */
+const SAID = 'prosebook-compiled:';
+
+/**
+ * The config's formats as code, each text a format says itself (`Said`) compiled as a message is, in the locale its
+ * table is for, so `copy.list` and `copy.relative` say it with no parser; an entry it names stays its key. Nothing
+ * where the config names no format.
+ */
+export function formatsCode(config: ResolvedConfig): string | undefined {
+  if (Object.keys(config.formats).length === 0) return undefined;
+  const compiled: string[] = [];
+  const said = (table: FormatTable | undefined, locale: string, at: string): FormatTable | undefined => {
+    if (table === undefined) return undefined;
+    const kinds = (['list', 'relative'] as const).flatMap((kind) => {
+      const named = table[kind];
+      if (named === undefined) return [];
+      const own = (name: string, options: Record<string, unknown>) =>
+        Object.fromEntries(
+          Object.entries(options).map(([key, value]) => {
+            if (typeof value !== 'string' || !(kind === 'list' ? key === 'more' || key === 'separator' : key === 'now'))
+              return [key, value];
+            let ast: MessageFormatElement[];
+            try {
+              ast = readMessage(config.messageFormat, value, locale, config);
+            } catch (e) {
+              throw new Error(`${at}${kind}.${name}.${key} is not a message: ${(e as Error).message}`, { cause: e });
+            }
+            compiled.push(`${localeExpression(compileLocale([['m', ast]]))}.m`);
+            return [key, `${SAID}${compiled.length - 1}`];
+          }),
+        );
+      return [[kind, Object.fromEntries(Object.entries(named).map(([n, o]) => [n, own(n, o as Record<string, unknown>)]))]];
+    });
+    return { ...table, ...Object.fromEntries(kinds) };
+  };
+  const { locales, ...root } = config.formats;
+  const table = {
+    ...said(root, config.source, 'formats.'),
+    ...(locales && { locales: Object.fromEntries(Object.entries(locales).map(([l, t]) => [l, said(t, l, `formats.locales.${l}.`)])) }),
+  };
+  return JSON.stringify(table).replace(new RegExp(`"${SAID}(\\d+)"`, 'g'), (_, n: string) => compiled[Number(n)]!);
 }
 
 /** The JSON Schema an editor reads to complete and explain catalog entries. */

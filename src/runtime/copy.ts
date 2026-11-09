@@ -454,6 +454,15 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     return options;
   }
 
+  /**
+   * What a format says itself, as the generated index ships it: text compiled to a message, a string or a function, or
+   * the entry that says it, read by key. Options given in code are plain text.
+   */
+  function say(said: unknown, values: Values): unknown {
+    if (typeof said === 'function') return (said as Exclude<Compiled, string>)(values, layerOf(locale).h);
+    return typeof said === 'object' ? render((said as { entry: string }).entry, values) : said;
+  }
+
   function formatter<F>(kind: string, options: object | undefined, make: () => F): F {
     // A named format's options, or a module constant, is the same object every call: found by identity,
     // it costs no `JSON.stringify`, which a value shown every frame or a sort's every comparison would pay.
@@ -525,9 +534,12 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
     date,
     list(items, format) {
       const opts = typeof format === 'string' ? named('list', format) : format;
-      const more = opts?.more;
-      const rest = more === undefined ? undefined : (count: number) => render(more, { count });
-      return joinList(shownItems(items, opts, rest), opts, () => formatter('l', opts, () => new Intl.ListFormat(locale, opts)));
+      const { more, separator } = opts ?? {};
+      const rest = more === undefined ? undefined : (count: number) => say(more, { count });
+      const between = separator === undefined ? undefined : say(separator, {});
+      return flatten(
+        joinList(shownItems(items, opts, rest), between, () => formatter('l', opts, () => new Intl.ListFormat(locale, opts))),
+      ).join('');
     },
     duration(ms, format) {
       const opts = typeof format === 'string' ? named('duration', format) : format;
@@ -540,7 +552,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       return times.read(() => {
         const opts = typeof format === 'string' ? named('relative', format) : format;
         const now = opts?.now;
-        const said = now === undefined ? undefined : (tense: string) => render(now, { tense });
+        const said = now === undefined ? undefined : (tense: string) => say(now, { tense });
         // A named format names its date format too, which `date` reads in the current locale.
         const tools = { locale, timeZone: options.timeZone, formatters: catalog.formatters, date };
         const { text, next } = catalog.relative!.text(at, opts, times.now(), tools, said);

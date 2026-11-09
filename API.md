@@ -734,7 +734,7 @@ formats: {
     receipt: { dateStyle: 'medium', timeStyle: 'short' },
   },
   list: {
-    tools: { type: 'unit', max: 3, more: 'common.more' }, // "grep, sed, awk, 2 more"
+    tools: { type: 'unit', max: 3, more: { entry: 'common.more' } }, // "grep, sed, awk, 2 more"
     facts: { separator: ' · ' }, // "Ann · Draft · 2 new commits"
   },
   duration: {
@@ -742,7 +742,7 @@ formats: {
     tenths: { style: 'narrow', fractionalDigits: 1 }, // "4.2s", "12s", "3m 5s"
   },
   relative: {
-    recent: { now: 'time.now', date: { after: 7 * 86_400_000, format: 'receipt' } }, // "just now", "5 minutes ago", "Oct 28, 2026"
+    recent: { now: { entry: 'time.now' }, date: { after: 7 * 86_400_000, format: 'receipt' } }, // "just now", "5 minutes ago", "Oct 28, 2026"
   },
   locales: {
     de: { date: { receipt: { dateStyle: 'long', timeStyle: 'short' } } },
@@ -779,12 +779,17 @@ copy.relative(at, 'recent');
 - A name can't be a built-in style (`short`, `medium`, `long`, `full`, `integer`, `percent`, `currency`), and options are checked
   as the config loads.
 - In MF2, `format=` stands alone: a variant is another name.
+- What a format says itself, a list's `more` and `separator` and a relative time's `now`, is text or an entry. Text is a
+  message in the catalog's syntax, `' · '` or `'{count, plural, other {# more}}'`, set per locale under `locales`. `{ entry:
+  'common.more' }` names the entry that says it, translated as any entry is, and kept in every build. Either may hold a tag,
+  `'<dot> · </dot>'`: a rich read and `<Text>` render it as the message's own tags, through the renderers the read is given,
+  and `t` reads its text. A message is compiled with what is said in the locale it is read in.
 - A list format's `separator` joins the items with it alone, in place of the locale's commas and "and": a line of facts,
-  `{facts, list, facts}` given `[author, draft && 'Draft', commits]`. Set it per locale under `locales`; `type` and `style`, which
-  pick the locale's words, don't go with it. `copy.list(items, { separator: ' · ' })` takes it in code too.
+  `{facts, list, facts}` given `[author, draft && 'Draft', commits]`. `type` and `style`, which pick the locale's words, don't
+  go with it. `copy.list(items, { separator: ' · ' })` takes it in code too, as plain text.
 - Every list leaves out an empty item, `''`, `null`, `undefined` or `false`, so an optional one needs no filtering in code.
-- A list format's `max` shows that many items and says the rest with the entry `more` names, given `{count}`, as the last item,
-  in each locale's words; `max` and `more` go together, and only in a named format. The entry is kept in every build.
+- A list format's `max` shows that many items and says the rest with `more`, given `{count}`, as the last item, in each
+  locale's words; `max` and `more` go together, and only in a named format.
 - A number format's `steps` show a number otherwise from a size up, either side of 0: each is options over the format's
   own from its `from`, listed from the smallest size up. The size is the number as shown, so 9.996, "$10.00" in cents, is in
   the step from 10, "$10". A message can't `.match` on a format with steps, and native targets refuse it.
@@ -821,7 +826,7 @@ formats: {
   date: { day: { dateStyle: 'medium' } },
   relative: {
     recent: {
-      now: 'time.now', // what a time under the smallest unit reads as; Intl's "now" unless said
+      now: { entry: 'time.now' }, // what a time under the smallest unit reads as, or text: now: 'just now'; Intl's "now" unless said
       date: { after: 7 * 86_400_000, format: 'day' }, // a date past a week, either way
       // largest: 'year', smallest: 'minute', skip: ['quarter'], rounding: 'nearest',
       // numeric: 'auto', style: 'long' are the defaults
@@ -840,8 +845,8 @@ formats: {
 - `rounding: 'nearest'` (the default) rounds in its unit, and moves to the unit above where it reaches it: 1 day and 14 hours
   is "2 days ago", 23 hours and 40 minutes "yesterday". `down` counts whole units only.
 - `numeric` and `style` are `Intl.RelativeTimeFormat`'s: `auto` (the default) says "yesterday", `always` "1 day ago".
-- Under one of the smallest unit, a time is now: `Intl`'s word for it, or the entry `now` names, given `{tense}`, `past` or
-  `future`. The entry is checked as the catalog loads and kept in every build.
+- Under one of the smallest unit, a time is now: `Intl`'s word for it, or what `now` says, text or an entry, given `{tense}`,
+  `past` or `future`. It is checked as the catalog loads, and reads as text: a tag in it says what it wraps.
 - Past `date.after` milliseconds either way, the time shows in the date format `date.format` names.
 - A message without a format reads with the defaults; `long`, `short` and `narrow` set the style alone.
 - The generated index imports what says relative times only where a message or a format says one, so an app that says none

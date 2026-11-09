@@ -737,14 +737,15 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
   if (kind === 'list') {
     const { max, more } = value;
     if (max !== undefined && !whole(max)) return 'max is a whole number of items, 1 or more';
-    if (more !== undefined && typeof more !== 'string') return 'more is the key of the entry saying the rest: more: common.more';
     const { separator, type, style } = value;
-    if (separator !== undefined && (typeof separator !== 'string' || separator === ''))
-      return "separator is the text between every two items: separator: ' · '";
+    const refused =
+      refusedSaid('more', more, "'{count, plural, other {# more}}'", 'common.more') ??
+      refusedSaid('separator', separator, "' · '", 'common.separator');
+    if (refused !== undefined) return refused;
     if (separator !== undefined && (type !== undefined || style !== undefined))
       return "separator joins the items itself, so type and style, which pick the locale's words, say nothing: remove them";
     if ((max === undefined) !== (more === undefined))
-      return 'max and more go together: the first max items, and the entry more names for the rest, given {count}';
+      return 'max and more go together: the first max items, and more saying the rest, given {count}';
   }
   if (kind === 'duration') {
     const { largest, smallest, units } = value;
@@ -804,6 +805,15 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
   return undefined;
 }
 
+/** What is wrong with what a format says itself (`Said`): text, or `{ entry }` naming the entry that says it. */
+function refusedSaid(option: string, said: unknown, text: string, entry: string): string | undefined {
+  if (said === undefined || (typeof said === 'string' && said !== '')) return undefined;
+  const keys = typeof said === 'object' && said !== null ? Object.keys(said) : [];
+  const { entry: key } = (said ?? {}) as { entry?: unknown };
+  if (keys.length === 1 && typeof key === 'string' && key !== '') return undefined;
+  return `${option} is text, in the catalog's syntax, or the entry that says it: ${option}: ${text}, or ${option}: { entry: '${entry}' }`;
+}
+
 /** What is wrong with a relative format's own options (its units, `now` and `date`), or nothing. */
 function refusedRelative(value: Record<string, unknown>): string | undefined {
   const { largest, smallest, skip, rounding, now, date } = value;
@@ -820,8 +830,8 @@ function refusedRelative(value: Record<string, unknown>): string | undefined {
       return 'skip leaves out every unit between largest and smallest: keep one';
   }
   if (rounding !== undefined && rounding !== 'nearest' && rounding !== 'down') return 'rounding is nearest or down';
-  if (now !== undefined && (typeof now !== 'string' || now === ''))
-    return 'now is the key of the entry a time under the smallest unit reads as: now: time.now';
+  const refused = refusedSaid('now', now, "'just now'", 'time.now');
+  if (refused !== undefined) return refused;
   if (date !== undefined) {
     const example = "date: { after: 7 * 86_400_000, format: 'short' }";
     if (typeof date !== 'object' || date === null) return `date is when to show a date instead, and in what format: ${example}`;
