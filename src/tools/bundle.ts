@@ -16,7 +16,7 @@ import { moreKeys, type Formats } from '#src/runtime/formats.ts';
 import { CatalogError } from './catalog.ts';
 import { compileLocale, localeModule, type Entry } from './compile.ts';
 import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './config.ts';
-import { catalogLiteral, saysRelative, type Generated } from './generate.ts';
+import { catalogLiteral, runtimeParts, type Generated } from './generate.ts';
 import { isReferenced, keyRefs, READERS, SFC, sourceFiles, unseenReads, type KeyRefs, type Reads, type UnseenRead } from './scan.ts';
 
 /** How a build prunes: `strict` also fails on a read whose key it can't see. */
@@ -83,8 +83,8 @@ export function withoutPseudo(config: ResolvedConfig, generated: Generated): Gen
  * locales `generated` holds, so a locale `withoutPseudo` left out is neither listed nor imported.
  */
 export function buildIndex(config: ResolvedConfig, generated: Generated, from = config.out): string {
-  const times = saysRelative(config, generated.catalog);
-  const { imports, literal } = catalogLiteral(config, [...generated.entries.keys()], config.importExtension, times, from);
+  const parts = runtimeParts(config, generated.catalog);
+  const { imports, literal } = catalogLiteral(config, [...generated.entries.keys()], config.importExtension, parts, from);
   return ["import { defineCatalog } from 'prosebook';", ...imports, `export const catalog = defineCatalog(${literal});`, ''].join('\n');
 }
 
@@ -265,10 +265,10 @@ export function splitIndex(config: ResolvedConfig, generated: Generated, keep?: 
   const formats = Object.keys(config.formats).length > 0 && { formats: config.formats };
   const literal = JSON.stringify({ runtime: RUNTIME, source: config.source, locales, messages: {}, loaders: {}, split, ...formats });
   const formatters = config.formatters?.file;
-  const times = saysRelative(config, generated.catalog);
-  const own = [...(formatters === undefined ? [] : ['formatters']), ...(times ? ['relative: relativeTime'] : [])];
+  const parts = runtimeParts(config, generated.catalog);
+  const own = [...(formatters === undefined ? [] : ['formatters']), ...parts.map((p) => `${p.field}: ${p.name}`)];
   return [
-    `import { defineCatalog${times ? ', relativeTime' : ''} } from 'prosebook';`,
+    `import { ${['defineCatalog', ...parts.map((p) => p.name)].join(', ')} } from 'prosebook';`,
     ...[...eagerAreas(generated, keep)].map((a) => `import ${JSON.stringify(where.area(a))};`),
     ...(formatters === undefined ? [] : [`import formatters from ${JSON.stringify(where.generated(formatters))};`]),
     `export const catalog = defineCatalog(${own.length === 0 ? literal : `{ ...${literal}, ${own.join(', ')} }`});`,

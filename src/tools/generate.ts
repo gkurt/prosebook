@@ -145,6 +145,25 @@ function register(config: ResolvedConfig): string {
 }`;
 }
 
+/** What of the runtime a catalog holds only where it's used: by the name `prosebook` exports it, and the catalog's field. */
+export interface RuntimePart {
+  readonly name: 'relativeTime' | 'numberLadder';
+  readonly field: 'relative' | 'ladder';
+}
+
+/**
+ * The parts of the runtime the catalog holds: what says relative times, where it says any (`saysRelative`), and what
+ * shows a number by a ladder of units, where a number format of the config's has one.
+ */
+export function runtimeParts(config: ResolvedConfig, catalog: Catalog): RuntimePart[] {
+  const tables = [config.formats, ...Object.values(config.formats.locales ?? {})];
+  const laddered = tables.some((t) => Object.values(t.number ?? {}).some((o) => o.ladder !== undefined));
+  return [
+    ...(saysRelative(config, catalog) ? [{ name: 'relativeTime', field: 'relative' } as const] : []),
+    ...(laddered ? [{ name: 'numberLadder', field: 'ladder' } as const] : []),
+  ];
+}
+
 /**
  * Whether the catalog says relative times: a message in some locale does, or the config names a
  * relative format, which code may say one in. Only then does the index import what says them.
@@ -164,14 +183,14 @@ export function saysRelative(config: ResolvedConfig, catalog: Catalog): boolean 
 
 /**
  * The catalog `defineCatalog` is given, and the imports of the locales that ship with it, of the
- * formatters module and, where it says relative times (`saysRelative`), of what says them, as a
- * module in `from` names it: the generated index's folder unless said.
+ * formatters module and of the runtime's `parts` it holds, as a module in `from` names it: the
+ * generated index's folder unless said.
  */
 export function catalogLiteral(
   config: ResolvedConfig,
   locales: string[],
   ext: string,
-  times: boolean,
+  parts: RuntimePart[],
   from = config.out,
 ): { imports: string[]; literal: string } {
   const eager = locales.filter((l) => l === config.source || config.bundled.includes(l));
@@ -183,7 +202,7 @@ export function catalogLiteral(
       ...eager.map((l) => `import ${ident(l)} from './${l}${ext}';`),
       // A folder's name may hold a quote or a backslash, which would end the string early.
       ...(formatters === undefined ? [] : [`import formatters from '${formatters.replace(/['\\]/g, '\\$&')}';`]),
-      ...(times ? ["import { relativeTime } from 'prosebook';"] : []),
+      ...(parts.length > 0 ? [`import { ${parts.map((p) => p.name).join(', ')} } from 'prosebook';`] : []),
     ],
     literal: [
       '{',
@@ -194,7 +213,7 @@ export function catalogLiteral(
       `  loaders: { ${lazy.map((l) => `${prop(l)}: () => import('./${l}${ext}')`).join(', ')} },`,
       ...formatsField(config),
       ...(formatters === undefined ? [] : ['  formatters,']),
-      ...(times ? ['  relative: relativeTime,'] : []),
+      ...parts.map((p) => `  ${p.field}: ${p.name},`),
       '}',
     ].join('\n'),
   };
@@ -299,7 +318,7 @@ export function render(config: ResolvedConfig, accept?: Map<string, Set<string> 
   for (const [locale, list] of entries)
     files.set(join(config.out, `${locale}.${ts ? 'ts' : 'js'}`), localeModule(compileLocale(list), jsHead, ts));
 
-  const { imports, literal } = catalogLiteral(config, locales, config.importExtension, saysRelative(config, catalog));
+  const { imports, literal } = catalogLiteral(config, locales, config.importExtension, runtimeParts(config, catalog));
   const types = typesBlock(catalog, locales);
   if (ts) {
     files.set(

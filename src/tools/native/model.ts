@@ -11,6 +11,7 @@ import type { Entry } from '#src/tools/compile.ts';
 import type { NativeTarget } from '#src/tools/config.ts';
 import {
   beyondOptions,
+  beyondWhat,
   dateOptions,
   DURATION,
   extensionOf,
@@ -256,7 +257,7 @@ function parts(elements: MessageFormatElement[], locale: string, declared: Decla
     }
     const named = isNumberElement(el) ? numberOptions(el) : isDateElement(el) || isTimeElement(el) ? dateOptions(el) : undefined;
     if (named !== undefined && beyondOptions(named)) {
-      const what = named.formatter === undefined ? 'a format with steps' : "the app's own formatter";
+      const what = beyondWhat(named);
       const value = (el as { value: string }).value;
       throw new Error(
         `{${value}} is shown by ${what}, which native code does not run: pass it as a plain {${value}}, written in code, ${LEAVE_OUT}`,

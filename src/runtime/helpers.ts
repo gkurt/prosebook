@@ -1,4 +1,5 @@
 import { durationParts, formatWith, stepOf, type DateFormatOptions, type Formatters, type ListFormatOptions } from './formats.ts';
+import type { NumberLadderTool } from './ladder.ts';
 import type { RelativeTime, RelativeTools } from './relative.ts';
 import type { Arms, Helpers, ListItem, Values } from './types.ts';
 
@@ -18,7 +19,7 @@ type Cache<F> = Map<object | undefined, Map<string, F>>;
  */
 export function createHelpers(
   locale: string,
-  { report, timeZone, formatters, relative, now = Date.now, due }: HelperOptions = {},
+  { report, timeZone, formatters, relative, ladder, now = Date.now, due }: HelperOptions = {},
 ): Helpers {
   const context = { locale, timeZone };
   const numbers: Cache<Intl.NumberFormat> = new Map();
@@ -52,7 +53,10 @@ export function createHelpers(
       if (options?.formatter !== undefined)
         return attempt(value, () => formatWith(formatters, 'number', options.formatter!, value, context));
       const make = (o?: Intl.NumberFormatOptions) => formatter(numbers, o, given, (all) => new Intl.NumberFormat(locale, all));
-      return attempt(value, () => make(stepOf(options, value, make)).format(value));
+      return attempt(value, () => {
+        const [shown, o] = ladder === undefined ? [value, stepOf(options, value, make)] : ladder(options, value, make);
+        return make(o).format(shown);
+      });
     },
     d(value, options, given) {
       return attempt(value, () => date(value, options, given));
@@ -123,6 +127,8 @@ export interface HelperOptions {
   formatters?: Formatters;
   /** What formats relative times: the catalog's `relative`, where a message or format says one. */
   relative?: RelativeTime;
+  /** What shows a number by a ladder of units: the catalog's `ladder`, where a number format has one. */
+  ladder?: NumberLadderTool;
   /** The time relative times are measured from, in milliseconds. `Date.now` unless given. */
   now?: () => number;
   /** Told, of each relative time read, the moment by `now` it next reads differently. */

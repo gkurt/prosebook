@@ -90,7 +90,11 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   A number format's `steps` are options over its own from a size up; `stepOf` picks one by the size as
   shown, rounding through a plain `en` formatter of the step's resolved rounding, so 9.996 carries into
   the step from 10 (a compact one compares the raw size). `h.n`, `copy.number` and the guide's samples
-  go through it; the `named-format` lint and `formattedInCode` never take a stepped format as a twin,
+  go through it, by `numberLadder` (`ladder.ts`, which the generated index imports and puts in the catalog's `ladder`
+  only where a number format has one, `runtimeParts` in `generate.ts`, as it does `relativeTime`), which first puts a number with a `ladder` in its unit: the largest it has one whole of
+  (each `per` of the one before), moved up while the number as shown reaches the next, its rungs' options (the format's,
+  `style: 'unit'`, the unit's own) built once per format, so the formatter caches keep them; `beyondWhat` names either in
+  a refusal. The `named-format` lint and `formattedInCode` never take a stepped or laddered format as a twin,
   MF2's `.match` on one is refused (plural rules take one set of options), and so are native targets.
   `Formatters` are the app's own formats, as code, from the module the config's `formatters` names:
   `withFormatters` (`config.ts`, run by `loadConfig`) imports it and puts each in `formats` as

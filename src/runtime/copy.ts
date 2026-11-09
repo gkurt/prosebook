@@ -13,6 +13,7 @@ import {
   type RelativeFormatOptions,
 } from './formats.ts';
 import { createHelpers, dateFormat, flatten, joinList, NO_RELATIVE, shownItems } from './helpers.ts';
+import type { NumberLadderTool } from './ladder.ts';
 import { chainOf, dirOf, negotiate } from './locale.ts';
 import type { RelativeTime } from './relative.ts';
 import type {
@@ -80,6 +81,8 @@ export interface Catalog<M extends MessageShapes = MessageShapes, L extends stri
   readonly formatters?: Formatters;
   /** What says relative times, where a message or a format of the config's says one (`relativeTime`). */
   readonly relative?: RelativeTime;
+  /** What shows a number by a ladder of units, where a number format of the config's has one (`numberLadder`). */
+  readonly ladder?: NumberLadderTool;
   /** Type-only: carries the message shapes from the generated module to `createCopy`. */
   readonly '~messages'?: M;
 }
@@ -301,6 +304,7 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       timeZone: options.timeZone,
       formatters: catalog.formatters,
       relative: catalog.relative,
+      ladder: catalog.ladder,
       now: times?.now,
       due: times?.due,
     });
@@ -514,7 +518,9 @@ export function createCopy<M extends MessageShapes, L extends string>(catalog: C
       if (opts?.formatter !== undefined)
         return formatWith(catalog.formatters, 'number', opts.formatter, value, { locale, timeZone: options.timeZone });
       const make = (o?: Intl.NumberFormatOptions) => formatter('n', o, () => new Intl.NumberFormat(locale, o));
-      return make(stepOf(opts, value, make)).format(value);
+      const ladder = catalog.ladder;
+      const [shown, o] = ladder === undefined ? [value, stepOf(opts, value, make)] : ladder(opts, value, make);
+      return make(o).format(shown);
     },
     date,
     list(items, format) {

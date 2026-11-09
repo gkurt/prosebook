@@ -48,6 +48,13 @@ export interface NumberFormatOptions extends Intl.NumberFormatOptions {
    * shows $9.99 and $13. A named format's only.
    */
   readonly steps?: readonly NumberStep[];
+  /**
+   * The units a number is shown in by its size, smallest first, as `Intl` names them: the largest it has one whole of,
+   * "1.5 MB" for 1,500,000 bytes. Each is `per` of the one before, 1000 unless said: `{ per: 1024, units: [...] }` for
+   * binary bytes, `{ unit: 'minute', per: 60 }` for time. A unit's own options (`unitDisplay`) go over the format's, and
+   * `steps` read the number in its unit. Rounding into the next unit moves it there: 999,999 bytes is "1 MB". A named format's only.
+   */
+  readonly ladder?: NumberLadder;
   /** Set by prosebook, not the config: the name of the formatter that shows the number (`formatters`). */
   readonly formatter?: string;
 }
@@ -118,6 +125,18 @@ export function formatterOf(
   return format;
 }
 
+export interface NumberLadder {
+  /** How many of each unit make the next, unless the unit says its own: 1000, or 1024 for binary bytes. */
+  readonly per?: number;
+  readonly units: readonly (string | LadderUnit)[];
+}
+
+/** A unit of a ladder, with how many of the one before make it, and options of its own: `{ unit: 'byte', unitDisplay: 'narrow' }`. */
+export interface LadderUnit extends Intl.NumberFormatOptions {
+  readonly unit: string;
+  readonly per?: number;
+}
+
 export interface NumberStep extends Intl.NumberFormatOptions {
   /** The size, either side of 0, from which the step shows a number: as shown, so 9.996 shown as 10.00 is 10. */
   readonly from: number;
@@ -152,7 +171,7 @@ export function stepOf(
 }
 
 /** A size as `format` rounds it. A compact or scientific number is compared as it is. */
-function shownSize(format: Intl.NumberFormat, size: number): number {
+export function shownSize(format: Intl.NumberFormat, size: number): number {
   const resolved = format.resolvedOptions();
   if (resolved.notation !== 'standard') return size;
   let rounding = plain.get(format);

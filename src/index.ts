@@ -10,6 +10,7 @@ export { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from './
 export { createHelpers, flatten, type HelperOptions } from './runtime/helpers.ts';
 export { defineFormatters } from './runtime/formats.ts';
 export { relativeTime, type RelativeTime } from './runtime/relative.ts';
+export { numberLadder, type NumberLadderTool } from './runtime/ladder.ts';
 export type {
   DateFormatOptions,
   DurationFormatOptions,
@@ -20,11 +21,13 @@ export type {
   FormatTable,
   ListFormatOptions,
   NumberFormatOptions,
+  NumberLadder,
   NumberStep,
   RelativeContext,
   RelativeFormatOptions,
   RelativeText,
   RelativeUnit,
+  LadderUnit,
 } from './runtime/formats.ts';
 export type {
   AnyTagFn,

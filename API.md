@@ -721,6 +721,13 @@ formats: {
     price: { style: 'currency', currency: 'EUR' },
     views: { notation: 'compact', maximumSignificantDigits: 3 },
     dollars: { style: 'currency', currency: 'USD', steps: [{ from: 10, maximumFractionDigits: 0 }] }, // $9.99, $13
+    // 512B, 1.5 kB, 12 kB, 1 MB (999,999 bytes): tenths below 10, in the largest unit it has a whole one of
+    bytes: {
+      maximumFractionDigits: 1,
+      steps: [{ from: 10, maximumFractionDigits: 0 }],
+      ladder: { units: [{ unit: 'byte', unitDisplay: 'narrow' }, 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] },
+    },
+    took: { maximumFractionDigits: 1, ladder: { units: ['millisecond', 'second', { unit: 'minute', per: 60 }] } }, // 850 ms, 1.5 min
   },
   date: {
     receipt: { dateStyle: 'medium', timeStyle: 'short' },
@@ -780,6 +787,13 @@ copy.relative(at, 'recent');
 - A number format's `steps` show a number otherwise from a size up, either side of 0: each is options over the format's
   own from its `from`, listed from the smallest size up. The size is the number as shown, so 9.996, "$10.00" in cents, is in
   the step from 10, "$10". A message can't `.match` on a format with steps, and native targets refuse it.
+- A number format's `ladder` shows a number in the largest of its units it has one whole of, as `style: 'unit'` would:
+  file sizes, rates (`'bit-per-second'`, `'megabit-per-second'`), or any series of the units `Intl.NumberFormat` names. Each
+  unit is `per` of the one before, 1000 unless said: `{ per: 1024, units: [...] }` counts bytes in binary, and a unit's own
+  `per` sets its own, 60 minutes to the hour. A unit given as options has its own beside the format's, `unitDisplay` above all
+  ("512B" beside "1.5 kB"). `steps` read the number in its unit, so "tenths below 10" is one step. The unit is checked after
+  rounding: 999,999 bytes rounds to 1,000 kB, so it shows "1 MB". The format names no `style` or `unit` of its own. A message
+  can't `.match` on it, and native targets refuse it. What climbs the ladder ships only in an app whose config has one.
 - A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
   many it shows from the largest it reaches. `fractionalDigits` (1 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
   where milliseconds would show "4s 200ms", rounded to its last digit and without trailing zeros ("12s"). The fraction is one of

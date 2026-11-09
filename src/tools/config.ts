@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { formatIn, type Formats, type Formatters, type FormatTable } from '#src/runtime/formats.ts';
+import { formatIn, type Formats, type Formatters, type FormatTable, type NumberLadder } from '#src/runtime/formats.ts';
 import { RELATIVE_UNITS } from '#src/runtime/relative.ts';
 
 import { DURATION_STYLES, DURATION_UNITS, RELATIVE_STYLES } from './icu.ts';
@@ -683,6 +683,7 @@ const FORMAT_OPTIONS = {
       'roundingPriority',
       'trailingZeroDisplay',
       'steps',
+      'ladder',
     ],
     // The styles a message names without the config, which a format may not take the name of.
     builtIn: ['integer', 'percent', 'currency'],
@@ -771,11 +772,21 @@ function refusedOptions(kind: keyof typeof FORMAT_OPTIONS, value: Record<string,
     const refused = refusedSteps(value.steps, FORMAT_OPTIONS.number.options);
     if (refused !== undefined) return refused;
   }
+  if (kind === 'number' && value.ladder !== undefined) {
+    const refused = refusedLadder(value);
+    if (refused !== undefined) return refused;
+  }
   try {
     if (kind === 'number') {
       // Each step is the format's options with its own over them, so each is checked as one.
       const steps = (value.steps ?? []) as Record<string, unknown>[];
-      for (const step of [{}, ...steps]) new Intl.NumberFormat('en', { ...value, ...step }).resolvedOptions();
+      const units = ((value.ladder as NumberLadder | undefined)?.units ?? [undefined]).map((u) => {
+        if (u === undefined) return {};
+        const { unit, per: _, ...own } = typeof u === 'string' ? { unit: u } : u;
+        return { style: 'unit', unit, ...own };
+      });
+      for (const unit of units)
+        for (const step of [{}, ...steps]) new Intl.NumberFormat('en', { ...value, ...unit, ...step }).resolvedOptions();
     } else if (kind === 'date') {
       new Intl.DateTimeFormat('en', value).resolvedOptions();
     } else if (kind === 'list') {
@@ -840,6 +851,37 @@ function checkRelativeDates(formats: Formats): void {
   }
 }
 
+/** What is wrong with a number format's `ladder`, its units each `per` of the one before and each an `Intl` unit, or nothing. */
+function refusedLadder(value: Record<string, unknown>): string | undefined {
+  const example = "ladder: { units: ['byte', 'kilobyte', 'megabyte'] }";
+  const ladder = value.ladder as Record<string, unknown>;
+  const per = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n > 1;
+  if (typeof ladder !== 'object' || ladder === null || !Array.isArray(ladder.units) || ladder.units.length < 2)
+    return `ladder lists two or more units, smallest first: ${example}`;
+  if (ladder.per !== undefined && !per(ladder.per)) return 'ladder.per is how many of each unit make the next, above 1: 1000, or 1024';
+  if (value.style !== undefined || value.unit !== undefined)
+    return 'ladder picks the unit, as style: unit, by the size: remove style and unit, and give unitDisplay beside them if you like';
+  for (const [i, u] of (ladder.units as unknown[]).entries()) {
+    const at = `ladder.units[${i}]`;
+    const own = typeof u === 'string' ? { unit: u } : u;
+    if (typeof own !== 'object' || own === null || typeof (own as { unit?: unknown }).unit !== 'string')
+      return `${at} is a unit Intl names, 'kilobyte', or one with options of its own: { unit: 'byte', unitDisplay: 'narrow' }`;
+    const { unit, per: n, ...options } = own as Record<string, unknown>;
+    if (n !== undefined && !per(n)) return `${at}.per is how many of the unit before make one, above 1`;
+    if (n !== undefined && i === 0) return `${at}.per says how many of the unit before make it, and the first has none: remove it`;
+    for (const key of Object.keys(options)) {
+      if (!(FORMAT_OPTIONS.number.options as readonly string[]).includes(key) || key === 'steps' || key === 'ladder')
+        return `${at}.${key} is not an option of Intl.NumberFormat, which would ignore it`;
+    }
+    try {
+      new Intl.NumberFormat('en', { style: 'unit', unit: unit as string }).resolvedOptions();
+    } catch {
+      return `${at} is ${String(unit)}, which is no unit Intl.NumberFormat shows: byte, kilobyte, megabit-per-second, millisecond, …`;
+    }
+  }
+  return undefined;
+}
+
 /** What is wrong with a number format's `steps`, each the format's options over its own from a size up, or nothing. */
 function refusedSteps(steps: unknown, options: readonly string[]): string | undefined {
   const example = 'steps: [{ from: 10, maximumFractionDigits: 0 }]';
@@ -854,8 +896,8 @@ function refusedSteps(steps: unknown, options: readonly string[]): string | unde
     if (from <= last) return `${at}.from is ${from}, not above the step before it: list the steps from the smallest size up`;
     last = from;
     for (const key of Object.keys(own)) {
-      if (key === 'steps' || !options.includes(key))
-        return `${at}.${key} is not an option of Intl.NumberFormat, which would ignore it: ${options.filter((o) => o !== 'steps').join(', ')}`;
+      if (key === 'steps' || key === 'ladder' || !options.includes(key))
+        return `${at}.${key} is not an option of Intl.NumberFormat, which would ignore it: ${options.filter((o) => o !== 'steps' && o !== 'ladder').join(', ')}`;
     }
     if (Object.keys(own).length === 0) return `${at} changes nothing from ${from} up: give it the options it shows a number with`;
   }

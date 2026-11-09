@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createCopy, createHelpers, defineCatalog, flatten, type Formats } from 'prosebook';
+import { createCopy, createHelpers, defineCatalog, flatten, numberLadder, type Formats } from 'prosebook';
 import { generate, lint, loadCatalog, planMigrate, readMessage, resolveConfig, type ProsebookConfig } from 'prosebook/tools';
 
 import { splitIndex } from '#src/tools/bundle.ts';
@@ -196,7 +197,129 @@ describe('number formats with steps', () => {
     expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
     const match = '.input {$n :number format=price}\n.match $n\none {{One}}\n* {{More}}';
     expect(() => readMessage(2, match, 'en', { formats: steps })).toThrow(
-      '.match on :number format=price, whose steps show a number by its size: match on a :number of the same value declared apart',
+      '.match on :number format=price, shown by a format with steps: match on a :number of the same value declared apart',
+    );
+  });
+});
+
+describe('number formats with a ladder of units', () => {
+  const ladders: Formats = {
+    number: {
+      bytes: {
+        maximumFractionDigits: 1,
+        steps: [{ from: 10, maximumFractionDigits: 0 }],
+        ladder: { units: [{ unit: 'byte', unitDisplay: 'narrow' }, 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] },
+      },
+      binary: { maximumFractionDigits: 1, ladder: { per: 1024, units: ['byte', 'kilobyte', 'megabyte', 'gigabyte'] } },
+      rate: {
+        maximumFractionDigits: 1,
+        ladder: { units: ['bit-per-second', 'kilobit-per-second', 'megabit-per-second', 'gigabit-per-second'] },
+      },
+      took: {
+        maximumFractionDigits: 1,
+        ladder: { units: ['millisecond', 'second', { unit: 'minute', per: 60 }, { unit: 'hour', per: 60 }] },
+      },
+    },
+  };
+  const shown = (version: 1 | 2, format: string, n: number, locale = 'en') => {
+    const text = version === 1 ? `{n, number, ${format}}` : `{$n :number format=${format}}`;
+    const ast = readMessage(version, text, locale, { formats: ladders, isolate: false });
+    const { m } = compiled([['m', ast]]);
+    return spaced(typeof m === 'string' ? m : flatten(m!({ n }, createHelpers(locale, { ladder: numberLadder }))).join(''));
+  };
+
+  test.each([
+    // [format, number, as shown in English, in German]
+    ['bytes', 0, '0B', '0 B'],
+    ['bytes', 999, '999B', '999 B'],
+    ['bytes', 1000, '1 kB', '1 kB'],
+    ['bytes', 1049, '1 kB', '1 kB'],
+    ['bytes', 1050, '1.1 kB', '1,1 kB'],
+    // Tenths below 10, as the step says, read in the unit: 9.95 kB rounds to 10, which shows none.
+    ['bytes', 9_949, '9.9 kB', '9,9 kB'],
+    ['bytes', 9_950, '10 kB', '10 kB'],
+    ['bytes', 999_499, '999 kB', '999 kB'],
+    // Rounding reaches 1,000 kB, which is a megabyte.
+    ['bytes', 999_500, '1 MB', '1 MB'],
+    ['bytes', 999_999, '1 MB', '1 MB'],
+    ['bytes', 1_000_000, '1 MB', '1 MB'],
+    ['bytes', 1.5e9, '1.5 GB', '1,5 GB'],
+    ['bytes', -1500, '-1.5 kB', '-1,5 kB'],
+    // Past the last unit, it counts in that one.
+    ['bytes', 5e15, '5,000 TB', '5.000 TB'],
+    ['binary', 1023, '1,023 byte', '1.023 Byte'],
+    ['binary', 1024, '1 kB', '1 kB'],
+    ['binary', 1_048_575, '1 MB', '1 MB'],
+    ['binary', 1_572_864, '1.5 MB', '1,5 MB'],
+    ['rate', 999, '999 bit/s', '999 Bit/s'],
+    ['rate', 2.5e6, '2.5 Mb/s', '2,5 Mb/s'],
+    ['took', 999, '999 ms', '999 ms'],
+    ['took', 999.96, '1 sec', '1 Sek.'],
+    ['took', 59_949, '59.9 sec', '59,9 Sek.'],
+    ['took', 59_960, '1 min', '1 Min.'],
+    ['took', 5_400_000, '1.5 hr', '1,5 Std.'],
+  ])('%s shows %p as %p, and in German as %p, in either syntax and in code', (format, n, en, de) => {
+    expect([shown(1, format, n), shown(2, format, n), shown(1, format, n, 'de')]).toEqual([en, en, de]);
+    const catalog = { source: 'en', locales: ['en'], messages: { en: {} }, loaders: {}, formats: ladders, ladder: numberLadder };
+    expect(spaced(createCopy(defineCatalog(catalog)).number(n, format as never))).toBe(en);
+  });
+
+  test('the writing guide shows it in each of its first units, and where rounding carries into the next', () => {
+    const lines = writingGuide(fixture({}, { formats: ladders }))
+      .split('\n')
+      .filter((l) => l.includes('(number)'))
+      .map(spaced);
+    expect(lines).toEqual([
+      '- `bytes` (number): 512B · 1.5 kB · 1 MB · 1.5 MB · 1.5 GB',
+      '- `binary` (number): 512 byte · 1.5 kB · 1 MB · 1.5 MB · 1.5 GB',
+      '- `rate` (number): 512 bit/s · 1.5 kb/s · 1 Mb/s · 1.5 Mb/s · 1.5 Gb/s',
+      '- `took` (number): 512 ms · 1.5 sec · 1 min · 1.5 min · 1.5 hr',
+    ]);
+  });
+
+  test('.match refuses it, and the lint takes no inline unit for its twin', () => {
+    const match = '.input {$n :number format=bytes}\n.match $n\none {{One}}\n* {{More}}';
+    expect(() => readMessage(2, match, 'en', { formats: ladders })).toThrow(
+      '.match on :number format=bytes, shown by a format with a ladder: match on a :number of the same value declared apart',
+    );
+    const config = fixture({ 'copy/catalog/app.yaml': 'app.a: "{n, number, ::unit/byte}"\n' }, { require: [], formats: ladders });
+    expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
+  });
+
+  test.each([
+    [{ units: ['byte'] }, "ladder lists two or more units, smallest first: ladder: { units: ['byte', 'kilobyte', 'megabyte'] }"],
+    [{ per: 1, units: ['byte', 'kilobyte'] }, 'ladder.per is how many of each unit make the next, above 1: 1000, or 1024'],
+    [{ units: ['byte', 'kibibyte'] }, 'ladder.units[1] is kibibyte, which is no unit Intl.NumberFormat shows'],
+    [
+      { units: [{ unit: 'byte', per: 8 }, 'kilobyte'] },
+      'ladder.units[0].per says how many of the unit before make it, and the first has none: remove it',
+    ],
+    [
+      { units: ['byte', { unit: 'kilobyte', unitDisplays: 'narrow' }] },
+      'ladder.units[1].unitDisplays is not an option of Intl.NumberFormat',
+    ],
+    [{ units: ['byte', 3] }, "ladder.units[1] is a unit Intl names, 'kilobyte', or one with options of its own"],
+  ])('a ladder %p is refused: %p', (ladder, message) => {
+    expect(() => fixture({}, { formats: { number: { b: { ladder } } } as never })).toThrow(`formats.number.b.${message}`);
+  });
+
+  test('the index imports what climbs a ladder only where a number format has one', () => {
+    const index = (formats: Formats) => {
+      const config = fixture({ 'copy/catalog/a.yaml': 'a.b: "{n, number}"\n' }, { require: [], formats });
+      generate(config);
+      return readFileSync(join(config.out, 'index.ts'), 'utf8');
+    };
+    const bytes = { ladder: { units: ['byte', 'kilobyte'] } };
+    const laddered = index({ number: { bytes: { maximumFractionDigits: 1 } }, locales: { de: { number: { bytes } } } });
+    expect(laddered).toContain("import { numberLadder } from 'prosebook';");
+    expect(laddered).toContain('  ladder: numberLadder,');
+    expect(index({ number: { price: { style: 'currency', currency: 'EUR' } } })).not.toContain('numberLadder');
+  });
+
+  test('a ladder picks the unit, so the format names none', () => {
+    const formatsWith = { number: { b: { style: 'unit', unit: 'byte', ladder: { units: ['byte', 'kilobyte'] } } } };
+    expect(() => fixture({}, { formats: formatsWith as never })).toThrow(
+      'formats.number.b.ladder picks the unit, as style: unit, by the size',
     );
   });
 });
@@ -264,7 +387,7 @@ describe("the app's own formatters", () => {
     const config = await own({ 'copy/catalog/app.yaml': 'app.a: "{t, number, ::currency/USD}"\n' });
     const match = '.input {$n :number format=money}\n.match $n\none {{One}}\n* {{More}}';
     expect(() => readMessage(2, match, 'en', { formats: config.formats })).toThrow(
-      ".match on :number format=money, which the app's own formatter shows: match on a :number of the same value declared apart",
+      ".match on :number format=money, shown by the app's own formatter: match on a :number of the same value declared apart",
     );
     expect(lint(loadCatalog(config).messages, config).filter((f) => f.rule === 'named-format')).toEqual([]);
   });

@@ -270,9 +270,19 @@ export function durationOptions(el: ExtensionElement): DurationFormatOptions {
  * A style the config names (`formats`): its options in the locale, as a skeleton's would be, so the
  * compiler and the native targets read it as any other, and its name, which the writers keep.
  */
-/** Whether a named format shows values in a way its `Intl` options alone don't: by steps, or by the app's own formatter. */
+/** Whether a named format shows values in a way its `Intl` options alone don't: by steps or a ladder, or by the app's own formatter. */
 export function beyondOptions(options: NumberFormatOptions | DateFormatOptions): boolean {
-  return ('steps' in options && options.steps !== undefined) || options.formatter !== undefined;
+  return (
+    ('steps' in options && options.steps !== undefined) ||
+    ('ladder' in options && options.ladder !== undefined) ||
+    options.formatter !== undefined
+  );
+}
+
+/** What shows a format's values beyond its options, in words: `a format with steps`. */
+export function beyondWhat(options: NumberFormatOptions | DateFormatOptions): string {
+  if (options.formatter !== undefined) return "the app's own formatter";
+  return 'ladder' in options && options.ladder !== undefined ? 'a format with a ladder' : 'a format with steps';
 }
 
 export type NamedStyle = (NumberSkeleton | DateTimeSkeleton) & { named: string };

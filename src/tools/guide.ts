@@ -12,12 +12,13 @@ import {
   durationParts,
   formatIn,
   formatWith,
-  stepOf,
   type DurationFormatOptions,
+  type NumberFormatOptions,
   type ListFormatOptions,
   type RelativeFormatOptions,
 } from '#src/runtime/formats.ts';
 import { joinList, shownItems } from '#src/runtime/helpers.ts';
+import { numberLadder } from '#src/runtime/ladder.ts';
 import { relativeText, type RelativeTools } from '#src/runtime/relative.ts';
 
 import type { Message } from './catalog.ts';
@@ -53,6 +54,21 @@ function scopeOf({ on }: CheckRule, offIn: string[], onlyIn: string[]): string |
  * would look alike in the first.
  */
 const SAMPLE_NUMBERS = [1234.5, 12, -0.25];
+/**
+ * The numbers a format is shown with: with a ladder, one of a few in each of its first units and one just under the
+ * third, which rounding carries into it (999,999 bytes, "1 MB"), so a writer sees where each unit starts.
+ */
+function samplesOf(o: NumberFormatOptions): number[] {
+  if (o.ladder === undefined) return SAMPLE_NUMBERS;
+  let size = 1;
+  const sizes = o.ladder.units
+    .slice(0, 4)
+    .map((u, i) => (size *= i === 0 ? 1 : ((typeof u === 'string' ? undefined : u.per) ?? o.ladder!.per ?? 1000)));
+  const samples = [512, ...sizes.slice(1).map((s) => 1.5 * s)];
+  if (sizes.length > 2) samples.splice(2, 0, sizes[2]! - 1);
+  return samples;
+}
+
 const SAMPLE_DATE = new Date(Date.UTC(2026, 9, 28, 14, 5));
 
 const SAMPLE_ITEMS = ['Ann', 'Bob', 'Cy', 'Dee'];
@@ -155,11 +171,14 @@ function formatsSection(config: ResolvedConfig, say: Say): string[] {
     ...Object.entries(number).map(([name, o]) => [
       name,
       'number',
-      SAMPLE_NUMBERS.map((n) => {
-        if (o.formatter !== undefined) return sampleOwn(config, 'number', o.formatter, n);
-        const make = (options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(config.source, options);
-        return make(stepOf(o, n, make)).format(n);
-      }).join(SAMPLES),
+      samplesOf(o)
+        .map((n) => {
+          if (o.formatter !== undefined) return sampleOwn(config, 'number', o.formatter, n);
+          const make = (options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(config.source, options);
+          const [shown, options] = numberLadder(o, n, make);
+          return make(options).format(shown);
+        })
+        .join(SAMPLES),
     ]),
     // In UTC, so the guide is the same wherever it is generated.
     ...Object.entries(date).map(([name, o]) => [

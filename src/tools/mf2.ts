@@ -28,6 +28,7 @@ import { formatIn, type DateFormatOptions, type FormatKind, type Formats, type N
 import {
   asElement,
   beyondOptions,
+  beyondWhat,
   DURATION,
   durationOptions,
   ENTRY,
@@ -479,12 +480,14 @@ function selectorOf(name: string, scope: Scope): Selector {
  * for a bare `:number`, which selects as MF1 does.
  */
 function selectionWith(fn: Mf2Function): { selection?: Selection } {
-  // Plural rules take one set of options, where a format with steps rounds a number by its size, and
+  // Plural rules take one set of options, where a format with steps or a scale rounds a number by its size, and
   // the app's own formatter rounds as it likes.
   if (fn.named !== undefined && beyondOptions(fn.named)) {
-    const why = fn.named.formatter === undefined ? 'whose steps show a number by its size' : "which the app's own formatter shows";
-    throw new Error(`.match on :${fn.name} format=${fn.options.format}, ${why}: match on a :number of the same value declared apart`);
+    throw new Error(
+      `.match on :${fn.name} format=${fn.options.format}, shown by ${beyondWhat(fn.named)}: match on a :number of the same value declared apart`,
+    );
   }
+
   const pick = <T>(from: Record<string, T>) => Object.fromEntries(Object.entries(from).filter(([k]) => PLURAL_OPTIONS.has(k)));
   const options = pick(intlNumber(fn) as Record<string, unknown>) as Intl.PluralRulesOptions;
   const args = pick(optionArgs(fn).args ?? {});
