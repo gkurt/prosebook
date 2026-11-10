@@ -201,6 +201,7 @@
     "prepack": "tsdown",
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
     "docs": "bun --conditions=prosebook@dev src/cli.ts lint --docs",
+    "docs:judge": "bun scripts/docs-judge.mts",
     "example": "tsdown && bun run --cwd examples/vite dev",
     "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",
