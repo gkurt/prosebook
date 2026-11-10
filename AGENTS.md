@@ -10,7 +10,8 @@ bun typecheck      # TypeScript 7, over src and test, with test/types.test.ts's 
 bun run lint       # oxlint
 bun run format     # oxfmt
 bun run fix        # lint + format with autofix
-bun run checks     # check + typecheck + test
+bun run docs       # README, API.md, CONTRIBUTING.md and AGENTS.md held to the writing rules (prosebook lint --docs)
+bun run checks     # check + typecheck + docs + test
 bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/vite`
 bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
@@ -22,9 +23,9 @@ bun run site       # build, then the homepage (site/, Astro) into _site/, as Pag
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
 
-Prefer these scripts over ad-hoc commands. Do not prefix them with `bun run` when a bare alias exists
-(`bun check`, `bun typecheck`) — those are whitelisted for agent use. Before finishing, run `bun run fix`
-then `bun run checks` — the linter (type-aware, through `oxlint-tsgolint`), formatter and `tsc` own all
+Prefer these scripts over ad-hoc commands. Don't prefix them with `bun run` when a bare alias exists
+(`bun check`, `bun typecheck`): those are whitelisted for agent use. Before finishing, run `bun run fix`
+then `bun run checks`: the linter (type-aware, through `oxlint-tsgolint`), formatter and `tsc` own all
 mechanical style rules. Fix the code; don't disable rules. A pre-commit hook runs both on staged files.
 
 Releases are Tegami's: a change that ships gets a `.tegami/<slug>.md` entry (the `changelog` skill), and
@@ -46,7 +47,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
   for the inspector, and the `HotHook` set every copy adds itself to, so an edited locale's messages
   are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
-- `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, ...), per locale
+- `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, …), per locale
   and per copy's `timeZone`, which `dateFormat` puts under a zone a message names itself.
   None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
   the placeholder's fallback and reports why, which `createCopy` hands to `onError` with the key. `l`
@@ -238,10 +239,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   looked at it, and its source must still be the catalog's.
 - `src/tools/lint.ts`: writing rules. The core rules are a `Record<string, CheckRule>` written as a
   plugin's are; each carries its severity under `recommended` and `strict`, and `lint.plugins` adds
-  more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, ...), which
+  more as `<plugin>/<rule>`, as code or as data (`existence`, `substitution`, …), which
   `compileRule` turns into code and checks when the config loads. The core word and case rules use
   the same matchers (`listed`, `outOfCase`) as the data rules; the format rules (`plural-count`,
-  `arm-endings`, ...) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
+  `arm-endings`, …) walk the locale's `ast`, which MF2 is read into too. Every translation is linted
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`); there and in
   `lint.rules`, `<plugin>/*` sets every rule of a plugin, a rule's own name winning (`severityIn`).
@@ -509,7 +510,7 @@ builds, which Bun would otherwise resolve to their server builds, and compiles `
 ## Conventions
 
 - Problem messages state the fix: `args.n is missing: say what the placeholder holds`.
-- Comments say what the code cannot: the reason, the constraint, the trap. Match the density around them.
+- Comments say what the code can't: the reason, the constraint, the trap. Match the density around them.
 - The runtime has no dependencies. Anything that needs a parser belongs in the tools.
 - Imports from parent directories go through the `#src/` alias, with the extension (`#src/runtime/types.ts`).
 - Prefer colocation, and early returns and guard clauses over nested conditionals.
@@ -521,7 +522,7 @@ builds, which Bun would otherwise resolve to their server builds, and compiles `
 
 ## Documentation
 
-When changing user-facing APIs, update API.md and AGENTS.md in the same change. Documentation must
-not go stale. API.md is the full reference, each feature an example and short notes. README.md is the
+When changing user-facing APIs, update API.md and AGENTS.md in the same change. Documentation mustn't
+go stale. API.md is the full reference, each feature an example and short notes. README.md is the
 overview, kept short: a new feature gets a line there at most, linking to its section of API.md. How
 something works inside belongs here, not in either. CONTRIBUTING.md is the same workflow for people.

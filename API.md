@@ -580,7 +580,7 @@ and explains every field. `generate --check` fails on a file without it; a file 
 | `context`  | One sentence telling a translator where the string appears. Required by default.                        |
 | `args`     | What each placeholder holds, and what each tag wraps. Required for every placeholder when `context` is. |
 | `kind`     | `name`, `action`, `description` or `state`. The lint holds each to its budget.                          |
-| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, ...                             |
+| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, …                               |
 | `closed`   | Selects that take only the arms they name: `closed: [mode]` types `mode` as `'dark' \| 'light'`.        |
 | `min`      | The least a plural's count can be: `min: { sites: 2 }` asks no `one` of English, but still of Russian.  |
 | `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                           |
@@ -709,7 +709,7 @@ en: 'Due {at, relative, short}' # "Due in 2 hr."; long, short, narrow
 en: 'By checking out you agree to our <link>terms</link>.' # a tag
 ```
 
-- A bare `{n}` is a `string`. A number says how it's shown: `{n, number}` is 1,234 in English, 1.234 in German.
+- A bare `{n}` is a `string`. A number says how it's shown: `{n, number}` is `1,234` in English, `1.234` in German.
 - A placeholder holds a value, never a translated fragment. A word that changes with the sentence belongs in an arm.
 - An argument used twice must agree: a select's argument can be printed too, and two selects take both's arms. A number and a
   select on one argument fail.
@@ -807,7 +807,7 @@ copy.relative(at, 'recent');
   unit is `per` of the one before, 1000 unless said: `{ per: 1024, units: [...] }` counts bytes in binary, and a unit's own
   `per` sets its own, 60 minutes to the hour. A unit given as options has its own beside the format's, `unitDisplay` above all
   ("512B" beside "1.5 kB"). `steps` read the number in its unit, so "tenths below 10" is one step. The unit is checked after
-  rounding: 999,999 bytes rounds to 1,000 kB, so it shows "1 MB". The format names no `style` or `unit` of its own. A message
+  rounding: `999,999` bytes rounds to `1,000 kB`, so it shows "1 MB". The format names no `style` or `unit` of its own. A message
   can't `.match` on it, and native targets refuse it. What climbs the ladder ships only in an app whose config has one.
 - A duration format's `largest` and `smallest` units bound what it counts in (`hours` writes a day as 24 hours), and `units` how
   many it shows from the largest it reaches. `fractionalDigits` (1 to 3) shows the milliseconds as the seconds' fraction, "4.2s"
@@ -1350,7 +1350,7 @@ what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`
 and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 
 JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,
-`Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes are not text: `className=`, what `cn`, `clsx`,
+`Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes aren't text: `className=`, what `cn`, `clsx`,
 `cva`, `tv` and `twMerge` are given, and any string of utility classes (`block h-full cursor-[inherit]`).
 
 It also finds numbers, dates, lists and relative times formatted in code, which show the browser's locale rather than the
@@ -1431,7 +1431,7 @@ error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
 - `prosebook approve src/Sync.tsx:12`, or the text itself, approves the words: the approval holds wherever they move, and
   ends once they change. Each approval drops those of words no longer in the code.
 - No `--fix`, and the commands that read a catalog, such as `generate` and `status`, are refused. So are config options only a
-  catalog reads (`locales`, `out`, `messageFormat`, `native`, ...).
+  catalog reads (`locales`, `out`, `messageFormat`, `native`, …).
 - Set `catalog` to a folder and run `prosebook extract` to move the text into a catalog.
 
 ### Docs
@@ -1516,7 +1516,7 @@ profile.hi-read-the-terms:
 - Whole sentences, not fragments: text, simple expressions and inline elements in one element become one message.
 - The area is the file's name in kebab case (`CartPanel.tsx` → `cart-panel`). `extract: { shared: 'common' }` gathers words every
   feature says (`Cancel`) in one area.
-- `kind` and `surface` come from the element (`<button>` → action, `<h2>` → heading).
+- `kind` and `surface` come from the element (`<button>` an action, `<h2>` a heading).
 - `{n} {n === 1 ? 'file' : 'files'}` becomes one plural. A sentence whose parts code picks stays, with a warning.
 - Placeholders are typed through the project's TypeScript 7: a number becomes `{n, number}`, a `Date` `{when, date, medium}`, a
   number before a plural noun a plural. Without it, the syntax decides.
@@ -1663,8 +1663,8 @@ the page.
   `Bun.openInEditor` (`VISUAL`, `EDITOR`). Turn it off with `inspect: false`.
 - Another shortcut, where Alt is taken: `inspect: { modifiers: ['Control', 'Shift'], button: 'right' }`. `modifiers` are held,
   and no others, to show the keys (`'Alt'`, `'Control'`, `'Meta'`, `'Shift'`; `['Alt']` unset), and `button` is pressed with
-  them to edit (`'left'`, `'middle'`, `'right'`; `'left'` unset). Exactly those keys, so AltGr, which is Control and Alt, is
-  not Alt.
+  them to edit (`'left'`, `'middle'`, `'right'`; `'left'` unset). Exactly those keys, so AltGr, which is Control and Alt, isn't
+  Alt.
 
 ## Playground
 

@@ -19,6 +19,8 @@ jobs:
       # What an app ships, minified and gzipped, against the budgets in the script.
       - run: bun run size
       - run: bun check
+      # The README, API.md, CONTRIBUTING.md and AGENTS.md, held to the writing rules as the copy is.
+      - run: bun run docs
       - run: bun run test
       - run: bun typecheck
 

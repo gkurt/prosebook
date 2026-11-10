@@ -162,7 +162,7 @@ Add your own rules as code or as data, scoped by kind, surface, area and locale.
 `copy/catalog/WRITING.md`, generated for a coding agent to read before it writes, with [guidelines against the habits of
 generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 
-## And more
+## More features
 
 - [**Inspector**](API.md#inspector): in dev, Alt-click any text on the page to edit its entry there.
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.

@@ -196,10 +196,11 @@
     "check": "oxlint && oxfmt --check",
     "fix": "oxlint --fix && oxfmt",
     "test": "bun test --conditions=prosebook@dev",
-    "checks": "bun check && bun typecheck && bun run test",
+    "checks": "bun check && bun typecheck && bun run docs && bun run test",
     "build": "tsdown",
     "prepack": "tsdown",
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
+    "docs": "bun --conditions=prosebook@dev src/cli.ts lint --docs",
     "example": "tsdown && bun run --cwd examples/vite dev",
     "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",
@@ -301,6 +302,7 @@
     }
   },
   "lint-staged": {
+    "{README,API,CONTRIBUTING,AGENTS}.md": "bun run docs",
     "*": [
       "oxlint --fix --no-error-on-unmatched-pattern",
       "oxfmt --no-error-on-unmatched-pattern"

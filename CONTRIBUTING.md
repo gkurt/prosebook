@@ -17,13 +17,14 @@ bun install     # again, so the examples link the prosebook bin from dist/cli.js
 bun run test        # all tests, against the source
 bun typecheck       # TypeScript 7 over src and test
 bun run cli <cmd>   # the CLI from source: bun run cli generate --root examples/vite
+bun run docs        # the README, API.md, CONTRIBUTING.md and AGENTS.md held to the writing rules
 bun run example     # build, then the Vite example's dev server
 bun run dev         # build, then the homepage's dev server, with the inspector
 bun run site        # the homepage (site/, Astro) built into _site/
 ```
 
-Before committing, run `bun run fix` (lint and format, with fixes) and `bun run checks` (check, typecheck and test). A pre-commit
-hook runs the linter and formatter on staged files. Fix what they report rather than disabling a rule.
+Before committing, run `bun run fix` (lint and format, with fixes) and `bun run checks` (check, typecheck, docs and test). A pre-commit
+hook runs the linter and formatter on staged files, and `bun run docs` on the docs staged. Fix what they report rather than disabling a rule.
 
 ## Examples
 
