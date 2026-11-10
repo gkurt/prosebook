@@ -917,13 +917,14 @@ en: 'Total: {total, number, money}' # MF2: {$total :number format=money}
 copy.number(total, 'money');
 ```
 
-- Each is named as a format of the config's is, typed, and checked: a name `formats` has too, or a built-in style, fails as the
-  config loads. It is given the value and the locale, and the copy's `timeZone` where it has one, and gives the text.
+- Each formatter is named as a format of the config's is, typed, and checked: a name `formats` has too, or a built-in style,
+  fails as the config loads. A formatter is given the value and the locale, and the copy's `timeZone` where it has one, and
+  gives back the text.
 - The generated index imports the module, so it ships to the browser, and everything it imports with it: keep it small, free
   of secrets and of server-only code, and its text a function of the value and the locale alone, so the server and the browser
   show the same.
 - `generate` and every dev server run it, as they run the config: on a checkout you don't trust, both are code you run.
-- One that throws shows the placeholder's fallback and tells `onError` why, as `Intl` refusing a value does.
+- A formatter that throws shows the placeholder's fallback, and `onError` gets the error, as when `Intl` refuses a value.
 - The writing guide shows each on its samples. A message can't `.match` on one, native targets refuse one, and the
   `named-format` lint never names one. Dev servers read the module again when it changes.
 
@@ -1081,25 +1082,25 @@ message is padded to the length a translation is likely to reach. Builds through
 
 ## CLI
 
-| Command                  |                                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `init`                   | A config and a first catalog file.                                                              |
-| `generate`               | The typed modules (`--check`, `--watch`).                                                       |
-| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`); [in code](#without-a-catalog). |
-| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                           |
-| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                              |
-| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                                     |
-| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).                     |
-| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).         |
-| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`, `--lint`).                            |
-| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                                      |
-| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                                |
-| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                                    |
-| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                         |
-| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).              |
-| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).          |
-| `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).  |
-| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                       |
+| Command                  |                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `init`                   | A config and a first catalog file.                                                                                        |
+| `generate`               | The typed modules (`--check`, `--watch`).                                                                                 |
+| `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`, [rewrites](#suggestions)); [in code](#without-a-catalog). |
+| `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                                                     |
+| `accept <locale> [keys]` | Marks stale translations as still right (`--all`).                                                                        |
+| `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                                                               |
+| `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).                                               |
+| `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).                                   |
+| `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`, `--lint`).                                                      |
+| `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                                                                |
+| `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                                                          |
+| `diff [base]`            | The copy changed since a git revision (`--format markdown`).                                                              |
+| `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                                                   |
+| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).                                        |
+| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).                                    |
+| `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).                            |
+| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                                                 |
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
@@ -1319,6 +1320,35 @@ guideline, with its words.
 - **`lint` and `check` read the verdicts** from the lock, with no model and no key, and `check` warns of entries not judged
   as they are now. The lock keeps the probability, so a new `threshold` needs no new run.
 - **`--check`** asks nothing and fails on any entry not judged as it is now.
+
+#### Suggestions
+
+A language model answers the same questions, each a probability, through structured output, and where it finds a guideline
+broken, writes the entry again: `languageJudge`, for Claude Haiku or any model the AI SDK reaches.
+
+```ts
+import { anthropic } from '@ai-sdk/anthropic';
+import { decisionJudge, languageJudge } from 'prosebook/ai';
+
+judge: {
+  models: [decisionJudge(typeSafeAi.decisionModel('jev-latest')), languageJudge(anthropic('claude-haiku-5-5'), { price: { input: 0.1, output: 0.5 } })],
+},
+```
+
+```text
+warn  copy/catalog/home.yaml:4:1 home.greeting: [voice/no-intent] breaks this guideline, the models judge
+      suggested: "Welcome, {name}."
+1 entry has a judge's rewrite: read it, then write it with prosebook lint --fix --unsafe.
+```
+
+- A suggestion keeps to every guideline the entry is held to, in its language and syntax. One that drops or changes a
+  placeholder or a tag, or doesn't parse, is left out.
+- The lock keeps it under `suggested`, beside a hash of the entry as the model read it, so it's gone once the entry changes.
+  With several models, the first in `models` that suggested one is shown.
+- **`lint --fix --unsafe`** writes it in the entry's place, as it merges duplicates: a rewrite is a guess, so `--fix` alone
+  leaves it. Read it first. The docs and text in code show it, as they'd be written, and are edited by hand.
+- `{ suggest: false }` asks for the answers alone. A `Judge` of your own suggests by giving `suggestion` beside
+  `probabilities`; `decisionJudge` gives none.
 
 #### Approving
 
@@ -1691,7 +1721,7 @@ const fixed = fix(files, played.findings, config); // the files with the fixes m
 ```
 
 - The config is the object `prosebook.config.ts` would export; nothing is read from disk, and `scan` doesn't run.
-- It compiles with `new Function`, which a page's Content Security Policy must allow (`'unsafe-eval'`).
+- The playground compiles messages with `new Function`, which a page's Content Security Policy must allow (`'unsafe-eval'`).
 
 ## Native targets
 

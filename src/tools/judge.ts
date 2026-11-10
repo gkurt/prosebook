@@ -19,11 +19,12 @@
  * and `lint` reads the lock's verdicts without a model: the probability is kept rather than the
  * verdict, so a new `threshold` needs no new run.
  */
-import type { Catalog, Message } from './catalog.ts';
+import { driftFrom, type Catalog, type Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { applies, isGuideline, languageName, lint, severityOf, type Verdict } from './lint.ts';
 import { hash, type Lock } from './lock.ts';
 import { toneIn } from './presets.ts';
+import { readMessage } from './syntax.ts';
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -47,6 +48,12 @@ export interface JudgeResponse {
   usage?: { inputTokens?: number; outputTokens?: number };
   /** What the request cost, in US dollars, where the provider says or the judge knows its prices. */
   cost?: number;
+  /**
+   * The entry's `message` rewritten to keep to every guideline asked of it, where the judge finds one
+   * broken: in the message's own syntax, with its placeholders and tags. A decision model gives none.
+   * One that drops or changes a placeholder is left out; one kept is written by `lint --fix --unsafe`.
+   */
+  suggestion?: string;
 }
 
 /** A decision model, as the config's `judge.models` take one. */
@@ -248,17 +255,72 @@ export function unanswered(asked: Asked[], verdicts: Verdicts | undefined, model
  */
 export function verdictsOf(config: ResolvedConfig, messages: readonly Message[], lock: Lock): Verdict {
   const { judge } = config;
-  const byEntry = new Map(
-    judge === undefined ? [] : askedOf(config, judge, messages).map((a) => [`${a.locale}\u0000${a.message.key}`, a] as const),
-  );
-  return (message, locale, rule) => {
+  // By entry, not key: the same words in code or the docs in two roles are two entries with one key.
+  const byEntry = new Map<Message, Map<string, Asked>>();
+  for (const a of judge === undefined ? [] : askedOf(config, judge, messages)) {
+    const locales = byEntry.get(a.message) ?? new Map<string, Asked>();
+    byEntry.set(a.message, locales.set(a.locale, a));
+  }
+  const verdict: Verdict = (message, locale, rule) => {
     if (approvedNow(config, lock.judged, message, locale, rule)) return false;
-    const a = byEntry.get(`${locale}\u0000${message.key}`);
+    const a = byEntry.get(message)?.get(locale);
     if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
     const ps = judge.models.map((m) => answerOf(lock.judged, a, rule, m.id));
     if (ps.some((p) => p === undefined)) return undefined;
     return ps.reduce((sum: number, p) => sum + p!, 0) / ps.length >= judge.threshold;
   };
+  // The first judge's, in the config's order, that holds for the entry as it reads.
+  verdict.suggestion = (message, locale) => {
+    const a = byEntry.get(message)?.get(locale);
+    if (a === undefined || judge === undefined) return undefined;
+    for (const { id } of judge.models) {
+      const text = suggestionOf(lock.suggested?.[locale]?.[message.key]?.[id] ?? [], a);
+      if (text !== undefined) return text;
+    }
+    return undefined;
+  };
+  return verdict;
+}
+
+/**
+ * The rewrites the judges suggested, which the lock holds: per locale, per key, per judge, each
+ * `<hash>:<text>`, the hash over the entry's state as given, so a suggestion holds only while the entry
+ * reads as it did. Several where the same words in code or the docs stand in two roles, as verdicts are.
+ */
+export type Suggestions = Record<string, Record<string, Record<string, string[]>>>;
+
+/** The hash a suggestion is kept under: the entry as the judge was given it. */
+const stateHash = (a: Asked) => hash(JSON.stringify(a.state));
+
+/** A suggestion's text, where it was given for the entry as it reads now. */
+function suggestionOf(said: readonly string[], a: Asked): string | undefined {
+  const at = `${stateHash(a)}:`;
+  return said.find((s) => s.startsWith(at))?.slice(at.length);
+}
+
+/** A suggestion kept, in place of one given for the same entry as it read. */
+function suggester(suggestions: Suggestions) {
+  return (a: Asked, id: string, text: string) => {
+    const judges = ((suggestions[a.locale] ??= {})[a.message.key] ??= {});
+    const at = `${stateHash(a)}:`;
+    judges[id] = [...(judges[id] ?? []).filter((s) => !s.startsWith(at)), `${at}${text}`].sort();
+  };
+}
+
+/**
+ * Whether a suggestion can stand for the entry's text: read in the catalog's syntax, with the source's
+ * placeholders and tags, and saying something else than the text does. A judge's rewrite is a guess,
+ * so one that would break the message is left out rather than written.
+ */
+function suggestionHolds(config: ResolvedConfig, a: Asked, text: string): boolean {
+  if (text.trim() === '' || text === a.state['message']) return false;
+  // Text in code or the docs is read as ICU whatever the catalog's syntax (`scanned.ts`).
+  const syntax = a.message.places === undefined ? config.messageFormat : 1;
+  try {
+    return driftFrom(a.message, readMessage(syntax, text, a.locale, { formats: config.formats })) === undefined;
+  } catch {
+    return false;
+  }
 }
 
 /** A verdict kept as it was, in a copy of the verdicts being built. */
@@ -370,11 +432,15 @@ export interface JudgeStats {
   cost: number;
   /** Requests whose cost the judge couldn't say: `cost` leaves them out. */
   unpriced: number;
+  /** Suggestions given and kept: each in the message's syntax, with its placeholders and tags. */
+  suggestions: number;
 }
 
 export interface JudgeRun {
   /** The lock's verdicts, brought up to date: every entry's, those asked and those kept. */
   verdicts: Verdicts;
+  /** The lock's suggestions the same way: those given now, and those kept that still hold. */
+  suggestions: Suggestions;
   stats: JudgeStats;
   /** Why requests failed; a run stops asking at the first, and keeps what was answered. */
   failures: { key: string; locale: string; model: string; error: unknown }[];
@@ -458,8 +524,18 @@ export async function judgeCatalog(
     outputTokens: 0,
     cost: 0,
     unpriced: 0,
+    suggestions: 0,
   };
   const failures: JudgeRun['failures'] = [];
+  // A suggestion holds while the entry is as it was given for: kept for an entry read now, dropped for the rest.
+  const suggestions: Suggestions = {};
+  const suggest = suggester(suggestions);
+  for (const a of asked) {
+    for (const [id, said] of Object.entries(lock.suggested?.[a.locale]?.[a.message.key] ?? {})) {
+      const text = suggestionOf(said, a);
+      if (text !== undefined) suggest(a, id, text);
+    }
+  }
   const stop = new AbortController();
   const started = performance.now();
   let next = 0;
@@ -493,6 +569,10 @@ export async function judgeCatalog(
       const p = probability(`concerns${i}`, rule) * probability(`breaks${i}`, rule);
       keep(a.locale, a.message.key, rule, model.id, `${a.questions.get(rule)!.hashes[model.id]}:${Math.round(p * 100) / 100}`);
     });
+    if (response.suggestion !== undefined && suggestionHolds(config, a, response.suggestion)) {
+      suggest(a, model.id, response.suggestion);
+      stats.suggestions++;
+    }
     options.progress?.(stats.requests, open.length);
   };
   const worker = async () => {
@@ -508,5 +588,5 @@ export async function judgeCatalog(
   };
   await Promise.all(Array.from({ length: Math.min(judge.concurrency, open.length) }, worker));
   stats.ms = performance.now() - started;
-  return { verdicts, stats, failures };
+  return { verdicts, suggestions, stats, failures };
 }

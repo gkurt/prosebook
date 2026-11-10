@@ -9,19 +9,28 @@ import { parseSync } from 'oxc-parser';
 
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { parseMessage, type MessageFormatElement } from './icu.ts';
+import { parseMessage, TYPE, type MessageFormatElement } from './icu.ts';
 import { lint, type Finding, type Verdict } from './lint.ts';
 import { pickOf, scan, unscanned, unwrapped, whereOf, type Hardcoded, type Node } from './scan.ts';
 
 /** A template's `${…}`, read as a placeholder named for the value it shows, so `${user.name}` says `{name}`. */
 const HOLE = /\$\{([^}]*)\}/g;
 
+/** Text in code or a doc as an ICU message, and what each placeholder stands for, as written. */
+export interface Scanned {
+  text: string;
+  ast: MessageFormatElement[];
+  args: Map<string, string>;
+  /** By placeholder: the code it was read from, `${user.name}`, or the doc's code span or URL. */
+  holes: Map<string, string>;
+}
+
 /**
  * The text as an ICU message: literal text escaped, and each of a template's holes a placeholder. A
  * hole picking between two strings is a choice: `${n === 1 ? 'hop' : 'hops'}` a plural on `n`, any
  * other test a select, so the lint reads each arm. The same expression twice is one placeholder.
  */
-export function messageOf(text: string): { text: string; ast: MessageFormatElement[]; args: Map<string, string> } {
+export function messageOf(text: string): Scanned {
   const args = new Map<string, string>();
   const sources = new Map<string, string>();
   const nameFor = (base: string, source: string, type: string) => {
@@ -55,7 +64,8 @@ export function messageOf(text: string): { text: string; ast: MessageFormatEleme
     }
   }
   out += escaped(text.slice(at));
-  return { text: out, ast: parseMessage(out), args };
+  const holes = new Map([...sources].map(([name, source]) => [name, `\${${source}}`]));
+  return { text: out, ast: parseMessage(out), args, holes };
 }
 
 /** In a doc's prose, what isn't words: a code span, `` `npm install` ``, and a bare URL. */
@@ -66,9 +76,10 @@ const NOT_WORDS = /(`+)(.+?)\1(?!`)|\bhttps?:\/\/[^\s<>]*[^\s<>.,;:!?'")\]]/g;
  * placeholder, `{code}` or `{link}`, so the lint reads the words around them and not what they hold.
  * The same span twice is one placeholder.
  */
-export function docMessageOf(prose: string): { text: string; ast: MessageFormatElement[]; args: Map<string, string> } {
+export function docMessageOf(prose: string): Scanned {
   const args = new Map<string, string>();
   const names = new Map<string, string>();
+  const holes = new Map<string, string>();
   let out = '';
   let at = 0;
   for (const found of prose.matchAll(NOT_WORDS)) {
@@ -80,12 +91,28 @@ export function docMessageOf(prose: string): { text: string; ast: MessageFormatE
       name = base;
       for (let n = 2; args.has(name); n++) name = `${base}${n}`;
       names.set(found[0], name);
+      holes.set(name, found[0]);
       args.set(name, 'string');
     }
     out += `{${name}}`;
   }
   out += escaped(prose.slice(at));
-  return { text: out, ast: parseMessage(out), args };
+  return { text: out, ast: parseMessage(out), args, holes };
+}
+
+/**
+ * A message read from code or a doc as it would be written there again: each placeholder the code or
+ * code span it stands for. A plural or select it can't write back stays in the message's syntax.
+ */
+export function asWrittenIn(message: Message, text: string): string {
+  let ast: MessageFormatElement[];
+  try {
+    ast = parseMessage(text);
+  } catch {
+    return text;
+  }
+  if (!ast.every((el) => el.type === TYPE.literal || el.type === TYPE.argument)) return text;
+  return ast.map((el) => (el.type === TYPE.literal ? el.value : (message.argDocs.get(el.value) ?? `{${el.value}}`))).join('');
 }
 
 /** A doc's prose with its code spans and URLs taken out: what the lint reads as words. */
@@ -302,14 +329,15 @@ export function scannedMessages(config: ResolvedConfig, places: readonly Hardcod
   }
   return [...byText.values()].map(({ role, at }) => {
     const [first] = at as [Hardcoded];
-    const { text, ast, args } = first.via === 'doc' ? docMessageOf(first.text) : messageOf(first.text);
+    const { text, ast, args, holes } = first.via === 'doc' ? docMessageOf(first.text) : messageOf(first.text);
     return {
       key: first.text,
       area: '',
       file: first.file,
       ...role,
       context: contextOf(first),
-      argDocs: new Map(),
+      // What each placeholder stands for, which the judge reads, and `asWrittenIn` writes back.
+      argDocs: holes,
       fragment: false,
       allow: new Map(Object.entries(first.allow ?? {})),
       closed: [],
@@ -366,7 +394,7 @@ export interface PlacedFinding extends Finding {
  */
 export function lintScanned(messages: readonly Message[], config: ResolvedConfig, verdict?: Verdict): PlacedFinding[] {
   return messages.flatMap((message) =>
-    lint([message], config, [], verdict).flatMap(({ key, locale, rule, severity, message: said }) =>
+    lint([message], config, [], verdict).flatMap(({ key, locale, rule, severity, message: said, suggestion }) =>
       (message.places ?? []).map((p) => ({
         key,
         file: p.file,
@@ -374,6 +402,8 @@ export function lintScanned(messages: readonly Message[], config: ResolvedConfig
         rule,
         severity,
         message: said,
+        // No fix: text in code may be more than its words. The rewrite is said, as it would be written.
+        ...(suggestion !== undefined && { suggestion: asWrittenIn(message, suggestion) }),
         line: p.line,
         column: p.column,
         where: whereOf(p),

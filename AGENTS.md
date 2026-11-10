@@ -393,11 +393,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   wrapper's own imports pass through. Its watcher isn't `persistent`, as the same config serves `metro build`. Its export
   has a `default` condition, since `metro.config.js` `require`s it. No example: `test/metro.test.ts` bundles with Metro
   both ways, and nothing here runs a device.
-- `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so it prunes there; the dev server
-  (bunfig.toml's `[serve.static]`) names none, so there it watches and appends the Vite plugin's hot
-  code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from the index
-  unless `NODE_ENV` is `production`. `inspector()` is its endpoints as `Bun.serve` routes, opening
-  entries with `Bun.openInEditor`; the example imports it only in dev and its build marks it external.
+- `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so the plugin prunes there; the dev
+  server (bunfig.toml's `[serve.static]`) names none, so there the plugin watches and appends the Vite
+  plugin's hot code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from
+  the index unless `NODE_ENV` is `production`. `inspector()` is the inspector's endpoints as
+  `Bun.serve` routes, opening entries with `Bun.openInEditor`; the Bun example imports `inspector()`
+  only in dev, and the example's build marks the module external.
   With `split`, areas are modules of its own namespace, and the source under `scan.dirs` is loaded
   here to append their imports, as Bun has no transform hook. A full-stack `Bun.build` loads each
   module once per side and names it in `onLoad`'s `side`, not in Bun's types (a server's own build
@@ -462,10 +463,18 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `rename` keep `judged` as it was. `lint` takes a `Verdict` (`verdictsOf`, with or without a judge),
   asks it of each rule compiled from a `guideline` (`isGuideline`, a `WeakSet` filled by `compileRule`),
   and of any other rule that fires, which an approval (`false`) passes; a guideline with
-  no verdict is unjudged, so its `allow` isn't called stale. `src/ai.ts` is `prosebook/ai`,
-  `decisionJudge`: a `Judge` over an AI SDK decision model through `experimental_decide`, a tsdown
-  entry of its own so only it imports `ai`, an optional peer; its cost is the AI Gateway's where it
-  says one, else the tokens at the `price` given.
+  no verdict is unjudged, so its `allow` isn't called stale. A judge may give a `suggestion`, the
+  entry rewritten, kept in the lock's `suggested` (`docsSuggested` under `--docs`) under a hash of the
+  entry's state as asked, and only where `suggestionHolds`: it parses with the source's placeholders and
+  tags (`driftFrom`, `catalog.ts`). `verdictsOf`'s `suggestion` reads it back; `lint` sets it on the
+  finding of a broken guideline as a whole-text `fix` marked `unsafe`, which only `lint --fix --unsafe`
+  writes. Text in code and the docs keeps each placeholder's source in `argDocs` (`Scanned.holes`),
+  which the judge reads as what the placeholder holds and `asWrittenIn` writes the rewrite back with.
+  `src/ai.ts` is `prosebook/ai`, a tsdown entry of its own so only it imports `ai`, an optional peer:
+  `decisionJudge`, a `Judge` over an AI SDK decision model through `experimental_decide`, and
+  `languageJudge`, over a language model through `generateText`'s structured output, each question a
+  probability, and the rewrite where it finds one broken. Its cost is the AI Gateway's where it says
+  one, else the tokens at the `price` given.
 - `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)
   and their key past its area, which the writing guide tells writers to run before adding one.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's

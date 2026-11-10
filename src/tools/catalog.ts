@@ -581,8 +581,8 @@ function leastCounts(value: unknown, ast: MessageFormatElement[], fail: (m: stri
   return min;
 }
 
-/** How a translation's placeholders or tags differ from the source, or nothing. */
-function driftFrom(message: Message, ast: MessageFormatElement[]): string | undefined {
+/** How a translation's placeholders or tags differ from the source, or nothing: a judge's suggestion too. */
+export function driftFrom(message: Message, ast: MessageFormatElement[]): string | undefined {
   const args = argsOf(ast);
   const missing = [...message.args.keys()].filter((a) => !args.has(a));
   // A name's translation may select among forms its language has and the source's doesn't: a case.

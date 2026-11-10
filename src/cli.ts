@@ -27,7 +27,17 @@ import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { findEntries } from './tools/find.ts';
 import { generate, render } from './tools/generate.ts';
-import { approve, askedOf, brokenKeys, judgeCatalog, unanswered, verdictsOf, type JudgeStats, type Verdicts } from './tools/judge.ts';
+import {
+  approve,
+  askedOf,
+  brokenKeys,
+  judgeCatalog,
+  unanswered,
+  verdictsOf,
+  type JudgeStats,
+  type Suggestions,
+  type Verdicts,
+} from './tools/judge.ts';
 import { isGuideline, lint, type Finding } from './tools/lint.ts';
 import { changeOf, readLock, serializeLock, type Lock, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
@@ -49,7 +59,8 @@ Commands:
   lint [paths]            Check the messages and their translations against the writing rules, those
                           in the files and folders named where paths are given
                           (--fix: write the fixes the rules know, such as spellings and …;
-                          --fix --unsafe: also merge each group of duplicate entries into one);
+                          --fix --unsafe: also merge each group of duplicate entries into one,
+                          and write the rewrites a judge suggested);
                           with catalog: false in the config, the text scan finds in code instead;
                           with --docs, the prose of the Markdown files named, or of the config's docs
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
@@ -444,7 +455,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     );
   let findings = linted();
   if (fix) {
-    const { fixed, problems } = applyFixes(config, catalog, findings);
+    // A judge's rewrite is a guess, written only with --unsafe; the rules' fixes are mechanical.
+    const { fixed, problems } = applyFixes(config, catalog, unsafe ? findings : findings.filter((f) => f.unsafe !== true));
     if (problems.length > 0) {
       reportProblems(config, problems, report);
       err('The fixes would break the catalog, so nothing was written.');
@@ -472,7 +484,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
   }
   reportFindings(config, findings, report);
   const errors = findings.filter((f) => f.severity === 'error').length;
-  const fixable = findings.filter((f) => f.fix !== undefined).length;
+  const fixable = findings.filter((f) => f.fix !== undefined && f.unsafe !== true).length;
+  const rewritable = new Set(findings.filter((f) => f.unsafe === true).map((f) => `${f.locale}\u0000${f.key}`)).size;
   const broken = errorsIn(catalog).length;
   if (findings.length === 0) {
     out(
@@ -481,6 +494,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
   } else {
     sayTotals(findings, catalog.messages, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
+    const rewrites = `${rewritable} entr${rewritable === 1 ? 'y has' : 'ies have'} a judge's rewrite`;
+    if (rewritable > 0) err(`${rewrites}: read it, then write it with prosebook lint --fix --unsafe.`);
   }
   return errors + broken > 0 ? 1 : 0;
 }
@@ -658,14 +673,15 @@ function entriesOf(config: ResolvedConfig, docs: boolean, report?: SarifReport):
  */
 function lockFor(config: ResolvedConfig, docs: boolean): Lock {
   const lock = readLock(config.lock);
-  return docs ? { ...lock, judged: lock.docs } : lock;
+  return docs ? { ...lock, judged: lock.docs, suggested: lock.docsSuggested } : lock;
 }
 
-/** The verdicts written to the lock, in the docs' section with `--docs`. */
-function writeVerdicts(config: ResolvedConfig, docs: boolean, verdicts: Verdicts): void {
+/** The verdicts, and a run's suggestions, written to the lock: in the docs' sections with `--docs`. */
+function writeVerdicts(config: ResolvedConfig, docs: boolean, verdicts: Verdicts, suggestions?: Suggestions): void {
   const lock = readLock(config.lock);
+  const kept = suggestions === undefined ? {} : docs ? { docsSuggested: suggestions } : { suggested: suggestions };
   mkdirSync(dirname(config.lock), { recursive: true });
-  writeFileSync(config.lock, serializeLock(docs ? { ...lock, docs: verdicts } : { ...lock, judged: verdicts }));
+  writeFileSync(config.lock, serializeLock({ ...lock, ...(docs ? { docs: verdicts } : { judged: verdicts }), ...kept }));
 }
 
 /** An entry as said to people: its key, or text in code and the docs by its words, which a key never has a space in. */
@@ -746,7 +762,7 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
     const only = scope === undefined ? {} : { only: (m: Message) => read.has(m) };
     const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, ...(progress !== undefined && { progress }) });
     if (tty && run.stats.requests > 0) process.stderr.write('\n');
-    writeVerdicts(config, docs, run.verdicts);
+    writeVerdicts(config, docs, run.verdicts, run.suggestions);
     for (const { key, locale, model, error } of run.failures) {
       const why = error instanceof Error ? error.message : String(error);
       err(`error ${named(config, key)} (${locale}): ${model} failed, so the run stopped there: ${why}`);
@@ -790,6 +806,7 @@ function sayStats(stats: JudgeStats): void {
   out(
     `  ${seconds(median)} a request (median), ${seconds(sorted.at(-1)!)} at most; ${count(stats.inputTokens)} input tokens, ${count(stats.outputTokens)} output; ${cost}`,
   );
+  if (stats.suggestions > 0) out(`  ${count(stats.suggestions)} rewrite(s) suggested, which prosebook lint shows`);
 }
 
 /** Each finding on its line, placed at its entry's words. */
@@ -840,9 +857,11 @@ function brokenGuidelines<F extends Finding>(config: ResolvedConfig, findings: r
   }
   const lines = new Map<F, string | undefined>();
   for (const [first, ...rest] of byEntry.values()) {
+    const suggestion = [first!, ...rest].find((f) => f.suggestion !== undefined)?.suggestion;
     lines.set(
       first!,
-      `[${[first!, ...rest].map((f) => f.rule).join(', ')}] breaks ${rest.length === 0 ? 'this guideline' : 'these guidelines'}, the models judge`,
+      `[${[first!, ...rest].map((f) => f.rule).join(', ')}] breaks ${rest.length === 0 ? 'this guideline' : 'these guidelines'}, the models judge` +
+        (suggestion === undefined ? '' : `\n      suggested: ${JSON.stringify(suggestion)}`),
     );
     for (const f of rest) lines.set(f, undefined);
   }

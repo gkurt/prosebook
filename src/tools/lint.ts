@@ -197,6 +197,10 @@ export interface Finding {
   fix?: Edit[];
   /** The problem it is part of, said once for every entry in it (`Report.group`), at `key` in `file`. */
   group?: { key: string; file: string; message: string };
+  /** For a guideline a judge found broken, the text it suggested in the entry's place, which `fix` writes. */
+  suggestion?: string;
+  /** Its `fix` is a rewrite, not a mechanical change: written by `lint --fix --unsafe` only. */
+  unsafe?: boolean;
 }
 
 /** Tags whose content is code or a literal the reader types, not prose. */
@@ -1075,7 +1079,10 @@ export const isGuideline = (rule: CheckRule): boolean => GUIDELINES.has(rule);
  * `false` where the author approved it as written, whatever the rule; for a guideline, the models'
  * judgment; undefined where none was given on the entry as it is now.
  */
-export type Verdict = (message: Message, locale: string, rule: string) => boolean | undefined;
+export type Verdict = ((message: Message, locale: string, rule: string) => boolean | undefined) & {
+  /** A judge's rewrite of the entry's text in the locale, where one holds for the entry as it reads. */
+  suggestion?: (message: Message, locale: string) => string | undefined;
+};
 
 /** A finding's words for a guideline a model judged broken. */
 export const judgedMessage = (description: string): string => `breaks a guideline, the model judges: ${description}`;
@@ -1318,6 +1325,13 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
             // A fix over a placeholder would have to write the placeholder back, which it can't name.
             if (places.length > 0 && fix !== undefined && !takesInHole(match))
               finding.fix = places.map((p) => ({ start: p.start, end: p.end, text: fixed(p, match, fix) }));
+          }
+          // A judge's rewrite stands for the whole text, and is a guess: only `--unsafe` writes it.
+          const suggestion = isGuideline(rule) ? verdict?.suggestion?.(message, locale) : undefined;
+          if (suggestion !== undefined) {
+            finding.suggestion = suggestion;
+            finding.fix = [{ start: 0, end: written.length, text: suggestion }];
+            finding.unsafe = true;
           }
           findings.push(finding);
         }

@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import type { Experimental_DecisionModel } from 'ai';
-import { decisionJudge } from 'prosebook/ai';
+import { MockLanguageModelV4 } from 'ai/test';
+import { decisionJudge, languageJudge } from 'prosebook/ai';
 import {
   approve,
   AUTHOR,
@@ -385,3 +386,151 @@ describe('decisionJudge', () => {
 function configOf(config: ResolvedConfig): ProsebookConfig {
   return { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, catalog: config.catalog, lock: config.lock };
 }
+
+describe('suggestions', () => {
+  const GREETING = `home.greeting:
+  kind: description
+  context: Greets the shopper on the home page.
+  args:
+    name: The shopper's first name.
+  en: The shop wants to welcome you, {name}.
+`;
+  /** A judge finding every entry breaking `house/plain`, suggesting each rewrite in turn. */
+  const suggesting = (...rewrites: string[]): Judge => ({
+    id: 'fake/writer',
+    judge(request) {
+      const probabilities = Object.fromEntries(Object.keys(request.questions).map((id) => [id, 0.95]));
+      const suggestion = rewrites.shift();
+      return Promise.resolve({ probabilities, ...(suggestion !== undefined && { suggestion }) });
+    },
+  });
+  const project = (judge: Judge) =>
+    fixture(
+      { 'copy/catalog/home.yaml': GREETING },
+      { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { models: [judge] } },
+    );
+
+  test('one keeping the placeholders is kept, and lint offers it as an unsafe fix of the whole text', async () => {
+    const config = project(suggesting('Welcome, {name}.'));
+    const catalog = loadCatalog(config);
+    const run = await judgeCatalog(config, catalog, readLock(config.lock));
+    expect(run.stats.suggestions).toBe(1);
+    expect(run.suggestions['en']!['home.greeting']!['fake/writer']).toEqual([expect.stringMatching(/^[0-9a-f]{10}:Welcome, \{name\}\.$/)]);
+    const lock = { ...readLock(config.lock), judged: run.verdicts, suggested: run.suggestions };
+    const [finding] = lint(catalog.messages, config, catalog.messages, verdictsOf(config, catalog.messages, lock)).filter(
+      (f) => f.rule === 'house/plain',
+    );
+    expect(finding).toMatchObject({ suggestion: 'Welcome, {name}.', unsafe: true });
+    expect(finding!.fix).toEqual([{ start: 0, end: 'The shop wants to welcome you, {name}.'.length, text: 'Welcome, {name}.' }]);
+    // A later run that asks nothing keeps it, while the entry reads as it did.
+    const again = await judgeCatalog(config, catalog, lock);
+    expect(again.stats.requests).toBe(0);
+    expect(again.suggestions).toEqual(run.suggestions);
+  });
+
+  test('one dropping or changing a placeholder, or not parsing, is left out', async () => {
+    for (const bad of ['Welcome!', 'Welcome, {who}.', 'Welcome, {name, number}.', 'Welcome, {name']) {
+      const config = project(suggesting(bad));
+      const run = await judgeCatalog(config, loadCatalog(config), readLock(config.lock));
+      expect([bad, run.stats.suggestions, run.suggestions]).toEqual([bad, 0, {}]);
+    }
+  });
+
+  test('the CLI: lint shows it, --fix leaves it, --fix --unsafe writes it', () => {
+    const config = fixture({
+      'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
+const house = definePlugin({ name: 'house', rules: { plain: { type: 'guideline', description: 'Say what happens, not what a thing wants.' } } });
+const model = {
+  id: 'fake/cli',
+  judge: async ({ questions }) => ({
+    probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.95])),
+    suggestion: 'Welcome, {name}.',
+  }),
+};
+export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model] } };
+`,
+      'copy/catalog/home.yaml': GREETING,
+    });
+    expect(cli(config.root, 'judge').stdout).toContain('1 rewrite(s) suggested');
+    const shown = cli(config.root, 'lint');
+    expect(shown.stderr).toContain(
+      'home.greeting: [house/plain] breaks this guideline, the models judge\n      suggested: "Welcome, {name}."',
+    );
+    expect(shown.stderr).toContain("1 entry has a judge's rewrite: read it, then write it with prosebook lint --fix --unsafe.");
+    cli(config.root, 'lint', '--fix');
+    expect(readFileSync(`${config.root}/copy/catalog/home.yaml`, 'utf8')).toContain('The shop wants to welcome you, {name}.');
+    cli(config.root, 'lint', '--fix', '--unsafe');
+    expect(readFileSync(`${config.root}/copy/catalog/home.yaml`, 'utf8')).toContain('en: Welcome, {name}.');
+  });
+
+  test('text in a doc: shown with its code spans as written, and not fixed', () => {
+    const config = fixture({
+      'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
+const house = definePlugin({ name: 'house', rules: { plain: { type: 'guideline', description: 'Say what happens, not what a thing wants.' } } });
+const model = {
+  id: 'fake/docs',
+  judge: async ({ questions }) => ({
+    probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.95])),
+    suggestion: 'Run {code} to build it.',
+  }),
+};
+export default { catalog: false, lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model] } };
+`,
+      'README.md': '# Readme\n\nThe build wants you to run `bun run build` first.\n',
+    });
+    cli(config.root, 'judge', '--docs', 'README.md');
+    const shown = cli(config.root, 'lint', '--docs', 'README.md');
+    expect(shown.stderr).toContain('suggested: "Run `bun run build` to build it."');
+  });
+});
+
+describe('languageJudge', () => {
+  const usage = (input: number, output: number) => ({
+    inputTokens: { total: input, noCache: undefined, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: output, text: undefined, reasoning: undefined },
+  });
+  const question = { instructions: 'Is it plain?', criteria: { true: 'It is.', false: 'It is not.' } };
+
+  test('asks for every answer and the rewrite through structured output, and reads them back', async () => {
+    const model = new MockLanguageModelV4({
+      provider: 'test',
+      modelId: 'writer',
+      doGenerate: {
+        content: [{ type: 'text', text: JSON.stringify({ answers: { q: 1.2, r: 0.1 }, suggestion: 'Welcome, {name}.' }) }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: usage(1_000_000, 1_000_000),
+        warnings: [],
+      },
+    });
+    const judge = languageJudge(model, { price: { input: 0.1, output: 0.5 } });
+    expect(judge.id).toBe('test/writer');
+    const response = await judge.judge({
+      state: { message: 'The shop wants to welcome you, {name}.' },
+      questions: { q: question, r: question },
+    });
+    // 1.2 is read as 1: a model writes a number, not a probability.
+    expect(response).toEqual({
+      probabilities: { q: 1, r: 0.1 },
+      usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+      cost: 0.6,
+      suggestion: 'Welcome, {name}.',
+    });
+    const [call] = model.doGenerateCalls;
+    expect(call!.responseFormat).toMatchObject({ type: 'json', schema: { required: ['answers', 'suggestion'] } });
+    expect(JSON.stringify(call!.prompt)).toContain('Is it plain?');
+  });
+
+  test('without suggest, asks for the answers alone', async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        content: [{ type: 'text', text: JSON.stringify({ answers: { q: 0.2 } }) }],
+        finishReason: { unified: 'stop', raw: undefined },
+        usage: usage(10, 5),
+        warnings: [],
+      },
+    });
+    const response = await languageJudge(model, { suggest: false }).judge({ state: { message: 'Save' }, questions: { q: question } });
+    expect(response.suggestion).toBeUndefined();
+    expect(model.doGenerateCalls[0]!.responseFormat).toMatchObject({ schema: { required: ['answers'] } });
+  });
+});

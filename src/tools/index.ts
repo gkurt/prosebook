@@ -98,6 +98,7 @@ export {
   type JudgeRun,
   type JudgeStats,
   type ResolvedJudge,
+  type Suggestions,
   type Verdicts,
 } from './judge.ts';
 export { DEFAULT_KINDS, DEFAULT_SURFACES, STRICT_LISTS, type KindRule, type Severity } from './presets.ts';

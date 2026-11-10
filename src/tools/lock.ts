@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import type { Catalog } from './catalog.ts';
 import { formatDiff, wordDiff } from './diff.ts';
-import type { Verdicts } from './judge.ts';
+import type { Suggestions, Verdicts } from './judge.ts';
 
 export interface Lock {
   version: 2;
@@ -30,7 +30,14 @@ export interface Lock {
    * verdicts of what it read, so the two would drop each other's in one record.
    */
   docs?: Verdicts;
+  /** The rewrites the judges suggested for entries they found breaking a guideline (`judge.ts`). */
+  suggested?: Suggestions;
+  /** The same for the docs' prose, kept apart as their verdicts are. */
+  docsSuggested?: Suggestions;
 }
+
+/** The sections a judge writes, each by locale and key, every entry on one line. */
+const JUDGED = ['judged', 'suggested', 'docs', 'docsSuggested'] as const;
 
 export function hash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 10);
@@ -63,8 +70,8 @@ export function serializeLock(lock: Lock): string {
       .map((locale) => [locale, sortedEntries(lock.translations[locale]!)]),
   );
   const head = JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations }, null, 2);
-  const sections = (['judged', 'docs'] as const).flatMap((name) => {
-    const written = verdictsText(lock[name] ?? {});
+  const sections = JUDGED.flatMap((name) => {
+    const written = byEntryText(lock[name] ?? {});
     return written === undefined ? [] : [`  ${JSON.stringify(name)}: {\n${written}\n  }`];
   });
   if (sections.length === 0) return `${head}\n`;
@@ -72,18 +79,27 @@ export function serializeLock(lock: Lock): string {
   return `${head.slice(0, -2)},\n${sections.join(',\n')}\n}\n`;
 }
 
-/** Verdicts by locale, each entry's on one line; nothing where no locale holds one. */
-function verdictsText(verdicts: Verdicts): string | undefined {
-  const locales = Object.keys(verdicts)
+/** Objects with their keys sorted, at every depth, so the same record is written the same way. */
+const sortedDeep = (value: unknown): unknown =>
+  value === null || typeof value !== 'object' || Array.isArray(value)
+    ? value
+    : Object.fromEntries(
+        Object.entries(value)
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([k, v]) => [k, sortedDeep(v)]),
+      );
+
+/** Verdicts or suggestions by locale, each entry's on one line; nothing where no locale holds one. */
+function byEntryText(record: Record<string, Record<string, unknown>>): string | undefined {
+  const locales = Object.keys(record)
     .sort()
-    .filter((locale) => Object.keys(verdicts[locale]!).length > 0);
+    .filter((locale) => Object.keys(record[locale]!).length > 0);
   if (locales.length === 0) return undefined;
   return locales
     .map((locale) => {
-      const keys = Object.entries(sortedEntries(verdicts[locale]!)).map(([key, rules]) => {
-        const said = Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)]));
-        return `      ${JSON.stringify(key)}: ${JSON.stringify(said)}`;
-      });
+      const keys = Object.entries(sortedEntries(record[locale]!)).map(
+        ([key, said]) => `      ${JSON.stringify(key)}: ${JSON.stringify(sortedDeep(said))}`,
+      );
       return `    ${JSON.stringify(locale)}: {\n${keys.join(',\n')}\n    }`;
     })
     .join(',\n');
@@ -116,11 +132,8 @@ export interface Reconciled {
  */
 export function reconcile(catalog: Catalog, previous: Lock, accept: Map<string, Set<string> | true> = new Map()): Reconciled {
   // The verdicts are `prosebook judge`'s to bring up to date, so they're kept as they were.
-  const lock: Lock = {
-    ...emptyLock(),
-    ...(previous.judged !== undefined && { judged: previous.judged }),
-    ...(previous.docs !== undefined && { docs: previous.docs }),
-  };
+  const lock: Lock = { ...emptyLock() };
+  for (const name of JUDGED) if (previous[name] !== undefined) Object.assign(lock, { [name]: previous[name] });
   const stale = new Map<string, Map<string, StaleTranslation>>();
   for (const message of catalog.messages) {
     const source = hash(message.text);
