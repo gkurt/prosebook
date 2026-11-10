@@ -152,7 +152,9 @@ describe('the docs, linted with --docs', () => {
     const named = cli(config.root, 'lint', '--docs', 'README.md');
     expect(named.stdout).toContain('2 strings in the docs pass the writing rules');
     expect(named.code).toBe(0);
-    expect(cli(config.root, 'lint', 'README.md').stderr).toContain('README.md holds no entry the lint reads: to read a doc, add --docs');
+    expect(cli(config.root, 'lint', 'README.md').stderr).toContain(
+      'README.md holds no entry the lint reads: it holds docs, which lint reads with --docs',
+    );
     expect(cli(config.root, 'lint', '--docs', '--fix').code).toBe(1);
     expect(cli(config.root, 'status', '--docs').stderr).toContain('--docs works with lint, judge, approve');
   });
@@ -195,6 +197,7 @@ describe('lint <paths>', () => {
       'copy/catalog/app.yaml': 'app.title:\n  context: The page title.\n  en: Docs\n',
       'copy/catalog/billing.yaml': CLICK('billing.link'),
       'README.md': '# Readme\n',
+      'docs/guide.md': '# Guide\n',
     });
     const billing = cli(config.root, 'lint', 'copy/catalog/billing.yaml');
     expect(billing.stderr).toContain('billing.link: [house/no-click-here]');
@@ -206,8 +209,12 @@ describe('lint <paths>', () => {
 
     const none = cli(config.root, 'lint', 'src', 'README.md');
     expect(none.stderr).toContain('error src holds no entry the lint reads: name catalog or translation files, or a folder of them');
-    expect(none.stderr).toContain('error README.md holds no entry the lint reads: to read a doc, add --docs');
+    expect(none.stderr).toContain('error README.md holds no entry the lint reads: it holds docs, which lint reads with --docs');
     expect(none.code).toBe(1);
+    // A folder of docs alone, named without --docs, fails as a doc does: lint would read nothing there.
+    const docs = cli(config.root, 'lint', 'copy/catalog', 'docs');
+    expect(docs.stderr).toContain('error docs holds no entry the lint reads: it holds docs, which lint reads with --docs');
+    expect(docs.code).toBe(1);
     expect(cli(config.root, 'lint', '--fix', '--unsafe', 'copy/catalog').stderr).toContain('without paths');
   });
 

@@ -21,7 +21,7 @@ import {
   type Problem,
 } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, pathsFrom, type Paths, type ResolvedConfig } from './tools/config.ts';
-import { docsOf, PathsError } from './tools/docs.ts';
+import { docFiles, docsOf, PathsError } from './tools/docs.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
@@ -616,8 +616,8 @@ function scoped(config: ResolvedConfig, messages: Message[], scope: Paths | unde
     .filter((path) => !files.some((file) => inPaths(file, { include: [path], exclude: scope.exclude })))
     .map((path) => {
       const dirs = config.scan.dirs.map((d) => relative(config.root, d).replaceAll('\\', '/')).join(', ');
-      const instead = /\.mdx?$/.test(path)
-        ? 'to read a doc, add --docs'
+      const instead = holdsDocs(config, path, scope.exclude)
+        ? 'it holds docs, which lint reads with --docs'
         : config.inCode
           ? `name files or folders under scan.dirs (${dirs})`
           : 'name catalog or translation files, or a folder of them';
@@ -625,6 +625,16 @@ function scoped(config: ResolvedConfig, messages: Message[], scope: Paths | unde
     });
   if (problems.length > 0) throw new PathsError(problems);
   return messages.filter((m) => filesOf(m).some((file) => inPaths(file, scope)));
+}
+
+/** Whether a path names Markdown files, which a command reads only with `--docs`. */
+function holdsDocs(config: ResolvedConfig, path: string, exclude: string[]): boolean {
+  try {
+    return docFiles({ root: config.root, docs: { include: [path], exclude } }).length > 0;
+  } catch (e) {
+    if (e instanceof PathsError) return false;
+    throw e;
+  }
 }
 
 /** The entries, each in a locale, the lock has no verdict on as they are now. */
