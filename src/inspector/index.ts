@@ -5,16 +5,23 @@
  */
 import type { DevHooks } from '#src/runtime/types.ts';
 
-import { openDialog } from './dialog.ts';
+import { openDialog, type Ask } from './dialog.ts';
 import { caretAt, keyAt, linesOf, rangeOf, type Hit } from './locate.ts';
 import { record, type Read, type Reads } from './reads.ts';
-import { gestureOf, type Shortcut } from './shortcut.ts';
+import { checkShortcut, gestureOf, type Shortcut } from './shortcut.ts';
+
+export type { Ask, Read, Shortcut };
 
 export interface InspectorOptions {
-  /** The dev server's base URL, ending in `/`. */
+  /** The path the endpoints sit under, ending in `/`: the dev server's base URL. */
   base: string;
-  /** The gesture, checked and with its defaults (`checkShortcut`). */
-  shortcut: Required<Shortcut>;
+  /** The gesture: Alt and the left button unset. */
+  shortcut?: Shortcut;
+  /**
+   * What answers the endpoints in the dev server's place, for a page that has none: `prosebook/playground`'s
+   * `endpoints`, say. The page's `fetch` unset.
+   */
+  fetch?: Ask;
 }
 
 const ACCENT = '#7c3aed';
@@ -23,7 +30,7 @@ const ACCENT = '#7c3aed';
  * Starts listening for reads and for Alt on the page, once: Bun and Next call it from the generated
  * index, which runs again whenever it changes.
  */
-export function install({ base, shortcut }: InspectorOptions): void {
+export function install({ base, shortcut, fetch: ask = (url, init) => fetch(url, init) }: InspectorOptions): void {
   const hooks = globalThis as DevHooks;
   if (hooks.__PROSEBOOK_READ__ !== undefined) return;
   const reads: Reads = new Map();
@@ -32,7 +39,7 @@ export function install({ base, shortcut }: InspectorOptions): void {
   // time the keys go down, since a page the server renders again after an edit runs no script to say so.
   let served: Reads = new Map();
   const fetchServed = () =>
-    fetch(`${base}__prosebook/reads`)
+    ask(`${base}__prosebook/reads`)
       .then(async (res) => {
         if (res.ok) served = new Map((await res.json()) as [string, Read[]][]);
       })
@@ -46,7 +53,7 @@ export function install({ base, shortcut }: InspectorOptions): void {
     return target === null ? undefined : keyAt(target, caretAt(x, y), known());
   };
   const overlay = createOverlay();
-  const gesture = gestureOf(shortcut);
+  const gesture = gestureOf(checkShortcut(shortcut));
 
   let pointer: { x: number; y: number } | undefined;
   let frame = 0;
@@ -92,7 +99,7 @@ export function install({ base, shortcut }: InspectorOptions): void {
     if (opened === press) return;
     opened = press;
     overlay.hide();
-    void openDialog({ base, key: hit.read.key, locale: hit.read.locale, anchor: linesOfHit(hit) });
+    void openDialog({ base, fetch: ask, key: hit.read.key, locale: hit.read.locale, anchor: linesOfHit(hit) });
   };
   listen('click', pressed);
   listen('auxclick', pressed);

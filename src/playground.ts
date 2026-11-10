@@ -10,14 +10,15 @@ import type { Formats } from './runtime/formats.ts';
 import { numberLadder } from './runtime/ladder.ts';
 import { relativeTime } from './runtime/relative.ts';
 import type { CompiledMessages } from './runtime/types.ts';
-import { CatalogError, loadCatalog, type Message, type Problem } from './tools/catalog.ts';
+import { CatalogError, loadCatalog, type EntryLocation, type Message, type Problem } from './tools/catalog.ts';
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { resolveConfig, type ProsebookConfig } from './tools/config.ts';
+import { inspectorEndpoints } from './tools/endpoints.ts';
 import { applyFixes } from './tools/entry.ts';
 import { formatsCode, render, runtimeParts } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 
-export type { Finding, Message, Problem, ProsebookConfig };
+export type { EntryLocation, Finding, Message, Problem, ProsebookConfig };
 
 /** A project's files, by path from its folder: `copy/catalog/cart.yaml`, `copy/locales/de/cart.yaml`. */
 export type Files = Record<string, string>;
@@ -99,4 +100,37 @@ export function fix(files: Files, findings: Finding[], config: ProsebookConfig =
   const { problems } = applyFixes(resolved, loadCatalog(resolved, undefined, { partial: true }), findings);
   if (problems.length > 0) return { files, problems };
   return { files: Object.fromEntries(Object.keys(files).map((path) => [path, volume.get(`${ROOT}/${path}`)!])), problems: [] };
+}
+
+export interface EndpointsOptions {
+  /** The path the endpoints sit under, ending in `/`, as the inspector's `base`. `/` unset. */
+  base?: string;
+  /** Asked to open an entry, its `file` a path from the project's folder: a link to its source, say. */
+  open?: (at: EntryLocation) => void;
+  /** Told the files after each edit written, for the page to show: `play` them and read again. */
+  saved?: (files: Files) => void;
+}
+
+/**
+ * The inspector's endpoints over `files`, for a page with no dev server: what `prosebook/inspector`'s
+ * `install` takes as `fetch`, once each request is a `Request`. An edit is kept for the requests after it.
+ */
+export function endpoints(
+  files: Files,
+  config: ProsebookConfig = {},
+  { base, open, saved }: EndpointsOptions = {},
+): (request: Request) => Promise<Response | undefined> {
+  let current = files;
+  return inspectorEndpoints(() => load(current, config), {
+    ...(base !== undefined && { base }),
+    open: (at) => {
+      open?.({ ...at, file: fromRoot(at.file) });
+      return new Response(null, { status: 204 });
+    },
+    written: () => {
+      const prefix = `${ROOT}/`;
+      current = Object.fromEntries([...volume].flatMap(([path, content]) => (path.startsWith(prefix) ? [[fromRoot(path), content]] : [])));
+      saved?.(current);
+    },
+  });
 }

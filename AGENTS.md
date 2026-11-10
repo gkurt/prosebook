@@ -419,7 +419,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   per page, since Bun and Next run the index again on every change. `locate.ts` matches the text under
   the pointer to the reads the runtime reported, since the DOM carries no keys, and to those the server
   reported (`/__prosebook/reads`), asked for again each time Alt goes down; its test drives `keyAt`
-  over a DOM. `reads.ts` is the record of them both keep. `dialog.ts`, in a shadow root, edits an
+  over a DOM. `reads.ts` is the record of them both keep. `install`'s `fetch` (`Ask`) answers the endpoints in a dev
+  server's place, the dialog's requests too; `prosebook/inspector` exports it for a page with none. `dialog.ts`, in a shadow root, edits an
   entry through the plugin's `/__prosebook/entry`: the text as read and, beside a translation, the
   source; the rest under More, whose state `localStorage` keeps. While typing it posts the edit unsaved
   and shows the view's `findings`, each with its `fixed` text, so no lint code ships to the browser.
@@ -439,6 +440,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   call fills anew, `path.ts` POSIX paths. A tool that reaches a new Node API needs it there too, or that build fails; keep
   `oxc-parser` and TypeScript out of what `playground.ts` imports. `test/playground.test.ts` builds it the same way, as
   from source the tools would read the real disk. The homepage's demo (`site/src/demo/view.ts`) loads it lazily.
+  `endpoints` is the inspector's endpoints (`inspectorEndpoints`) over files it keeps: each request loads them into the
+  volume and is answered in the same turn (`withConfig`, `endpoints.ts`, which also reads a POST's body first), since
+  any other call clears the volume, and `written` takes the files back out after an edit.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,
   translations and lock are read out of git (`ls-tree`, `show`) into a temporary folder and loaded with
   this project's config; entries are compared by key, a key gone and one come with the same words
@@ -490,7 +494,14 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
 as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` builds it into `_site` and
 deploys it on every push to main. Its words are its own catalog's (`site/copy/catalog`), read by the
 page as it is built and by its scripts in the browser; code samples, names and the tool's own words, which
-prosebook says in English, stay in the code. In dev the real inspector works on it; built, it has none.
+prosebook says in English, stay in the code. The whole page is inspectable by the real inspector: in dev the
+integration's, and built, `src/inspect.ts`, which installs `prosebook/inspector` with a `fetch` of its own.
+`copy.ts` records what the build reads (the read hook, the page's own keys only), the page carries it
+(`#reads`) and `inspect.ts` answers `__prosebook/reads` with it; an entry's requests go to `backend.ts`,
+loaded on the first, which is `prosebook/playground`'s `endpoints` over the catalog's YAML (`import.meta.glob`,
+raw) under `src/lint.ts`, the lint the config has too. A saved edit is played again: the hot hooks get the
+messages, each text that changed is rewritten where the page says it (text nodes, `ATTRIBUTES`, the title)
+and taken out of the build's reads. Open in editor opens the entry on GitHub.
 Its demo (`#try`, `src/demo/`) is one catalog entry the visitor edits: `view.ts` runs `prosebook/playground`
 over a catalog of that entry alone, under the strict preset, and returns the text as the app shows it, the
 lint's findings as list items (in the order the text reads, each `fix` a button, made by `fixed`) and the

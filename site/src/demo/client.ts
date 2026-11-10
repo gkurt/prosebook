@@ -1,4 +1,5 @@
 /** The demo in the browser: the sample picked, its text as edited, and the count it is read with. */
+import '#src/inspect.ts';
 import { readOf, SAMPLES, START_COUNT, type Sample } from './samples.ts';
 
 const root = document.querySelector<HTMLElement>('#try')!;

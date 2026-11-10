@@ -1735,6 +1735,35 @@ const fixed = fix(files, played.findings, config); // the files with the fixes m
 - The config is the object `prosebook.config.ts` would export; nothing is read from disk, and `scan` doesn't run.
 - The playground compiles messages with `new Function`, which a page's Content Security Policy must allow (`'unsafe-eval'`).
 
+### The inspector without a dev server
+
+A built page can run the [inspector](#inspector) too, as the homepage does: `endpoints` answers it in the browser, over the
+catalog's files held in memory.
+
+```ts
+import { install } from 'prosebook/inspector';
+import { endpoints } from 'prosebook/playground';
+
+const answer = endpoints(files, config, {
+  open: ({ file, line }) => window.open(`${repo}/blob/main/${file}#L${line}`),
+  saved: (files) => show(play(files, config)), // an edit was written: read the catalog again
+});
+
+install({
+  base: '/',
+  fetch: async (url, init) => {
+    if (url.endsWith('__prosebook/reads')) return Response.json(reads); // what the build read
+    return (await answer(new Request(new URL(url, location.href), init))) ?? new Response(null, { status: 404 });
+  },
+});
+```
+
+- `install` takes the place of the integration's `inspect`: `base`, the `shortcut` and, as `fetch`, what answers in the dev
+  server's place. Call it before the page's first read.
+- An edit is kept in memory, for the requests after it; `saved` gets the files, for the page to show the new text.
+- The DOM carries no keys, so the page says what its build read: set `globalThis.__PROSEBOOK_READ__` (`ReadHook`) while
+  building, and answer `__prosebook/reads` with each text and its reads, `[text, [{ key, locale }]][]`.
+
 ## Native targets
 
 ### Rust, Swift, Kotlin

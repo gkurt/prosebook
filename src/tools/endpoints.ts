@@ -23,18 +23,27 @@ export interface EndpointOptions {
   open: (at: EntryLocation) => Response | Promise<Response>;
   /** What server renders in this process read (`serverReads`), for text the browser never read. */
   reads?: Reads;
+  /** Told once an edit is written, before anything else runs: the playground keeps its files from there. */
+  written?: () => void;
 }
+
+/**
+ * `then` with the config, at once where it is at hand: the playground's files are in memory only until
+ * its next call, so nothing may run between loading them and reading them.
+ */
+const withConfig = (config: ResolvedConfig | Promise<ResolvedConfig>, then: (config: ResolvedConfig) => Response | Promise<Response>) =>
+  config instanceof Promise ? config.then(then) : then(config);
 
 /** Answers the inspector's requests, and nothing for any other path, under the config `config` gives then. */
 export function inspectorEndpoints(
   config: () => ResolvedConfig | Promise<ResolvedConfig>,
-  { base = '/', open, reads }: EndpointOptions,
+  { base = '/', open, reads, written }: EndpointOptions,
 ): (req: Request) => Promise<Response | undefined> {
   return async (req) => {
     const url = new URL(req.url);
     if (url.pathname === `${base}__prosebook/reads`) return Response.json(reads === undefined ? [] : [...reads]);
-    if (url.pathname === `${base}__prosebook/open`) return openEntry(await config(), url, open);
-    if (url.pathname === `${base}__prosebook/entry`) return entry(await config(), req, url);
+    if (url.pathname === `${base}__prosebook/open`) return withConfig(config(), (c) => openEntry(c, url, open));
+    if (url.pathname === `${base}__prosebook/entry`) return entry(config, req, url, written);
     return undefined;
   };
 }
@@ -43,7 +52,7 @@ export function inspectorEndpoints(
  * `?key=cart.items&locale=de`: the translation's entry, or the catalog's for the source or a locale
  * with none. Read from disk, so a key added since the page loaded is found.
  */
-async function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions['open']): Promise<Response> {
+function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions['open']): Response | Promise<Response> {
   const key = url.searchParams.get('key') ?? '';
   let message;
   try {
@@ -61,10 +70,15 @@ async function openEntry(config: ResolvedConfig, url: URL, open: EndpointOptions
  * applies an edit (`entry.ts`). A POST writes files, so only the page itself may send one: same origin,
  * and JSON, which a form on another site can't send without asking first.
  */
-async function entry(config: ResolvedConfig, req: Request, url: URL): Promise<Response> {
+async function entry(
+  config: () => ResolvedConfig | Promise<ResolvedConfig>,
+  req: Request,
+  url: URL,
+  written: EndpointOptions['written'],
+): Promise<Response> {
   if (req.method === 'GET') {
     try {
-      return Response.json(readEntry(config, url.searchParams.get('key') ?? ''));
+      return await withConfig(config(), (c) => Response.json(readEntry(c, url.searchParams.get('key') ?? '')));
     } catch (e) {
       return failed(e);
     }
@@ -74,9 +88,13 @@ async function entry(config: ResolvedConfig, req: Request, url: URL): Promise<Re
   if (req.method !== 'POST' || !sameOrigin || req.headers.get('content-type')?.startsWith('application/json') !== true)
     return Response.json({ problems: [{ severity: 'error', message: 'edits come from the page, as JSON' }] }, { status: 403 });
   try {
+    // Read before the config is asked for, so the edit is made in the same turn as the files are loaded.
     const { key, fields, write } = (await req.json()) as { key: string; fields: EntryFields; write?: boolean };
-    const result = editEntry(config, key, fields, write === true);
-    return Response.json(result, { status: result.problems.length > 0 ? 422 : 200 });
+    return await withConfig(config(), (c) => {
+      const result = editEntry(c, key, fields, write === true);
+      if (write === true && result.problems.length === 0) written?.();
+      return Response.json(result, { status: result.problems.length > 0 ? 422 : 200 });
+    });
   } catch (e) {
     return failed(e);
   }

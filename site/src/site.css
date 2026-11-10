@@ -514,6 +514,19 @@ article > p {
   text-wrap: pretty;
 }
 
+/* The gesture needs a keyboard and a pointer. */
+article > .here {
+  display: none;
+  color: var(--accent-ink);
+  font-size: 0.92rem;
+}
+
+@media (hover: hover) {
+  article > .here {
+    display: block;
+  }
+}
+
 .editor {
   font: 0.84rem/1.8 var(--mono);
 }

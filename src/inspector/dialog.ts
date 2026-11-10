@@ -16,8 +16,13 @@
 import type { Problem } from '#src/tools/catalog.ts';
 import type { EntryFields, EntryFinding, EntryView } from '#src/tools/entry.ts';
 
+/** What the inspector asks its endpoints through: `fetch`, as far as it uses it. */
+export type Ask = (url: string, init?: RequestInit) => Promise<Response>;
+
 export interface DialogOptions {
   base: string;
+  /** What answers the endpoints: the page's `fetch`, or the inspector's own (`InspectorOptions.fetch`). */
+  fetch: Ask;
   key: string;
   /** The locale the string was read in, whose text the dialog opens on. */
   locale: string;
@@ -125,7 +130,7 @@ const stored = {
 export async function openDialog(options: DialogOptions): Promise<void> {
   closeOpen?.();
   const { base, key } = options;
-  const res = await fetch(`${base}__prosebook/entry?${new URLSearchParams({ key })}`);
+  const res = await options.fetch(`${base}__prosebook/entry?${new URLSearchParams({ key })}`);
   const loaded = (await res.json()) as EntryView | { problems: Problem[] };
   if ('problems' in loaded) {
     console.warn(`prosebook: ${loaded.problems.map((p) => p.message).join('\n')}`);
@@ -372,7 +377,7 @@ class Dialog {
   }
 
   private async send(write: boolean): Promise<EntryView | undefined> {
-    const res = await fetch(`${this.options.base}__prosebook/entry`, {
+    const res = await this.options.fetch(`${this.options.base}__prosebook/entry`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: this.view.key, fields: this.fields(), write }),
@@ -417,7 +422,7 @@ class Dialog {
 
   private async openFile(): Promise<void> {
     const query = new URLSearchParams({ key: this.view.key, locale: this.focused });
-    const res = await fetch(`${this.options.base}__prosebook/open?${query}`);
+    const res = await this.options.fetch(`${this.options.base}__prosebook/open?${query}`);
     if (!res.ok) console.warn(`prosebook: ${await res.text()}`);
   }
 

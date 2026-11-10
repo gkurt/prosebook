@@ -87,3 +87,43 @@ test('a finding with a fix is made in the file, as lint --fix makes it', () => {
   expect(fixed.files['copy/catalog/order.yaml']).toContain('  en: Track parcel…\n');
   expect(fixed.files['copy/locales/de/order.yaml']).toBe(files['copy/locales/de/order.yaml']);
 });
+
+const OTHER = {
+  'copy/catalog/other.yaml': [
+    'other.title:',
+    '  kind: name',
+    '  surface: title',
+    '  context: The title of another page.',
+    '  en: Other',
+    '',
+  ].join('\n'),
+};
+
+test('answers the inspector over files in memory, and keeps an edit', async () => {
+  const saved: Record<string, string>[] = [];
+  const opened: { file: string; line: number }[] = [];
+  const answer = playground.endpoints(files, config, { open: (at) => opened.push(at), saved: (next) => saved.push(next) });
+  const entry = 'http://page.test/__prosebook/entry';
+  const post = (body: object) =>
+    answer(new Request(entry, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+
+  expect(await answer(new Request('http://page.test/elsewhere'))).toBeUndefined();
+  const view = (await (await answer(new Request(`${entry}?key=order.items`)))!.json()) as { key: string; fields: { message: string } };
+  expect(view.key).toBe('order.items');
+
+  // Another call fills the files anew between the requests, as a page running `play` beside the inspector does.
+  playground.play(OTHER, config);
+  const fields = { ...view.fields, message: '{count, plural, one {# thing} other {# things}}' };
+  expect((await post({ key: 'order.items', fields, write: false }))!.status).toBe(200);
+  expect(saved).toEqual([]);
+  expect((await post({ key: 'order.items', fields, write: true }))!.status).toBe(200);
+  expect(saved).toHaveLength(1);
+  expect(saved[0]!['copy/catalog/order.yaml']).toContain('{count, plural, one {# thing} other {# things}}');
+
+  playground.play(OTHER, config);
+  const again = (await (await answer(new Request(`${entry}?key=order.items`)))!.json()) as typeof view;
+  expect(again.fields.message).toBe('{count, plural, one {# thing} other {# things}}');
+
+  expect((await answer(new Request('http://page.test/__prosebook/open?key=order.items')))!.status).toBe(204);
+  expect(opened[0]!.file).toBe('copy/catalog/order.yaml');
+});

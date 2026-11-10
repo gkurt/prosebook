@@ -1,6 +1,6 @@
 ---
 import '#src/site.css';
-import { t } from '#src/copy.ts';
+import { reads, t } from '#src/copy.ts';
 import { fieldsOf, readOf, SAMPLES, START_COUNT } from '#src/demo/samples.ts';
 import { view } from '#src/demo/view.ts';
 
@@ -173,6 +173,7 @@ const works = [
           </div>
           <h3><a href={`${API}#inspector`}>{t('features.inspector.title')}</a></h3>
           <p>{t('features.inspector.body')}</p>
+          <p class="here">{t('features.inspector.here')}</p>
         </article>
       </section>
 
@@ -207,6 +208,12 @@ bunx prosebook generate</code></pre>
       <a href="https://gkurt.com">{t('site.author')}</a>
     </footer>
 
+    {/* What the build read up to here, for the built page's inspector. */}
+    {
+      import.meta.env.PROD && (
+        <script is:inline type="application/json" id="reads" set:html={JSON.stringify([...reads]).replaceAll('</', '<\\/')} />
+      )
+    }
     <script>
       import '#src/demo/client.ts';
     </script>

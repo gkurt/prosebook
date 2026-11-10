@@ -12,6 +12,7 @@ import type { CompiledMessages } from 'prosebook';
 // prettier-ignore
 export default {
   "features.inspector.body": "In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.",
+  "features.inspector.here": "This page runs the inspector too. Hold Alt over any text.",
   "features.inspector.title": "Edits on the page",
   "features.small.body": "Messages compile to plain functions, so no parser ships. A build keeps only the messages the code reads.",
   "features.small.caption": "the runtime, gzipped",

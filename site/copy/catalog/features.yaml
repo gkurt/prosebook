@@ -65,3 +65,9 @@ features.inspector.body:
   surface: hint
   context: Under the heading about the inspector, beside a picture of a page with each string's key shown.
   en: In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.
+
+features.inspector.here:
+  kind: description
+  surface: hint
+  context: Under the inspector's description, on devices with a pointer, says the inspector runs on this page.
+  en: This page runs the inspector too. Hold Alt over any text.

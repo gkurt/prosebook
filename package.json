@@ -180,6 +180,13 @@
         "default": "./dist/playground.js"
       }
     },
+    "./inspector": {
+      "prosebook@dev": "./src/inspector/index.ts",
+      "import": {
+        "types": "./dist/inspector/index.d.ts",
+        "default": "./dist/inspector/index.js"
+      }
+    },
     "./ai": {
       "prosebook@dev": "./src/ai.ts",
       "import": {

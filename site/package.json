@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "imports": {
-    "#src/*": "./src/*",
-    "#config": "./prosebook.config.ts"
+    "#src/*": "./src/*"
   },
   "scripts": {
     "dev": "astro dev",

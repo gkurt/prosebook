@@ -24,6 +24,12 @@ export type Messages = {
    */
   "features.inspector.body": { args: {}; tags: never };
   /**
+   * This page runs the inspector too. Hold Alt over any text.
+   *
+   * Under the inspector's description, on devices with a pointer, says the inspector runs on this page.
+   */
+  "features.inspector.here": { args: {}; tags: never };
+  /**
    * Edits on the page
    *
    * Heads the feature about the inspector.
