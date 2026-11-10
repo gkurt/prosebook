@@ -508,9 +508,12 @@ lint's findings as list items (in the order the text reads, each `fix` a button,
 text with each finding's place marked, for the layer under the field, set as the field is so a mark sits
 under its words. The page calls `view` as it is built, so the first view needs no script; `client.ts` calls
 it on every edit, importing it once the page is idle, since it carries the tools. `samples.ts` holds the
-entries it starts from. The page stays sparse, a visitor taking it in at a glance: the hero, the demo, four
-features (a heading linking to its section of API.md, one sentence, one drawn exhibit) and setup with what
-it works with. A feature earns a place only over one of those; the rest is the docs'.
+entries it starts from, the first one slop the strict word lists find. The page stays sparse, each section one
+thing: the hero, the demo, the agents' section (the guide, the CLI, the voice guidelines, the judge), the
+catalog's (types, stale translations, the inspector), each feature a card (a drawn exhibit, a heading linking
+to its section of API.md, a sentence or two), then six notes (a sketch of a line or two, a name, a sentence)
+and setup with what it works with. The exhibits' words are the tools' own, copied from real output. A feature
+earns a card only over one there; a smaller one a note, or the docs.
 `site/public/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.

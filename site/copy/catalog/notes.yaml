@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=./catalog.schema.json
+notes.title:
+  kind: name
+  surface: heading
+  context: Heads the grid of six smaller features, each a small picture, a name and a line.
+  en: Also included
+
+notes.extract.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about the extract command.
+  en: Extract
+
+notes.extract.body:
+  kind: description
+  surface: hint
+  context: Under the name of the extract feature.
+  en: Hardcoded JSX text moves into the catalog, a sentence at a time.
+
+notes.docs.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about linting documentation.
+  en: Docs
+
+notes.docs.body:
+  kind: description
+  surface: hint
+  context: Under the name of the docs feature.
+  en: The README and the guides are held to the same rules and guidelines.
+
+notes.native.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about native targets.
+  en: Native targets
+
+notes.native.body:
+  kind: description
+  surface: hint
+  context: Under the name of the native targets feature.
+  en: One catalog generates Rust, Swift and Kotlin, and the string resources of Android and Apple.
+
+notes.small.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about bundle size.
+  en: Small builds
+
+notes.small.body:
+  kind: description
+  surface: hint
+  context: Under the name of the bundle size feature.
+  en: No parser ships, and a build keeps only the messages the code reads.
+
+notes.small.size:
+  kind: name
+  surface: detail
+  context: The runtime's size, in figures, above the name of the bundle size feature.
+  en: 4.8 KB
+
+notes.small.caption:
+  kind: name
+  surface: detail
+  context: Beside the runtime's size, says what the figure measures.
+  en: the runtime, gzipped
+  fragment: true
+
+notes.diff.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about the diff command.
+  en: Pull request diffs
+
+notes.diff.body:
+  kind: description
+  surface: hint
+  context: Under the name of the diff feature.
+  en: The copy a pull request changes is posted as a comment, word by word.
+
+notes.pseudo.title:
+  kind: name
+  surface: heading
+  context: Names the small feature about the pseudo-locale.
+  en: Pseudo-locale
+
+notes.pseudo.body:
+  kind: description
+  surface: hint
+  context: Under the name of the pseudo-locale feature.
+  en: Accented, padded text shows the strings the catalog missed.

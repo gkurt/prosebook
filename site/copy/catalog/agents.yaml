@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=./catalog.schema.json
+agents.title:
+  kind: name
+  surface: heading
+  context: Heads the section about agents, with the writing guide, the CLI, the voice guidelines and the judge.
+  en: Built for agents
+
+agents.lead:
+  kind: description
+  surface: hint
+  context: Under the heading of the section about agents.
+  en: Agents write most copy now. prosebook gives an agent a guide to read, a CLI to drive, and checks for the habits that give generated text away.
+
+agents.guide.title:
+  kind: name
+  surface: heading
+  context: Heads the feature about the generated writing guide.
+  en: A guide to read first
+
+agents.guide.body:
+  kind: description
+  surface: hint
+  context: Under the heading about the writing guide, beside a picture of the guide's first lines.
+  en: Every project gets a writing guide, generated from the config, that says where an entry goes and the guidelines no rule can check.
+
+agents.cli.title:
+  kind: name
+  surface: heading
+  context: Heads the feature about the command line.
+  en: A CLI to drive
+
+agents.cli.body:
+  kind: description
+  surface: hint
+  context: Under the heading about the command line, beside a picture of a terminal running the commands.
+  en: Finding, linting, extracting and renaming all run from a shell, and every problem states the fix.
+
+agents.slop.title:
+  kind: name
+  surface: heading
+  context: Heads the feature about the guidelines against generated copy.
+  en: Slop, named
+
+agents.slop.body:
+  kind: description
+  surface: hint
+  context: Under the heading about generated copy, beside a picture of three phrases rewritten.
+  en: Built-in guidelines name the habits of generated copy, such as instructions on a button or a sentence that leans on what only the writer saw.
+
+agents.judge.title:
+  kind: name
+  surface: heading
+  context: Heads the feature about the judge.
+  en: A judge for meaning
+
+agents.judge.body:
+  kind: description
+  surface: hint
+  context: Under the heading about the judge, beside a picture of an entry's verdicts.
+  en: A decision model holds each entry to the guidelines no rule can check. Only changed entries are asked again, and a language model can suggest the rewrite.

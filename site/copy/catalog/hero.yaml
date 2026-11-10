@@ -3,13 +3,13 @@ hero.title:
   kind: description
   surface: title
   context: The headline at the top of the page.
-  en: Every word your app says, in one catalog.
+  en: Every word your app says, written well.
 
 hero.lead:
   kind: description
   surface: hint
   context: Under the headline, says what prosebook does.
-  en: prosebook keeps the copy in YAML, types every key, and checks the writing as you type.
+  en: prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can drive.
 
 hero.copy:
   kind: action

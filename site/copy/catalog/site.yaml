@@ -9,7 +9,7 @@ site.description:
   kind: description
   surface: hint
   context: The page's meta description, under the title in search results and link previews.
-  en: Every string your app shows, in one typed catalog, checked as you write.
+  en: A typed catalog for every string an app shows, with a lint, a judge and a CLI that hold the writing to your rules.
 
 site.home:
   kind: name

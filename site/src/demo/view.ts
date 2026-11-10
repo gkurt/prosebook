@@ -8,14 +8,15 @@ import { fix, play, type Finding, type ProsebookConfig } from 'prosebook/playgro
 import { t } from '#src/copy.ts';
 import { escape, fieldsOf, type Sample } from './samples.ts';
 
-const FILE = 'copy/catalog/cart.yaml';
+/** A key's first segment names its file. */
+const fileOf = (sample: Sample) => `copy/catalog/${sample.key.split('.')[0]}.yaml`;
 const CONFIG: ProsebookConfig = { lint: { extends: 'strict' } };
 
 /** The entry as its catalog file. The text is JSON, which YAML reads as a double-quoted string. */
 function filesOf(sample: Sample, text: string) {
   const fields = fieldsOf(sample).map(([field, value]) => `  ${field}: ${value}\n`);
   const args = sample.count === undefined ? '' : `  args:\n    count: ${sample.count}\n`;
-  return { [FILE]: `${sample.key}:\n${fields.join('')}${args}  en: ${JSON.stringify(text)}\n` };
+  return { [fileOf(sample)]: `${sample.key}:\n${fields.join('')}${args}  en: ${JSON.stringify(text)}\n` };
 }
 
 export interface View {
@@ -67,7 +68,7 @@ export function fixed(sample: Sample, text: string, index: number): string {
   const files = filesOf(sample, text);
   const finding = play(files, CONFIG).findings[index];
   if (finding?.fix === undefined) return text;
-  const written = fix(files, [finding], CONFIG).files[FILE]?.match(/^ {2}en: (".*")$/m)?.[1];
+  const written = fix(files, [finding], CONFIG).files[fileOf(sample)]?.match(/^ {2}en: (".*")$/m)?.[1];
   if (written === undefined) return text;
   try {
     const mended: unknown = JSON.parse(written);

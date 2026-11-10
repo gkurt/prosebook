@@ -17,6 +17,12 @@ try.samples:
   context: Names the group of buttons that pick which sample entry the demo shows.
   en: Sample entries
 
+try.sample.slop:
+  kind: name
+  surface: choice
+  context: Picks the sample entry written in the filler words generated copy leans on.
+  en: Slop
+
 try.sample.error:
   kind: name
   surface: choice

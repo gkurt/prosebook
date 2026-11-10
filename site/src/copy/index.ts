@@ -18,6 +18,66 @@ export type Locale = "en";
 /** Every message in the catalog: the arguments it takes and the tags it wraps text in. */
 export type Messages = {
   /**
+   * Finding, linting, extracting and renaming all run from a shell, and every problem states the fix.
+   *
+   * Under the heading about the command line, beside a picture of a terminal running the commands.
+   */
+  "agents.cli.body": { args: {}; tags: never };
+  /**
+   * A CLI to drive
+   *
+   * Heads the feature about the command line.
+   */
+  "agents.cli.title": { args: {}; tags: never };
+  /**
+   * Every project gets a writing guide, generated from the config, that says where an entry goes and the guidelines no rule can check.
+   *
+   * Under the heading about the writing guide, beside a picture of the guide's first lines.
+   */
+  "agents.guide.body": { args: {}; tags: never };
+  /**
+   * A guide to read first
+   *
+   * Heads the feature about the generated writing guide.
+   */
+  "agents.guide.title": { args: {}; tags: never };
+  /**
+   * A decision model holds each entry to the guidelines no rule can check. Only changed entries are asked again, and a language model can suggest the rewrite.
+   *
+   * Under the heading about the judge, beside a picture of an entry's verdicts.
+   */
+  "agents.judge.body": { args: {}; tags: never };
+  /**
+   * A judge for meaning
+   *
+   * Heads the feature about the judge.
+   */
+  "agents.judge.title": { args: {}; tags: never };
+  /**
+   * Agents write most copy now. prosebook gives an agent a guide to read, a CLI to drive, and checks for the habits that give generated text away.
+   *
+   * Under the heading of the section about agents.
+   */
+  "agents.lead": { args: {}; tags: never };
+  /**
+   * Built-in guidelines name the habits of generated copy, such as instructions on a button or a sentence that leans on what only the writer saw.
+   *
+   * Under the heading about generated copy, beside a picture of three phrases rewritten.
+   */
+  "agents.slop.body": { args: {}; tags: never };
+  /**
+   * Slop, named
+   *
+   * Heads the feature about the guidelines against generated copy.
+   */
+  "agents.slop.title": { args: {}; tags: never };
+  /**
+   * Built for agents
+   *
+   * Heads the section about agents, with the writing guide, the CLI, the voice guidelines and the judge.
+   */
+  "agents.title": { args: {}; tags: never };
+  /**
    * In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.
    *
    * Under the heading about the inspector, beside a picture of a page with each string's key shown.
@@ -36,29 +96,11 @@ export type Messages = {
    */
   "features.inspector.title": { args: {}; tags: never };
   /**
-   * Messages compile to plain functions, so no parser ships. A build keeps only the messages the code reads.
+   * The words live in YAML, each with the context a translator needs, and the code holds only keys.
    *
-   * Under the heading about bundle size, beside the runtime's size in large figures.
+   * Under the heading of the section about the catalog.
    */
-  "features.small.body": { args: {}; tags: never };
-  /**
-   * the runtime, gzipped
-   *
-   * Under the runtime's size, says what the figure measures.
-   */
-  "features.small.caption": { args: {}; tags: never };
-  /**
-   * 4.8 KB
-   *
-   * The runtime's size, in large figures.
-   */
-  "features.small.size": { args: {}; tags: never };
-  /**
-   * Small builds
-   *
-   * Heads the feature about bundle size.
-   */
-  "features.small.title": { args: {}; tags: never };
+  "features.lead": { args: {}; tags: never };
   /**
    * Change a source text, and each translation made from the old words is marked stale.
    *
@@ -72,9 +114,9 @@ export type Messages = {
    */
   "features.stale.title": { args: {}; tags: never };
   /**
-   * Features
+   * One typed catalog
    *
-   * Names the section of four features for screen readers; no heading shows on screen.
+   * Heads the section about the catalog, with types, translations and the inspector.
    */
   "features.title": { args: {}; tags: never };
   /**
@@ -108,17 +150,107 @@ export type Messages = {
    */
   "hero.docs": { args: {}; tags: never };
   /**
-   * prosebook keeps the copy in YAML, types every key, and checks the writing as you type.
+   * prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can drive.
    *
    * Under the headline, says what prosebook does.
    */
   "hero.lead": { args: {}; tags: never };
   /**
-   * Every word your app says, in one catalog.
+   * Every word your app says, written well.
    *
    * The headline at the top of the page.
    */
   "hero.title": { args: {}; tags: never };
+  /**
+   * The copy a pull request changes is posted as a comment, word by word.
+   *
+   * Under the name of the diff feature.
+   */
+  "notes.diff.body": { args: {}; tags: never };
+  /**
+   * Pull request diffs
+   *
+   * Names the small feature about the diff command.
+   */
+  "notes.diff.title": { args: {}; tags: never };
+  /**
+   * The README and the guides are held to the same rules and guidelines.
+   *
+   * Under the name of the docs feature.
+   */
+  "notes.docs.body": { args: {}; tags: never };
+  /**
+   * Docs
+   *
+   * Names the small feature about linting documentation.
+   */
+  "notes.docs.title": { args: {}; tags: never };
+  /**
+   * Hardcoded JSX text moves into the catalog, a sentence at a time.
+   *
+   * Under the name of the extract feature.
+   */
+  "notes.extract.body": { args: {}; tags: never };
+  /**
+   * Extract
+   *
+   * Names the small feature about the extract command.
+   */
+  "notes.extract.title": { args: {}; tags: never };
+  /**
+   * One catalog generates Rust, Swift and Kotlin, and the string resources of Android and Apple.
+   *
+   * Under the name of the native targets feature.
+   */
+  "notes.native.body": { args: {}; tags: never };
+  /**
+   * Native targets
+   *
+   * Names the small feature about native targets.
+   */
+  "notes.native.title": { args: {}; tags: never };
+  /**
+   * Accented, padded text shows the strings the catalog missed.
+   *
+   * Under the name of the pseudo-locale feature.
+   */
+  "notes.pseudo.body": { args: {}; tags: never };
+  /**
+   * Pseudo-locale
+   *
+   * Names the small feature about the pseudo-locale.
+   */
+  "notes.pseudo.title": { args: {}; tags: never };
+  /**
+   * No parser ships, and a build keeps only the messages the code reads.
+   *
+   * Under the name of the bundle size feature.
+   */
+  "notes.small.body": { args: {}; tags: never };
+  /**
+   * the runtime, gzipped
+   *
+   * Beside the runtime's size, says what the figure measures.
+   */
+  "notes.small.caption": { args: {}; tags: never };
+  /**
+   * 4.8 KB
+   *
+   * The runtime's size, in figures, above the name of the bundle size feature.
+   */
+  "notes.small.size": { args: {}; tags: never };
+  /**
+   * Small builds
+   *
+   * Names the small feature about bundle size.
+   */
+  "notes.small.title": { args: {}; tags: never };
+  /**
+   * Also included
+   *
+   * Heads the grid of six smaller features, each a small picture, a name and a line.
+   */
+  "notes.title": { args: {}; tags: never };
   /**
    * Gokhan Kurt
    *
@@ -126,7 +258,7 @@ export type Messages = {
    */
   "site.author": { args: {}; tags: never };
   /**
-   * Every string your app shows, in one typed catalog, checked as you write.
+   * A typed catalog for every string an app shows, with a lint, a judge and a CLI that hold the writing to your rules.
    *
    * The page's meta description, under the title in search results and link previews.
    */
@@ -257,6 +389,12 @@ export type Messages = {
    * Picks the sample entry that is an error message.
    */
   "try.sample.error": { args: {}; tags: never };
+  /**
+   * Slop
+   *
+   * Picks the sample entry written in the filler words generated copy leans on.
+   */
+  "try.sample.slop": { args: {}; tags: never };
   /**
    * Sample entries
    *

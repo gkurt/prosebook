@@ -1,6 +1,6 @@
 /** The entries the demo starts from: a shop's cart, as the examples have it. Sample copy, so it stays in the code. */
 export interface Sample {
-  id: 'error' | 'button' | 'count';
+  id: 'slop' | 'error' | 'button' | 'count';
   key: string;
   kind: string;
   surface: string;
@@ -12,6 +12,14 @@ export interface Sample {
 }
 
 export const SAMPLES: Sample[] = [
+  {
+    id: 'slop',
+    key: 'sync.about',
+    kind: 'description',
+    surface: 'hint',
+    context: 'Under the sync setting, says what sync does.',
+    text: 'Unlock seamless, powerful sync across all your devices!',
+  },
   {
     id: 'error',
     key: 'cart.failed',

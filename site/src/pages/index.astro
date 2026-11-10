@@ -14,9 +14,10 @@ const first = SAMPLES[0]!;
 const started = view(first, first.text, START_COUNT);
 
 const samples = [
-  { sample: SAMPLES[0]!, label: t('try.sample.error') },
-  { sample: SAMPLES[1]!, label: t('try.sample.button') },
-  { sample: SAMPLES[2]!, label: t('try.sample.count') },
+  { sample: SAMPLES[0]!, label: t('try.sample.slop') },
+  { sample: SAMPLES[1]!, label: t('try.sample.error') },
+  { sample: SAMPLES[2]!, label: t('try.sample.button') },
+  { sample: SAMPLES[3]!, label: t('try.sample.count') },
 ];
 
 // Names, which read the same in every language.
@@ -129,52 +130,167 @@ const works = [
         </div>
       </section>
 
-      <section class="features wrap" aria-label={t('features.title')}>
-        <article>
-          <div class="exhibit editor" aria-hidden="true">
-            <div><span class="k">const</span> {'{ t }'} = useCopy();</div>
-            <div>t(<span class="s">'cart.</span><span class="caret"></span></div>
-            <ul>
-              <li class="on"><code>cart.checkout</code><span>Check out</span></li>
-              <li><code>cart.failed</code><span>We couldn't take the payment.</span></li>
-              <li><code>cart.items</code><span># items in your cart.</span></li>
-            </ul>
-          </div>
-          <h3><a href={`${API}#types`}>{t('features.typed.title')}</a></h3>
-          <p>{t('features.typed.body')}</p>
-        </article>
-
-        <article>
-          <div class="exhibit stale" aria-hidden="true">
-            <div><b>en</b><span><del>Check out</del> <ins>Pay now</ins></span></div>
-            <div><b>de</b><span>Zur Kasse</span><i>stale</i></div>
-            <div><b>fr</b><span>Payer</span><i>stale</i></div>
-          </div>
-          <h3><a href={`${API}#stale-translations`}>{t('features.stale.title')}</a></h3>
-          <p>{t('features.stale.body')}</p>
-        </article>
-
-        <article>
-          <div class="exhibit size">
-            <strong>{t('features.small.size')}</strong>
-            <span>{t('features.small.caption')}</span>
-          </div>
-          <h3><a href={`${API}#pruning`}>{t('features.small.title')}</a></h3>
-          <p>{t('features.small.body')}</p>
-        </article>
-
-        <article>
-          <div class="exhibit mini" aria-hidden="true">
-            <div class="app">
-              <p class="app-title"><span class="str" data-key="cart.title">Cart</span></p>
-              <p><span class="str" data-key="cart.items">3 items in your cart.</span></p>
-              <p><span class="str on" data-key="cart.checkout"><span class="app-button">Check out</span></span></p>
+      <section class="block wrap">
+        <div class="intro">
+          <h2>{t('agents.title')}</h2>
+          <p>{t('agents.lead')}</p>
+        </div>
+        <div class="cards">
+          <article>
+            <div class="exhibit guide" aria-hidden="true">
+              <b>copy/catalog/WRITING.md</b>
+              <strong>Writing the copy</strong>
+              <p>Read this before adding or changing an entry in the catalog.</p>
+              <em>Guidelines</em>
+              <ul>
+                <li>A label over a value names the field, as a noun: <code>Reporter</code>, not <code>Reported by</code>.</li>
+                <li>A control names what it does, not how to work it: <code>Replay</code>, not <code>Click this if you want to replay</code>.</li>
+              </ul>
             </div>
-          </div>
-          <h3><a href={`${API}#inspector`}>{t('features.inspector.title')}</a></h3>
-          <p>{t('features.inspector.body')}</p>
-          <p class="here">{t('features.inspector.here')}</p>
-        </article>
+            <h3><a href={`${API}#the-writing-guide`}>{t('agents.guide.title')}</a></h3>
+            <p>{t('agents.guide.body')}</p>
+          </article>
+
+          <article>
+            <div class="exhibit term" aria-hidden="true">
+              <div><i>$</i> prosebook find "cart"</div>
+              <div class="out">cart.add (action, action): Add to cart</div>
+              <div class="out">cart.remove (action, action): Empty cart</div>
+              <div><i>$</i> prosebook lint</div>
+              <div class="out"><u>error</u> cart.yaml:25:1 cart.add: [no-period] an action ends without a period</div>
+              <div><i>$</i> prosebook lint --fix<span class="caret"></span></div>
+            </div>
+            <h3><a href={`${API}#cli`}>{t('agents.cli.title')}</a></h3>
+            <p>{t('agents.cli.body')}</p>
+          </article>
+
+          <article>
+            <div class="exhibit slop" aria-hidden="true">
+              <div><code>voice/no-instructions</code><del>Click this if you want to replay</del><ins>Replay</ins></div>
+              <div><code>voice/phrases</code><del>Your changes have been saved.</del><ins>Saved</ins></div>
+              <div><code>voice/familiar-context</code><del>Its name</del><ins>The workflow's name</ins></div>
+            </div>
+            <h3><a href={`${API}#voice-guidelines`}>{t('agents.slop.title')}</a></h3>
+            <p>{t('agents.slop.body')}</p>
+          </article>
+
+          <article>
+            <div class="exhibit judge" aria-hidden="true">
+              <div class="asked"><code>form.assignee</code><q>Reported by</q></div>
+              <div class="verdict broken"><code>voice/field-names</code><span><i style="width: 93%"></i></span><b>0.93</b></div>
+              <div class="verdict"><code>voice/own-words</code><span><i style="width: 8%"></i></span><b>0.08</b></div>
+              <div class="verdict"><code>voice/phrases</code><span><i style="width: 4%"></i></span><b>0.04</b></div>
+              <div class="suggested">suggested: <ins>"Reporter"</ins></div>
+            </div>
+            <h3><a href={`${API}#judge`}>{t('agents.judge.title')}</a></h3>
+            <p>{t('agents.judge.body')}</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="block wrap">
+        <div class="intro">
+          <h2>{t('features.title')}</h2>
+          <p>{t('features.lead')}</p>
+        </div>
+        <div class="cards three">
+          <article>
+            <div class="exhibit editor" aria-hidden="true">
+              <div><span class="k">const</span> {'{ t }'} = useCopy();</div>
+              <div>t(<span class="s">'cart.</span><span class="caret"></span></div>
+              <ul>
+                <li class="on"><code>cart.checkout</code><span>Check out</span></li>
+                <li><code>cart.failed</code><span>We couldn't take the payment.</span></li>
+                <li><code>cart.items</code><span># items in your cart.</span></li>
+              </ul>
+            </div>
+            <h3><a href={`${API}#types`}>{t('features.typed.title')}</a></h3>
+            <p>{t('features.typed.body')}</p>
+          </article>
+
+          <article>
+            <div class="exhibit stale" aria-hidden="true">
+              <div><b>en</b><span><del>Check out</del> <ins>Pay now</ins></span></div>
+              <div><b>de</b><span>Zur Kasse</span><i>stale</i></div>
+              <div><b>fr</b><span>Payer</span><i>stale</i></div>
+            </div>
+            <h3><a href={`${API}#stale-translations`}>{t('features.stale.title')}</a></h3>
+            <p>{t('features.stale.body')}</p>
+          </article>
+
+          <article>
+            <div class="exhibit mini" aria-hidden="true">
+              <div class="app">
+                <p class="app-title"><span class="str" data-key="cart.title">Cart</span></p>
+                <p><span class="str" data-key="cart.items">3 items</span></p>
+                <p><span class="str on" data-key="cart.checkout"><span class="app-button">Check out</span></span></p>
+              </div>
+            </div>
+            <h3><a href={`${API}#inspector`}>{t('features.inspector.title')}</a></h3>
+            <p>{t('features.inspector.body')}</p>
+            <p class="here">{t('features.inspector.here')}</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="block wrap">
+        <div class="intro">
+          <h2>{t('notes.title')}</h2>
+        </div>
+        <div class="notes-grid">
+          <article>
+            <div class="sketch" aria-hidden="true">
+              <del>&lt;h2&gt;Search items&lt;/h2&gt;</del>
+              <ins>&lt;Text id="search.items" /&gt;</ins>
+            </div>
+            <h3><a href={`${API}#extract`}>{t('notes.extract.title')}</a></h3>
+            <p>{t('notes.extract.body')}</p>
+          </article>
+
+          <article>
+            <div class="sketch" aria-hidden="true">
+              <span>README.md:14 <code>voice/familiar-context</code></span>
+              <span class="prose"><mark>It</mark> syncs every five minutes.</span>
+            </div>
+            <h3><a href={`${API}#docs`}>{t('notes.docs.title')}</a></h3>
+            <p>{t('notes.docs.body')}</p>
+          </article>
+
+          <article>
+            <div class="sketch chips" aria-hidden="true">
+              <code>.rs</code><code>.swift</code><code>.kt</code><code>strings.xml</code><code>.strings</code>
+            </div>
+            <h3><a href={`${API}#native-targets`}>{t('notes.native.title')}</a></h3>
+            <p>{t('notes.native.body')}</p>
+          </article>
+
+          <article>
+            <div class="sketch figure">
+              <strong>{t('notes.small.size')}</strong>
+              <span>{t('notes.small.caption')}</span>
+            </div>
+            <h3><a href={`${API}#pruning`}>{t('notes.small.title')}</a></h3>
+            <p>{t('notes.small.body')}</p>
+          </article>
+
+          <article>
+            <div class="sketch" aria-hidden="true">
+              <span>cart.add</span>
+              <span class="prose">Add to <del>cart</del> <ins>bag</ins></span>
+            </div>
+            <h3><a href={`${API}#diff`}>{t('notes.diff.title')}</a></h3>
+            <p>{t('notes.diff.body')}</p>
+          </article>
+
+          <article>
+            <div class="sketch" aria-hidden="true">
+              <span>Add to cart</span>
+              <span class="prose">⟦ÁÁðð ţóó çááŕţ ·····⟧</span>
+            </div>
+            <h3><a href={`${API}#pseudo-locale`}>{t('notes.pseudo.title')}</a></h3>
+            <p>{t('notes.pseudo.body')}</p>
+          </article>
+        </div>
       </section>
 
       <section class="start wrap">
