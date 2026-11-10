@@ -87,6 +87,18 @@ const judged = (config: ResolvedConfig) => {
 };
 
 describe('judge', () => {
+  test('only asks of the entries it names, as judge <paths> does, and a later run asks of the rest', async () => {
+    const judge = fakeJudge();
+    const config = project(judge);
+    const catalog = loadCatalog(config);
+    const first = await judgeCatalog(config, catalog, readLock(config.lock), { only: (m) => m.key === 'form.save' });
+    expect(judge.asked.map((r) => r.state['key'])).toEqual(['form.save']);
+    expect(first.stats).toMatchObject({ entries: 1, requests: 1 });
+    writeFileSync(config.lock, serializeLock({ ...readLock(config.lock), judged: first.verdicts }));
+    await run(config);
+    expect(judge.asked.map((r) => r.state['key'])).toEqual(['form.save', 'form.reporter']);
+  });
+
   test('asks once per entry, two questions per guideline, and lint finds what it judged broken', async () => {
     const judge = fakeJudge();
     const config = project(judge);

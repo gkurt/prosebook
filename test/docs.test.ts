@@ -116,7 +116,7 @@ Click here, linted.
       { docs: ['README.md', 'docs', '!docs/old', 'notes/*.md'] },
     );
     expect(docFiles(config)).toEqual(['README.md', 'docs/a.md', 'docs/b.mdx', 'notes/d.md']);
-    expect(() => docFiles(resolveConfig(config.root, { docs: ['missing.md'] }))).toThrow('docs names missing.md');
+    expect(() => docFiles(resolveConfig(config.root, { docs: ['missing.md'] }))).toThrow("missing.md isn't there");
   });
 
   test('a heading is a name on a heading, held to lint.docs, where word-budget is off unless set', () => {
@@ -152,7 +152,7 @@ describe('the docs, linted with --docs', () => {
     const named = cli(config.root, 'lint', '--docs', 'README.md');
     expect(named.stdout).toContain('2 strings in the docs pass the writing rules');
     expect(named.code).toBe(0);
-    expect(cli(config.root, 'lint', 'README.md').stderr).toContain('prosebook lint --docs README.md');
+    expect(cli(config.root, 'lint', 'README.md').stderr).toContain('README.md holds no entry the lint reads: to read a doc, add --docs');
     expect(cli(config.root, 'lint', '--docs', '--fix').code).toBe(1);
     expect(cli(config.root, 'status', '--docs').stderr).toContain('--docs works with lint, judge, approve');
   });
@@ -183,5 +183,54 @@ describe('the docs, linted with --docs', () => {
 
     writeFileSync(join(config.root, 'README.md'), '# Readme\n\nClick here for the guide.\n');
     expect(cli(config.root, 'lint', '--docs', 'README.md').code).toBe(1);
+  });
+});
+
+describe('lint <paths>', () => {
+  const CLICK = (key: string) => `${key}:\n  context: A link to the docs.\n  en: Click here for the docs\n`;
+
+  test("keeps the catalog's findings to the files named, and fails on a path holding no entry", () => {
+    const config = fixture({
+      'prosebook.config.ts': CONFIG("'copy/catalog'", []),
+      'copy/catalog/app.yaml': 'app.title:\n  context: The page title.\n  en: Docs\n',
+      'copy/catalog/billing.yaml': CLICK('billing.link'),
+      'README.md': '# Readme\n',
+    });
+    const billing = cli(config.root, 'lint', 'copy/catalog/billing.yaml');
+    expect(billing.stderr).toContain('billing.link: [house/no-click-here]');
+    expect(billing.code).toBe(1);
+    const app = cli(config.root, 'lint', 'copy/catalog/app.yaml');
+    expect(app.stdout).toContain('1 messages pass the writing rules');
+    expect(app.code).toBe(0);
+    expect(cli(config.root, 'lint', 'copy/catalog', '!copy/catalog/billing.yaml').code).toBe(0);
+
+    const none = cli(config.root, 'lint', 'src', 'README.md');
+    expect(none.stderr).toContain('error src holds no entry the lint reads: name catalog or translation files, or a folder of them');
+    expect(none.stderr).toContain('error README.md holds no entry the lint reads: to read a doc, add --docs');
+    expect(none.code).toBe(1);
+    expect(cli(config.root, 'lint', '--fix', '--unsafe', 'copy/catalog').stderr).toContain('without paths');
+  });
+
+  test('keeps text in code to the folders named', () => {
+    const config = fixture({
+      'prosebook.config.ts': CONFIG('false', []),
+      'src/billing/Link.tsx': 'export const Link = () => <a href="/docs">Click here for the docs</a>;\n',
+      'src/other/Note.tsx': 'export const Note = () => <p>Saved every five minutes.</p>;\n',
+    });
+    expect(cli(config.root, 'lint', 'src/billing').code).toBe(1);
+    expect(cli(config.root, 'lint', 'src/other').code).toBe(0);
+    expect(cli(config.root, 'lint', 'lib').stderr).toContain(
+      'lib holds no entry the lint reads: name files or folders under scan.dirs (src)',
+    );
+  });
+
+  test('--docs fails on a path holding no Markdown file', () => {
+    const config = fixture({ 'prosebook.config.ts': CONFIG('false', []), 'docs/a.txt': '', 'src/a.ts': '' });
+    const run = cli(config.root, 'lint', '--docs', 'nope.md', 'docs', 'docs/**/*.md', 'src/a.ts');
+    expect(run.stderr).toContain("error nope.md isn't there");
+    expect(run.stderr).toContain('error docs holds no Markdown file');
+    expect(run.stderr).toContain('error docs/**/*.md holds no Markdown file');
+    expect(run.stderr).toContain("error src/a.ts isn't Markdown");
+    expect(run.code).toBe(1);
   });
 });

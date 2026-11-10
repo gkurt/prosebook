@@ -14,7 +14,7 @@ import { parseSync } from 'oxc-parser';
 import { formatIn, type Formats, type FormatTable } from '#src/runtime/formats.ts';
 import { beyondOptions } from '#src/tools/icu.ts';
 
-import { READABLE_ATTRIBUTES, type ResolvedConfig, type ScanOptions } from './config.ts';
+import { READABLE_ATTRIBUTES, type Paths, type ResolvedConfig, type ScanOptions } from './config.ts';
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', '.git']);
 
@@ -50,9 +50,12 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
 }
 
 /** Whether a file, named from the root with `/`, is one `patterns` names, or in a folder one names: `src/server`, `**\/*.server.ts`. */
-export function isIgnored(file: string, patterns: string[]): boolean {
+export function isUnder(file: string, patterns: string[]): boolean {
   return patterns.some((p) => matchesGlob(file, p) || matchesGlob(file, `${p}/**`));
 }
+
+/** Whether a file, named from the root with `/`, is one the paths name and don't leave out. */
+export const inPaths = (file: string, paths: Paths): boolean => isUnder(file, paths.include) && !isUnder(file, paths.exclude);
 
 export interface KeyRefs {
   exact: Set<string>;
@@ -806,8 +809,8 @@ export function scan(options: ScanOptions, root: string, skip: string[] = [], fo
     if (SFC.test(path)) continue;
     const file = relative(root, path).replaceAll('\\', '/');
     // JSX in .tsx and .jsx; calls and properties in any script.
-    if (!isIgnored(file, options.ignore['hardcoded-text'])) hardcoded.push(...hardcodedText(file, code, options));
-    if (!isIgnored(file, options.ignore['formatted-in-code'])) formatted.push(...formattedInCode(file, code, formats, locale));
+    if (!isUnder(file, options.ignore['hardcoded-text'])) hardcoded.push(...hardcodedText(file, code, options));
+    if (!isUnder(file, options.ignore['formatted-in-code'])) formatted.push(...formattedInCode(file, code, formats, locale));
   }
   return { hardcoded, formatted, refs, files: files.length };
 }

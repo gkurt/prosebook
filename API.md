@@ -1146,6 +1146,17 @@ translators.
 Translations are linted by the rules that hold in any language. Spellings, concepts, contractions, `…`, spacing and punctuation are
 fixable: `prosebook lint --fix` writes them, checking the whole catalog first.
 
+Paths keep `lint` and `judge` to the entries in those files: catalog and translation files, or under `catalog: false` the
+code's. Files, folders and globs from the config's folder, a `!` before one leaving it out. The whole catalog is still read,
+so `duplicate` compares an entry with the rest, and `judge` asks only of the entries named, keeping what the lock said of the
+others. A path holding no entry fails, saying what to name instead; `--fix --unsafe` merges across the catalog, so it takes
+none.
+
+```bash
+prosebook lint copy/catalog/billing.yaml copy/locales/de
+prosebook judge src/settings '!src/settings/legacy'
+```
+
 The summary counts each rule's findings, and names words `sentence-case` finds capitalized in 3 or more strings and
 never written in lowercase, for `lint.properNouns`. Warnings alone exit 0: a rule CI should fail on is set to `'error'` under `lint.rules`.
 
@@ -1438,7 +1449,8 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 - `lint`, `judge` and `approve` read the docs only with `--docs`, and then only them: the copy is read without it, and
   `check` never reads the docs, so a CI job runs `prosebook lint --docs` as a step of its own.
 - `--docs` takes Markdown files (`.md`, `.mdx`), folders and globs from the config's folder; a `!` before one leaves it
-  out. With none, it reads those the config's `docs` names:
+  out. A path holding no Markdown file fails, so a typo can't pass as clean docs. With none, it reads those the config's
+  `docs` names:
 
   ```ts
   export default defineConfig({ docs: ['README.md', 'docs', '!docs/changelog.md'] });

@@ -20,8 +20,8 @@ import {
   type Message,
   type Problem,
 } from './tools/catalog.ts';
-import { CONFIG_FILES, docsPaths, loadConfig, type ResolvedConfig } from './tools/config.ts';
-import { docsOf } from './tools/docs.ts';
+import { CONFIG_FILES, loadConfig, pathsFrom, type Paths, type ResolvedConfig } from './tools/config.ts';
+import { docsOf, PathsError } from './tools/docs.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
@@ -34,7 +34,7 @@ import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { applyRename, planMerge, planRename, type MergePlan } from './tools/rename.ts';
 import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
 import { SarifReport } from './tools/sarif.ts';
-import { isReferenced, scan, sourceFiles, unscanned, whereOf as hardcodedWhere } from './tools/scan.ts';
+import { inPaths, isReferenced, scan, sourceFiles, unscanned, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { lintScanned, scannedMessages, scannedOf, type PlacedFinding } from './tools/scanned.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 import { todoOf } from './tools/todo.ts';
@@ -46,7 +46,8 @@ Usage: prosebook <command> [options]
 Commands:
   init                    Create a config and a first catalog file
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
-  lint [--docs [paths]]   Check the messages and their translations against the writing rules
+  lint [paths]            Check the messages and their translations against the writing rules, those
+                          in the files and folders named where paths are given
                           (--fix: write the fixes the rules know, such as spellings and …;
                           --fix --unsafe: also merge each group of duplicate entries into one);
                           with catalog: false in the config, the text scan finds in code instead;
@@ -75,10 +76,11 @@ Commands:
                           (--kind, --surface: only entries in that role)
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
-  judge [--docs [paths]]  Hold each entry to the guidelines no rule can check, through the config's
+  judge [paths]           Hold each entry to the guidelines no rule can check, through the config's
                           judge models, asking only of entries the lock has no verdict on as they are
-                          now; says the time, tokens and cost  (--check: ask nothing, and fail on
-                          any entry not judged)
+                          now, and of those in the files named where paths are given; says the
+                          time, tokens and cost  (--check: ask nothing, and fail on any entry not
+                          judged; --docs: the docs' prose, as lint reads it)
   approve [keys]          Pass entries as written against the rules they break and their guidelines,
                           whatever the rules or the models say, until they change  (--all: every
                           entry breaking one; --locale, and --rule for one rule). With catalog:
@@ -89,6 +91,8 @@ Commands:
 
 Options:
   --root <dir>            Project root (default: the current directory)
+  --docs                  With lint, judge and approve: the prose of Markdown files instead of the copy,
+                          those the paths name or else the config's docs
   --format <text|sarif>   With lint, scan, status, judge and check: sarif writes a SARIF 2.1.0 log to stdout
                           for code scanning, and the usual text to stderr
   --format <xliff|json>   With export: the file's format (XLIFF by default on stdout)
@@ -141,7 +145,7 @@ function docsConfig(config: ResolvedConfig, command: string, rest: string[]): Re
     return undefined;
   }
   const named = command === 'approve' ? rest.flatMap((r) => /^(.+\.mdx?):\d+(?::\d+)?$/.exec(r)?.[1] ?? []) : rest;
-  const given = docsPaths(config.root, named);
+  const given = pathsFrom(config.root, named);
   const docs =
     command === 'approve'
       ? { include: [...new Set([...config.docs.include, ...given.include])], exclude: config.docs.exclude }
@@ -222,10 +226,8 @@ async function main(argv: string[]): Promise<number> {
   const docs = values.docs === true;
   const config = docs ? docsConfig(loaded, command, rest) : loaded;
   if (config === undefined) return 1;
-  if (!docs && (command === 'lint' || command === 'judge') && rest.length > 0) {
-    err(`prosebook: ${command} reads paths as the docs to read: prosebook ${command} --docs ${rest.join(' ')}`);
-    return 1;
-  }
+  // Without --docs, the paths lint and judge take scope them to the entries in those files.
+  const scope = !docs && (command === 'lint' || command === 'judge') && rest.length > 0 ? pathsFrom(config.root, rest) : undefined;
   let code: number;
   try {
     switch (command) {
@@ -234,7 +236,7 @@ async function main(argv: string[]): Promise<number> {
         if (values.watch) return watchMode(config);
         return runGenerate(config, values.check === true);
       case 'lint':
-        code = runLint(config, report, values.fix === true, values.unsafe === true, docs);
+        code = runLint(config, report, values.fix === true, values.unsafe === true, docs, scope);
         break;
       case 'status':
         code = runStatus(config, values.strict === true, values.verbose === true, report);
@@ -261,7 +263,7 @@ async function main(argv: string[]): Promise<number> {
       case 'find':
         return runFind(config, rest.join(' '), values.kind, values.surface);
       case 'judge':
-        code = await runJudge(config, values.check === true, docs, report);
+        code = await runJudge(config, values.check === true, docs, report, scope);
         break;
       case 'approve':
         return runApprove(config, rest, values.all === true, values.locale, values.rule, docs);
@@ -283,6 +285,10 @@ async function main(argv: string[]): Promise<number> {
         return 1;
     }
   } catch (e) {
+    if (e instanceof PathsError) {
+      for (const problem of e.problems) err(`error ${problem}`);
+      return 1;
+    }
     if (!(e instanceof CatalogError)) throw e;
     reportProblems(config, e.problems, report);
     err(`\n${e.problems.filter((p) => p.severity === 'error').length} error(s) in the catalog.`);
@@ -403,9 +409,13 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   return new Promise(() => {});
 }
 
-function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsafe = false, docs = false): number {
+function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsafe = false, docs = false, scope?: Paths): number {
   if (unsafe && !fix) {
     err('prosebook: --unsafe goes with --fix: prosebook lint --fix --unsafe');
+    return 1;
+  }
+  if (unsafe && scope !== undefined) {
+    err('prosebook: --unsafe merges duplicates across the catalog: run prosebook lint --fix --unsafe without paths');
     return 1;
   }
   if (config.inCode || docs) {
@@ -418,14 +428,20 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
       return 1;
     }
     const messages = entriesOf(config, docs);
-    const findings = lintEntries(config, messages, docs, report);
+    const read = scoped(config, messages, scope);
+    const findings = lintEntries(config, messages, docs, report, (f) => inScope(f.file, scope));
     const errors = findings.filter((f) => f.severity === 'error').length;
-    if (findings.length === 0) out(`prosebook: ${messages.length} strings in the ${docs ? 'docs' : 'code'} pass the writing rules`);
+    if (findings.length === 0) out(`prosebook: ${read.length} strings in the ${docs ? 'docs' : 'code'} pass the writing rules`);
     else sayTotals(findings, messages, SCANNED_HINT, docs ? ' in the docs' : '');
     return errors > 0 ? 1 : 0;
   }
   let { catalog } = rendered(config, report);
-  const linted = () => lint(catalog.messages, config, catalog.messages, verdictsOf(config, catalog.messages, readLock(config.lock)));
+  const read = scoped(config, catalog.messages, scope);
+  // The whole catalog is linted, as `duplicate` compares entries, and only the findings in scope kept.
+  const linted = () =>
+    lint(catalog.messages, config, catalog.messages, verdictsOf(config, catalog.messages, readLock(config.lock))).filter((f) =>
+      inScope(f.file, scope),
+    );
   let findings = linted();
   if (fix) {
     const { fixed, problems } = applyFixes(config, catalog, findings);
@@ -460,7 +476,7 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
   const broken = errorsIn(catalog).length;
   if (findings.length === 0) {
     out(
-      `prosebook: ${catalog.messages.length} messages pass the writing rules${broken > 0 ? `, and ${broken} broken entr${broken === 1 ? 'y was' : 'ies were'} left out` : ''}`,
+      `prosebook: ${read.length} messages pass the writing rules${broken > 0 ? `, and ${broken} broken entr${broken === 1 ? 'y was' : 'ies were'} left out` : ''}`,
     );
   } else {
     sayTotals(findings, catalog.messages, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
@@ -585,6 +601,32 @@ function lintEntries(
 
 const JUDGE_OFF = 'prosebook: judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one';
 
+/** Whether a file is in the scope paths give `lint` and `judge`: every file is without any. */
+const inScope = (file: string, scope: Paths | undefined) => scope === undefined || inPaths(file, scope);
+
+/**
+ * The entries in the scope's files: the catalog's, a translation's, or where text in code or the docs
+ * stands. A path holding none fails, with what the command reads there instead.
+ */
+function scoped(config: ResolvedConfig, messages: Message[], scope: Paths | undefined): Message[] {
+  if (scope === undefined) return messages;
+  const filesOf = (m: Message) => [m.file, ...[...m.translations.values()].map((t) => t.file), ...(m.places ?? []).map((p) => p.file)];
+  const files = [...new Set(messages.flatMap(filesOf))];
+  const problems = scope.include
+    .filter((path) => !files.some((file) => inPaths(file, { include: [path], exclude: scope.exclude })))
+    .map((path) => {
+      const dirs = config.scan.dirs.map((d) => relative(config.root, d).replaceAll('\\', '/')).join(', ');
+      const instead = /\.mdx?$/.test(path)
+        ? 'to read a doc, add --docs'
+        : config.inCode
+          ? `name files or folders under scan.dirs (${dirs})`
+          : 'name catalog or translation files, or a folder of them';
+      return `${path} holds no entry the lint reads: ${instead}`;
+    });
+  if (problems.length > 0) throw new PathsError(problems);
+  return messages.filter((m) => filesOf(m).some((file) => inPaths(file, scope)));
+}
+
 /** The entries, each in a locale, the lock has no verdict on as they are now. */
 function unjudged(config: ResolvedConfig, messages: readonly Message[], docs: boolean) {
   const { judge } = config;
@@ -669,15 +711,16 @@ function warnUnjudged(config: ResolvedConfig): void {
   );
 }
 
-async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, report?: SarifReport): Promise<number> {
+async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, report?: SarifReport, scope?: Paths): Promise<number> {
   if (config.judge === undefined) {
     err(JUDGE_OFF);
     return 1;
   }
   const messages = entriesOf(config, docs, report);
+  const read = new Set(scoped(config, messages, scope));
   let failed = false;
   if (check) {
-    const open = unjudged(config, messages, docs);
+    const open = unjudged(config, messages, docs).filter((a) => read.has(a.message));
     for (const a of open) err(`error ${named(config, a.message.key)} (${a.locale}): not judged on ${[...a.questions.keys()].join(', ')}`);
     if (open.length > 0) {
       err(`${open.length} entr${open.length === 1 ? 'y' : 'ies'} not judged as they are now: run prosebook judge
@@ -689,7 +732,9 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
     const tty = process.stderr.isTTY;
     const progress = tty ? (done: number, total: number) => process.stderr.write(`\rprosebook: judging ${done}/${total}`) : undefined;
     const problems = config.inCode || docs ? [] : rendered(config).catalog.problems;
-    const run = await judgeCatalog(config, { messages, problems }, lock, progress === undefined ? {} : { progress });
+    // In scope, the models are asked of its entries alone; the lock keeps what it said of the rest.
+    const only = scope === undefined ? {} : { only: (m: Message) => read.has(m) };
+    const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, ...(progress !== undefined && { progress }) });
     if (tty && run.stats.requests > 0) process.stderr.write('\n');
     writeVerdicts(config, docs, run.verdicts);
     for (const { key, locale, model, error } of run.failures) {
@@ -701,7 +746,7 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
   }
   const findings = lintEntries(config, messages, docs, report, (f) => {
     const rule = config.lint.rules[f.rule]?.rule;
-    return rule !== undefined && isGuideline(rule);
+    return rule !== undefined && isGuideline(rule) && inScope(f.file, scope);
   });
   const errors = findings.filter((f) => f.severity === 'error').length;
   if (findings.length > 0) {

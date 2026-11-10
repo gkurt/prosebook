@@ -6,41 +6,62 @@
  * words. Not a full CommonMark reader: enough of its blocks to find where each piece of prose starts.
  */
 import { readFileSync, statSync } from 'node:fs';
-import { join, matchesGlob, relative } from 'node:path';
+import { extname, join, matchesGlob, relative } from 'node:path';
 
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { ALLOW_COMMENT, decodeEntities, isIgnored, looksLikeCode, sourceFiles, type Hardcoded } from './scan.ts';
+import { ALLOW_COMMENT, decodeEntities, isUnder, looksLikeCode, sourceFiles, type Hardcoded } from './scan.ts';
 import { scannedMessages, wordsOfDoc } from './scanned.ts';
 
 const EXTENSIONS = ['.md', '.mdx'];
 
-/** The Markdown files `docs` names, from the root with `/`. */
+/** Paths a command or the config named that hold nothing to read, each with why. */
+export class PathsError extends Error {
+  readonly problems: string[];
+  constructor(problems: string[]) {
+    super(problems.join('\n'));
+    this.problems = problems;
+  }
+}
+
+/**
+ * The Markdown files `docs` names, from the root with `/`. A path naming none, a file not there or
+ * not Markdown, a folder or a glob with none in it, fails with the rest: it's a typo more often than not.
+ */
 export function docFiles(config: Pick<ResolvedConfig, 'root' | 'docs'>): string[] {
   const { root, docs } = config;
   const files = new Set<string>();
-  const add = (path: string) => files.add(relative(root, path).replaceAll('\\', '/'));
+  const problems: string[] = [];
+  const named = (path: string) => relative(root, path).replaceAll('\\', '/');
   for (const pattern of docs.include) {
+    let found: string[];
     if (/[*?[{]/.test(pattern)) {
       // A glob is matched against the files under the folders before its first wildcard.
       const base = pattern.slice(0, pattern.search(/[*?[{]/)).replace(/[^/]*$/, '');
-      for (const path of sourceFiles([join(root, base)], EXTENSIONS)) {
-        const file = relative(root, path).replaceAll('\\', '/');
-        if (matchesGlob(file, pattern)) files.add(file);
+      found = sourceFiles([join(root, base)], EXTENSIONS)
+        .map(named)
+        .filter((file) => matchesGlob(file, pattern));
+    } else {
+      const path = join(root, pattern);
+      let isDir: boolean;
+      try {
+        isDir = statSync(path).isDirectory();
+      } catch {
+        problems.push(`${pattern} isn't there: name a Markdown file, a folder or a glob from the config's folder`);
+        continue;
       }
-      continue;
+      if (!isDir && !EXTENSIONS.includes(extname(path))) {
+        problems.push(`${pattern} isn't Markdown: name .md and .mdx files, or a folder holding them`);
+        continue;
+      }
+      found = isDir ? sourceFiles([path], EXTENSIONS).map(named) : [named(path)];
     }
-    const path = join(root, pattern);
-    let isDir: boolean;
-    try {
-      isDir = statSync(path).isDirectory();
-    } catch {
-      throw new Error(`docs names ${pattern}, which isn't there: name a Markdown file or a folder from the config's folder`);
-    }
-    if (isDir) sourceFiles([path], EXTENSIONS).forEach(add);
-    else add(path);
+    found = found.filter((file) => !isUnder(file, docs.exclude));
+    if (found.length === 0) problems.push(`${pattern} holds no Markdown file${docs.exclude.length > 0 ? ' that is not left out' : ''}`);
+    for (const file of found) files.add(file);
   }
-  return [...files].filter((file) => !isIgnored(file, docs.exclude)).sort();
+  if (problems.length > 0) throw new PathsError(problems);
+  return [...files].sort();
 }
 
 /** The docs' prose as entries, each piece at every place its words stand. */

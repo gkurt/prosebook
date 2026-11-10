@@ -360,9 +360,15 @@ export interface ResolvedConfig {
   native: (NativeTarget & { name: string })[];
   extract: { shared?: string };
   scan: ScanOptions;
-  /** The Markdown files the lint reads, as paths and globs from the root with `/`; `exclude` from `!` ones. */
-  docs: { include: string[]; exclude: string[] };
+  /** The Markdown files `--docs` reads where it names none. */
+  docs: Paths;
   judge?: ResolvedJudge;
+}
+
+/** Files, folders and globs from the root with `/`: those `include` names, less those `exclude` does, from `!` ones. */
+export interface Paths {
+  include: string[];
+  exclude: string[];
 }
 
 const NATIVE_NAMES = { rust: 'Locale', swift: 'Copy', kotlin: 'Copy', android: 'strings', apple: 'Localizable' };
@@ -657,7 +663,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
       ...(roles !== undefined && { roles }),
     },
-    docs: docsPaths(root, config.docs ?? []),
+    docs: pathsFrom(root, config.docs ?? []),
     ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
   };
 }
@@ -676,10 +682,10 @@ function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: str
 }
 
 /**
- * `docs`' paths and globs, the config's or those `--docs` names, each from the root with `/`, those
+ * Paths and globs as given, the config's `docs` or a command's, each from the root with `/`, those
  * after a `!` left out.
  */
-export function docsPaths(root: string, paths: readonly string[]): ResolvedConfig['docs'] {
+export function pathsFrom(root: string, paths: readonly string[]): Paths {
   const at = (path: string) => relative(root, resolve(root, path)).replaceAll('\\', '/');
   const include: string[] = [];
   const exclude: string[] = [];

@@ -371,6 +371,8 @@ export interface JudgeOptions {
   progress?: (done: number, total: number) => void;
   /** Ask nothing: only bring the verdicts up to date with the catalog, as `--check` does. */
   dry?: boolean;
+  /** Ask only of these entries, as `judge <paths>` does; the lock keeps what it said of the rest. */
+  only?: (message: Message) => boolean;
 }
 
 /** One request: an entry in a locale, a model, and the guidelines it has yet to answer of it. */
@@ -390,10 +392,12 @@ export async function judgeCatalog(
   const judge = config.judge;
   if (judge === undefined) throw new Error('judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one');
   const asked = askedOf(config, judge, catalog.messages);
+  const { only } = options;
+  const asking = only === undefined ? asked : asked.filter((a) => only(a.message));
   const open: Request[] =
     options.dry === true
       ? []
-      : asked.flatMap((a) =>
+      : asking.flatMap((a) =>
           judge.models.flatMap((model) => {
             const rules = [...a.questions.keys()].filter((rule) => openModels(lock.judged, a, rule, [model]).length > 0);
             return rules.length === 0 ? [] : [{ a, model, rules }];
@@ -427,8 +431,8 @@ export async function judgeCatalog(
     }
   }
   const stats: JudgeStats = {
-    entries: asked.length,
-    cached: asked.length - unanswered(asked, lock.judged, judge.models).length,
+    entries: asking.length,
+    cached: asking.length - unanswered(asking, lock.judged, judge.models).length,
     requests: 0,
     questions: 0,
     ms: 0,
