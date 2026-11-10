@@ -1,6 +1,6 @@
 /**
  * Text in code, linted where it is written: for a project with no catalog (`catalog: false`), and
- * `prosebook scan --lint` in one with. Each string `scan` finds becomes an entry of its own, keyed by
+ * `prosebook scan --lint` in one with; and the prose of the `docs`, read by `docs.ts`. Each string `scan` finds becomes an entry of its own, keyed by
  * its words, so an approval (`prosebook approve`, `judge.ts`) holds wherever the words stand and ends
  * once they change. The same words in several places are one entry, unless a place's
  * `prosebook-allow` comments exempt it from rules the others aren't: an exemption is the place's.
@@ -57,6 +57,39 @@ export function messageOf(text: string): { text: string; ast: MessageFormatEleme
   out += escaped(text.slice(at));
   return { text: out, ast: parseMessage(out), args };
 }
+
+/** In a doc's prose, what isn't words: a code span, `` `npm install` ``, and a bare URL. */
+const NOT_WORDS = /(`+)(.+?)\1(?!`)|\bhttps?:\/\/[^\s<>]*[^\s<>.,;:!?'")\]]/g;
+
+/**
+ * A doc's prose as an ICU message (`docs.ts`): literal text escaped, and each code span or bare URL a
+ * placeholder, `{code}` or `{link}`, so the lint reads the words around them and not what they hold.
+ * The same span twice is one placeholder.
+ */
+export function docMessageOf(prose: string): { text: string; ast: MessageFormatElement[]; args: Map<string, string> } {
+  const args = new Map<string, string>();
+  const names = new Map<string, string>();
+  let out = '';
+  let at = 0;
+  for (const found of prose.matchAll(NOT_WORDS)) {
+    out += escaped(prose.slice(at, found.index));
+    at = found.index + found[0].length;
+    let name = names.get(found[0]);
+    if (name === undefined) {
+      const base = found[1] === undefined ? 'link' : 'code';
+      name = base;
+      for (let n = 2; args.has(name); n++) name = `${base}${n}`;
+      names.set(found[0], name);
+      args.set(name, 'string');
+    }
+    out += `{${name}}`;
+  }
+  out += escaped(prose.slice(at));
+  return { text: out, ast: parseMessage(out), args };
+}
+
+/** A doc's prose with its code spans and URLs taken out: what the lint reads as words. */
+export const wordsOfDoc = (prose: string): string => prose.replace(NOT_WORDS, ' ');
 
 /** A hole's code as an expression, or nothing where it doesn't parse as one. */
 function expressionOf(source: string): Node | undefined {
@@ -214,6 +247,7 @@ const PROPERTIES: Record<string, Role> = {
  * `<p>` or a `<Link>` has none.
  */
 function roleOf(place: Hardcoded): Role {
+  if (place.via === 'doc') return place.where === 'heading' || place.where === 'header' ? HEADING : {};
   if (place.via === 'call') {
     if (/(?:^|\.)error$/.test(place.where)) return { kind: 'state', surface: 'error' };
     if (/^toast\b/.test(place.where)) return { kind: 'state', surface: 'toast' };
@@ -244,7 +278,8 @@ function elementRole(element: string): Role | undefined {
  * turns off is none at all: `{ heading: false }` leaves a heading no kind either, not a name on nothing.
  */
 function roleIn(config: ResolvedConfig, place: Hardcoded): Role {
-  const { roles = {} } = config.scan;
+  // A doc's heading is one as Markdown says, not a guess, so `scan.roles` doesn't reach it.
+  const { roles = {} } = place.via === 'doc' ? {} : config.scan;
   if (roles === false) return {};
   const { kind, surface } = roleOf(place);
   if ((kind !== undefined && roles[kind] === false) || (surface !== undefined && roles[surface] === false)) return {};
@@ -267,7 +302,7 @@ export function scannedMessages(config: ResolvedConfig, places: readonly Hardcod
   }
   return [...byText.values()].map(({ role, at }) => {
     const [first] = at as [Hardcoded];
-    const { text, ast, args } = messageOf(first.text);
+    const { text, ast, args } = first.via === 'doc' ? docMessageOf(first.text) : messageOf(first.text);
     return {
       key: first.text,
       area: '',
@@ -291,8 +326,19 @@ export function scannedMessages(config: ResolvedConfig, places: readonly Hardcod
   });
 }
 
+/** A doc's blocks, as `contextOf` says them. */
+const DOC_BLOCKS: Record<string, string> = {
+  heading: 'A heading',
+  paragraph: 'A paragraph',
+  item: 'An item of a list',
+  cell: 'A cell of a table',
+  header: "A table's column heading",
+  quote: 'A quote or a callout',
+};
+
 /** Where the text stands, in words a model reads as its role. */
 function contextOf(place: Hardcoded): string {
+  if (place.via === 'doc') return `${DOC_BLOCKS[place.where] ?? 'Prose'} in the doc ${place.file}.`;
   const element = place.inside?.findLast((e) => !INLINE.has(e));
   if (place.where === 'text') return element === undefined ? 'Text in a component.' : `Text in a <${element}>.`;
   if (place.via === 'call') return `Passed to ${place.where}().`;

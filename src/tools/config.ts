@@ -96,6 +96,11 @@ export interface LintConfig extends WordLists {
    */
   guessed?: RuleSeverities;
   /**
+   * Severities for the prose of the `docs`, over `rules`. `word-budget` is off there unless set: a
+   * heading in a guide runs longer than a name in an app.
+   */
+  docs?: RuleSeverities;
+  /**
    * Reasons many exemptions share, by name: `allow: { period: card-detail }` takes the reason
    * `card-detail` names here, so it is written, reviewed and changed once.
    */
@@ -268,6 +273,12 @@ export interface ProsebookConfig {
      */
     shared?: string;
   };
+  /**
+   * Markdown files (`.md`, `.mdx`) whose prose `prosebook lint`, `judge` and `approve` hold to the
+   * writing rules too, as they do text in code: files, folders or globs from the config's folder,
+   * `!` before one leaving it out: `['README.md', 'docs', '!docs/changelog.md']`.
+   */
+  docs?: string[];
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
   scan?: {
     dirs?: string[];
@@ -341,12 +352,15 @@ export interface ResolvedConfig {
     rules: Record<string, { rule: CheckRule; severity: Severity }>;
     areas: Record<string, Record<string, Severity>>;
     guessed: Record<string, Severity>;
+    docs: Record<string, Severity>;
     reasons: Record<string, string>;
   } & Required<WordLists>;
   guide: string | false;
   native: (NativeTarget & { name: string })[];
   extract: { shared?: string };
   scan: ScanOptions;
+  /** The Markdown files the lint reads, as paths and globs from the root with `/`; `exclude` from `!` ones. */
+  docs: { include: string[]; exclude: string[] };
   judge?: ResolvedJudge;
 }
 
@@ -572,6 +586,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   }
   for (const name of Object.keys(lint.guessed ?? {}))
     if (!namesRule(name, rules)) throw new Error(`lint.guessed.${name} ${notARule(rules)}`);
+  for (const name of Object.keys(lint.docs ?? {})) if (!namesRule(name, rules)) throw new Error(`lint.docs.${name} ${notARule(rules)}`);
   const kinds = config.kinds ?? DEFAULT_KINDS;
   const surfaces = config.surfaces ?? DEFAULT_SURFACES;
   const roles = config.scan?.roles;
@@ -612,6 +627,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
         ]),
       ),
       guessed: lint.guessed ?? {},
+      docs: { 'word-budget': 'off', ...lint.docs },
       reasons: checkedReasons(lint.reasons ?? {}),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...fromPresets.banned, ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...fromPresets.spelling, ...lint.spelling },
@@ -640,6 +656,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
       ...(roles !== undefined && { roles }),
     },
+    docs: docsPaths(config.docs ?? [], (path) => relative(root, at(path)).replaceAll('\\', '/')),
     ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
   };
 }
@@ -655,6 +672,17 @@ function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: str
   }
   const paths = (check: ScanCheck) => [...(ignore['*'] ?? []), ...(ignore[check] ?? [])].map(at);
   return { 'hardcoded-text': paths('hardcoded-text'), 'formatted-in-code': paths('formatted-in-code') };
+}
+
+/** `docs`' paths and globs, each from the root with `/`, those after a `!` left out. */
+function docsPaths(paths: string[], at: (path: string) => string): ResolvedConfig['docs'] {
+  const include: string[] = [];
+  const exclude: string[] = [];
+  for (const path of paths) {
+    if (path.startsWith('!')) exclude.push(at(path.slice(1)));
+    else include.push(at(path));
+  }
+  return { include, exclude };
 }
 
 /** What `Intl` reads of each kind of format's options; it ignores any other key, so a misspelled one would do nothing. */

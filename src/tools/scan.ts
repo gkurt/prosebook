@@ -50,7 +50,7 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
 }
 
 /** Whether a file, named from the root with `/`, is one `patterns` names, or in a folder one names: `src/server`, `**\/*.server.ts`. */
-function isIgnored(file: string, patterns: string[]): boolean {
+export function isIgnored(file: string, patterns: string[]): boolean {
   return patterns.some((p) => matchesGlob(file, p) || matchesGlob(file, `${p}/**`));
 }
 
@@ -80,10 +80,13 @@ export interface Hardcoded {
   line: number;
   column: number;
   text: string;
-  /** Where it sits: `text`, the attribute or property it is the value of, or the function it is passed to. */
+  /**
+   * Where it sits: `text`, the attribute or property it is the value of, or the function it is passed
+   * to; in Markdown (`docs.ts`), the block: `heading`, `paragraph`, `item`, `cell`, `header` or `quote`.
+   */
   where: string;
-  /** How `where` holds it: as JSX's text or an attribute, a call's argument or a property's value. */
-  via: 'jsx' | 'call' | 'property';
+  /** How `where` holds it: as JSX's text or an attribute, a call's argument or a property's value, or as a doc's prose. */
+  via: 'jsx' | 'call' | 'property' | 'doc';
   /** The lint rules a `prosebook-allow <rule>: <why>` comment on its line or the one above exempts it from, with why. */
   allow?: Record<string, string>;
   /** For JSX's text and attributes, the elements it is in, outermost first: `Dialog.Title` as `Title`. */
@@ -92,7 +95,7 @@ export interface Hardcoded {
 
 /** `where` as the code says it: `title=`, `toast.error(…)`, `label:`, or nothing for text. */
 export function whereOf(h: Hardcoded): string {
-  if (h.where === 'text') return '';
+  if (h.where === 'text' || h.via === 'doc') return '';
   return h.via === 'call' ? `${h.where}(…) ` : h.via === 'property' ? `${h.where}: ` : `${h.where}=`;
 }
 
@@ -296,7 +299,7 @@ function lineIndex(code: string) {
 }
 
 /** `prosebook-allow <rule>: <why>`, in any comment: its reason runs to the comment's end or the next allow. */
-const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*\/|-->|prosebook-allow|$)/g;
+export const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*\/|-->|prosebook-allow|$)/g;
 
 /**
  * Literal text a person reads, where it should be a catalog entry: JSX's text and readable attributes,

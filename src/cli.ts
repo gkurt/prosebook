@@ -21,6 +21,7 @@ import {
   type Problem,
 } from './tools/catalog.ts';
 import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
+import { docsOf } from './tools/docs.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
@@ -374,10 +375,10 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
       err('prosebook: --fix writes to the catalog, and catalog is false: edit the text in the code');
       return 1;
     }
-    const messages = scannedOf(config);
+    const messages = entriesOf(config);
     const findings = lintEntries(config, messages, report);
     const errors = findings.filter((f) => f.severity === 'error').length;
-    if (findings.length === 0) out(`prosebook: ${messages.length} strings in the code pass the writing rules`);
+    if (findings.length === 0) out(`prosebook: ${messages.length} strings in the code${docsToo(config)} pass the writing rules`);
     else sayTotals(findings, messages, SCANNED_HINT);
     return errors > 0 ? 1 : 0;
   }
@@ -423,8 +424,21 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     sayTotals(findings, catalog.messages, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
-  return errors + broken > 0 ? 1 : 0;
+  return errors + broken + lintDocs(config, report) > 0 ? 1 : 0;
 }
+
+/** The docs' prose held to the rules beside the catalog's entries, which `--fix` doesn't reach. Gives back its errors. */
+function lintDocs(config: ResolvedConfig, report?: SarifReport): number {
+  const docs = docsOf(config);
+  if (docs.length === 0) return 0;
+  const findings = lintEntries(config, docs, report);
+  if (findings.length === 0) out(`prosebook: ${docs.length} strings in the docs pass the writing rules`);
+  else sayTotals(findings, docs, SCANNED_HINT, ' in the docs');
+  return findings.filter((f) => f.severity === 'error').length;
+}
+
+/** `and the docs` where the config names any, for a line about what the lint read. */
+const docsToo = (config: ResolvedConfig) => (config.docs.include.length > 0 ? ' and the docs' : '');
 
 function printMerges(plan: MergePlan): void {
   for (const { into, removed } of plan.merged) out(`prosebook: merged ${removed.join(', ')} into ${into}`);
@@ -523,13 +537,19 @@ function lintEntries(
   only: (f: Finding) => boolean = () => true,
 ): Finding[] {
   const verdict = verdictsOf(config, messages, readLock(config.lock));
-  if (config.inCode) {
-    const found = lintScanned(messages, config, verdict).filter(only);
-    reportScanned(config, found, report);
-    return found;
+  // Text in code and the docs' prose stand where they're written, each entry linted apart.
+  const placed = messages.filter((m) => m.places !== undefined);
+  const entries = messages.filter((m) => m.places === undefined);
+  const found: Finding[] = [];
+  if (entries.length > 0) {
+    found.push(...lint(entries, config, entries, verdict).filter(only));
+    reportFindings(config, found, report);
   }
-  const found = lint(messages, config, messages, verdict).filter(only);
-  reportFindings(config, found, report);
+  if (placed.length > 0) {
+    const scanned = lintScanned(placed, config, verdict).filter(only);
+    reportScanned(config, scanned, report);
+    found.push(...scanned);
+  }
   return found;
 }
 
@@ -541,13 +561,13 @@ function unjudged(config: ResolvedConfig, messages: readonly Message[]) {
   return judge === undefined ? [] : unanswered(askedOf(config, judge, messages), readLock(config.lock).judged, judge.models);
 }
 
-/** The entries the lint reads: the catalog's, or under `catalog: false` the text in code. */
+/** The entries the lint reads: the catalog's, or under `catalog: false` the text in code, and the docs' prose. */
 function entriesOf(config: ResolvedConfig, report?: SarifReport): Message[] {
-  return config.inCode ? scannedOf(config) : rendered(config, report).catalog.messages;
+  return [...(config.inCode ? scannedOf(config) : rendered(config, report).catalog.messages), ...docsOf(config)];
 }
 
-/** An entry as said to people: its key, or text in code by its words. */
-const named = (config: ResolvedConfig, key: string) => (config.inCode ? `"${key}"` : key);
+/** An entry as said to people: its key, or text in code and the docs by its words, which a key never has a space in. */
+const named = (config: ResolvedConfig, key: string) => (config.inCode || /\s/.test(key) ? `"${key}"` : key);
 
 /**
  * Text in code named as `file:line`, as its words: the key it is approved under. A key, or words,

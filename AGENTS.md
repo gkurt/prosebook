@@ -293,7 +293,13 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `scan` records around JSX text (`Hardcoded.inside`, the nearest past `INLINE` ones deciding), the
   attribute (`label=` its element's role first, `elementRole`), the property or the call; `roleIn` keeps what the config defines and drops a guess naming
   a kind or surface `scan.roles` turns off. Words in two roles are two entries, approved as one. Text in
-  code has no area: `severityOf` reads `lint.guessed` for it where its role was guessed, never `lint.areas`. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
+  code has no area: `severityOf` reads `lint.guessed` for it where its role was guessed, never `lint.areas`.
+  `docs.ts`: the prose of the config's `docs`, Markdown, as the same entries (`via: 'doc'`, `where` its block), which
+  the CLI's `entriesOf` adds to the catalog's or the code's, so `lint`, `judge` and `approve` read them, and `lintEntries`
+  lints every entry with `places` apart. A reader of its own, not CommonMark's: enough of the blocks to find where each
+  piece of prose starts (`blocks`, a list item's or a quote's lines read again as blocks), each piece's inline Markdown
+  taken to its words by `proseOf`, code spans and URLs kept for `docMessageOf` (`scanned.ts`) to make placeholders.
+  A comment above a block asks of it (`prosebook-ignore`, `ALLOW_COMMENT`); `severityOf` reads `lint.docs` for them. `pseudo.ts`: accents, doubled vowels and padding to the length a translation
   reaches (`GROWTH`, by length), which the Android test reads in its pseudo-locale.
 - `src/tools/sarif.ts`: findings as a SARIF 2.1.0 log, for `--format sarif` on `lint`, `scan`, `status`
   and `check`. The CLI adds results beside its text, which goes to stderr then, and gives each a line.

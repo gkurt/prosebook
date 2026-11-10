@@ -305,7 +305,7 @@ export function approve(
   const problems: string[] = [];
   for (const key of keys) {
     const same = messages.filter((m) => m.key === key && (locale === config.source || m.translations.has(locale)));
-    const shown = config.inCode ? `"${key}"` : key;
+    const shown = config.inCode || /\s/.test(key) ? `"${key}"` : key;
     if (same.length === 0) {
       problems.push(`${shown} (${locale}) is no entry: check the key, and that it has a translation in ${locale}`);
       continue;

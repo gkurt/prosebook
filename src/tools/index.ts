@@ -126,4 +126,5 @@ export {
   type Reads,
   type UnseenRead,
 } from './scan.ts';
-export { lintScanned, messageOf, scannedMessages, scannedOf, type PlacedFinding } from './scanned.ts';
+export { docFiles, docsOf, proseIn, proseOf } from './docs.ts';
+export { docMessageOf, lintScanned, messageOf, scannedMessages, scannedOf, type PlacedFinding } from './scanned.ts';

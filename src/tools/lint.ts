@@ -1239,15 +1239,17 @@ export const namesRule = (name: string, rules: Record<string, unknown>): boolean
 
 /**
  * A rule's severity for an entry: its area's, where `lint.areas` sets one; for text in code, which has
- * no area, `lint.guessed`'s where its role was guessed.
+ * no area, `lint.guessed`'s where its role was guessed; for a doc's prose, `lint.docs`'.
  */
 export function severityOf(config: ResolvedConfig, name: string, message: Message): Severity | undefined {
   const own =
     message.places === undefined
       ? severityIn(config.lint.areas[message.area], name)
-      : message.kind !== undefined || message.surface !== undefined
-        ? severityIn(config.lint.guessed, name)
-        : undefined;
+      : message.places[0]?.via === 'doc'
+        ? severityIn(config.lint.docs, name)
+        : message.kind !== undefined || message.surface !== undefined
+          ? severityIn(config.lint.guessed, name)
+          : undefined;
   return own ?? config.lint.rules[name]?.severity;
 }
 
