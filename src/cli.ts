@@ -751,7 +751,8 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
       const why = error instanceof Error ? error.message : String(error);
       err(`error ${named(config, key)} (${locale}): ${model} failed, so the run stopped there: ${why}`);
     }
-    sayStats(run.stats);
+    // A run failing before any answer asked nothing that came back, which the stats would say as the lock having it all.
+    if (run.failures.length === 0 || run.stats.requests > 0) sayStats(run.stats);
     failed = run.failures.length > 0;
   }
   const findings = lintEntries(config, messages, docs, report, (f) => {

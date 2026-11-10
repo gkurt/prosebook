@@ -202,7 +202,7 @@
     "cli": "bun --conditions=prosebook@dev src/cli.ts",
     "docs": "bun --conditions=prosebook@dev src/cli.ts lint --docs",
     "docs:judge": "bun scripts/judge.mts . --docs",
-    "judge": "bun scripts/judge.mts site",
+    "judge": "bun scripts/judge.mts site && bun scripts/judge.mts examples/vite",
     "example": "tsdown && bun run --cwd examples/vite dev",
     "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",

@@ -306,6 +306,21 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     expect(cli(config.root, 'lint').stderr).not.toContain('house/labels');
     expect(cli(config.root, 'approve', '--all').stderr).toContain('none needs approving');
   });
+
+  test('the CLI: a run failing before any answer says why, and not that the lock had it all', () => {
+    const config = fixture({
+      'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
+const house = definePlugin({ name: 'house', rules: { short: { type: 'guideline', description: 'A label is short.' } } });
+const model = { id: 'fake/broke', judge: async () => { throw new Error('no credits'); } };
+export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model] } };
+`,
+      'copy/catalog/form.yaml': 'form.title:\n  context: The form title.\n  en: Report\n',
+    });
+    const run = cli(config.root, 'judge');
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('fake/broke failed, so the run stopped there: no credits');
+    expect(run.stdout).not.toContain('nothing was asked');
+  });
 });
 
 type DecisionModelV4 = Extract<Experimental_DecisionModel, { doDecide: unknown }>;

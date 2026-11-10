@@ -60,4 +60,6 @@ A number, date, list, duration or relative time is shown in a format the config 
 
 Run `prosebook lint` and fix what it finds; `--fix` writes the fixes it offers. Where a rule is wrong about an entry, exempt the entry under `allow` with the reason. An entry's `comment` or `remove` is a request: make the change, then delete the field.
 
+Then run `prosebook judge`, which asks a model whether each entry you changed keeps to the guidelines, and rewrite what it finds.
+
 <!-- prettier-ignore-end -->

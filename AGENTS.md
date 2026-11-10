@@ -12,7 +12,7 @@ bun run format     # oxfmt
 bun run fix        # lint + format with autofix
 bun run docs       # README, API.md, CONTRIBUTING.md and AGENTS.md held to the writing rules (prosebook lint --docs)
 bun run docs:judge # the same docs held to the guidelines by the judge; skipped without AI_GATEWAY_API_KEY. Commit prosebook.lock.json
-bun run judge      # the site's catalog held to the guidelines the same way. Commit site/copy/lock.json
+bun run judge      # the site's and the Vite example's catalogs held to the guidelines the same way. Commit their copy/lock.json
 bun run checks     # check + typecheck + docs + test
 bun run build      # dist/ with tsdown
 bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root examples/vite`
