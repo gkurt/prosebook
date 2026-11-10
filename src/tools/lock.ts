@@ -25,6 +25,11 @@ export interface Lock {
   translations: Record<string, Record<string, string>>;
   /** A model's verdicts on the guidelines, which `prosebook judge` writes (`judge.ts`). */
   judged?: Verdicts;
+  /**
+   * The same for the docs' prose, which `--docs` reads apart from the copy: each run keeps only the
+   * verdicts of what it read, so the two would drop each other's in one record.
+   */
+  docs?: Verdicts;
 }
 
 export function hash(text: string): string {
@@ -58,19 +63,30 @@ export function serializeLock(lock: Lock): string {
       .map((locale) => [locale, sortedEntries(lock.translations[locale]!)]),
   );
   const head = JSON.stringify({ version: 2, sources: sortedEntries(lock.sources), translations }, null, 2);
-  const locales = Object.keys(lock.judged ?? {})
-    .sort()
-    .filter((locale) => Object.keys(lock.judged![locale]!).length > 0);
-  if (locales.length === 0) return `${head}\n`;
-  const judged = locales.map((locale) => {
-    const keys = Object.entries(sortedEntries(lock.judged![locale]!)).map(([key, rules]) => {
-      const verdicts = Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)]));
-      return `      ${JSON.stringify(key)}: ${JSON.stringify(verdicts)}`;
-    });
-    return `    ${JSON.stringify(locale)}: {\n${keys.join(',\n')}\n    }`;
+  const sections = (['judged', 'docs'] as const).flatMap((name) => {
+    const written = verdictsText(lock[name] ?? {});
+    return written === undefined ? [] : [`  ${JSON.stringify(name)}: {\n${written}\n  }`];
   });
+  if (sections.length === 0) return `${head}\n`;
   // The pretty-printed head ends `\n}`: the verdicts go in before that brace.
-  return `${head.slice(0, -2)},\n  "judged": {\n${judged.join(',\n')}\n  }\n}\n`;
+  return `${head.slice(0, -2)},\n${sections.join(',\n')}\n}\n`;
+}
+
+/** Verdicts by locale, each entry's on one line; nothing where no locale holds one. */
+function verdictsText(verdicts: Verdicts): string | undefined {
+  const locales = Object.keys(verdicts)
+    .sort()
+    .filter((locale) => Object.keys(verdicts[locale]!).length > 0);
+  if (locales.length === 0) return undefined;
+  return locales
+    .map((locale) => {
+      const keys = Object.entries(sortedEntries(verdicts[locale]!)).map(([key, rules]) => {
+        const said = Object.fromEntries(Object.entries(sortedEntries(rules)).map(([rule, judges]) => [rule, sortedEntries(judges)]));
+        return `      ${JSON.stringify(key)}: ${JSON.stringify(said)}`;
+      });
+      return `    ${JSON.stringify(locale)}: {\n${keys.join(',\n')}\n    }`;
+    })
+    .join(',\n');
 }
 
 export interface StaleTranslation {
@@ -100,7 +116,11 @@ export interface Reconciled {
  */
 export function reconcile(catalog: Catalog, previous: Lock, accept: Map<string, Set<string> | true> = new Map()): Reconciled {
   // The verdicts are `prosebook judge`'s to bring up to date, so they're kept as they were.
-  const lock: Lock = { ...emptyLock(), ...(previous.judged !== undefined && { judged: previous.judged }) };
+  const lock: Lock = {
+    ...emptyLock(),
+    ...(previous.judged !== undefined && { judged: previous.judged }),
+    ...(previous.docs !== undefined && { docs: previous.docs }),
+  };
   const stale = new Map<string, Map<string, StaleTranslation>>();
   for (const message of catalog.messages) {
     const source = hash(message.text);

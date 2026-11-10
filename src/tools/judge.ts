@@ -284,8 +284,8 @@ function heldTo(config: ResolvedConfig, same: readonly Message[], all: readonly 
 /**
  * The author's approval of entries as written: each passes the rules named whatever they or the models
  * say, until its words, its role or the rule change. Gives back the verdicts with the approvals in, and
- * why a key couldn't be approved. Text in code (`catalog: false`) keeps no approval of words no longer
- * found, as nothing else would ever drop it.
+ * why a key couldn't be approved. Text in code (`catalog: false`) and the docs keep no approval of
+ * words no longer found, as nothing else would ever drop it.
  */
 export function approve(
   config: ResolvedConfig,
@@ -296,7 +296,8 @@ export function approve(
 ): { verdicts: Verdicts; approved: { key: string; rules: string[] }[]; problems: string[] } {
   const locale = options.locale ?? config.source;
   const next: Verdicts = structuredClone(verdicts ?? {});
-  if (config.inCode) {
+  // Words in code or the docs (`--docs`, approved into the lock's `docs`) are keys nothing else drops.
+  if (messages.every((m) => m.places !== undefined)) {
     const found = new Set(messages.map((m) => m.key));
     for (const keyed of Object.values(next)) for (const key of Object.keys(keyed)) if (!found.has(key)) delete keyed[key];
   }

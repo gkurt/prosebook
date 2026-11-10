@@ -168,7 +168,7 @@ generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.
-- [**Docs**](API.md#docs): the README and the guides held to the same rules and guidelines as the copy.
+- [**Docs**](API.md#docs): `lint --docs` holds the README and the guides to the same rules and guidelines as the copy.
 - [**Without a catalog**](API.md#without-a-catalog): the text in the code held to the same rules, for an app that hasn't moved it into a catalog.
 - [**Tone**](API.md#tone): `extends: 'friendly'`, or `plain`, `professional`, `technical`, `playful`: a tone said in the writing guide, the translation prompt and to the judge, with the rules that go with it.
 - [**Judge**](API.md#judge): each entry held to the guidelines no rule can check by decision models, asking only of what changed, and passed by its author's approval where they're wrong.

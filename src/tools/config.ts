@@ -274,9 +274,10 @@ export interface ProsebookConfig {
     shared?: string;
   };
   /**
-   * Markdown files (`.md`, `.mdx`) whose prose `prosebook lint`, `judge` and `approve` hold to the
-   * writing rules too, as they do text in code: files, folders or globs from the config's folder,
-   * `!` before one leaving it out: `['README.md', 'docs', '!docs/changelog.md']`.
+   * Markdown files (`.md`, `.mdx`) whose prose `prosebook lint --docs`, `judge --docs` and
+   * `approve --docs` hold to the writing rules, as they do text in code, where the command names none:
+   * files, folders or globs from the config's folder, `!` before one leaving it out:
+   * `['README.md', 'docs', '!docs/changelog.md']`.
    */
   docs?: string[];
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
@@ -656,7 +657,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
       ...(roles !== undefined && { roles }),
     },
-    docs: docsPaths(config.docs ?? [], (path) => relative(root, at(path)).replaceAll('\\', '/')),
+    docs: docsPaths(root, config.docs ?? []),
     ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
   };
 }
@@ -674,8 +675,12 @@ function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: str
   return { 'hardcoded-text': paths('hardcoded-text'), 'formatted-in-code': paths('formatted-in-code') };
 }
 
-/** `docs`' paths and globs, each from the root with `/`, those after a `!` left out. */
-function docsPaths(paths: string[], at: (path: string) => string): ResolvedConfig['docs'] {
+/**
+ * `docs`' paths and globs, the config's or those `--docs` names, each from the root with `/`, those
+ * after a `!` left out.
+ */
+export function docsPaths(root: string, paths: readonly string[]): ResolvedConfig['docs'] {
+  const at = (path: string) => relative(root, resolve(root, path)).replaceAll('\\', '/');
   const include: string[] = [];
   const exclude: string[] = [];
   for (const path of paths) {

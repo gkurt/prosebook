@@ -20,16 +20,16 @@ import {
   type Message,
   type Problem,
 } from './tools/catalog.ts';
-import { CONFIG_FILES, loadConfig, type ResolvedConfig } from './tools/config.ts';
+import { CONFIG_FILES, docsPaths, loadConfig, type ResolvedConfig } from './tools/config.ts';
 import { docsOf } from './tools/docs.ts';
 import { applyFixes, importTranslations } from './tools/entry.ts';
 import { exportOf, type ExchangeFormat } from './tools/exchange.ts';
 import { applyExtract, planExtract } from './tools/extract.ts';
 import { findEntries } from './tools/find.ts';
 import { generate, render } from './tools/generate.ts';
-import { approve, askedOf, brokenKeys, judgeCatalog, unanswered, verdictsOf, type JudgeStats } from './tools/judge.ts';
+import { approve, askedOf, brokenKeys, judgeCatalog, unanswered, verdictsOf, type JudgeStats, type Verdicts } from './tools/judge.ts';
 import { isGuideline, lint, type Finding } from './tools/lint.ts';
-import { changeOf, readLock, serializeLock, type StaleTranslation } from './tools/lock.ts';
+import { changeOf, readLock, serializeLock, type Lock, type StaleTranslation } from './tools/lock.ts';
 import { applyMigrate, planMigrate } from './tools/migrate.ts';
 import { applyRename, planMerge, planRename, type MergePlan } from './tools/rename.ts';
 import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
@@ -46,10 +46,11 @@ Usage: prosebook <command> [options]
 Commands:
   init                    Create a config and a first catalog file
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
-  lint                    Check the messages and their translations against the writing rules
+  lint [--docs [paths]]   Check the messages and their translations against the writing rules
                           (--fix: write the fixes the rules know, such as spellings and …;
                           --fix --unsafe: also merge each group of duplicate entries into one);
-                          with catalog: false in the config, the text scan finds in code instead
+                          with catalog: false in the config, the text scan finds in code instead;
+                          with --docs, the prose of the Markdown files named, or of the config's docs
   status                  Translation coverage and stale translations per locale  (--strict, --verbose)
   accept <locale> [keys]  Mark stale translations as still right  (--all for every stale one)
   todo <locale>           Print the missing and stale entries of a locale, ready to translate
@@ -74,14 +75,15 @@ Commands:
                           (--kind, --surface: only entries in that role)
   rename <from> <to>      Rename a key and the keys under it, or a whole area, in the catalog, every
                           translation, the lock and the code that names it  (dry run unless --write)
-  judge                   Hold each entry to the guidelines no rule can check, through the config's
+  judge [--docs [paths]]  Hold each entry to the guidelines no rule can check, through the config's
                           judge models, asking only of entries the lock has no verdict on as they are
                           now; says the time, tokens and cost  (--check: ask nothing, and fail on
                           any entry not judged)
   approve [keys]          Pass entries as written against the rules they break and their guidelines,
                           whatever the rules or the models say, until they change  (--all: every
                           entry breaking one; --locale, and --rule for one rule). With catalog:
-                          false, name text in code by its words or as file:line
+                          false, name text in code by its words or as file:line; with --docs,
+                          the docs' prose the same way
   check                   generate --check, lint and status --strict together, for CI, and warns
                           of reads whose key a pruned build can't see and of entries not judged
 
@@ -125,6 +127,34 @@ const RULES = {
   allow: "An entry's exemption names a rule the entry breaks, and says why in a sentence.",
 };
 
+/** The commands `--docs` turns to the docs. */
+const DOCS_COMMANDS = ['lint', 'judge', 'approve'];
+
+/**
+ * The config `--docs` reads: the docs the command names, as `docs` takes them, or else the config's.
+ * `approve` names entries, so its docs are the files its `file:line`s name, beside the config's.
+ * Nothing, said why, where it has none to read.
+ */
+function docsConfig(config: ResolvedConfig, command: string, rest: string[]): ResolvedConfig | undefined {
+  if (!DOCS_COMMANDS.includes(command)) {
+    err(`prosebook: --docs works with ${DOCS_COMMANDS.join(', ')}`);
+    return undefined;
+  }
+  const named = command === 'approve' ? rest.flatMap((r) => /^(.+\.mdx?):\d+(?::\d+)?$/.exec(r)?.[1] ?? []) : rest;
+  const given = docsPaths(config.root, named);
+  const docs =
+    command === 'approve'
+      ? { include: [...new Set([...config.docs.include, ...given.include])], exclude: config.docs.exclude }
+      : named.length > 0
+        ? given
+        : config.docs;
+  if (docs.include.length === 0) {
+    err(`prosebook: --docs reads Markdown files: name them, prosebook ${command} --docs README.md docs, or set docs in the config`);
+    return undefined;
+  }
+  return { ...config, docs };
+}
+
 /** Text for people. Under `--format sarif` stdout holds only the log, so this goes to stderr. */
 let out = (s = '') => process.stdout.write(`${s}\n`);
 const err = (s = '') => process.stderr.write(`${s}\n`);
@@ -151,6 +181,7 @@ async function main(argv: string[]): Promise<number> {
       kind: { type: 'string' },
       surface: { type: 'string' },
       format: { type: 'string' },
+      docs: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -183,9 +214,16 @@ async function main(argv: string[]): Promise<number> {
   }
   const root = values.root ?? process.cwd();
   if (command === 'init') return init(root);
-  const config = await loadConfig(root);
-  if (config.inCode && CATALOG_COMMANDS.includes(command)) {
+  const loaded = await loadConfig(root);
+  if (loaded.inCode && CATALOG_COMMANDS.includes(command)) {
     err(`prosebook: ${command} reads the catalog, and catalog is false in the config: set catalog to a folder to use it`);
+    return 1;
+  }
+  const docs = values.docs === true;
+  const config = docs ? docsConfig(loaded, command, rest) : loaded;
+  if (config === undefined) return 1;
+  if (!docs && (command === 'lint' || command === 'judge') && rest.length > 0) {
+    err(`prosebook: ${command} reads paths as the docs to read: prosebook ${command} --docs ${rest.join(' ')}`);
     return 1;
   }
   let code: number;
@@ -196,7 +234,7 @@ async function main(argv: string[]): Promise<number> {
         if (values.watch) return watchMode(config);
         return runGenerate(config, values.check === true);
       case 'lint':
-        code = runLint(config, report, values.fix === true, values.unsafe === true);
+        code = runLint(config, report, values.fix === true, values.unsafe === true, docs);
         break;
       case 'status':
         code = runStatus(config, values.strict === true, values.verbose === true, report);
@@ -223,10 +261,10 @@ async function main(argv: string[]): Promise<number> {
       case 'find':
         return runFind(config, rest.join(' '), values.kind, values.surface);
       case 'judge':
-        code = await runJudge(config, values.check === true, report);
+        code = await runJudge(config, values.check === true, docs, report);
         break;
       case 'approve':
-        return runApprove(config, rest, values.all === true, values.locale, values.rule);
+        return runApprove(config, rest, values.all === true, values.locale, values.rule, docs);
       case 'check': {
         if (config.inCode) {
           code = runLint(config, report);
@@ -365,21 +403,25 @@ function watchMode(config: ResolvedConfig): Promise<number> {
   return new Promise(() => {});
 }
 
-function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsafe = false): number {
+function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsafe = false, docs = false): number {
   if (unsafe && !fix) {
     err('prosebook: --unsafe goes with --fix: prosebook lint --fix --unsafe');
     return 1;
   }
-  if (config.inCode) {
+  if (config.inCode || docs) {
     if (fix) {
-      err('prosebook: --fix writes to the catalog, and catalog is false: edit the text in the code');
+      err(
+        docs
+          ? 'prosebook: --fix writes to the catalog, and --docs reads the docs: edit the text in them'
+          : 'prosebook: --fix writes to the catalog, and catalog is false: edit the text in the code',
+      );
       return 1;
     }
-    const messages = entriesOf(config);
-    const findings = lintEntries(config, messages, report);
+    const messages = entriesOf(config, docs);
+    const findings = lintEntries(config, messages, docs, report);
     const errors = findings.filter((f) => f.severity === 'error').length;
-    if (findings.length === 0) out(`prosebook: ${messages.length} strings in the code${docsToo(config)} pass the writing rules`);
-    else sayTotals(findings, messages, SCANNED_HINT);
+    if (findings.length === 0) out(`prosebook: ${messages.length} strings in the ${docs ? 'docs' : 'code'} pass the writing rules`);
+    else sayTotals(findings, messages, SCANNED_HINT, docs ? ' in the docs' : '');
     return errors > 0 ? 1 : 0;
   }
   let { catalog } = rendered(config, report);
@@ -424,21 +466,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     sayTotals(findings, catalog.messages, 'Fix the string, or add `allow: { <rule>: <why> }` where the rule is wrong about it.');
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
   }
-  return errors + broken + lintDocs(config, report) > 0 ? 1 : 0;
+  return errors + broken > 0 ? 1 : 0;
 }
-
-/** The docs' prose held to the rules beside the catalog's entries, which `--fix` doesn't reach. Gives back its errors. */
-function lintDocs(config: ResolvedConfig, report?: SarifReport): number {
-  const docs = docsOf(config);
-  if (docs.length === 0) return 0;
-  const findings = lintEntries(config, docs, report);
-  if (findings.length === 0) out(`prosebook: ${docs.length} strings in the docs pass the writing rules`);
-  else sayTotals(findings, docs, SCANNED_HINT, ' in the docs');
-  return findings.filter((f) => f.severity === 'error').length;
-}
-
-/** `and the docs` where the config names any, for a line about what the lint read. */
-const docsToo = (config: ResolvedConfig) => (config.docs.include.length > 0 ? ' and the docs' : '');
 
 function printMerges(plan: MergePlan): void {
   for (const { into, removed } of plan.merged) out(`prosebook: merged ${removed.join(', ')} into ${into}`);
@@ -533,10 +562,11 @@ function reportScanned(config: ResolvedConfig, findings: PlacedFinding[], report
 function lintEntries(
   config: ResolvedConfig,
   messages: Message[],
+  docs: boolean,
   report?: SarifReport,
   only: (f: Finding) => boolean = () => true,
 ): Finding[] {
-  const verdict = verdictsOf(config, messages, readLock(config.lock));
+  const verdict = verdictsOf(config, messages, lockFor(config, docs));
   // Text in code and the docs' prose stand where they're written, each entry linted apart.
   const placed = messages.filter((m) => m.places !== undefined);
   const entries = messages.filter((m) => m.places === undefined);
@@ -556,14 +586,34 @@ function lintEntries(
 const JUDGE_OFF = 'prosebook: judge is off: set judge.models in the config, as decisionJudge from prosebook/ai makes one';
 
 /** The entries, each in a locale, the lock has no verdict on as they are now. */
-function unjudged(config: ResolvedConfig, messages: readonly Message[]) {
+function unjudged(config: ResolvedConfig, messages: readonly Message[], docs: boolean) {
   const { judge } = config;
-  return judge === undefined ? [] : unanswered(askedOf(config, judge, messages), readLock(config.lock).judged, judge.models);
+  return judge === undefined ? [] : unanswered(askedOf(config, judge, messages), lockFor(config, docs).judged, judge.models);
 }
 
-/** The entries the lint reads: the catalog's, or under `catalog: false` the text in code, and the docs' prose. */
-function entriesOf(config: ResolvedConfig, report?: SarifReport): Message[] {
-  return [...(config.inCode ? scannedOf(config) : rendered(config, report).catalog.messages), ...docsOf(config)];
+/**
+ * The entries the lint reads: the catalog's, or under `catalog: false` the text in code; with `--docs`,
+ * the docs' prose instead.
+ */
+function entriesOf(config: ResolvedConfig, docs: boolean, report?: SarifReport): Message[] {
+  if (docs) return docsOf(config);
+  return config.inCode ? scannedOf(config) : rendered(config, report).catalog.messages;
+}
+
+/**
+ * The lock as the entries read see it: with `--docs`, the docs' verdicts as its `judged`, kept apart
+ * from the copy's, as each run keeps only those of what it read.
+ */
+function lockFor(config: ResolvedConfig, docs: boolean): Lock {
+  const lock = readLock(config.lock);
+  return docs ? { ...lock, judged: lock.docs } : lock;
+}
+
+/** The verdicts written to the lock, in the docs' section with `--docs`. */
+function writeVerdicts(config: ResolvedConfig, docs: boolean, verdicts: Verdicts): void {
+  const lock = readLock(config.lock);
+  mkdirSync(dirname(config.lock), { recursive: true });
+  writeFileSync(config.lock, serializeLock(docs ? { ...lock, docs: verdicts } : { ...lock, judged: verdicts }));
 }
 
 /** An entry as said to people: its key, or text in code and the docs by its words, which a key never has a space in. */
@@ -582,32 +632,36 @@ function keyAt(messages: readonly Message[], name: string): string {
 }
 
 /** `prosebook approve`: the author passes entries as written against the rules they break, until they change. */
-function runApprove(config: ResolvedConfig, keys: string[], all: boolean, locale: string | undefined, rule: string | undefined): number {
-  const messages = entriesOf(config);
-  const lock = readLock(config.lock);
+function runApprove(
+  config: ResolvedConfig,
+  keys: string[],
+  all: boolean,
+  locale: string | undefined,
+  rule: string | undefined,
+  docs: boolean,
+): number {
+  const messages = entriesOf(config, docs);
+  const lock = lockFor(config, docs);
   const chosen = all ? brokenKeys(config, messages, lock, locale) : keys.map((k) => keyAt(messages, k));
   if (chosen.length === 0) {
     err(
       all
         ? 'prosebook: no entry breaks a rule, as the lint and the lock find it, so none needs approving'
-        : `prosebook: name the ${config.inCode ? 'text, or its file:line,' : 'keys'} to approve, or --all`,
+        : `prosebook: name the ${config.inCode || docs ? 'text, or its file:line,' : 'keys'} to approve, or --all`,
     );
     return all ? 0 : 1;
   }
   const options = { ...(locale !== undefined && { locale }), ...(rule !== undefined && { rules: [rule] }) };
   const result = approve(config, messages, lock.judged, chosen, options);
   for (const problem of result.problems) err(`error ${problem}`);
-  if (result.approved.length > 0) {
-    mkdirSync(dirname(config.lock), { recursive: true });
-    writeFileSync(config.lock, serializeLock({ ...lock, judged: result.verdicts }));
-  }
+  if (result.approved.length > 0) writeVerdicts(config, docs, result.verdicts);
   for (const { key, rules } of result.approved)
     out(`approved ${named(config, key)} (${locale ?? config.source}) against ${rules.join(', ')}`);
   return result.problems.length > 0 ? 1 : 0;
 }
 
 function warnUnjudged(config: ResolvedConfig): void {
-  const open = unjudged(config, entriesOf(config));
+  const open = unjudged(config, entriesOf(config, false), false);
   if (open.length === 0) return;
   const one = open.length === 1;
   err(
@@ -615,15 +669,15 @@ function warnUnjudged(config: ResolvedConfig): void {
   );
 }
 
-async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifReport): Promise<number> {
+async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, report?: SarifReport): Promise<number> {
   if (config.judge === undefined) {
     err(JUDGE_OFF);
     return 1;
   }
-  const messages = entriesOf(config, report);
+  const messages = entriesOf(config, docs, report);
   let failed = false;
   if (check) {
-    const open = unjudged(config, messages);
+    const open = unjudged(config, messages, docs);
     for (const a of open) err(`error ${named(config, a.message.key)} (${a.locale}): not judged on ${[...a.questions.keys()].join(', ')}`);
     if (open.length > 0) {
       err(`${open.length} entr${open.length === 1 ? 'y' : 'ies'} not judged as they are now: run prosebook judge
@@ -631,14 +685,13 @@ async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifRe
     }
     failed = open.length > 0;
   } else {
-    const lock = readLock(config.lock);
+    const lock = lockFor(config, docs);
     const tty = process.stderr.isTTY;
     const progress = tty ? (done: number, total: number) => process.stderr.write(`\rprosebook: judging ${done}/${total}`) : undefined;
-    const problems = config.inCode ? [] : rendered(config).catalog.problems;
+    const problems = config.inCode || docs ? [] : rendered(config).catalog.problems;
     const run = await judgeCatalog(config, { messages, problems }, lock, progress === undefined ? {} : { progress });
     if (tty && run.stats.requests > 0) process.stderr.write('\n');
-    mkdirSync(dirname(config.lock), { recursive: true });
-    writeFileSync(config.lock, serializeLock({ ...lock, judged: run.verdicts }));
+    writeVerdicts(config, docs, run.verdicts);
     for (const { key, locale, model, error } of run.failures) {
       const why = error instanceof Error ? error.message : String(error);
       err(`error ${named(config, key)} (${locale}): ${model} failed, so the run stopped there: ${why}`);
@@ -646,15 +699,16 @@ async function runJudge(config: ResolvedConfig, check: boolean, report?: SarifRe
     sayStats(run.stats);
     failed = run.failures.length > 0;
   }
-  const findings = lintEntries(config, messages, report, (f) => {
+  const findings = lintEntries(config, messages, docs, report, (f) => {
     const rule = config.lint.rules[f.rule]?.rule;
     return rule !== undefined && isGuideline(rule);
   });
   const errors = findings.filter((f) => f.severity === 'error').length;
   if (findings.length > 0) {
-    const where = config.inCode
-      ? 'Rewrite the string, or where the models are wrong about it, run `prosebook approve <file>:<line>` to pass it as written, or mark it `prosebook-allow <rule>: <why>` to pass it for good.'
-      : 'Rewrite the string, or where the models are wrong about it, run `prosebook approve <key>` to pass it as written, or add `allow: { <rule>: <why> }` to pass it for good.';
+    const where =
+      config.inCode || docs
+        ? 'Rewrite the string, or where the models are wrong about it, run `prosebook approve <file>:<line>` to pass it as written, or mark it `prosebook-allow <rule>: <why>` to pass it for good.'
+        : 'Rewrite the string, or where the models are wrong about it, run `prosebook approve <key>` to pass it as written, or add `allow: { <rule>: <why> }` to pass it for good.';
     err(`\n${errors} error(s), ${findings.length - errors} warning(s). ${where}`);
   }
   return failed || errors > 0 ? 1 : 0;

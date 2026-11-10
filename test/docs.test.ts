@@ -129,39 +129,59 @@ Click here, linted.
   });
 });
 
-describe('the docs, linted', () => {
-  test('lint holds them to the rules beside the catalog, and fails on an error there', () => {
+describe('the docs, linted with --docs', () => {
+  test("lint reads the docs only with --docs: the config's, or the paths named", () => {
     const config = fixture({
       'prosebook.config.ts': CONFIG("'copy/catalog'", ['docs']),
       'copy/catalog/app.yaml': 'app.title:\n  context: The page title.\n  en: Docs\n',
       'docs/guide.md': GUIDE,
+      'README.md': '# Readme\n\nRead the guide.\n',
     });
-    const run = cli(config.root, 'lint');
+    const copy = cli(config.root, 'lint');
+    expect(copy.stdout).toContain('1 messages pass the writing rules');
+    expect(copy.stderr).not.toContain('docs/guide.md');
+    expect(copy.code).toBe(0);
+
+    const run = cli(config.root, 'lint', '--docs');
     expect(run.stderr).toContain('error docs/guide.md:7:1 "Install it, then click here for the `init` command.": [house/no-click-here]');
     expect(run.stderr).toContain('error docs/guide.md:19:3 "Click here to read the note.": [house/no-click-here]');
     expect(run.stderr).not.toContain('this is code');
     expect(run.stderr).toContain('in the docs');
     expect(run.code).toBe(1);
-    expect(cli(config.root, 'check').code).toBe(1);
 
-    writeFileSync(join(config.root, 'docs/guide.md'), '# Guide\n\nRead the guide.\n');
-    const clean = cli(config.root, 'lint');
-    expect(clean.stdout).toContain('2 strings in the docs pass the writing rules');
-    expect(clean.code).toBe(0);
+    const named = cli(config.root, 'lint', '--docs', 'README.md');
+    expect(named.stdout).toContain('2 strings in the docs pass the writing rules');
+    expect(named.code).toBe(0);
+    expect(cli(config.root, 'lint', 'README.md').stderr).toContain('prosebook lint --docs README.md');
+    expect(cli(config.root, 'lint', '--docs', '--fix').code).toBe(1);
+    expect(cli(config.root, 'status', '--docs').stderr).toContain('--docs works with lint, judge, approve');
   });
 
-  test('approve passes a piece by its file and line, until its words change', () => {
+  test('--docs with no docs to read says how to name them', () => {
+    const config = fixture({ 'prosebook.config.ts': CONFIG('false', []) });
+    expect(cli(config.root, 'lint', '--docs').stderr).toContain('prosebook lint --docs README.md docs, or set docs in the config');
+  });
+
+  test("approve --docs passes a piece by its file and line into the lock's docs, apart from the copy's", () => {
+    const page = 'export const Page = () => <a href="/docs">Click here for the docs</a>;\n';
     const config = fixture({
-      'prosebook.config.ts': CONFIG('false', ['README.md']),
+      'prosebook.config.ts': CONFIG('false', []),
+      'src/Page.tsx': page,
       'README.md': '# Readme\n\nClick here for the docs.\n',
     });
-    expect(cli(config.root, 'lint').code).toBe(1);
-    expect(cli(config.root, 'approve', 'README.md:3').stdout).toContain(
+    expect(cli(config.root, 'lint', '--docs', 'README.md').code).toBe(1);
+    expect(cli(config.root, 'approve', 'src/Page.tsx:1').code).toBe(0);
+    expect(cli(config.root, 'approve', '--docs', 'README.md:3').stdout).toContain(
       'approved "Click here for the docs." (en) against house/no-click-here',
     );
-    expect(Object.keys(readLock(config.lock).judged!['en']!)).toEqual(['Click here for the docs.']);
-    expect(cli(config.root, 'lint').stdout).toContain('strings in the code and the docs pass');
+    const lock = readLock(config.lock);
+    expect(Object.keys(lock.docs!['en']!)).toEqual(['Click here for the docs.']);
+    // The copy's approval stays: each kind of text drops only its own approvals of words gone.
+    expect(Object.keys(lock.judged!['en']!)).toEqual(['Click here for the docs']);
+    expect(cli(config.root, 'lint', '--docs', 'README.md').code).toBe(0);
+    expect(cli(config.root, 'lint').code).toBe(0);
+
     writeFileSync(join(config.root, 'README.md'), '# Readme\n\nClick here for the guide.\n');
-    expect(cli(config.root, 'lint').code).toBe(1);
+    expect(cli(config.root, 'lint', '--docs', 'README.md').code).toBe(1);
   });
 });

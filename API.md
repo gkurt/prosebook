@@ -1425,20 +1425,27 @@ error src/Sync.tsx:12:7 "It syncs every five minutes.": [voice/stands-alone] …
 
 ### Docs
 
-The README and the guides can be held to the same rules and guidelines as the copy:
+The README and the guides can be held to the same rules and guidelines as the copy, with `--docs`:
 
-```ts
-export default defineConfig({ docs: ['README.md', 'docs', '!docs/changelog.md'] });
+```bash
+prosebook lint --docs README.md docs
 ```
 
 ```text
 error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context] …
 ```
 
-- `docs` names Markdown files (`.md`, `.mdx`), folders and globs from the config's folder; a `!` before one leaves it out.
-- `lint`, `judge`, `approve` and `check` read their prose beside the catalog's entries, or the code's under
-  `catalog: false`, as they read [text in code](#without-a-catalog): each heading, paragraph, list item, table cell and
-  quote is an entry of its own, keyed by its words, and a finding is said at every place they stand.
+- `lint`, `judge` and `approve` read the docs only with `--docs`, and then only them: the copy is read without it, and
+  `check` never reads the docs, so a CI job runs `prosebook lint --docs` as a step of its own.
+- `--docs` takes Markdown files (`.md`, `.mdx`), folders and globs from the config's folder; a `!` before one leaves it
+  out. With none, it reads those the config's `docs` names:
+
+  ```ts
+  export default defineConfig({ docs: ['README.md', 'docs', '!docs/changelog.md'] });
+  ```
+
+- The docs are read as [text in code](#without-a-catalog) is: each heading, paragraph, list item, table cell and quote is
+  an entry of its own, keyed by its words, and a finding is said at every place they stand.
 - Front matter, code blocks, HTML blocks and MDX's imports aren't prose. In the prose, a code span or a bare URL is a
   placeholder, `{code}` or `{link}`, so the rules read the words around it; links, emphasis and tags leave their words.
 - A heading, and a table's column heading, is a name on a heading, so `sentence-case` reads it; the rest takes no kind.
@@ -1451,8 +1458,8 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 - A comment above a block asks of it: `<!-- prosebook-ignore -->` passes it by, and
   `<!-- prosebook-allow voice/phrases: a guide explains in sentences -->` exempts it, every item of a list or line of a
   quote with it.
-- `prosebook approve docs/setup.md:14` approves the words as written, until they change. `lint --fix` leaves the docs as
-  they are.
+- `prosebook approve --docs docs/setup.md:14` approves the words as written, until they change. The lock keeps the docs'
+  approvals and verdicts under `docs`, apart from the copy's. `--fix` is refused with `--docs`: edit the docs.
 
 ### SARIF
 
@@ -1792,6 +1799,6 @@ export default defineConfig({
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says
   scan: { dirs: ['src'] }, // and attributes, calls, properties, ignore, roles
-  docs: [], // Markdown files, folders and globs the lint reads too
+  docs: [], // Markdown files, folders and globs --docs reads where it names none
 });
 ```
