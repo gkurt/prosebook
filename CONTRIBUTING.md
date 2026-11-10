@@ -19,6 +19,7 @@ bun typecheck       # TypeScript 7 over src and test
 bun run cli <cmd>   # the CLI from source: bun run cli generate --root examples/vite
 bun run docs        # the README, API.md, CONTRIBUTING.md and AGENTS.md held to the writing rules
 bun run docs:judge  # and to the guidelines, by a model; needs AI_GATEWAY_API_KEY, then commit prosebook.lock.json
+bun run judge       # the site's catalog held to the guidelines the same way; then commit site/copy/lock.json
 bun run example     # build, then the Vite example's dev server
 bun run dev         # build, then the homepage's dev server, with the inspector
 bun run site        # the homepage (site/, Astro) built into _site/
