@@ -9,13 +9,16 @@ import {
   AUTHOR,
   definePlugin,
   generate,
+  askedOf,
   judgeCatalog,
   lint,
   loadCatalog,
+  modelsAsked,
   readLock,
   resolveConfig,
   scannedMessages,
   serializeLock,
+  unanswered,
   verdictsOf,
   writingGuide,
   type Judge,
@@ -89,6 +92,29 @@ const judged = (config: ResolvedConfig) => {
 };
 
 describe('judge', () => {
+  test('a model set ask: false is not asked, and its answers in the lock still count, the mean of those given', async () => {
+    const jev = fakeJudge('fake/jev');
+    /** Finds nothing broken: with Jev's 0.86, a mean under the threshold. */
+    const lenient: Judge = {
+      id: 'fake/lenient',
+      judge: ({ questions }) => Promise.resolve({ probabilities: Object.fromEntries(Object.keys(questions).map((id) => [id, 0.1])) }),
+    };
+    const unasked = project(jev, { judge: { models: [jev, { ...lenient, ask: false }] } });
+    await run(unasked);
+    expect(jev.asked).toHaveLength(2);
+    // Jev's answers alone, where the other model gave none: the guideline is broken by them.
+    expect(judged(unasked).map((f) => [f.key, f.rule])).toEqual([['form.reporter', 'house/labels']]);
+    const { messages } = loadCatalog(unasked);
+    const judge = unasked.judge!;
+    expect(modelsAsked(judge).map((m) => m.id)).toEqual(['fake/jev']);
+    expect(unanswered(askedOf(unasked, judge, messages), readLock(unasked.lock).judged, modelsAsked(judge))).toEqual([]);
+    // Asked where its key is: its answers join Jev's, and every machine reads the mean of both.
+    const asked = resolveConfig(unasked.root, { ...configOf(unasked), judge: { models: [jev, lenient] } });
+    await run(asked);
+    expect(judged(asked)).toEqual([]);
+    expect(judged(unasked)).toEqual([]);
+  });
+
   test('the same words in two roles keep an answer each, so the next run asks nothing', async () => {
     const judge = fakeJudge();
     const config = resolveConfig(fixture({}).root, { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { models: [judge] } });

@@ -86,6 +86,7 @@ export {
   brokenKeys,
   judgeCatalog,
   unanswered,
+  modelsAsked,
   verdictsOf,
   type ApproveOptions,
   type Asked,

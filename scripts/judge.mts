@@ -1,15 +1,14 @@
 /**
- * `prosebook judge` from source in a folder of the repo, through TypeSafe: `bun scripts/judge.mts
- * site`, or `. --docs` for the repo's docs. Skipped, passing, without TypeSafe's key: in a fork's CI
- * or on a machine with none, lint still reads the verdicts the lock holds. Run with the key, then
- * commit the folder's lock. With ANTHROPIC_API_KEY set too, the configs add Claude Haiku as a second
- * judge, which also suggests rewrites; without it, Jev judges alone.
+ * `prosebook judge` from source in a folder of the repo: `bun scripts/judge.mts site`, or `. --docs`
+ * for the repo's docs. The configs ask Jev where TYPESAFE_AI_API_KEY is set and Claude Haiku, which also
+ * suggests rewrites, where ANTHROPIC_API_KEY is. Skipped, passing, with neither: in a fork's CI or on a
+ * machine with no key, lint still reads the verdicts the lock holds. Then commit the folder's lock.
  */
-const KEYS = ['TYPESAFE_AI_API_KEY'];
+const KEYS = ['TYPESAFE_AI_API_KEY', 'ANTHROPIC_API_KEY'];
 const [folder = '.', ...args] = process.argv.slice(2);
 
 if (!KEYS.some((key) => process.env[key])) {
-  console.log(`judge skipped in ${folder}: set ${KEYS[0]} to judge`);
+  console.log(`judge skipped in ${folder}: set ${KEYS.join(' or ')} to judge`);
   process.exit(0);
 }
 

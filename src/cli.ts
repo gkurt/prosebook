@@ -32,6 +32,7 @@ import {
   askedOf,
   brokenKeys,
   judgeCatalog,
+  modelsAsked,
   unanswered,
   verdictsOf,
   type JudgeStats,
@@ -655,7 +656,7 @@ function holdsDocs(config: ResolvedConfig, path: string, exclude: string[]): boo
 /** The entries, each in a locale, the lock has no verdict on as they are now. */
 function unjudged(config: ResolvedConfig, messages: readonly Message[], docs: boolean) {
   const { judge } = config;
-  return judge === undefined ? [] : unanswered(askedOf(config, judge, messages), lockFor(config, docs).judged, judge.models);
+  return judge === undefined ? [] : unanswered(askedOf(config, judge, messages), lockFor(config, docs).judged, modelsAsked(judge));
 }
 
 /**

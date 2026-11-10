@@ -29,13 +29,16 @@ export interface DecisionJudgeOptions {
   maxRetries?: number;
   providerOptions?: ProviderOptions;
   headers?: Record<string, string>;
+  /** `false` where this machine can't ask the model, as without its key: the lock's answers still count (`Judge.ask`). */
+  ask?: boolean;
 }
 
 /** A judge asking `model`, which must answer boolean questions. */
 export function decisionJudge(model: Experimental_DecisionModel, options: DecisionJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers } = options;
+  const { price, maxRetries, providerOptions, headers, ask } = options;
   return {
     id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    ...(ask !== undefined && { ask }),
     async judge({ state, questions, signal }) {
       const result = await experimental_decide({
         model,
@@ -78,9 +81,10 @@ Where you find a guideline broken, a \`breaks\` question you answer above 0.5 wh
  * probability, and with `suggest`, a rewrite of an entry it finds breaking a guideline.
  */
 export function languageJudge(model: LanguageModel, options: LanguageJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers, suggest = true } = options;
+  const { price, maxRetries, providerOptions, headers, ask, suggest = true } = options;
   return {
     id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    ...(ask !== undefined && { ask }),
     async judge({ state, questions, signal }) {
       const ids = Object.keys(questions);
       const answers = {

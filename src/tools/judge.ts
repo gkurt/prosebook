@@ -61,7 +61,16 @@ export interface Judge {
   /** Names the model in the lock, beside each of its answers, so adding a model asks only it. */
   id: string;
   judge(request: JudgeRequest): Promise<JudgeResponse>;
+  /**
+   * `false` where this machine can't ask the model, as without its key: no run asks it, and `--check`
+   * waits on no answer of its, but its answers and suggestions in the lock count as any model's do,
+   * so every machine reads the same verdicts. True unless set.
+   */
+  ask?: boolean;
 }
+
+/** The models a run asks, and whose answers `--check` waits on: those not set `ask: false`. */
+export const modelsAsked = (judge: Pick<JudgeConfig, 'models'>): Judge[] => judge.models.filter((m) => m.ask !== false);
 
 export interface JudgeConfig {
   /**
@@ -265,9 +274,10 @@ export function verdictsOf(config: ResolvedConfig, messages: readonly Message[],
     if (approvedNow(config, lock.judged, message, locale, rule)) return false;
     const a = byEntry.get(message)?.get(locale);
     if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
-    const ps = judge.models.map((m) => answerOf(lock.judged, a, rule, m.id));
-    if (ps.some((p) => p === undefined)) return undefined;
-    return ps.reduce((sum: number, p) => sum + p!, 0) / ps.length >= judge.threshold;
+    // The mean of the models that answered: one not asked here, or not yet, leaves the others' to stand.
+    const ps = judge.models.flatMap((m) => answerOf(lock.judged, a, rule, m.id) ?? []);
+    if (ps.length === 0) return undefined;
+    return ps.reduce((sum, p) => sum + p, 0) / ps.length >= judge.threshold;
   };
   // The first judge's, in the config's order, that holds for the entry as it reads.
   verdict.suggestion = (message, locale) => {
@@ -478,7 +488,7 @@ export async function judgeCatalog(
     options.dry === true
       ? []
       : asking.flatMap((a) =>
-          judge.models.flatMap((model) => {
+          modelsAsked(judge).flatMap((model) => {
             const rules = [...a.questions.keys()].filter((rule) => openModels(lock.judged, a, rule, [model]).length > 0);
             return rules.length === 0 ? [] : [{ a, model, rules }];
           }),
@@ -515,7 +525,7 @@ export async function judgeCatalog(
   }
   const stats: JudgeStats = {
     entries: asking.length,
-    cached: asking.length - unanswered(asking, lock.judged, judge.models).length,
+    cached: asking.length - unanswered(asking, lock.judged, modelsAsked(judge)).length,
     requests: 0,
     questions: 0,
     ms: 0,

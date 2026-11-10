@@ -1310,9 +1310,17 @@ guideline, with its words.
   and every guideline it's held to. Each guideline is two yes-or-no questions: whether it speaks of a message in this role,
   and whether the message breaks it, weighed with the other guidelines, which give way to one another where they pull apart.
   The probability it's broken is their product.
-- **Several models** each answer, and an entry breaks a guideline by the mean of their probabilities. A model of your own, for
-  one the AI SDK doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
-  `judge({ state, questions })` giving each question's probability of a yes.
+- **Several models** each answer, and an entry breaks a guideline by the mean of the probabilities the models gave. A model of
+  your own, for one the AI SDK doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the
+  lock, and `judge({ state, questions })` giving each question's probability of a yes.
+- **`ask: false`** declares a model that can't be asked on this machine, as when the model's key isn't set: no run asks the
+  model, and `--check` waits on none of the model's answers, but the answers the lock holds count, so every machine reads the
+  same verdicts whatever keys the machine has.
+
+  ```ts
+  languageJudge(anthropic('claude-haiku-5-5'), { ask: Boolean(process.env.ANTHROPIC_API_KEY) }),
+  ```
+
 - **Verdicts live in the lock**, under `judged`, one line per entry and locale, by guideline and judge, each beside a hash of everything its
   request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
   run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and
