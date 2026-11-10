@@ -1,30 +1,67 @@
 # yaml-language-server: $schema=./catalog.schema.json
-features.types:
-  kind: state
-  surface: heading
-  context: Over a code sample where a misspelled key and a missing argument fail to compile. Links to the docs on types.
-  en: A wrong key doesn't compile
+features.title:
+  kind: name
+  surface: aria
+  context: Names the section of four features for screen readers; no heading shows on screen.
+  en: Features
 
-features.translations:
-  kind: state
+features.typed.title:
+  kind: name
   surface: heading
-  context: Over a translation marked stale, with the change to its source shown word by word. Links to the docs on stale translations.
-  en: Translators see what changed
+  context: Heads the feature about types.
+  en: Typed keys
 
-features.lint:
-  kind: state
-  surface: heading
-  context: Over a lint finding on a message. Links to the docs on lint.
-  en: Held to a writing guide
+features.typed.body:
+  kind: description
+  surface: hint
+  context: Under the heading about types, beside a picture of an editor completing a key.
+  en: A misspelled key or a missing argument is a type error, and completing a key shows the text behind the key.
 
-features.builds:
-  kind: state
+features.stale.title:
+  kind: name
   surface: heading
-  context: Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
-  en: Only what the code reads ships
+  context: Heads the feature about stale translations.
+  en: Translations that keep up
 
-features.relative:
-  kind: state
+features.stale.body:
+  kind: description
+  surface: hint
+  context: Under the heading about translations, beside a picture of a source text changing.
+  en: Change a source text, and each translation made from the old words is marked stale.
+
+features.small.title:
+  kind: name
   surface: heading
-  context: Over a code sample where a message takes a time and shows how long ago it was, updating by itself. Links to the docs on relative times.
-  en: How long ago, kept current
+  context: Heads the feature about bundle size.
+  en: Small builds
+
+features.small.body:
+  kind: description
+  surface: hint
+  context: Under the heading about bundle size, beside the runtime's size in large figures.
+  en: Messages compile to plain functions, so no parser ships. A build keeps only the messages the code reads.
+
+features.small.size:
+  kind: name
+  surface: detail
+  context: The runtime's size, in large figures.
+  en: 4.8 KB
+
+features.small.caption:
+  kind: name
+  surface: detail
+  context: Under the runtime's size, says what the figure measures.
+  en: the runtime, gzipped
+  fragment: true
+
+features.inspector.title:
+  kind: name
+  surface: heading
+  context: Heads the feature about the inspector.
+  en: Edits on the page
+
+features.inspector.body:
+  kind: description
+  surface: hint
+  context: Under the heading about the inspector, beside a picture of a page with each string's key shown.
+  en: In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.

@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=./catalog.schema.json
+try.title:
+  kind: name
+  surface: heading
+  context: Heads the live demo, where a visitor edits a catalog entry.
+  en: Try a message
+
+try.lead:
+  kind: description
+  surface: hint
+  context: Under the demo's heading, says what the demo does.
+  en: Edit the text. The lint answers as you type, with the rules a strict project runs.
+
+try.samples:
+  kind: name
+  surface: aria
+  context: Names the group of buttons that pick which sample entry the demo shows.
+  en: Sample entries
+
+try.sample.error:
+  kind: name
+  surface: choice
+  context: Picks the sample entry that is an error message.
+  en: An error
+
+try.sample.button:
+  kind: name
+  surface: choice
+  context: Picks the sample entry that is a button's text.
+  en: A button
+
+try.sample.count:
+  kind: name
+  surface: choice
+  context: Picks the sample entry that counts the items in a cart.
+  en: A count
+
+try.entry:
+  kind: name
+  surface: label
+  context: Heads the left half of the demo, the entry as the catalog file holds it.
+  en: The catalog
+
+try.message:
+  kind: name
+  surface: aria
+  context: Names the field holding the entry's text, which the visitor edits.
+  en: Message text
+
+try.shown:
+  kind: name
+  surface: label
+  context: Heads the right half of the demo, the text as the app would show it.
+  en: The app
+
+try.count:
+  kind: name
+  surface: aria
+  context: Names the slider that sets the count the sample message is read with.
+  en: Count
+
+try.clean:
+  kind: state
+  surface: status
+  context: Under the demo's output when the lint finds nothing wrong with the text.
+  en: The lint finds nothing to change.
+
+try.fix:
+  kind: action
+  surface: action
+  context: A button on a lint finding in the demo, which makes the change the finding asks for.
+  en: Fix

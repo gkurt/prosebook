@@ -1,24 +1,30 @@
 # yaml-language-server: $schema=./catalog.schema.json
 hero.title:
   kind: description
-  surface: heading
-  context: The page's headline, and what a link to it says where it is shared.
-  en: Every string your app shows, in one typed catalog.
+  surface: title
+  context: The headline at the top of the page.
+  en: Every word your app says, in one catalog.
 
-hero.lede:
+hero.lead:
   kind: description
   surface: hint
-  context: Under the headline, says how the catalog and the code divide the work.
-  en: The words live in YAML, beside the context a translator needs. The code holds only keys.
+  context: Under the headline, says what prosebook does.
+  en: prosebook keeps the copy in YAML, types every key, and checks the writing as you type.
 
-hero.try:
+hero.copy:
   kind: action
   surface: action
-  context: The main button under the headline. Scrolls to setting prosebook up.
-  en: Get started
+  context: The button beside the install command, which copies the command.
+  en: Copy
+
+hero.copied:
+  kind: state
+  surface: detail
+  context: Replaces the copy button's text for a moment once the command is copied.
+  en: Copied
 
 hero.docs:
   kind: action
   surface: action
-  context: The second button under the headline. Opens the API reference.
+  context: A link beside the install command to the API reference.
   en: Read the docs

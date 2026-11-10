@@ -1,38 +1,42 @@
 # yaml-language-server: $schema=./catalog.schema.json
+site.title:
+  kind: name
+  surface: title
+  context: The page's title, in the browser tab and in search results.
+  en: prosebook
+
 site.description:
   kind: description
   surface: hint
-  context: The page's description, which search engines show under its title.
-  en: Every string your app shows, in one typed catalog. ICU and MessageFormat 2 compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.
+  context: The page's meta description, under the title in search results and link previews.
+  en: Every string your app shows, in one typed catalog, checked as you write.
 
-site.image:
-  kind: description
+site.home:
+  kind: name
   surface: aria
-  context: Describes the picture a link to the page shows where it is shared.
-  en: The prosebook icon, an open book with prose on one page and braces on the other, beside its name.
+  context: Names the logo in the top bar, which links to the top of the page.
+  en: prosebook home
 
 site.docs:
   kind: name
   surface: label
-  context: In the top bar, links to the API reference.
+  context: A link in the top bar to the API reference.
   en: Docs
 
 site.github:
   kind: name
   surface: label
-  context: In the top bar, links to the repository.
+  context: A link in the top bar and the footer to the repository on GitHub.
   en: GitHub
 
-site.works-with:
-  kind: name
-  surface: aria
-  context: Names the list of frameworks and bundlers under the setup, for a screen reader.
-  en: Works with
-
 site.license:
-  kind: description
-  surface: hint
-  context: In the footer. The link opens the author's site.
-  args:
-    link: links to the author's site
-  en: MIT licensed. Made by <link>Gokhan Kurt</link>.
+  kind: name
+  surface: label
+  context: A link in the footer to the license file.
+  en: MIT license
+
+site.author:
+  kind: name
+  surface: label
+  context: A link in the footer to the author's own site.
+  en: Gokhan Kurt

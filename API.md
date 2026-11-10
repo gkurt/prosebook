@@ -1713,7 +1713,7 @@ the page.
 ## Playground
 
 `prosebook/playground` is the tools built for a browser, over files held in memory: what `generate`, `lint` and `lint --fix`
-make of a catalog, for an editor or a demo of your own. The [homepage's playground](https://gkurt.com/prosebook/#playground)
+make of a catalog, for an editor or a demo of your own. The [homepage's demo](https://gkurt.com/prosebook/#try)
 runs on it.
 
 ```ts

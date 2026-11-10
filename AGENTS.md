@@ -438,7 +438,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   module the tools import with its stand-in in `src/browser/` (`BROWSER_SHIMS`): `fs.ts` is the in-memory volume every
   call fills anew, `path.ts` POSIX paths. A tool that reaches a new Node API needs it there too, or that build fails; keep
   `oxc-parser` and TypeScript out of what `playground.ts` imports. `test/playground.test.ts` builds it the same way, as
-  from source the tools would read the real disk. The homepage's playground (`site/src/playground.ts`) loads it lazily.
+  from source the tools would read the real disk. The homepage's demo (`site/src/demo/view.ts`) loads it lazily.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,
   translations and lock are read out of git (`ls-tree`, `show`) into a temporary folder and loaded with
   this project's config; entries are compared by key, a key gone and one come with the same words
@@ -489,20 +489,17 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
 `site/` is the homepage, and the only demo: an Astro site and a workspace, importing prosebook from `dist`
 as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` builds it into `_site` and
 deploys it on every push to main. Its words are its own catalog's (`site/copy/catalog`), read by the
-page as it is built and by its scripts in the browser; code samples and the tool's own words, which
-prosebook says in English, stay in the code. The whole page is inspectable: in dev by the real inspector,
-and built by `src/inspect.ts`, which loads only there. `copy.ts` records each text the build reads and the
-values it was read with (the read hook), and the page carries them (`#reads`) since the DOM carries no
-keys; Alt-click (or Inspect, for touch) opens a dialog drawn as the real one is, held to the real lint by
-`prosebook/playground` over the catalog's YAML, and Save reads the message again into the page, each tag
-the element it stood for. Keep it in step with the inspector. Its playground (`src/playground.ts`, the
-starting files in `src/playground/starter.ts`) runs `prosebook/playground` on a catalog the visitor edits,
-loaded once the section is near; its preview reads that catalog's keys, which the site's pruning can't
-see, so that read is `prosebook-ignore`. The page shows rather than tells, and stays lean enough to take in
-at a glance, each section one thing: the hero with its catalog and code, a section per feature (its heading,
-linking to its section of API.md, beside one example of a few lines, its output copied from the real
-tools), the playground, and setup with what it works with. A feature earns a section only over one of
-those; the rest is the docs'.
+page as it is built and by its scripts in the browser; code samples, names and the tool's own words, which
+prosebook says in English, stay in the code. In dev the real inspector works on it; built, it has none.
+Its demo (`#try`, `src/demo/`) is one catalog entry the visitor edits: `view.ts` runs `prosebook/playground`
+over a catalog of that entry alone, under the strict preset, and returns the text as the app shows it, the
+lint's findings as list items (in the order the text reads, each `fix` a button, made by `fixed`) and the
+text with each finding's place marked, for the layer under the field, set as the field is so a mark sits
+under its words. The page calls `view` as it is built, so the first view needs no script; `client.ts` calls
+it on every edit, importing it once the page is idle, since it carries the tools. `samples.ts` holds the
+entries it starts from. The page stays sparse, a visitor taking it in at a glance: the hero, the demo, four
+features (a heading linking to its section of API.md, one sentence, one drawn exhibit) and setup with what
+it works with. A feature earns a place only over one of those; the rest is the docs'.
 `site/public/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.

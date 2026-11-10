@@ -2,7 +2,7 @@
 
 Every string your app shows, in one typed catalog. For React, React Native, Preact, Vue, Svelte, Solid and any JavaScript.
 
-[Homepage](https://gkurt.com/prosebook/) · [Playground](https://gkurt.com/prosebook/#playground) · [API reference](API.md)
+[Homepage](https://gkurt.com/prosebook/) · [Try it](https://gkurt.com/prosebook/#try) · [API reference](API.md)
 
 The words live in YAML, one entry per string, with the context a translator needs beside them. The code
 holds only keys, so changing what the app says is an edit to the catalog, not to the code.
@@ -174,7 +174,7 @@ generated copy](API.md#voice-guidelines). See [Lint](API.md#lint).
 - [**Judge**](API.md#judge): each entry held to the guidelines no rule can check by decision models, asking only of what changed, and passed by its author's approval where they're wrong.
 - [**Native targets**](API.md#native-targets): Rust, Swift, Kotlin, Android resources and Apple string tables.
 - [**Pseudo-locale**](API.md#pseudo-locale): accented, padded text that shows what was missed.
-- [**Playground**](API.md#playground): the tools in a browser, over files in memory, as the homepage's playground runs them.
+- [**Playground**](API.md#playground): the tools in a browser, over files in memory, as the homepage's demo runs them.
 
 ## Examples
 

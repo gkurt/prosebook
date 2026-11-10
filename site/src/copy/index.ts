@@ -18,257 +18,257 @@ export type Locale = "en";
 /** Every message in the catalog: the arguments it takes and the tags it wraps text in. */
 export type Messages = {
   /**
-   * Only what the code reads ships
+   * In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.
    *
-   * Over a sample of a build shipping each area's messages with the code reading them. Links to the docs on builds.
+   * Under the heading about the inspector, beside a picture of a page with each string's key shown.
    */
-  "features.builds": { args: {}; tags: never };
+  "features.inspector.body": { args: {}; tags: never };
   /**
-   * Held to a writing guide
+   * Edits on the page
    *
-   * Over a lint finding on a message. Links to the docs on lint.
+   * Heads the feature about the inspector.
    */
-  "features.lint": { args: {}; tags: never };
+  "features.inspector.title": { args: {}; tags: never };
   /**
-   * How long ago, kept current
+   * Messages compile to plain functions, so no parser ships. A build keeps only the messages the code reads.
    *
-   * Over a code sample where a message takes a time and shows how long ago it was, updating by itself. Links to the docs on relative times.
+   * Under the heading about bundle size, beside the runtime's size in large figures.
    */
-  "features.relative": { args: {}; tags: never };
+  "features.small.body": { args: {}; tags: never };
   /**
-   * Translators see what changed
+   * the runtime, gzipped
    *
-   * Over a translation marked stale, with the change to its source shown word by word. Links to the docs on stale translations.
+   * Under the runtime's size, says what the figure measures.
    */
-  "features.translations": { args: {}; tags: never };
+  "features.small.caption": { args: {}; tags: never };
   /**
-   * A wrong key doesn't compile
+   * 4.8 KB
    *
-   * Over a code sample where a misspelled key and a missing argument fail to compile. Links to the docs on types.
+   * The runtime's size, in large figures.
    */
-  "features.types": { args: {}; tags: never };
+  "features.small.size": { args: {}; tags: never };
+  /**
+   * Small builds
+   *
+   * Heads the feature about bundle size.
+   */
+  "features.small.title": { args: {}; tags: never };
+  /**
+   * Change a source text, and each translation made from the old words is marked stale.
+   *
+   * Under the heading about translations, beside a picture of a source text changing.
+   */
+  "features.stale.body": { args: {}; tags: never };
+  /**
+   * Translations that keep up
+   *
+   * Heads the feature about stale translations.
+   */
+  "features.stale.title": { args: {}; tags: never };
+  /**
+   * Features
+   *
+   * Names the section of four features for screen readers; no heading shows on screen.
+   */
+  "features.title": { args: {}; tags: never };
+  /**
+   * A misspelled key or a missing argument is a type error, and completing a key shows the text behind the key.
+   *
+   * Under the heading about types, beside a picture of an editor completing a key.
+   */
+  "features.typed.body": { args: {}; tags: never };
+  /**
+   * Typed keys
+   *
+   * Heads the feature about types.
+   */
+  "features.typed.title": { args: {}; tags: never };
+  /**
+   * Copied
+   *
+   * Replaces the copy button's text for a moment once the command is copied.
+   */
+  "hero.copied": { args: {}; tags: never };
+  /**
+   * Copy
+   *
+   * The button beside the install command, which copies the command.
+   */
+  "hero.copy": { args: {}; tags: never };
   /**
    * Read the docs
    *
-   * The second button under the headline. Opens the API reference.
+   * A link beside the install command to the API reference.
    */
   "hero.docs": { args: {}; tags: never };
   /**
-   * The words live in YAML, beside the context a translator needs. The code holds only keys.
+   * prosebook keeps the copy in YAML, types every key, and checks the writing as you type.
    *
-   * Under the headline, says how the catalog and the code divide the work.
+   * Under the headline, says what prosebook does.
    */
-  "hero.lede": { args: {}; tags: never };
+  "hero.lead": { args: {}; tags: never };
   /**
-   * Every string your app shows, in one typed catalog.
+   * Every word your app says, in one catalog.
    *
-   * The page's headline, and what a link to it says where it is shared.
+   * The headline at the top of the page.
    */
   "hero.title": { args: {}; tags: never };
   /**
-   * Get started
+   * Gokhan Kurt
    *
-   * The main button under the headline. Scrolls to setting prosebook up.
+   * A link in the footer to the author's own site.
    */
-  "hero.try": { args: {}; tags: never };
+  "site.author": { args: {}; tags: never };
   /**
-   * Hold <kbd>{key}</kbd> and click any text on this page to edit it.
+   * Every string your app shows, in one typed catalog, checked as you write.
    *
-   * Under the buttons below the headline. Every string on the page can be edited this way. The key is Alt, or Option on a Mac.
-   *
-   * `<kbd>`: Marks the key's name as a key.
-   */
-  "inspect.hint": {
-    args: {
-      /** The name of the key on the keyboard. */
-      readonly key: string;
-    };
-    tags: "kbd";
-  };
-  /**
-   * Edits stay on this page.
-   *
-   * At the foot of the dialog that edits a string of the page. Nothing is sent anywhere.
-   */
-  "inspect.local": { args: {}; tags: never };
-  /**
-   * Inspect
-   *
-   * In the top bar. Turns on clicking a string to edit it, for those without a keyboard.
-   */
-  "inspect.toggle": { args: {}; tags: never };
-  /**
-   * {count, plural, one {# problem: entry left out, see Lint.} other {# problems: entries left out, see Lint.}}
-   *
-   * Under the editor when an entry has an error and is left out of what compiled.
-   */
-  "playground.broken": {
-    args: {
-      /** How many problems there are. */
-      readonly count: number;
-    };
-    tags: never;
-  };
-  /**
-   * Nothing to fix. The words pass the writing rules.
-   *
-   * In the lint panel when nothing is wrong.
-   */
-  "playground.clean": { args: {}; tags: never };
-  /**
-   * Playground
-   *
-   * In the top bar, links to the playground, where a visitor edits a catalog and sees what it compiles to.
-   */
-  "playground.eyebrow": { args: {}; tags: never };
-  /**
-   * The compiler didn't load: {reason}
-   *
-   * Under the editor when the compiler could not be downloaded.
-   */
-  "playground.failed": {
-    args: {
-      /** The error the browser gave. */
-      readonly reason: string;
-    };
-    tags: never;
-  };
-  /**
-   * Not translated in {locale}, so it shows in English.
-   *
-   * Shown on hover over a message that a locale doesn't translate, which shows in English instead.
-   */
-  "playground.fallback": {
-    args: {
-      /** The locale that lacks the translation. */
-      readonly locale: string;
-    };
-    tags: never;
-  };
-  /**
-   * Files
-   *
-   * Names the buttons above the editor that switch between the catalog file and its German translation.
-   */
-  "playground.files": { args: {}; tags: never };
-  /**
-   * Fix
-   *
-   * Beside a lint finding. Makes the edit the finding suggests in the file.
-   */
-  "playground.fix": { args: {}; tags: never };
-  /**
-   * The real compiler, lint and generators, running in this page. Edit the order page, in English or German:
-   *
-   * Under the playground's heading, above an editor holding a catalog and a panel showing what it makes.
-   */
-  "playground.intro": { args: {}; tags: never };
-  /**
-   * {count, plural, =0 {Lint} one {Lint (#)} other {Lint (#)}}
-   *
-   * The button that shows the catalog's problems and the writing rules' findings.
-   */
-  "playground.lint": {
-    args: {
-      /** How many problems and findings there are. */
-      readonly count: number;
-    };
-    tags: never;
-  };
-  /**
-   * Loading the compiler…
-   *
-   * Under the editor while the compiler downloads, before the first result.
-   */
-  "playground.loading": { args: {}; tags: never };
-  /**
-   * Not generated. The lint says why.
-   *
-   * In place of a generated file that could not be written because of a problem in the catalog.
-   */
-  "playground.missing": { args: {}; tags: never };
-  /**
-   * Output
-   *
-   * Names the buttons above the output panel that switch between the preview, the lint and the generated files.
-   */
-  "playground.outputs": { args: {}; tags: never };
-  /**
-   * Preview
-   *
-   * The button that shows each message rendered in every locale, with a field for each placeholder.
-   */
-  "playground.preview": { args: {}; tags: never };
-  /**
-   * Reset
-   *
-   * In the editor's title bar. Puts back the files the playground started with.
-   */
-  "playground.reset": { args: {}; tags: never };
-  /**
-   * {messages, plural, one {# message} other {# messages}} compiled in {locales, plural, one {# locale} other {# locales}}.
-   *
-   * Under the editor after each edit, says how much compiled.
-   */
-  "playground.summary": {
-    args: {
-      /** How many messages the catalog holds. */
-      readonly messages: number;
-      /** How many locales they were compiled in. */
-      readonly locales: number;
-    };
-    tags: never;
-  };
-  /**
-   * Write a message, see what ships.
-   *
-   * Heads the playground.
-   */
-  "playground.title": { args: {}; tags: never };
-  /**
-   * Every string your app shows, in one typed catalog. ICU and MessageFormat 2 compiled to plain functions, for React, Preact, Vue, Svelte, Solid and any JavaScript.
-   *
-   * The page's description, which search engines show under its title.
+   * The page's meta description, under the title in search results and link previews.
    */
   "site.description": { args: {}; tags: never };
   /**
    * Docs
    *
-   * In the top bar, links to the API reference.
+   * A link in the top bar to the API reference.
    */
   "site.docs": { args: {}; tags: never };
   /**
    * GitHub
    *
-   * In the top bar, links to the repository.
+   * A link in the top bar and the footer to the repository on GitHub.
    */
   "site.github": { args: {}; tags: never };
   /**
-   * The prosebook icon, an open book with prose on one page and braces on the other, beside its name.
+   * prosebook home
    *
-   * Describes the picture a link to the page shows where it is shared.
+   * Names the logo in the top bar, which links to the top of the page.
    */
-  "site.image": { args: {}; tags: never };
+  "site.home": { args: {}; tags: never };
   /**
-   * MIT licensed. Made by <link>Gokhan Kurt</link>.
+   * MIT license
    *
-   * In the footer. The link opens the author's site.
-   *
-   * `<link>`: Links to the author's site.
+   * A link in the footer to the license file.
    */
-  "site.license": { args: {}; tags: "link" };
+  "site.license": { args: {}; tags: never };
   /**
-   * Works with
+   * prosebook
    *
-   * Names the list of frameworks and bundlers under the setup, for a screen reader.
+   * The page's title, in the browser tab and in search results.
    */
-  "site.works-with": { args: {}; tags: never };
+  "site.title": { args: {}; tags: never };
   /**
-   * Three steps to a typed catalog.
+   * Bundlers
    *
-   * Heads the section on setting prosebook up, over the commands and code it takes.
+   * Labels the list of bundlers prosebook has integrations for.
+   */
+  "start.bundlers": { args: {}; tags: never };
+  /**
+   * Frameworks
+   *
+   * Labels the list of frameworks prosebook has bindings for.
+   */
+  "start.frameworks": { args: {}; tags: never };
+  /**
+   * Three commands add prosebook to a project, write a first entry, and generate the typed modules.
+   *
+   * Under the setup heading, above the three commands.
+   */
+  "start.lead": { args: {}; tags: never };
+  /**
+   * Native
+   *
+   * Labels the list of native targets prosebook generates.
+   */
+  "start.native": { args: {}; tags: never };
+  /**
+   * Open the reference
+   *
+   * A link under the setup commands to the API reference.
+   */
+  "start.reference": { args: {}; tags: never };
+  /**
+   * Browse the code
+   *
+   * A link under the setup commands to the repository on GitHub.
+   */
+  "start.source": { args: {}; tags: never };
+  /**
+   * Setup
+   *
+   * Heads the last section, the commands that set prosebook up.
    */
   "start.title": { args: {}; tags: never };
+  /**
+   * The lint finds nothing to change.
+   *
+   * Under the demo's output when the lint finds nothing wrong with the text.
+   */
+  "try.clean": { args: {}; tags: never };
+  /**
+   * Count
+   *
+   * Names the slider that sets the count the sample message is read with.
+   */
+  "try.count": { args: {}; tags: never };
+  /**
+   * The catalog
+   *
+   * Heads the left half of the demo, the entry as the catalog file holds it.
+   */
+  "try.entry": { args: {}; tags: never };
+  /**
+   * Fix
+   *
+   * A button on a lint finding in the demo, which makes the change the finding asks for.
+   */
+  "try.fix": { args: {}; tags: never };
+  /**
+   * Edit the text. The lint answers as you type, with the rules a strict project runs.
+   *
+   * Under the demo's heading, says what the demo does.
+   */
+  "try.lead": { args: {}; tags: never };
+  /**
+   * Message text
+   *
+   * Names the field holding the entry's text, which the visitor edits.
+   */
+  "try.message": { args: {}; tags: never };
+  /**
+   * A button
+   *
+   * Picks the sample entry that is a button's text.
+   */
+  "try.sample.button": { args: {}; tags: never };
+  /**
+   * A count
+   *
+   * Picks the sample entry that counts the items in a cart.
+   */
+  "try.sample.count": { args: {}; tags: never };
+  /**
+   * An error
+   *
+   * Picks the sample entry that is an error message.
+   */
+  "try.sample.error": { args: {}; tags: never };
+  /**
+   * Sample entries
+   *
+   * Names the group of buttons that pick which sample entry the demo shows.
+   */
+  "try.samples": { args: {}; tags: never };
+  /**
+   * The app
+   *
+   * Heads the right half of the demo, the text as the app would show it.
+   */
+  "try.shown": { args: {}; tags: never };
+  /**
+   * Try a message
+   *
+   * Heads the live demo, where a visitor edits a catalog entry.
+   */
+  "try.title": { args: {}; tags: never };
 };
 
 // prettier-ignore

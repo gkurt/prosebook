@@ -1,6 +1,6 @@
 /**
  * `prosebook/playground`: the tools in a browser, over files held in memory. What `generate`, `lint`
- * and `lint --fix` make of a catalog, without a disk or a config file: the homepage's playground runs
+ * and `lint --fix` make of a catalog, without a disk or a config file: the homepage's demo runs
  * on it, and so can an editor of your own. It ships built for the browser, `node:` modules replaced by
  * those in `browser/`, `node:fs` by an in-memory volume (`browser/fs.ts`) that every call fills anew.
  */

@@ -44,8 +44,8 @@ bun run size                       # what the runtime and each binding weigh, gz
 
 - [README.md](README.md) is the overview: short, with small examples. New features get a line there at most.
 - [API.md](API.md) is the full reference. A change to a user-facing API updates it, and AGENTS.md, in the same commit.
-- `site/` is the homepage, an Astro site whose words are in its own catalog. Every string on it can be Alt-clicked: in dev
-  by the real inspector, and built by its own (`site/src/inspect.ts`), drawn as the real one is; keep the two in step.
+- `site/` is the homepage, an Astro site whose words are in its own catalog. Its demo (`site/src/demo/`) runs the real tools
+  on an entry the visitor edits, so what it shows is what `prosebook lint` says.
 
 ## Releases
 

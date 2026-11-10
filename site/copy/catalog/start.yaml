@@ -1,6 +1,42 @@
 # yaml-language-server: $schema=./catalog.schema.json
 start.title:
-  kind: description
+  kind: name
   surface: heading
-  context: Heads the section on setting prosebook up, over the commands and code it takes.
-  en: Three steps to a typed catalog.
+  context: Heads the last section, the commands that set prosebook up.
+  en: Setup
+
+start.lead:
+  kind: description
+  surface: hint
+  context: Under the setup heading, above the three commands.
+  en: Three commands add prosebook to a project, write a first entry, and generate the typed modules.
+
+start.reference:
+  kind: action
+  surface: action
+  context: A link under the setup commands to the API reference.
+  en: Open the reference
+
+start.source:
+  kind: action
+  surface: action
+  context: A link under the setup commands to the repository on GitHub.
+  en: Browse the code
+
+start.frameworks:
+  kind: name
+  surface: label
+  context: Labels the list of frameworks prosebook has bindings for.
+  en: Frameworks
+
+start.bundlers:
+  kind: name
+  surface: label
+  context: Labels the list of bundlers prosebook has integrations for.
+  en: Bundlers
+
+start.native:
+  kind: name
+  surface: label
+  context: Labels the list of native targets prosebook generates.
+  en: Native
