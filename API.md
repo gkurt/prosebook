@@ -389,7 +389,7 @@ const copy = useCopy();
 
 - `provideCopy(copy)` in `setup` gives a subtree its own copy; `useLocale()` is a `ComputedRef`.
 - Reads go through a ref, so templates and `computed`s that read a message run again on a locale switch.
-- `rich` returns a `VNode`. `<Text>` takes each tag as a slot of the same name, given what the tag wraps as `chunks`.
+- `rich` returns a `VNode`. Each tag becomes a slot of `<Text>` with the same name, given what the tag wraps as `chunks`.
 - Templates are typed with `vue-tsc`, on TypeScript 6 until TypeScript 7 ships its API.
 
 ### Svelte
@@ -497,8 +497,8 @@ export default async function Page() {
 }
 ```
 
-**Hydration.** A server-rendered page must hydrate in the same locale, so the browser's copy waits too. Create it above a
-`<Suspense>` and wait below it, since a component that suspends before it mounts loses its state:
+**Hydration.** A server-rendered page must hydrate in the same locale, so the browser's copy waits too. Create the copy above
+a `<Suspense>` and wait for it below, since a component that suspends before it mounts loses its state:
 
 ```tsx
 function Providers({ locale, children }: { locale: Locale; children: ReactNode }) {
@@ -650,7 +650,7 @@ export default defineConfig({
 });
 ```
 
-| Preset         | For                               | Rules                                                                                                |
+| Preset         | Audience                          | Rules                                                                                                |
 | -------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `plain`        | government, health, banking       | `formal`'s, `plain/words` (`commence` is `start`), and `plain/idioms`, a guideline                   |
 | `professional` | tools people use at work          | `formal`'s                                                                                           |
@@ -1097,7 +1097,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                                                          |
 | `diff [base]`            | The copy changed since a git revision (`--format markdown`).                                                              |
 | `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                                                   |
-| `find <words>`           | The entries saying those words, to read before adding one (`--kind`, `--surface`).                                        |
+| `find <words>`           | The entries saying the words given, to read before adding one (`--kind`, `--surface`).                                    |
 | `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).                                    |
 | `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).                            |
 | `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                                                 |
@@ -1114,7 +1114,7 @@ every command carries on with the rest and fails at the end. An edit, fix or imp
 (`9am–5pm`, `Mar 30 – Apr 6`); an arrow with nothing after it (`View loop →`), a lone separator with no capital after it
 (`origin → {hops}`) and a single slash (`Read / Write`) are no paths.
 
-| Kind          | Words                                                | Ends with a period                               | No period | Case                       |
+| Kind          | Words                                                | Period                                           | No period | Case                       |
 | ------------- | ---------------------------------------------------- | ------------------------------------------------ | --------- | -------------------------- |
 | `name`        | 4                                                    |                                                  | yes       | sentence case, `bare-name` |
 | `action`      | 3                                                    |                                                  | yes       | sentence case              |
@@ -1226,7 +1226,7 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 
 | `type`           | Fields                                                                 | Fails when                                                    |
 | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `existence`      | `words`, `patterns`, `message`                                         | the string says one of the words or matches a pattern         |
+| `existence`      | `words`, `patterns`, `message`                                         | the string contains one of the words or matches a pattern     |
 | `substitution`   | `swap: { word: use }`, `message`                                       | the string says a word the product writes another way         |
 | `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`, `relative` | the count is out of bounds, or out of ratio with the source's |
 | `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions`           | a word is out of case                                         |
@@ -1314,6 +1314,8 @@ guideline, with its words.
   the entry breaks a guideline, and the next decides where the first hasn't answered. A model of your own, for one the AI SDK
   doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
   `judge({ state, questions })` giving each question's probability of a yes.
+- **A model's own `threshold`** reads its answers over `judge.threshold`, as models spread their answers differently: Claude
+  Haiku's clear breaks are from about 0.5, where Jev's are from 0.7.
 - **`ask: false`** declares a model that can't be asked on this machine, as when the model's key isn't set: no run asks the
   model, and `--check` waits on none of the model's answers, but the answers the lock holds count, so every machine reads the
   same verdicts whatever keys the machine has.
@@ -1500,7 +1502,8 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 - Front matter, code blocks, HTML blocks and MDX's imports aren't prose. In the prose, a code span or a bare URL is a
   placeholder, `{code}` or `{link}`, so the rules read the words around it; links, emphasis and tags leave their words.
 - A heading, and a table's column heading, is a name on a heading, so `sentence-case` reads it; the rest takes no kind.
-  `lint.docs` sets severities for the docs over `lint.rules`, and `word-budget` is off there unless set:
+  `lint.docs` sets severities for the docs over `lint.rules`. Off there unless set: `word-budget`, and
+  `voice/placeholder-values`, since a code span in a doc is fixed text, never a value that varies:
 
   ```ts
   lint: { docs: { 'word-budget': 'warn', contractions: 'off' } },

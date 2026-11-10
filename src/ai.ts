@@ -31,14 +31,17 @@ export interface DecisionJudgeOptions {
   headers?: Record<string, string>;
   /** `false` where this machine can't ask the model, as without its key: the lock's answers still count (`Judge.ask`). */
   ask?: boolean;
+  /** The probability from which this model's answer is a break, over `judge.threshold` (`Judge.threshold`). */
+  threshold?: number;
 }
 
 /** A judge asking `model`, which must answer boolean questions. */
 export function decisionJudge(model: Experimental_DecisionModel, options: DecisionJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers, ask } = options;
+  const { price, maxRetries, providerOptions, headers, ask, threshold } = options;
   return {
     id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
     ...(ask !== undefined && { ask }),
+    ...(threshold !== undefined && { threshold }),
     async judge({ state, questions, signal }) {
       const result = await experimental_decide({
         model,
@@ -81,10 +84,11 @@ Where you find a guideline broken, a \`breaks\` question you answer above 0.5 wh
  * probability, and with `suggest`, a rewrite of an entry it finds breaking a guideline.
  */
 export function languageJudge(model: LanguageModel, options: LanguageJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers, ask, suggest = true } = options;
+  const { price, maxRetries, providerOptions, headers, ask, threshold, suggest = true } = options;
   return {
     id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
     ...(ask !== undefined && { ask }),
+    ...(threshold !== undefined && { threshold }),
     async judge({ state, questions, signal }) {
       const ids = Object.keys(questions);
       const answers = {

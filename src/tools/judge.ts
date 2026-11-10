@@ -67,6 +67,11 @@ export interface Judge {
    * so every machine reads the same verdicts. True unless set.
    */
   ask?: boolean;
+  /**
+   * The probability from which this model's answer is a break, over `judge.threshold`: models spread
+   * their answers differently, as a language model's product of two answers seldom reaches Jev's 0.7.
+   */
+  threshold?: number;
 }
 
 /** The models a run asks, and whose answers `--check` waits on: those not set `ask: false`. */
@@ -277,9 +282,9 @@ export function verdictsOf(config: ResolvedConfig, messages: readonly Message[],
     const a = byEntry.get(message)?.get(locale);
     if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
     // The first model that answered decides: one not asked here, or not yet, leaves the next to.
-    for (const { id } of judge.models) {
+    for (const { id, threshold = judge.threshold } of judge.models) {
       const p = answerOf(lock.judged, a, rule, id);
-      if (p !== undefined) return p >= judge.threshold;
+      if (p !== undefined) return p >= threshold;
     }
     return undefined;
   };

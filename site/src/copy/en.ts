@@ -23,7 +23,7 @@ export default {
   "inspect.hint": (a, h) => ["Hold ", h.t(a, "kbd", a.key ?? h.e("{key}")), " and click any text on this page to edit it."],
   "inspect.local": "Edits stay on this page.",
   "inspect.toggle": "Inspect",
-  "playground.broken": (a, h) => h.p(a.count, 0, false, { "one": () => [h.n(a.count) ?? h.e("{count}"), " problem leaves an entry out: see Lint."], "other": () => [h.n(a.count) ?? h.e("{count}"), " problems leave entries out: see Lint."] }),
+  "playground.broken": (a, h) => h.p(a.count, 0, false, { "one": () => [h.n(a.count) ?? h.e("{count}"), " problem: entry left out, see Lint."], "other": () => [h.n(a.count) ?? h.e("{count}"), " problems: entries left out, see Lint."] }),
   "playground.clean": "Nothing to fix. The words pass the writing rules.",
   "playground.eyebrow": "Playground",
   "playground.failed": (a, h) => ["The compiler didn't load: ", a.reason ?? h.e("{reason}")],

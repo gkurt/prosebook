@@ -96,8 +96,9 @@ export interface LintConfig extends WordLists {
    */
   guessed?: RuleSeverities;
   /**
-   * Severities for the prose of the `docs`, over `rules`. `word-budget` is off there unless set: a
-   * heading in a guide runs longer than a name in an app.
+   * Severities for the prose of the `docs`, over `rules`. Off there unless set: `word-budget`, as a
+   * heading in a guide runs longer than a name in an app, and `voice/placeholder-values`, as a doc's
+   * code span is written as it stands, never a value that varies.
    */
   docs?: RuleSeverities;
   /**
@@ -634,7 +635,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
         ]),
       ),
       guessed: lint.guessed ?? {},
-      docs: { 'word-budget': 'off', ...lint.docs },
+      docs: { 'word-budget': 'off', 'voice/placeholder-values': 'off', ...lint.docs },
       reasons: checkedReasons(lint.reasons ?? {}),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...fromPresets.banned, ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...fromPresets.spelling, ...lint.spelling },
@@ -1003,6 +1004,8 @@ function checkedJudge(judge: JudgeConfig): ResolvedJudge {
     if (model.id === AUTHOR)
       throw new Error(`judge.models[${i}] is named ${AUTHOR}, which names the approvals of prosebook approve: give it another id`);
     if (ids.has(model.id)) throw new Error(`judge.models[${i}] is named ${model.id} as another is: give each model its own id`);
+    if (model.threshold !== undefined && !(model.threshold > 0 && model.threshold < 1))
+      throw new Error(`judge.models[${i}].threshold is ${model.threshold}: give a probability between 0 and 1`);
     ids.add(model.id);
   });
   if (prompt !== undefined && (typeof prompt !== 'string' || prompt.trim() === ''))

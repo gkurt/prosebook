@@ -124,7 +124,7 @@ Click here, linted.
     const [heading, paragraph] = docsOf(config);
     expect([heading!.kind, heading!.surface, heading!.context]).toEqual(['name', 'heading', 'A heading in the doc a.md.']);
     expect([paragraph!.kind, paragraph!.surface]).toEqual([undefined, undefined]);
-    expect(config.lint.docs['word-budget']).toBe('off');
+    expect(config.lint.docs).toMatchObject({ 'word-budget': 'off', 'voice/placeholder-values': 'off' });
     expect(() => resolveConfig(config.root, { lint: { docs: { nope: 'off' } } })).toThrow('lint.docs.nope');
   });
 });

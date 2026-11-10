@@ -84,7 +84,7 @@ playground.broken:
   context: Under the editor when an entry has an error and is left out of what compiled.
   args:
     count: how many problems there are
-  en: '{count, plural, one {# problem leaves an entry out: see Lint.} other {# problems leave entries out: see Lint.}}'
+  en: '{count, plural, one {# problem: entry left out, see Lint.} other {# problems: entries left out, see Lint.}}'
 
 playground.clean:
   kind: state

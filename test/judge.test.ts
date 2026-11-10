@@ -193,6 +193,16 @@ describe('judge', () => {
     // form.reporter: the first model's 0.86 decides, whatever the second's 0.25.
     expect(judged(both).map((f) => [f.key, f.rule])).toEqual([['form.reporter', 'house/labels']]);
     expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [lenient, judge] } }))).toEqual([]);
+    // A model's own threshold reads its answers: 0.25 is a break from 0.2.
+    const low = resolveConfig(config.root, { ...configOf(config), judge: { models: [{ ...lenient, threshold: 0.2 }, judge] } });
+    expect(judged(low).map((f) => [f.key, f.rule])).toEqual([
+      ['form.reporter', 'house/labels'],
+      ['form.reporter', 'house/plain'],
+      ['form.save', 'house/plain'],
+    ]);
+    expect(() => resolveConfig(config.root, { judge: { models: [{ ...lenient, threshold: 1.5 }] } })).toThrow(
+      'judge.models[0].threshold is 1.5: give a probability between 0 and 1',
+    );
   });
 
   test('the author approves an entry as written: it passes, is not asked of, and is judged again once it changes', async () => {

@@ -98,7 +98,7 @@ export type Messages = {
    */
   "inspect.toggle": { args: {}; tags: never };
   /**
-   * {count, plural, one {# problem leaves an entry out: see Lint.} other {# problems leave entries out: see Lint.}}
+   * {count, plural, one {# problem: entry left out, see Lint.} other {# problems: entries left out, see Lint.}}
    *
    * Under the editor when an entry has an error and is left out of what compiled.
    */
