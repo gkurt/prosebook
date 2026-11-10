@@ -1,3 +1,27 @@
+## prosebook@0.18.0
+
+### The same words in two roles keep a verdict each
+
+Text in code or the docs saying the same words in two roles, a heading and a table cell, was asked again on every `prosebook judge`, each role's verdict replacing the other's in the lock, so `judge --check` never passed. The lock now keeps an answer per role.
+
+### A judge run that fails before any answer no longer says the lock had every entry
+
+### lint and judge take paths
+
+`prosebook lint copy/catalog/billing.yaml` keeps the findings to the entries in those files, catalog, translation or code, and `prosebook judge src/settings` asks the models of those entries alone. A path holding no entry fails with what to name instead, and one holding only docs says to add `--docs`.
+
+### Judges are trusted in order, each by its own threshold, and can be declared without being asked
+
+With several judges, the first in `models` that answered an entry decides it, where their probabilities were averaged: list the model you trust most first. A judge's own `threshold` reads its answers over `judge.threshold`, as a language model's seldom reach the 0.7 a decision model's do. `ask: false` on a judge, as `decisionJudge` and `languageJudge` take it, keeps a model no run can ask here, as without its key: `judge` and `--check` pass it by, its answers in the lock still count, and the next model decides where it hasn't answered.
+
+### A judge can suggest a rewrite
+
+`languageJudge` from `prosebook/ai` judges through a language model such as Claude Haiku, answering the same questions a decision model does, and rewrites an entry it finds breaking a guideline. `lint` shows the rewrite under the guideline, and `lint --fix --unsafe` writes it. A `Judge` of your own suggests by giving `suggestion` beside `probabilities`; one that drops or changes a placeholder is left out.
+
+### The lint reads your docs with --docs
+
+`prosebook lint --docs README.md docs` holds the prose of Markdown files to the same rules and guidelines as the copy, and so do `judge --docs` and `approve --docs`: each heading, paragraph, list item, table cell and quote, with code blocks passed by and code spans read as placeholders. With no paths, `--docs` reads the files the config's `docs` names.
+
 ## prosebook@0.17.0
 
 ### The writing guide stays as written when Bun and Node format its samples differently
