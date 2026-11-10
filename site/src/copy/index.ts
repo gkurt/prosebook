@@ -30,7 +30,7 @@ export type Messages = {
    */
   "agents.cli.title": { args: {}; tags: never };
   /**
-   * Every project gets a writing guide, generated from the config, that says where an entry goes and the guidelines no rule can check.
+   * Every project gets a writing guide, generated from the config, with where an entry goes and the guidelines no rule can check.
    *
    * Under the heading about the writing guide, beside a picture of the guide's first lines.
    */
@@ -156,7 +156,7 @@ export type Messages = {
    */
   "hero.lead": { args: {}; tags: never };
   /**
-   * Every word your app says, written well.
+   * Every word in your app, written well.
    *
    * The headline at the top of the page.
    */
@@ -336,6 +336,24 @@ export type Messages = {
    */
   "start.title": { args: {}; tags: never };
   /**
+   * A preset gives the copy a tone. The tone goes into the writing guide, the translation prompt and the judge's notes, with the lint rules that fit.
+   *
+   * Under the heading of the section about tones, above a button per preset.
+   */
+  "tone.lead": { args: {}; tags: never };
+  /**
+   * Tone presets
+   *
+   * Names the group of buttons that pick which tone preset is shown.
+   */
+  "tone.presets": { args: {}; tags: never };
+  /**
+   * A tone to start from
+   *
+   * Heads the section about the built-in tone presets.
+   */
+  "tone.title": { args: {}; tags: never };
+  /**
    * The lint finds nothing to change.
    *
    * Under the demo's output when the lint finds nothing wrong with the text.
@@ -360,7 +378,7 @@ export type Messages = {
    */
   "try.fix": { args: {}; tags: never };
   /**
-   * Edit the text. The lint answers as you type, with the rules a strict project runs.
+   * Edit the text. The lint runs as you type, with the rules of a strict project.
    *
    * Under the demo's heading, says what the demo does.
    */

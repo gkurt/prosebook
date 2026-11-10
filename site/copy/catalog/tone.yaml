@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=./catalog.schema.json
+tone.title:
+  kind: name
+  surface: heading
+  context: Heads the section about the built-in tone presets.
+  en: A tone to start from
+
+tone.lead:
+  kind: description
+  surface: hint
+  context: Under the heading of the section about tones, above a button per preset.
+  en: A preset gives the copy a tone. The tone goes into the writing guide, the translation prompt and the judge's notes, with the lint rules that fit.
+
+tone.presets:
+  kind: name
+  surface: aria
+  context: Names the group of buttons that pick which tone preset is shown.
+  en: Tone presets

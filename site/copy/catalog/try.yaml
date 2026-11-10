@@ -9,7 +9,7 @@ try.lead:
   kind: description
   surface: hint
   context: Under the demo's heading, says what the demo does.
-  en: Edit the text. The lint answers as you type, with the rules a strict project runs.
+  en: Edit the text. The lint runs as you type, with the rules of a strict project.
 
 try.samples:
   kind: name

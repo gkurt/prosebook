@@ -133,19 +133,19 @@ footer a:hover {
 /* Hero */
 
 .hero {
-  padding-block: clamp(4rem, 13vw, 9rem) clamp(4rem, 10vw, 7rem);
+  padding-block: clamp(2.5rem, 6vw, 4.5rem) clamp(3rem, 6vw, 4.5rem);
 }
 
 h1 {
-  max-width: 13ch;
-  font: 500 clamp(2.9rem, 8.4vw, 5.75rem) / 1 var(--serif);
+  max-width: 22ch;
+  font: 500 clamp(2.6rem, 6.4vw, 4.4rem) / 1.02 var(--serif);
   letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
 .lead {
   max-width: 34rem;
-  margin-top: 1.75rem;
+  margin-top: 1.25rem;
   color: var(--soft);
   font-size: clamp(1.1rem, 2vw, 1.3rem);
   line-height: 1.5;
@@ -157,7 +157,7 @@ h1 {
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem 1.75rem;
-  margin-top: 2.5rem;
+  margin-top: 2rem;
 }
 
 .install {
@@ -474,6 +474,46 @@ h2 {
 .note.clean::before {
   content: '\2713';
   font-weight: 700;
+}
+
+/* The tones: the config line and the tone's voice, beside how the guide says each moment reads. */
+.tone .entry,
+.tone .result {
+  min-height: 19rem;
+}
+
+.tone .s {
+  color: var(--green);
+}
+
+.voice {
+  margin-top: 1.25rem;
+  color: var(--ink);
+  font: 1.6rem/1.25 var(--serif);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.moments {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.moments li {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.moments code {
+  color: var(--soft);
+  font-size: 0.74rem;
+}
+
+.moments del {
+  color: var(--soft);
+  text-decoration-color: var(--red);
 }
 
 /* Features */

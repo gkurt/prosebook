@@ -21,7 +21,7 @@ agents.guide.body:
   kind: description
   surface: hint
   context: Under the heading about the writing guide, beside a picture of the guide's first lines.
-  en: Every project gets a writing guide, generated from the config, that says where an entry goes and the guidelines no rule can check.
+  en: Every project gets a writing guide, generated from the config, with where an entry goes and the guidelines no rule can check.
 
 agents.cli.title:
   kind: name

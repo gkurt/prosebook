@@ -3,6 +3,7 @@ import '#src/site.css';
 import { reads, t } from '#src/copy.ts';
 import { fieldsOf, readOf, SAMPLES, START_COUNT } from '#src/demo/samples.ts';
 import { view } from '#src/demo/view.ts';
+import { START_TONE, TONES } from '#src/tones.ts';
 
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const REPO = 'https://github.com/gkurt/prosebook';
@@ -186,6 +187,49 @@ const works = [
             <p>{t('agents.judge.body')}</p>
           </article>
         </div>
+      </section>
+
+      <section class="block wrap" id="tones">
+        <div class="intro">
+          <h2>{t('tone.title')}</h2>
+          <p>{t('tone.lead')}</p>
+        </div>
+        <div class="tabs" role="group" aria-label={t('tone.presets')}>
+          {
+            TONES.map((tone) => (
+              <button type="button" data-tone={tone.name} aria-pressed={tone.name === START_TONE ? 'true' : 'false'}>
+                {tone.name}
+              </button>
+            ))
+          }
+        </div>
+        {
+          TONES.map((tone) => (
+            <div class="sheet tone" data-tone-panel={tone.name} hidden={tone.name !== START_TONE}>
+              <div class="entry">
+                <p class="pane">prosebook.config.ts</p>
+                <div>
+                  <span class="f">extends</span>: <span class="s">'{tone.name}'</span>
+                </div>
+                <p class="voice">{tone.voice}</p>
+              </div>
+              <div class="result">
+                <p class="pane">WRITING.md</p>
+                <ul class="moments">
+                  {tone.examples.map((example) => (
+                    <li>
+                      <code>
+                        {example.kind} on {example.surface}
+                      </code>
+                      <span>{example.say}</span>
+                      {example.not !== undefined && <del>{example.not}</del>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))
+        }
       </section>
 
       <section class="block wrap">

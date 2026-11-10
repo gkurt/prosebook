@@ -1761,7 +1761,7 @@ install({
 - `install` takes the place of the integration's `inspect`: `base`, the `shortcut` and, as `fetch`, what answers in the dev
   server's place. Call it before the page's first read.
 - An edit is kept in memory, for the requests after it; `saved` gets the files, for the page to show the new text.
-- The DOM carries no keys, so the page says what its build read: set `globalThis.__PROSEBOOK_READ__` (`ReadHook`) while
+- The DOM carries no keys, so the page carries what its build read: set `globalThis.__PROSEBOOK_READ__` (`ReadHook`) while
   building, and answer `__prosebook/reads` with each text and its reads, `[text, [{ key, locale }]][]`.
 
 ## Native targets

@@ -78,6 +78,16 @@ root.addEventListener('click', (event) => {
 if ('requestIdleCallback' in window) requestIdleCallback(() => void load());
 else setTimeout(() => void load(), 1500);
 
+// The tones: each one's panel is on the page as built, and its button shows it.
+const tones = document.querySelector<HTMLElement>('#tones')!;
+tones.addEventListener('click', (event) => {
+  const picked = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tone]')?.dataset['tone'] : undefined;
+  if (picked === undefined) return;
+  for (const tab of tones.querySelectorAll<HTMLElement>('[data-tone]'))
+    tab.setAttribute('aria-pressed', String(tab.dataset['tone'] === picked));
+  for (const panel of tones.querySelectorAll<HTMLElement>('[data-tone-panel]')) panel.hidden = panel.dataset['tonePanel'] !== picked;
+});
+
 const copy = document.querySelector<HTMLButtonElement>('.install button')!;
 const label = copy.textContent;
 copy.addEventListener('click', () => {

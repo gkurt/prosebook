@@ -509,7 +509,9 @@ text with each finding's place marked, for the layer under the field, set as the
 under its words. The page calls `view` as it is built, so the first view needs no script; `client.ts` calls
 it on every edit, importing it once the page is idle, since it carries the tools. `samples.ts` holds the
 entries it starts from, the first one slop the strict word lists find. The page stays sparse, each section one
-thing: the hero, the demo, the agents' section (the guide, the CLI, the voice guidelines, the judge), the
+thing: the hero, the demo, the agents' section (the guide, the CLI, the voice guidelines, the judge), the tones
+(`src/tones.ts` reads each preset's first sentence and examples out of the guide `play` writes for it, as the
+page is built, and fails the build where the guide's Tone section reads otherwise), the
 catalog's (types, stale translations, the inspector), each feature a card (a drawn exhibit, a heading linking
 to its section of API.md, a sentence or two), then six notes (a sketch of a line or two, a name, a sentence)
 and setup with what it works with. The exhibits' words are the tools' own, copied from real output. A feature
