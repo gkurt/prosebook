@@ -2,7 +2,8 @@
  * `prosebook judge` from source in a folder of the repo, through TypeSafe: `bun scripts/judge.mts
  * site`, or `. --docs` for the repo's docs. Skipped, passing, without TypeSafe's key: in a fork's CI
  * or on a machine with none, lint still reads the verdicts the lock holds. Run with the key, then
- * commit the folder's lock.
+ * commit the folder's lock. With ANTHROPIC_API_KEY set too, the configs add Claude Haiku as a second
+ * judge, which also suggests rewrites; without it, Jev judges alone.
  */
 const KEYS = ['TYPESAFE_AI_API_KEY'];
 const [folder = '.', ...args] = process.argv.slice(2);

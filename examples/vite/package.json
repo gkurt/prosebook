@@ -16,6 +16,7 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^4.0.99",
     "@ai-sdk/typesafe-ai": "^3.0.35",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

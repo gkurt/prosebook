@@ -1,5 +1,6 @@
+import { anthropic } from '@ai-sdk/anthropic';
 import { typeSafeAi } from '@ai-sdk/typesafe-ai';
-import { decisionJudge } from 'prosebook/ai';
+import { decisionJudge, languageJudge } from 'prosebook/ai';
 import { definePlugin, type ProsebookConfig } from 'prosebook/config';
 
 // Advice no pattern can check, said in copy/catalog/WRITING.md for whoever writes next.
@@ -30,7 +31,11 @@ export default {
   // root, skipped without TYPESAFE_AI_API_KEY); lint reads the verdicts the lock holds. The one example judged:
   // the others say the same shop's words.
   judge: {
-    models: [decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } })],
+    models: [
+      decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } }),
+      // Haiku answers too, and suggests rewrites, only where ANTHROPIC_API_KEY is set: Jev's verdicts stand alone.
+      ...(process.env['ANTHROPIC_API_KEY'] ? [languageJudge(anthropic('claude-haiku-5-5'), { price: { input: 0.1, output: 0.5 } })] : []),
+    ],
     prompt: 'A small corner shop online: shoppers browse, fill a cart and check out.',
   },
 } satisfies ProsebookConfig;
