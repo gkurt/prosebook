@@ -13,6 +13,7 @@ import {
   loadCatalog,
   readLock,
   resolveConfig,
+  scannedMessages,
   serializeLock,
   verdictsOf,
   writingGuide,
@@ -87,6 +88,20 @@ const judged = (config: ResolvedConfig) => {
 };
 
 describe('judge', () => {
+  test('the same words in two roles keep an answer each, so the next run asks nothing', async () => {
+    const judge = fakeJudge();
+    const config = resolveConfig(fixture({}).root, { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { models: [judge] } });
+    const at = (where: string, line: number) => ({ file: 'a.md', line, column: 1, text: 'Reported by', where, via: 'doc' as const });
+    const messages = scannedMessages(config, [at('heading', 1), at('paragraph', 3)]);
+    expect(messages.map((m) => m.key)).toEqual(['Reported by', 'Reported by']);
+    const first = await judgeCatalog(config, { messages, problems: [] }, readLock(config.lock));
+    expect(first.stats.requests).toBe(2);
+    expect(first.verdicts['en']!['Reported by']!['house/plain']!['fake/judge']!.split(' ')).toHaveLength(2);
+    const second = await judgeCatalog(config, { messages, problems: [] }, { ...readLock(config.lock), judged: first.verdicts });
+    expect(second.stats.requests).toBe(0);
+    expect(second.verdicts).toEqual(first.verdicts);
+  });
+
   test('only asks of the entries it names, as judge <paths> does, and a later run asks of the rest', async () => {
     const judge = fakeJudge();
     const config = project(judge);

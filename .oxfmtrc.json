@@ -21,6 +21,7 @@
     "site/.astro/**",
     "**/catalog.schema.json",
     "**/copy/lock.json",
+    "prosebook.lock.json",
     "test/.tmp/**"
   ]
 }

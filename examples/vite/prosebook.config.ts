@@ -1,3 +1,4 @@
+import { typeSafeAi } from '@ai-sdk/typesafe-ai';
 import { decisionJudge } from 'prosebook/ai';
 import { definePlugin, type ProsebookConfig } from 'prosebook/config';
 
@@ -26,10 +27,10 @@ export default {
   formats: { relative: { recent: { now: { entry: 'app.now' } } } },
   lint: { extends: 'strict', properNouns: ['Corner', 'Shop'], plugins: [shop] },
   // The guidelines above, and the voice ones, asked of a model by `prosebook judge` (`bun run judge` at the repo's
-  // root, skipped without AI_GATEWAY_API_KEY); lint reads the verdicts the lock holds. The one example judged:
+  // root, skipped without TYPESAFE_AI_API_KEY); lint reads the verdicts the lock holds. The one example judged:
   // the others say the same shop's words.
   judge: {
-    models: [decisionJudge('typesafe-ai/jev')],
+    models: [decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } })],
     prompt: 'A small corner shop online: shoppers browse, fill a cart and check out.',
   },
 } satisfies ProsebookConfig;

@@ -20,7 +20,8 @@ The full reference. For an overview, see the [README](README.md).
 
 ## Integrations
 
-Without one, run `prosebook generate` yourself. It writes `src/copy/`: a module per locale and an `index.ts` with the types.
+Without an integration, run `prosebook generate` yourself, which writes `src/copy/`: a module per locale and an `index.ts` with
+the types.
 
 A dev server generates on start and on every edit. A build writes nothing, so a checkout stays as committed whatever builds it:
 it bundles the catalog as it reads then, and needs the generated modules on disk only to resolve their imports. Commit
@@ -84,8 +85,8 @@ export default {
   shows the new text without reloading, in the locale and state it was in. A `production` build writes nothing.
 - In `production` mode, the default, the build ships only the messages the code reads and leaves the pseudo-locale out.
 - Without `extensionAlias`, set `importExtension: ''` in the prosebook config instead.
-- Takes `config`, `root`, `prune` and `keep` ([options](#integration-options)); not `split`, and no [inspector](#inspector).
-  Rsbuild takes it as `tools.rspack.plugins`.
+- `ProsebookPlugin` takes `config`, `root`, `prune` and `keep` ([options](#integration-options)); not `split`, and no
+  [inspector](#inspector). Rsbuild adds the plugin under `tools.rspack.plugins`.
 
 ### React Native and Expo
 
@@ -224,16 +225,16 @@ const copy = createCopy(catalog, {
 await copy.ready;
 ```
 
-| Option      |                                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------------- |
-| `locale`    | The locale to start in, or the locales a reader prefers. Defaults to the source.                     |
-| `tags`      | Tag renderers every rich read gets unless it passes its own.                                         |
-| `onMissing` | What a key the catalog lacks reads as. Defaults to the key.                                          |
-| `onError`   | Told of a placeholder with no value or one `Intl` refuses. Defaults to `console.error`.              |
-| `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads.  |
-| `timeZone`  | The IANA zone dates show in, unless a message names its own. Defaults to the environment's.          |
-| `now`       | What [relative times](#relative-times) are measured from: a clock, or the time a server rendered at. |
-| `live`      | Keeps relative times read outside any binding fresh, by changing `version` when they next change.    |
+| Option      |                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------ |
+| `locale`    | The locale to start in, or the locales a reader prefers. Defaults to the source.                       |
+| `tags`      | Tag renderers every rich read gets unless it passes its own.                                           |
+| `onMissing` | What a key the catalog lacks reads as. Defaults to the key.                                            |
+| `onError`   | Told of a placeholder with no value or one `Intl` refuses. Defaults to `console.error`.                |
+| `preload`   | On a server, handed each file a [split](#splitting) client will load for the areas this copy reads.    |
+| `timeZone`  | The IANA zone a copy shows dates in, unless a message names a zone; the environment's zone by default. |
+| `now`       | What [relative times](#relative-times) are measured from: a clock, or the time a server rendered at.   |
+| `live`      | Keeps relative times read outside any binding fresh, by changing `version` when they next change.      |
 
 ### A copy
 
@@ -549,7 +550,7 @@ test('checks out', async ({ page }) => {
 });
 ```
 
-- It reads the generated modules on disk, so run `prosebook generate` before the tests where `src/copy/` isn't committed.
+- A test reads the generated modules on disk, so run `prosebook generate` before the tests where `src/copy/` isn't committed.
 - A runner that doesn't resolve the index's `./en.js` to `en.ts` runs it with `importExtension: '.ts'`.
 - `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them.
 - A fixed clock, `createCopy(catalog, { now: () => Date.UTC(2026, 10, 9) })`, reads a relative time the same on every run.
@@ -574,19 +575,19 @@ and explains every field. `generate --check` fails on a file without it; a file 
 
 ### Fields
 
-| Field      |                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `en`       | The message. The field is named after `source` in the config.                                           |
-| `context`  | One sentence telling a translator where the string appears. Required by default.                        |
-| `args`     | What each placeholder holds, and what each tag wraps. Required for every placeholder when `context` is. |
-| `kind`     | `name`, `action`, `description` or `state`. The lint holds each to its budget.                          |
-| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, …                               |
-| `closed`   | Selects that take only the arms they name: `closed: [mode]` types `mode` as `'dark' \| 'light'`.        |
-| `min`      | The least a plural's count can be: `min: { sites: 2 }` asks no `one` of English, but still of Russian.  |
-| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                           |
-| `allow`    | Lint rules the entry is exempt from, each with the reason.                                              |
-| `comment`  | A change asked of whoever edits the entry next. A warning until made and deleted.                       |
-| `remove`   | `true` asks for the entry to go, with its translations and the code reading it. A warning until then.   |
+| Field      |                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `en`       | The message. The field is named after `source` in the config.                                                                        |
+| `context`  | One sentence telling a translator where the string appears. Required by default.                                                     |
+| `args`     | What each placeholder holds, and what each tag wraps. Required for every placeholder when `context` is.                              |
+| `kind`     | `name`, `action`, `description` or `state`. The lint holds each to its budget.                                                       |
+| `surface`  | Where it sits: `label`, `heading`, `tooltip`, `error`, `empty`, `hint`, …                                                            |
+| `closed`   | Selects that take only the arms they name: `closed: [mode]` types `mode` as `'dark' \| 'light'`.                                     |
+| `min`      | The least a plural's count can be: `min: { sites: 2 }` asks no `one` of English, but still of Russian.                               |
+| `fragment` | `true` where it completes something beside it, so sentence rules don't apply.                                                        |
+| `allow`    | Lint rules the entry is exempt from, each with the reason.                                                                           |
+| `comment`  | A change asked of whoever edits the entry next. A warning until made and deleted.                                                    |
+| `remove`   | `true` marks the entry for removal, with the entry's translations and the code reading the entry. A warning until the entry is gone. |
 
 Kinds and surfaces are configurable. A key can name an entry and prefix others: `alerts.mute` and `alerts.mute.hint`.
 
@@ -612,7 +613,7 @@ other's and `generate --check` passes on both.
 
 The guide also says seven guidelines against the habits of copy written off the code, as an agent tends to write it:
 
-| Rule                       | Says                                                                                     |
+| Rule                       | Guideline                                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------------- |
 | `voice/field-names`        | A label over a value is a noun: `Reporter`, not `Reported by`                            |
 | `voice/own-words`          | The app's or the platform's word, not a paraphrase: `Get notified`, not `Hear of…`       |
@@ -959,7 +960,7 @@ app.reviews: 'Bewertungen {app.title, entry, genitive}' # MF2: {app.title :pb:en
 ```
 
 - Only an entry of kind `name` can be said, and it is text: selects for its forms, other names, no placeholders or tags.
-- It is said where it stands, never handed to another formatter. In MF2 a `.local` may hold one, said as `{$shop}`; no other
+- A name is said where it stands, never handed to another formatter. In MF2 a `.local` may hold one, said as `{$shop}`; no other
   function, option or `.match` takes it.
 - The form picks the arm of that name in each of the name's selects, `other` without one. A name's translation may select on a
   form its source doesn't have.
@@ -1224,7 +1225,7 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
 
 | `type`           | Fields                                                                 | Fails when                                                    |
 | ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `existence`      | `words`, `patterns`, `message`                                         | the string says one of them                                   |
+| `existence`      | `words`, `patterns`, `message`                                         | the string says one of the words or matches a pattern         |
 | `substitution`   | `swap: { word: use }`, `message`                                       | the string says a word the product writes another way         |
 | `occurrence`     | `count` (`words`, `sentences`, `characters`), `max`, `min`, `relative` | the count is out of bounds, or out of ratio with the source's |
 | `capitalization` | `case` (`sentence`, `title`, `lower`, `upper`), `exceptions`           | a word is out of case                                         |
@@ -1466,9 +1467,9 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
   lint: { docs: { 'word-budget': 'warn', contractions: 'off' } },
   ```
 
-- A comment above a block asks of it: `<!-- prosebook-ignore -->` passes it by, and
-  `<!-- prosebook-allow voice/phrases: a guide explains in sentences -->` exempts it, every item of a list or line of a
-  quote with it.
+- A comment above a block asks of the block: `<!-- prosebook-ignore -->` passes the block by, and
+  `<!-- prosebook-allow voice/phrases: a guide explains in sentences -->` exempts the block, a list's every item or a
+  quote's every line included.
 - `prosebook approve --docs docs/setup.md:14` approves the words as written, until they change. The lock keeps the docs'
   approvals and verdicts under `docs`, apart from the copy's. `--fix` is refused with `--docs`: edit the docs.
 
@@ -1484,7 +1485,8 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 ```
 
 A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log on stdout, text on stderr, the same exit code.
-Each result points at its line in the catalog, translation or JSX. `scan` writes a log of its own: upload it with its own `category`.
+Each result points at a line in the catalog, a translation or the JSX. `scan` writes a separate log, uploaded with a separate
+`category`.
 
 ### Extract
 
@@ -1643,7 +1645,7 @@ import { preloadModule } from 'react-dom';
 const copy = createCopy(catalog, { locale, preload: (href) => preloadModule(href, { as: 'script' }) });
 ```
 
-Under Next the server can't link them; only hydration waits one request more.
+Under Next the server can't link the areas' files; only hydration waits one request more.
 
 ## Inspector
 
@@ -1761,7 +1763,8 @@ native: [{ language: 'apple', out: 'src-tauri/Resources', keys: ['macos'], plist
 - A `<locale>.lproj/<name>.strings` per locale: plain `.strings`, which any bundler can copy into `Contents/Resources`.
 - With `plist`, the table is `InfoPlist`, and `macos.ns-camera-usage-description` is `NSCameraUsageDescription`. The key must be in
   the plist, and the plist's text must be the source's.
-- Without it, the table is `Localizable`, placeholders `%1$@`. A plural goes into a `.stringsdict` beside it, its count `%N$lld`.
+- Without `plist`, the table is `Localizable`, placeholders `%1$@`. A plural goes into a `.stringsdict` beside the table, its
+  count `%N$lld`.
 - A select, a date, a formatted number, a tag or a nested plural fails `generate`; use the Swift target for those.
 
 ## Config

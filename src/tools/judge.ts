@@ -119,7 +119,12 @@ function questionsOf(description: string, noted: boolean): Questions {
   };
 }
 
-/** The verdicts the lock holds: per locale, per key, per rule, per judge, `<hash>:<probability>`. */
+/**
+ * The verdicts the lock holds: per locale, per key, per rule, per judge, `<hash>:<probability>`. A model's
+ * may hold several, space-separated, one per entry the key names: the same words in code or the docs in two
+ * roles are two entries with one key, each asked apart, as each says its role. The author's is one, since an
+ * approval holds for the words in any role.
+ */
 export type Verdicts = Record<string, Record<string, Record<string, Record<string, string>>>>;
 
 /** One entry in one locale, and the guidelines it is held to there. */
@@ -215,8 +220,12 @@ const recorded = (verdicts: Verdicts | undefined, a: Asked, rule: string, id: st
 
 /** The probability a judge gave, when it was asked of the entry as it is now. */
 function answerOf(verdicts: Verdicts | undefined, a: Asked, rule: string, id: string): number | undefined {
-  const [at, p] = (recorded(verdicts, a, rule, id) ?? '').split(':');
-  return at === a.questions.get(rule)?.hashes[id] && p !== undefined && p !== '' ? Number(p) : undefined;
+  const hash = a.questions.get(rule)?.hashes[id];
+  for (const answer of (recorded(verdicts, a, rule, id) ?? '').split(' ')) {
+    const [at, p] = answer.split(':');
+    if (at === hash && p !== undefined && p !== '') return Number(p);
+  }
+  return undefined;
 }
 
 const approved = (verdicts: Verdicts | undefined, a: Asked, rule: string) => answerOf(verdicts, a, rule, AUTHOR) !== undefined;
@@ -254,8 +263,13 @@ export function verdictsOf(config: ResolvedConfig, messages: readonly Message[],
 
 /** A verdict kept as it was, in a copy of the verdicts being built. */
 function keeper(verdicts: Verdicts) {
-  return (locale: string, key: string, rule: string, id: string, value: string) =>
-    ((((verdicts[locale] ??= {})[key] ??= {})[rule] ??= {})[id] = value);
+  return (locale: string, key: string, rule: string, id: string, value: string) => {
+    const judges = (((verdicts[locale] ??= {})[key] ??= {})[rule] ??= {});
+    // A model's answer joins those it gave other entries with the key, in place of any under the same hash.
+    const hash = value.split(':')[0];
+    const others = id === AUTHOR ? [] : (judges[id]?.split(' ') ?? []).filter((answer) => answer.split(':')[0] !== hash);
+    judges[id] = [...others, value].sort().join(' ');
+  };
 }
 
 export interface ApproveOptions {
@@ -407,8 +421,11 @@ export async function judgeCatalog(
   const keep = keeper(verdicts);
   for (const a of asked) {
     for (const [rule, { hashes }] of a.questions) {
-      for (const id of Object.keys(hashes))
-        if (answerOf(lock.judged, a, rule, id) !== undefined) keep(a.locale, a.message.key, rule, id, recorded(lock.judged, a, rule, id)!);
+      for (const [id, hash] of Object.entries(hashes)) {
+        // Only this entry's answer: one the key's other entries gave is kept as each of them is read.
+        const answer = answerOf(lock.judged, a, rule, id);
+        if (answer !== undefined) keep(a.locale, a.message.key, rule, id, `${hash}:${answer}`);
+      }
     }
   }
   // An approval against a rule no model is asked of, as the entry still is.

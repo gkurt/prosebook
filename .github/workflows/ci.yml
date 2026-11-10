@@ -21,14 +21,14 @@ jobs:
       - run: bun check
       # The README, API.md, CONTRIBUTING.md and AGENTS.md, held to the writing rules as the copy is.
       - run: bun run docs
-      # And to the guidelines, by the judge, where the repo has the gateway's key; skipped where it hasn't, as in a fork.
+      # And to the guidelines, by the judge, where the repo has TypeSafe's key; skipped where it hasn't, as in a fork.
       - run: bun run docs:judge
         env:
-          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          TYPESAFE_AI_API_KEY: ${{ secrets.TYPESAFE_AI_API_KEY }}
       # The site's catalog and the Vite example's the same way; their lint runs in their own jobs.
       - run: bun run judge
         env:
-          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          TYPESAFE_AI_API_KEY: ${{ secrets.TYPESAFE_AI_API_KEY }}
       - run: bun run test
       - run: bun typecheck
 
