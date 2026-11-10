@@ -296,7 +296,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   code has no area: `severityOf` reads `lint.guessed` for it where its role was guessed, never `lint.areas`.
   `docs.ts`: the prose of the docs, Markdown, as the same entries (`via: 'doc'`, `where` its block), which the CLI's
   `entriesOf` reads in place of the copy's under `--docs` (`docsConfig`: the paths named, or the config's `docs`), for
-  `lint`, `judge` and `approve`, never `check`; a path holding no Markdown file is a `PathsError`, which the CLI says as
+  `lint`, `judge` and `approve`, never `check`; a file named that isn't there is a `PathsError`, which the CLI says as
   errors. Without `--docs`, `lint` and `judge` take paths as a scope (`scoped`, `inScope` in `cli.ts`): everything is
   read and linted, and only the findings in those files kept, `judgeCatalog`'s `only` asking of those entries alone. Their verdicts are the lock's `docs`, apart from `judged`, since a run
   keeps only the verdicts of what it read (`lockFor`, `writeVerdicts`); `approve` drops approvals of words gone

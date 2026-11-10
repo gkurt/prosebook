@@ -231,13 +231,10 @@ describe('lint <paths>', () => {
     );
   });
 
-  test('--docs fails on a path holding no Markdown file', () => {
-    const config = fixture({ 'prosebook.config.ts': CONFIG('false', []), 'docs/a.txt': '', 'src/a.ts': '' });
-    const run = cli(config.root, 'lint', '--docs', 'nope.md', 'docs', 'docs/**/*.md', 'src/a.ts');
+  test('--docs says a file that is not there as an error', () => {
+    const config = fixture({ 'prosebook.config.ts': CONFIG('false', []) });
+    const run = cli(config.root, 'lint', '--docs', 'nope.md');
     expect(run.stderr).toContain("error nope.md isn't there");
-    expect(run.stderr).toContain('error docs holds no Markdown file');
-    expect(run.stderr).toContain('error docs/**/*.md holds no Markdown file');
-    expect(run.stderr).toContain("error src/a.ts isn't Markdown");
     expect(run.code).toBe(1);
   });
 });

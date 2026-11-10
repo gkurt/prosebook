@@ -1449,8 +1449,7 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 - `lint`, `judge` and `approve` read the docs only with `--docs`, and then only them: the copy is read without it, and
   `check` never reads the docs, so a CI job runs `prosebook lint --docs` as a step of its own.
 - `--docs` takes Markdown files (`.md`, `.mdx`), folders and globs from the config's folder; a `!` before one leaves it
-  out. A path holding no Markdown file fails, so a typo can't pass as clean docs. With none, it reads those the config's
-  `docs` names:
+  out. With none, it reads those the config's `docs` names:
 
   ```ts
   export default defineConfig({ docs: ['README.md', 'docs', '!docs/changelog.md'] });
