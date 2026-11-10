@@ -50,7 +50,7 @@ export default {
   "notes.small.size": "4.8 KB",
   "notes.small.title": "Small builds",
   "notes.title": "Also included",
-  "site.author": "Gokhan Kurt",
+  "site.author": "@gkurttech",
   "site.description": "A typed catalog for every string an app shows, with a lint, a judge and a CLI that hold the writing to your rules.",
   "site.docs": "Docs",
   "site.github": "GitHub",

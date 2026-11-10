@@ -252,9 +252,9 @@ export type Messages = {
    */
   "notes.title": { args: {}; tags: never };
   /**
-   * Gokhan Kurt
+   * @gkurttech
    *
-   * A link in the footer to the author's own site.
+   * A link in the footer to the author's profile on X, by the author's handle there.
    */
   "site.author": { args: {}; tags: never };
   /**

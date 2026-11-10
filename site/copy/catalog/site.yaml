@@ -38,5 +38,5 @@ site.license:
 site.author:
   kind: name
   surface: label
-  context: A link in the footer to the author's own site.
-  en: Gokhan Kurt
+  context: A link in the footer to the author's profile on X, by the author's handle there.
+  en: '@gkurttech'
