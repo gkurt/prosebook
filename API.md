@@ -1310,9 +1310,10 @@ guideline, with its words.
   and every guideline it's held to. Each guideline is two yes-or-no questions: whether it speaks of a message in this role,
   and whether the message breaks it, weighed with the other guidelines, which give way to one another where they pull apart.
   The probability it's broken is their product.
-- **Several models** each answer, and an entry breaks a guideline by the mean of the probabilities the models gave. A model of
-  your own, for one the AI SDK doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the
-  lock, and `judge({ state, questions })` giving each question's probability of a yes.
+- **Several models** each answer, listed the one trusted most first: the first model that answered an entry decides whether
+  the entry breaks a guideline, and the next decides where the first hasn't answered. A model of your own, for one the AI SDK
+  doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
+  `judge({ state, questions })` giving each question's probability of a yes.
 - **`ask: false`** declares a model that can't be asked on this machine, as when the model's key isn't set: no run asks the
   model, and `--check` waits on none of the model's answers, but the answers the lock holds count, so every machine reads the
   same verdicts whatever keys the machine has.

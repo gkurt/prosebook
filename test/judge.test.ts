@@ -92,24 +92,24 @@ const judged = (config: ResolvedConfig) => {
 };
 
 describe('judge', () => {
-  test('a model set ask: false is not asked, and its answers in the lock still count, the mean of those given', async () => {
+  test('a model set ask: false is not asked, and its answers in the lock still count, first as listed', async () => {
     const jev = fakeJudge('fake/jev');
-    /** Finds nothing broken: with Jev's 0.86, a mean under the threshold. */
+    /** Trusted first, and finds nothing broken. */
     const lenient: Judge = {
       id: 'fake/lenient',
       judge: ({ questions }) => Promise.resolve({ probabilities: Object.fromEntries(Object.keys(questions).map((id) => [id, 0.1])) }),
     };
-    const unasked = project(jev, { judge: { models: [jev, { ...lenient, ask: false }] } });
+    const unasked = project(jev, { judge: { models: [{ ...lenient, ask: false }, jev] } });
     await run(unasked);
     expect(jev.asked).toHaveLength(2);
-    // Jev's answers alone, where the other model gave none: the guideline is broken by them.
+    // Jev decides where the model trusted first gave no answer: the guideline is broken.
     expect(judged(unasked).map((f) => [f.key, f.rule])).toEqual([['form.reporter', 'house/labels']]);
     const { messages } = loadCatalog(unasked);
     const judge = unasked.judge!;
     expect(modelsAsked(judge).map((m) => m.id)).toEqual(['fake/jev']);
     expect(unanswered(askedOf(unasked, judge, messages), readLock(unasked.lock).judged, modelsAsked(judge))).toEqual([]);
-    // Asked where its key is: its answers join Jev's, and every machine reads the mean of both.
-    const asked = resolveConfig(unasked.root, { ...configOf(unasked), judge: { models: [jev, lenient] } });
+    // Asked where its key is: its answers decide, on every machine, whether it can ask the model or not.
+    const asked = resolveConfig(unasked.root, { ...configOf(unasked), judge: { models: [lenient, jev] } });
     await run(asked);
     expect(judged(asked)).toEqual([]);
     expect(judged(unasked)).toEqual([]);
@@ -177,7 +177,7 @@ describe('judge', () => {
     expect(Object.values(judge.asked[0]!.questions)[0]!.instructions).toContain('`notes`');
   });
 
-  test('several models: each answers once, and an entry breaks a guideline by their mean', async () => {
+  test('several models: each answers once, and the first listed that answered decides', async () => {
     const lenient: Judge = {
       id: 'fake/lenient',
       judge: ({ questions }) => Promise.resolve({ probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.5])) }),
@@ -190,11 +190,9 @@ describe('judge', () => {
     // Only the new model is asked; the first's answers stay.
     expect((await run(both)).stats.requests).toBe(2);
     expect(judge.asked).toEqual([]);
-    // form.reporter: (0.86 + 0.25) / 2 is under 0.7.
-    expect(judged(both)).toEqual([]);
-    expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [judge, lenient], threshold: 0.5 } }))).toHaveLength(
-      1,
-    );
+    // form.reporter: the first model's 0.86 decides, whatever the second's 0.25.
+    expect(judged(both).map((f) => [f.key, f.rule])).toEqual([['form.reporter', 'house/labels']]);
+    expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [lenient, judge] } }))).toEqual([]);
   });
 
   test('the author approves an entry as written: it passes, is not asked of, and is judged again once it changes', async () => {

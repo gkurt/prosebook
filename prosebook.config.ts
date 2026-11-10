@@ -18,10 +18,11 @@ export default {
     properNouns: ['Rspack', 'Native', 'Expo', 'JavaScript', 'MessageFormat', 'Rust', 'Swift', 'Kotlin'],
   },
   judge: {
-    // Each asked only where its key is set; the answers the lock holds count everywhere. Haiku also suggests rewrites.
+    // Each asked only where its key is set; the answers the lock holds count everywhere. Haiku, the stronger, is
+    // trusted first and suggests rewrites; Jev decides where Haiku hasn't answered.
     models: [
-      decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 }, ask: Boolean(process.env['TYPESAFE_AI_API_KEY']) }),
       languageJudge(anthropic('claude-haiku-5-5'), { price: { input: 0.1, output: 0.5 }, ask: Boolean(process.env['ANTHROPIC_API_KEY']) }),
+      decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 }, ask: Boolean(process.env['TYPESAFE_AI_API_KEY']) }),
     ],
     prompt: "The docs of prosebook, a library for an app's copy: read by developers setting it up and by agents changing it.",
   },

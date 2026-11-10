@@ -6,7 +6,7 @@
  * read, goes to each model as one request, the entry as its state and two yes-or-no questions per
  * guideline, and the model answers with the probability that the entry breaks it. prosebook never
  * calls a model itself: the config's `judge.models` do, as `prosebook/ai`'s `decisionJudge` makes one
- * from an AI SDK decision model. With several, an entry breaks a guideline by their mean.
+ * from an AI SDK decision model. With several, the first that answered an entry decides.
  *
  * The author is a judge too, one no request asks: `prosebook approve` records that an entry is right
  * as written, which passes it against a guideline whatever the models say, and against any other rule
@@ -74,8 +74,10 @@ export const modelsAsked = (judge: Pick<JudgeConfig, 'models'>): Judge[] => judg
 
 export interface JudgeConfig {
   /**
-   * The models: `decisionJudge(model)` from `prosebook/ai`, or `Judge`s of your own, for a model the AI
-   * SDK doesn't reach. An entry breaks a guideline by the mean of their probabilities.
+   * The models, the one trusted most first: `decisionJudge(model)` or `languageJudge(model)` from
+   * `prosebook/ai`, or `Judge`s of your own, for a model the AI SDK doesn't reach. The first that
+   * answered an entry decides whether it breaks a guideline, and gives its suggestion; the rest stand in
+   * where it hasn't answered, as when it isn't asked here.
    */
   models: Judge[];
   /** Said to the models beside every entry: what the app is, who reads it, what its copy holds to. */
@@ -274,10 +276,12 @@ export function verdictsOf(config: ResolvedConfig, messages: readonly Message[],
     if (approvedNow(config, lock.judged, message, locale, rule)) return false;
     const a = byEntry.get(message)?.get(locale);
     if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
-    // The mean of the models that answered: one not asked here, or not yet, leaves the others' to stand.
-    const ps = judge.models.flatMap((m) => answerOf(lock.judged, a, rule, m.id) ?? []);
-    if (ps.length === 0) return undefined;
-    return ps.reduce((sum, p) => sum + p, 0) / ps.length >= judge.threshold;
+    // The first model that answered decides: one not asked here, or not yet, leaves the next to.
+    for (const { id } of judge.models) {
+      const p = answerOf(lock.judged, a, rule, id);
+      if (p !== undefined) return p >= judge.threshold;
+    }
+    return undefined;
   };
   // The first judge's, in the config's order, that holds for the entry as it reads.
   verdict.suggestion = (message, locale) => {
