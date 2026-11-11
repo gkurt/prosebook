@@ -8,7 +8,7 @@ import { START_TONE, TONES } from '#src/tones.ts';
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const REPO = 'https://github.com/gkurt/prosebook';
 const API = `${REPO}/blob/main/API.md`;
-const INSTALL = 'bun add prosebook';
+const INSTALL = 'npm install prosebook';
 // With no config and no catalog, `lint` reads the text in the code: what a visitor can run before installing anything.
 const TRY = 'npx prosebook lint';
 
@@ -346,8 +346,8 @@ const works = [
           <p>{t('start.lead')}</p>
         </div>
         <pre class="commands"><code>{INSTALL}
-bunx prosebook init
-bunx prosebook generate</code></pre>
+npx prosebook init
+npx prosebook generate</code></pre>
         <dl class="works">
           {
             works.map(({ label, names }) => (
