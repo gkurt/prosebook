@@ -1,3 +1,13 @@
+## prosebook@0.21.0
+
+### `npx prosebook lint` runs in a codebase with nothing set up
+
+With no config file and no catalog, `lint` and `scan` read the text in the code under the strict rules, from `src` or the project's root, and say so.
+
+### prosebook judge says the time left and the cost so far, in a terminal or not
+
+The progress line counts requests, with the time left and the cost so far, rewritten in place in a terminal. Without a terminal, as an agent or CI reads the output, the line is printed at each tenth of the run, where the run used to print nothing until the end.
+
 ## prosebook@0.20.0
 
 ### A guideline can have its own threshold, and voice/phrases is 0.7
