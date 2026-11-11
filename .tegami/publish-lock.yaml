@@ -1,48 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The voice plugin checks pointing words, semicolons, colons before a clause and figurative verbs\n\nFive checked rules join the guidelines, warnings under `recommended` and errors under `strict`, each finding with the fix: `voice/pointing` (`it`, `its`, `they`, `their`, `them`, and `there` for a place), `voice/of-its-own`, `voice/semicolons`, `voice/colon-clause` (a lowercase clause after a colon in a `description` or a `state`, an error excepted) and `voice/figurative-verbs` (`comes`, `says`, `asks for`). The docs leave them off unless `lint.docs` sets them.\n\n### An entry's context is held to the same rules as the message\n\n`voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` read each entry's `context` too, as the next writer copies the words of a context into the copy, and the writing guide says so. A rule of your own reads the context with `context: true`.\n\n### voice/no-intent is folded into voice/own-words\n\n`voice/own-words` asks for the noun and verb the product or the platform uses, the word a reader searches for: a schedule runs, a value is parsed, a switch is `Enabled` or `Disabled`. `voice/familiar-context` asks to name the thing every time, pronouns with a referent included. `voice/phrases` passes a phrase however long, `Password set for {email}`, and finds only a full sentence where a phrase would do. `voice/no-instructions` passes a hint for a gesture, `Drag to reorder`, and `voice/field-names` a heading such as `By kind`. Rename `voice/no-intent` to `voice/own-words` wherever an `allow` or `lint.rules` names the rule. The guidelines' words changed, so `prosebook judge` asks again of every entry, and `approve` again of each approval of a guideline.\n\n### The judge's default threshold is 0.5\n\nThe product of the two answers about 0.7 each: at 0.7, Jev found one break in an app's copy, where 0.5 finds the real ones. Set `judge.threshold: 0.7` to keep the old verdicts.\n\n### check fails on an entry not judged as written\n\n`prosebook check` names each entry the lock holds no verdict on as written and fails, so an entry nobody ran `prosebook judge` on fails CI; `judge.unjudged: 'warn'` warns instead. The writing guide asks for `prosebook judge` before the work is done.\n"
-    filename: voice-checks.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The inspector runs on a page with no dev server\n\n`prosebook/inspector` exports `install`, which takes a `fetch` of its own, and `prosebook/playground`'s `endpoints` answers it in the browser over a catalog's files held in memory, keeping each edit.\n"
-    filename: inspector-without-server.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A guideline can have its own threshold, and voice/phrases is 0.7\n\n`judge.thresholds` sets a guideline's own threshold by rule name, over every model's: `{ 'voice/phrases': 0.7 }`. `voice/phrases` is 0.7 unless set, as Jev at 0.5 found phrases such as `Link sent to {email}` breaking the guideline. The lock keeps each probability, so a new threshold needs no new run.\n\n### voice/own-words passes a thing that reads or writes in fact\n\n`Couldn’t read the file` and `Tool calls that write` keep to the guideline, where read and write are what a tool does. The guideline's words changed, so `prosebook judge` asks again of every entry.\n"
+    filename: guideline-thresholds.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - voice-checks.md
-      - inspector-without-server.md
+      - guideline-thresholds.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-next
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:example-svelte
     updated: false
   - id: npm:example-vite
     updated: false
   - id: npm:example-bun
     updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-rspack
+  - id: npm:example-next
     updated: false
   - id: npm:example-vue
+    updated: false
+  - id: npm:example-node
     updated: false
   - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-next
+  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+  - id: npm:example-solid
+  - id: npm:example-svelte
   - id: npm:example-vite
   - id: npm:example-bun
-  - id: npm:example-svelte
-  - id: npm:example-tanstack-start
-  - id: npm:example-node
-  - id: npm:example-solid
-  - id: npm:example-rspack
+  - id: npm:example-next
   - id: npm:example-vue
+  - id: npm:example-node
   - id: npm:example-preact
