@@ -480,7 +480,7 @@ export interface JudgeRun {
 
 export interface JudgeOptions {
   /** Called as each request ends, with how many have and how many will. */
-  progress?: (done: number, total: number) => void;
+  progress?: (done: number, total: number, stats: Readonly<JudgeStats>) => void;
   /** Ask nothing: only bring the verdicts up to date with the catalog, as `--check` does. */
   dry?: boolean;
   /** Ask only of these entries, as `judge <paths>` does; the lock keeps what it said of the rest. */
@@ -605,7 +605,7 @@ export async function judgeCatalog(
       suggest(a, model.id, response.suggestion);
       stats.suggestions++;
     }
-    options.progress?.(stats.requests, open.length);
+    options.progress?.(stats.requests, open.length, stats);
   };
   const worker = async () => {
     while (next < open.length && !stop.signal.aborted) {

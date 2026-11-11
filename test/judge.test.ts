@@ -413,6 +413,29 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     expect(warned.stderr).toContain('warn  1 entry is not judged against the guidelines as written');
   });
 
+  test('the CLI: without a terminal, a run says how far it got at each tenth, with the time left and the cost', () => {
+    const entries = Array.from(
+      { length: 10 },
+      (_, i) => `form.f${i}:\n  kind: name\n  surface: label\n  context: A field label.\n  en: Field ${i}\n`,
+    );
+    const config = fixture({
+      'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';
+const house = definePlugin({ name: 'house', rules: { labels: { type: 'guideline', description: 'A label names the field, as a noun.' } } });
+const model = { id: 'fake/progress', judge: async ({ questions }) => ({ cost: 0.01, probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.1])) }) };
+export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model], concurrency: 1 } };
+`,
+      'copy/catalog/form.yaml': entries.join(''),
+    });
+    const run = cli(config.root, 'judge');
+    expect(run.code).toBe(0);
+    const lines = run.stderr.split('\n').filter((l) => l.startsWith('prosebook: judged'));
+    // One line a tenth, none at the end, which the summary says.
+    expect(lines).toHaveLength(9);
+    expect(lines[0]).toMatch(/^prosebook: judged 1 of 10 requests \(10%\), about \d+s left, \$0\.010 so far$/);
+    expect(lines.at(-1)).toMatch(/^prosebook: judged 9 of 10 requests \(90%\), about \d+s left, \$0\.090 so far$/);
+    expect(run.stderr).not.toContain('\r');
+  });
+
   test('the CLI: a run failing before any answer says why, and not that the lock had it all', () => {
     const config = fixture({
       'prosebook.config.ts': `import { definePlugin } from 'prosebook/config';

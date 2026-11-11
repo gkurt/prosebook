@@ -1359,6 +1359,8 @@ guideline, with its words.
   request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
   run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and
   what they cost.
+- **Progress** is one line in a terminal, rewritten as each request ends, with the time left and the cost so far. Without a
+  terminal, as an agent or CI reads the output, the same line is printed at each tenth of the run.
 - **`lint` and `check` read the verdicts** from the lock, with no model and no key. The lock keeps the probability, so a new
   `threshold` needs no new run.
 - **`check` fails on an entry not judged as written**, naming each, so an entry nobody ran `prosebook judge` on fails CI:

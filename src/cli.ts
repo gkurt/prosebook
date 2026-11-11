@@ -767,11 +767,11 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
   } else {
     const lock = lockFor(config, docs);
     const tty = process.stderr.isTTY;
-    const progress = tty ? (done: number, total: number) => process.stderr.write(`\rprosebook: judging ${done}/${total}`) : undefined;
+    const progress = judgeProgress(tty);
     const problems = config.inCode || docs ? [] : rendered(config).catalog.problems;
     // In scope, the models are asked of its entries alone; the lock keeps what it said of the rest.
     const only = scope === undefined ? {} : { only: (m: Message) => read.has(m) };
-    const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, ...(progress !== undefined && { progress }) });
+    const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, progress });
     if (tty && run.stats.requests > 0) process.stderr.write('\n');
     writeVerdicts(config, docs, run.verdicts, run.suggestions);
     for (const { key, locale, model, error } of run.failures) {
@@ -797,9 +797,43 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
   return failed || errors > 0 ? 1 : 0;
 }
 
+const count = (n: number) => n.toLocaleString('en');
+
+/** A span of time as a person reads it in a progress line: `40s`, `3m 05s`, `1h 12m`. */
+function span(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`;
+}
+
+/**
+ * How a judge run says how far it got: in a terminal, one line rewritten as each request ends, with the time
+ * left and the cost so far; elsewhere, as an agent or CI reads the output, a line at each tenth of the run, so
+ * a run of thousands of requests isn't silent until it ends.
+ */
+function judgeProgress(tty: boolean, write = (s: string) => process.stderr.write(s), now = () => performance.now()) {
+  const started = now();
+  let said = 0;
+  return (done: number, total: number, stats: Readonly<JudgeStats>) => {
+    const elapsed = now() - started;
+    const left = done < total ? `, about ${span((elapsed / done) * (total - done))} left` : '';
+    // To a tenth of a cent under ten cents, as a cheap model's run costs a few.
+    const cost = stats.requests > stats.unpriced ? `, $${stats.cost.toFixed(stats.cost < 0.1 ? 3 : 2)} so far` : '';
+    const line = `prosebook: judged ${count(done)} of ${count(total)} requests (${Math.floor((done / total) * 100)}%)${left}${cost}`;
+    if (tty) {
+      write(`\r${line}\u001b[K`);
+      return;
+    }
+    const tenth = Math.floor((done / total) * 10);
+    if (tenth <= said || done === total) return;
+    said = tenth;
+    write(`${line}\n`);
+  };
+}
+
 /** What a run took: the time, the requests and their tokens, and what they cost where it's known. */
 function sayStats(stats: JudgeStats): void {
-  const count = (n: number) => n.toLocaleString('en');
   const seconds = (ms: number) => (ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`);
   if (stats.requests === 0) {
     out(`prosebook: the lock judged all ${count(stats.entries)} entries as they are now, so nothing was asked`);
