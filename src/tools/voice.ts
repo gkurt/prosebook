@@ -135,7 +135,8 @@ export const VOICE: Plugin = {
   rules: {
     'field-names': {
       type: 'guideline',
-      description: 'A label over a value names the field, as a noun: `Reporter`, not `Reported by`. `Members`, not `People in this team`.',
+      description:
+        'A label over a value names the field, as a noun: `Reporter`, not `Reported by`. `Members`, not `People in this team`. A heading or a grouping, such as `By kind`, is no label over a value.',
     },
     'own-words': {
       type: 'guideline',
@@ -145,7 +146,7 @@ export const VOICE: Plugin = {
     'no-instructions': {
       type: 'guideline',
       description:
-        'A control names what the control does, not how to work the control: `Replay`, not `Click this if you want to replay`. Name what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.',
+        'A control names what the control does, not how to work the control: `Replay`, not `Click this if you want to replay`. A hint or a tooltip for a gesture no label shows, such as `Drag to reorder`, is the exception. Name what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.',
     },
     'placeholder-values': {
       type: 'guideline',
@@ -162,7 +163,7 @@ export const VOICE: Plugin = {
     phrases: {
       type: 'guideline',
       description:
-        'A phrase where a phrase does: a status, a detail, a toast or a label reads `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as the phrase needs: `Saved the sandbox to resume later` is one. A sentence, with a subject, is for what takes explaining.',
+        'A phrase where a phrase does: a status, a detail, a toast or a label reads `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as the phrase needs: `Sandbox saved to resume later`, `Password set for {email}` and `Signing in with GitHub…` are phrases, and keep to this guideline. Only a full sentence, with a subject and a helping verb, on a surface where a phrase would do, breaks the guideline.',
     },
     pointing,
     'of-its-own': ofItsOwn,

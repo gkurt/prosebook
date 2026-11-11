@@ -13,7 +13,7 @@ Five checked rules join the guidelines, warnings under `recommended` and errors 
 
 ### voice/no-intent is folded into voice/own-words
 
-`voice/own-words` asks for the noun and verb the product or the platform uses, the word a reader searches for: a schedule runs, a value is parsed, a switch is `Enabled` or `Disabled`. `voice/familiar-context` asks to name the thing every time, pronouns with a referent included. Rename `voice/no-intent` to `voice/own-words` wherever an `allow` or `lint.rules` names the rule. The guidelines' words changed, so `prosebook judge` asks again of every entry, and `approve` again of each approval of a guideline.
+`voice/own-words` asks for the noun and verb the product or the platform uses, the word a reader searches for: a schedule runs, a value is parsed, a switch is `Enabled` or `Disabled`. `voice/familiar-context` asks to name the thing every time, pronouns with a referent included. `voice/phrases` passes a phrase however long, `Password set for {email}`, and finds only a full sentence where a phrase would do. `voice/no-instructions` passes a hint for a gesture, `Drag to reorder`, and `voice/field-names` a heading such as `By kind`. Rename `voice/no-intent` to `voice/own-words` wherever an `allow` or `lint.rules` names the rule. The guidelines' words changed, so `prosebook judge` asks again of every entry, and `approve` again of each approval of a guideline.
 
 ### The judge's default threshold is 0.5
 
