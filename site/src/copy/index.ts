@@ -140,13 +140,13 @@ export type Messages = {
   /**
    * Copy
    *
-   * The button beside the install command, which copies the command.
+   * The button beside the command in the hero, which copies the command.
    */
   "hero.copy": { args: {}; tags: never };
   /**
    * Read the docs
    *
-   * A link beside the install command to the API reference.
+   * A link beside the command in the hero to the API reference.
    */
   "hero.docs": { args: {}; tags: never };
   /**
@@ -161,6 +161,12 @@ export type Messages = {
    * The headline at the top of the page.
    */
   "hero.title": { args: {}; tags: never };
+  /**
+   * Run the command in any codebase. Nothing is installed or set up, and no file is written.
+   *
+   * Under the command in the hero, which lints the text in the visitor's own code with nothing installed.
+   */
+  "hero.try": { args: {}; tags: never };
   /**
    * The copy a pull request changes is posted as a comment, word by word.
    *

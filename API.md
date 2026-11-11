@@ -1130,6 +1130,10 @@ message is padded to the length a translation is likely to reach. Builds through
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
+**Before any setup**, `npx prosebook lint` runs in any codebase: with no config file and no catalog, `lint` and `scan` read
+the [text in the code](#without-a-catalog) under the strict rules, from `src`, or the whole project where there is no `src`,
+and write nothing.
+
 **Broken entries** (a message that doesn't parse, a missing field, drifted placeholders) are reported with their fix and left out;
 every command carries on with the rest and fails at the end. An edit, fix or import is refused only for the problems it brings.
 

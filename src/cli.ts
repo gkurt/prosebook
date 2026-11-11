@@ -114,6 +114,25 @@ Options:
 `;
 
 const SARIF_COMMANDS = ['lint', 'scan', 'status', 'judge', 'check'];
+/** The commands that read a project not set up yet, as its text in code: what `npx prosebook lint` runs in any codebase. */
+const UNSET_COMMANDS = ['lint', 'scan'];
+
+/**
+ * The config at `root`. A project with no config file and no catalog has nothing for `lint` and `scan` to
+ * read but the text in its code, so they read that, under the strict rules, and say so: one command
+ * says what prosebook makes of a codebase before anything is installed or written.
+ */
+async function configAt(root: string, command: string): Promise<ResolvedConfig> {
+  const loaded = await loadConfig(root);
+  const setUp = loaded.inCode || existsSync(loaded.catalog) || CONFIG_FILES.some((f) => existsSync(join(root, f)));
+  if (setUp || !UNSET_COMMANDS.includes(command)) return loaded;
+  err(
+    'prosebook: no config and no catalog here, so the text in the code is read, under the strict rules. `prosebook init` starts a catalog, and a config with `catalog: false` keeps the text in the code.\n',
+  );
+  // A project with no `src` keeps its code somewhere under its root.
+  const dirs = [existsSync(join(root, 'src')) ? 'src' : '.'];
+  return loadConfig(root, { catalog: false, lint: { extends: 'strict' }, scan: { dirs } });
+}
 /** The commands with nothing to do under `catalog: false`: `lint`, `judge`, `approve`, `scan` and `check` read the text in code. */
 const CATALOG_COMMANDS = [
   'generate',
@@ -231,7 +250,7 @@ async function main(argv: string[]): Promise<number> {
   }
   const root = values.root ?? process.cwd();
   if (command === 'init') return init(root);
-  const loaded = await loadConfig(root);
+  const loaded = await configAt(root, command);
   if (loaded.inCode && CATALOG_COMMANDS.includes(command)) {
     err(`prosebook: ${command} reads the catalog, and catalog is false in the config: set catalog to a folder to use it`);
     return 1;

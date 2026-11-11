@@ -14,7 +14,7 @@ hero.lead:
 hero.copy:
   kind: action
   surface: action
-  context: The button beside the install command, which copies the command.
+  context: The button beside the command in the hero, which copies the command.
   en: Copy
 
 hero.copied:
@@ -26,5 +26,11 @@ hero.copied:
 hero.docs:
   kind: action
   surface: action
-  context: A link beside the install command to the API reference.
+  context: A link beside the command in the hero to the API reference.
   en: Read the docs
+
+hero.try:
+  kind: description
+  surface: hint
+  context: Under the command in the hero, which lints the text in the visitor's own code with nothing installed.
+  en: Run the command in any codebase. Nothing is installed or set up, and no file is written.

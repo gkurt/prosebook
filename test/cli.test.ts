@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { editEntry, importTranslations } from 'prosebook/tools';
@@ -128,4 +128,36 @@ test("lint's summary counts each rule, says warnings pass, and names the words c
   expect(run.stderr).toContain('By rule: sentence-case 6, ellipsis 1.');
   expect(run.stderr).toContain("Warnings alone exit 0: to fail CI on a rule, set it to 'error' under lint.rules, or extend 'strict'.");
   expect(run.stderr).toContain('lint: { properNouns: ["Delta"] } stops these findings.');
+});
+
+describe('a project with no config and no catalog', () => {
+  const files = { 'src/App.tsx': 'export const App = () => <button>Unlock seamless sync.</button>;\n' };
+  const bare = () => {
+    const { root } = fixture(files);
+    rmSync(join(root, 'copy'), { recursive: true });
+    return root;
+  };
+
+  test('is linted as its text in code, under the strict rules, and nothing is written', () => {
+    const root = bare();
+    const run = cli(root, 'lint');
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('no config and no catalog here');
+    expect(run.stderr).toContain('src/App.tsx:1:34 "Unlock seamless sync.": [banned-word] "seamless"');
+    expect(run.stderr).toContain('[no-period] an action ends without a period');
+    expect(readdirSync(root)).toEqual(['src']);
+  });
+
+  test('is scanned from its root where it has no src, and other commands still ask for a catalog', () => {
+    const { root } = fixture({ 'app/page.tsx': files['src/App.tsx'] });
+    rmSync(join(root, 'copy'), { recursive: true });
+    expect(cli(root, 'scan').stdout).toContain('app/page.tsx:1:34 "Unlock seamless sync."');
+    expect(cli(root, 'status').stderr).toContain('no catalog folder here');
+  });
+
+  test('is read by its config once it has one', () => {
+    const { root } = fixture({ ...files, 'prosebook.config.json': '{}' });
+    rmSync(join(root, 'copy'), { recursive: true });
+    expect(cli(root, 'lint').stderr).toContain('no catalog folder here');
+  });
 });

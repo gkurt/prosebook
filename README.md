@@ -38,6 +38,9 @@ const { t } = useCopy();
 
 ## Quick start
 
+To see what prosebook makes of a codebase before setting anything up, run `npx prosebook lint` in it: with no config and no
+catalog, it lints the [text in the code](API.md#without-a-catalog) under the strict rules, and writes nothing.
+
 ```bash
 bun add prosebook
 bunx prosebook init       # prosebook.config.ts and copy/catalog/app.yaml

@@ -35,6 +35,7 @@ export default {
   "hero.docs": "Read the docs",
   "hero.lead": "prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can drive.",
   "hero.title": "Every word in your app, written well.",
+  "hero.try": "Run the command in any codebase. Nothing is installed or set up, and no file is written.",
   "notes.diff.body": "The copy a pull request changes is posted as a comment, word by word.",
   "notes.diff.title": "Pull request diffs",
   "notes.docs.body": "The README and the guides are held to the same rules and guidelines.",

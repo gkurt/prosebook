@@ -367,7 +367,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   updates work unchanged and the copy keeps only the areas it holds. A split client build writes each
   area's file per lazy locale to `node_modules/.prosebook/area-files.json` in `generateBundle`, and the
   server build after it loads the index with them as its catalog's `areaFiles`.
-  `src/cli.ts`: the `prosebook` command.
+  `src/cli.ts`: the `prosebook` command. `configAt` gives `lint` and `scan` a project with no config file and no
+  catalog as its text in code, strict, from `src` or its root, and says so: what `npx prosebook lint` runs anywhere.
 - `src/next.ts`: `withProsebook`, the Next config wrapped. Generates and watches in the dev phase only, renders
   in the build phase, and hands Turbopack rules for the generated modules, matched by file name then by the
   path's end (Turbopack's root may be the monorepo's). `loader.ts` is the loader those rules name
@@ -518,7 +519,7 @@ text with each finding's place marked, for the layer under the field, set as the
 under its words. The page calls `view` as it is built, so the first view needs no script; `client.ts` calls
 it on every edit, importing it once the page is idle, since it carries the tools. `samples.ts` holds the
 entries it starts from, the first one slop the strict word lists find. The page stays sparse, each section one
-thing: the hero, the demo, the agents' section (the guide, the CLI, the voice guidelines, the judge), the tones
+thing: the hero (its command, `npx prosebook lint`, is that run before any setup), the demo, the agents' section (the guide, the CLI, the voice guidelines, the judge), the tones
 (`src/tones.ts` reads each preset's first sentence and examples out of the guide `play` writes for it, as the
 page is built, and fails the build where the guide's Tone section reads otherwise), the
 catalog's (types, stale translations, the inspector), each feature a card (a drawn exhibit, a heading linking

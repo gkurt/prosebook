@@ -9,6 +9,8 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const REPO = 'https://github.com/gkurt/prosebook';
 const API = `${REPO}/blob/main/API.md`;
 const INSTALL = 'bun add prosebook';
+// With no config and no catalog, `lint` reads the text in the code: what a visitor can run before installing anything.
+const TRY = 'npx prosebook lint';
 
 // The demo's first view, made by the tools as the page is built: the same module the browser runs on each edit.
 const first = SAMPLES[0]!;
@@ -62,11 +64,12 @@ const works = [
         <p class="lead">{t('hero.lead')}</p>
         <div class="cta">
           <div class="install">
-            <code>{INSTALL}</code>
-            <button type="button" data-command={INSTALL} data-copied={t('hero.copied')}>{t('hero.copy')}</button>
+            <code>{TRY}</code>
+            <button type="button" data-command={TRY} data-copied={t('hero.copied')}>{t('hero.copy')}</button>
           </div>
           <a class="more" href={API}>{t('hero.docs')}</a>
         </div>
+        <p class="try-note">{t('hero.try')}</p>
       </section>
 
       <section class="try wrap" id="try">

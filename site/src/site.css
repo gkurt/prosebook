@@ -171,6 +171,12 @@ h1 {
   font-size: 0.95rem;
 }
 
+.try-note {
+  margin-top: 0.9rem;
+  color: var(--soft);
+  font-size: 0.92rem;
+}
+
 .install code::before {
   content: '$ ';
   color: var(--soft);

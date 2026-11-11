@@ -17,7 +17,7 @@ export const SAMPLES: Sample[] = [
     key: 'sync.about',
     kind: 'description',
     surface: 'hint',
-    context: 'Under the sync setting, says what sync does.',
+    context: 'Under the sync setting, a line about what sync does.',
     text: 'Unlock seamless, powerful sync across all your devices!',
   },
   {
