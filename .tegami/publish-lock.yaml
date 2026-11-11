@@ -1,30 +1,14 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The same words in two roles keep a verdict each\n\nText in code or the docs saying the same words in two roles, a heading and a table cell, was asked again on every `prosebook judge`, each role's verdict replacing the other's in the lock, so `judge --check` never passed. The lock now keeps an answer per role.\n"
-    filename: judge-two-roles.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The voice plugin checks pointing words, semicolons, colons before a clause and figurative verbs\n\nFive checked rules join the guidelines, warnings under `recommended` and errors under `strict`, each finding with the fix: `voice/pointing` (`it`, `its`, `they`, `their`, `them`, and `there` for a place), `voice/of-its-own`, `voice/semicolons`, `voice/colon-clause` (a lowercase clause after a colon in a `description` or a `state`, an error excepted) and `voice/figurative-verbs` (`comes`, `says`, `asks for`). The docs leave them off unless `lint.docs` sets them.\n\n### An entry's context is held to the same rules as the message\n\n`voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` read each entry's `context` too, as the next writer copies the words of a context into the copy, and the writing guide says so. A rule of your own reads the context with `context: true`.\n\n### voice/no-intent is folded into voice/own-words\n\n`voice/own-words` asks for the noun and verb the product or the platform uses, the word a reader searches for: a schedule runs, a value is parsed, a switch is `Enabled` or `Disabled`. `voice/familiar-context` asks to name the thing every time, pronouns with a referent included. `voice/phrases` passes a phrase however long, `Password set for {email}`, and finds only a full sentence where a phrase would do. `voice/no-instructions` passes a hint for a gesture, `Drag to reorder`, and `voice/field-names` a heading such as `By kind`. Rename `voice/no-intent` to `voice/own-words` wherever an `allow` or `lint.rules` names the rule. The guidelines' words changed, so `prosebook judge` asks again of every entry, and `approve` again of each approval of a guideline.\n\n### The judge's default threshold is 0.5\n\nThe product of the two answers about 0.7 each: at 0.7, Jev found one break in an app's copy, where 0.5 finds the real ones. Set `judge.threshold: 0.7` to keep the old verdicts.\n\n### check fails on an entry not judged as written\n\n`prosebook check` names each entry the lock holds no verdict on as written and fails, so an entry nobody ran `prosebook judge` on fails CI; `judge.unjudged: 'warn'` warns instead. The writing guide asks for `prosebook judge` before the work is done.\n"
+    filename: voice-checks.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A judge run that fails before any answer no longer says the lock had every entry\n"
-    filename: judge-failed-stats.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### lint and judge take paths\n\n`prosebook lint copy/catalog/billing.yaml` keeps the findings to the entries in those files, catalog, translation or code, and `prosebook judge src/settings` asks the models of those entries alone. A path holding no entry fails with what to name instead, and one holding only docs says to add `--docs`.\n"
-    filename: lint-paths.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### Judges are trusted in order, each by its own threshold, and can be declared without being asked\n\nWith several judges, the first in `models` that answered an entry decides it, where their probabilities were averaged: list the model you trust most first. A judge's own `threshold` reads its answers over `judge.threshold`, as a language model's seldom reach the 0.7 a decision model's do. `ask: false` on a judge, as `decisionJudge` and `languageJudge` take it, keeps a model no run can ask here, as without its key: `judge` and `--check` pass it by, its answers in the lock still count, and the next model decides where it hasn't answered.\n"
-    filename: judge-ask.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A judge can suggest a rewrite\n\n`languageJudge` from `prosebook/ai` judges through a language model such as Claude Haiku, answering the same questions a decision model does, and rewrites an entry it finds breaking a guideline. `lint` shows the rewrite under the guideline, and `lint --fix --unsafe` writes it. A `Judge` of your own suggests by giving `suggestion` beside `probabilities`; one that drops or changes a placeholder is left out.\n"
-    filename: judge-suggestions.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The lint reads your docs with --docs\n\n`prosebook lint --docs README.md docs` holds the prose of Markdown files to the same rules and guidelines as the copy, and so do `judge --docs` and `approve --docs`: each heading, paragraph, list item, table cell and quote, with code blocks passed by and code spans read as placeholders. With no paths, `--docs` reads the files the config's `docs` names.\n"
-    filename: lint-docs.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The inspector runs on a page with no dev server\n\n`prosebook/inspector` exports `install`, which takes a `fetch` of its own, and `prosebook/playground`'s `endpoints` answers it in the browser over a catalog's files held in memory, keeping each edit.\n"
+    filename: inspector-without-server.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - judge-two-roles.md
-      - judge-failed-stats.md
-      - lint-paths.md
-      - judge-ask.md
-      - judge-suggestions.md
-      - lint-docs.md
+      - voice-checks.md
+      - inspector-without-server.md
     id: npm:prosebook
     updated: true
   - id: npm:site
@@ -33,32 +17,32 @@ core:packages:
     updated: false
   - id: npm:example-vite
     updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-preact
-    updated: false
   - id: npm:example-bun
-    updated: false
-  - id: npm:example-node
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-node
     updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
   - id: npm:example-next
   - id: npm:example-vite
+  - id: npm:example-bun
+  - id: npm:example-svelte
+  - id: npm:example-tanstack-start
+  - id: npm:example-node
+  - id: npm:example-solid
+  - id: npm:example-rspack
   - id: npm:example-vue
   - id: npm:example-preact
-  - id: npm:example-bun
-  - id: npm:example-node
-  - id: npm:example-svelte
-  - id: npm:example-rspack
-  - id: npm:example-solid
-  - id: npm:example-tanstack-start
