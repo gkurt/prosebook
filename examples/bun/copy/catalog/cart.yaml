@@ -49,7 +49,7 @@ cart.terms:
 cart.shipping:
   kind: description
   surface: hint
-  context: Under the total, says how long delivery takes. The second sentence depends on the delivery speed chosen.
+  context: Under the total, how long delivery takes. The second sentence depends on the delivery speed chosen.
   args:
     days: how many working days delivery takes
     speed: the delivery speed chosen
@@ -58,7 +58,7 @@ cart.shipping:
 cart.place:
   kind: state
   surface: status
-  context: Says how this order ranks among the shop's orders today, as a small celebration.
+  context: How this order ranks among the shop's orders today, as a small celebration.
   args:
     rank: the order's position today, starting from 1
   en: "Today's {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} order!"
@@ -72,7 +72,7 @@ cart.express:
 cart.saved:
   kind: state
   surface: hint
-  context: Under the cart's buttons, says when the cart last changed. It moves on by itself as time passes.
+  context: Under the cart's buttons, when the cart last changed. The time updates by itself as time passes.
   args:
     at: when the cart last changed
   en: Saved {at, relative, recent}.

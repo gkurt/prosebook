@@ -64,6 +64,11 @@ interface RuleBase {
   on?: { kind?: string[]; surface?: string[]; area?: string[]; locale?: 'all' | string[] };
   /** Said in the writing guide too, before the writing, for a rule worth knowing before the lint finds it. */
   guide?: boolean;
+  /**
+   * Reads each entry's `context` too, in the source, beside the message: a writer copies the context's
+   * words into the copy, so a rule against a habit of prose holds the context to the same words.
+   */
+  context?: boolean;
 }
 
 /** A rule written as code. */
@@ -1104,8 +1109,8 @@ export function compileRule(name: string, rule: Rule): CheckRule {
     typeof message === 'string' && message !== '' ? message : fail('has no message: say what to write instead');
   if (typeof rule.description !== 'string' || rule.description === '') fail('has no description: say what it holds a string to');
   if ('check' in rule) return typeof rule.check === 'function' ? rule : fail('has a check that is not a function');
-  const { description, recommended, strict, on, guide } = rule;
-  const base = { description, recommended, strict, on, guide };
+  const { description, recommended, strict, on, guide, context } = rule;
+  const base = { description, recommended, strict, on, guide, context };
   switch (rule.type) {
     case 'guideline': {
       const compiled: CheckRule = { ...base, recommended: recommended ?? 'warn', guide: true, check: () => [] };
@@ -1282,21 +1287,27 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
   for (const message of messages) {
     const kind = message.kind === undefined ? undefined : config.kinds[message.kind];
     const source = readings(message.ast);
-    const locales = [
+    const locales: { locale: string; ast: MessageFormatElement[]; written: string; file: string; context?: true }[] = [
       { locale: config.source, ast: message.ast, written: message.text, file: message.file },
       ...[...message.translations].map(([locale, t]) => ({ locale, ast: t.ast, written: t.text, file: t.file })),
     ];
+    // The context, as plain text, for the rules that read one: a writer copies its words into the copy.
+    if (message.context !== undefined) {
+      const ast = [{ type: TYPE.literal, value: message.context }] as MessageFormatElement[];
+      locales.push({ locale: config.source, ast, written: message.context, file: message.file, context: true });
+    }
     // An exemption is the entry's, so it holds in every locale, and is still needed if any locale needs it.
     const fired = new Set<string>();
     // A guideline nobody judged the entry on may still be broken, so its exemption may still be needed.
     const unjudged = new Set<string>();
-    for (const { locale, ast, written, file } of locales) {
-      const text = locale === config.source ? source : readings(ast);
+    for (const { locale, ast, written, file, context: ofContext } of locales) {
+      const text = ofContext === true ? readings(ast) : locale === config.source ? source : readings(ast);
       const context: RuleContext = { message, locale, ast, written, kind, text, source, catalog, config };
       let literals: Literal[] | undefined;
       for (const [name, { rule }] of rules) {
         const severity = severityOf(config, name, message)!;
         if (severity === 'off' || !applies(rule, message, locale, config.source)) continue;
+        if (ofContext === true && (rule.context !== true || isGuideline(rule))) continue;
         let said: (string | Report)[];
         try {
           if (isGuideline(rule)) {
@@ -1316,6 +1327,11 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
         if (message.allow.has(name)) continue;
         for (const s of said) {
           const { message: text, match, fix, group } = typeof s === 'string' ? { message: s } : s;
+          // A finding in the context has no place in the message's text, and no fix written there.
+          if (ofContext === true) {
+            findings.push({ key: message.key, file, locale, rule: name, severity, message: `in the context, ${text}` });
+            continue;
+          }
           const finding: Finding = { key: message.key, file, locale, rule: name, severity, message: text };
           if (group !== undefined) finding.group = { ...group, file: catalog.find((m) => m.key === group.key)?.file ?? file };
           if (match !== undefined && match !== '') {

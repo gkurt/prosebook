@@ -101,7 +101,7 @@ describe('the tone', () => {
   test('the writing guide says it, with its examples, the form of you, and each area that differs', () => {
     const guide = writingGuide(project({ extends: 'friendly', tone: { notes: 'We sell to bakeries.', areas: { legal: 'plain' } } }));
     expect(guide).toContain('## Tone\n\nWarm and direct, for apps people choose to use.');
-    expect(guide).toContain('errors stay straightforward. We sell to bakeries.');
+    expect(guide).toContain('Errors stay straightforward. We sell to bakeries.');
     // A catalog in English alone has no other locale's form of you to speak of.
     expect(guide).toContain('The copy addresses the reader informally.\n');
     expect(guide).not.toContain('form of `you`');
@@ -112,7 +112,7 @@ describe('the tone', () => {
     );
     expect(guide).toContain('In `legal.*`, plain: Plain and neutral,');
     expect(guide).toContain(
-      'Say what happened, then what the reader can do. Address the reader as `you`. The reader is addressed formally.',
+      'Write what happened, then what the reader can do. Address the reader as `you`. The reader is addressed formally.',
     );
     expect(guide).toContain('- In `legal.*`: No idioms or figures of speech');
     expect(writingGuide(project({}))).not.toContain('## Tone');

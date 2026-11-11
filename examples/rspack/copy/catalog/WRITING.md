@@ -4,40 +4,42 @@
 
 # Writing the copy
 
-Read this before adding or changing an entry in the catalog. It says what the lint cannot check; `prosebook lint` checks the rest.
+Read this guide before adding or changing an entry in the catalog. The guide covers what the lint cannot check. `prosebook lint` checks the rest.
 
-Every string a person reads is an entry in `copy/catalog/<area>.yaml`, in English, read from the code by its key. A key's first segment names its file: `cart.items` lives in `cart.yaml`. An entry holds the message under `en`, in ICU MessageFormat, a `context` sentence saying where it appears, and under `args` what each placeholder holds. Give it a `kind` and a `surface` from the lists below.
+Every string a person reads is an entry in `copy/catalog/<area>.yaml`, in English, read from the code by the entry's key. A key's first segment names the file: `cart.items` lives in `cart.yaml`. An entry holds the message under `en`, in ICU MessageFormat, a `context` sentence on where the string appears and what the string does, and under `args` what each placeholder holds. Give each entry a `kind` and a `surface` from the lists below.
 
-Before adding an entry, look for one that says it already: `prosebook find "Save changes" --kind action --surface action`. Read the one it names rather than adding another, unless it means something else there.
+Before adding an entry, look for an entry with the same words: `prosebook find "Save changes" --kind action --surface action`. Read the entry found rather than adding another, unless the words mean something else in the new place.
+
+Write a `context` as carefully as the message, to the same rules and guidelines, since the next writer copies the words of a context into the copy. Name each thing rather than pointing at the thing with `it` or `its`, write two sentences rather than one with a semicolon, and use the product's verbs, never `says` or `comes`. `prosebook lint` holds every context to the rules against those habits.
 
 ## Kinds
 
-- `name`: Identifies a thing so it can be found again. One to four words, a noun phrase, no period.
-- `action`: Says what pressing it does. One to three words, verb first, no period.
+- `name`: Identifies a thing, so a reader can find the thing again. One to four words, a noun phrase, no period.
+- `action`: Names what pressing the control does. One to three words, verb first, no period.
 - `description`: Adds only what the name cannot carry. One sentence, two at most, with a period.
-- `state`: Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.
+- `state`: Reports what is true right now. One sentence, present tense. On an error or an empty state, one more sentence on what to do next.
 
 ## Surfaces
 
 - `action`: The text of a button or a menu entry.
-- `aria`: Reached only by a screen reader, so nothing on screen carries it.
+- `aria`: Reached only by a screen reader, so nothing on screen carries the words.
 - `choice`: One option among a set offered together.
-- `confirm`: The question of a confirmation, or the verb that answers it.
-- `detail`: A phrase beside or under the thing it qualifies: a row's detail line, a reading, a count. Not a sentence, so a state here ends without a period.
-- `empty`: Fills a list or a panel that has nothing in it.
-- `error`: Says what failed.
+- `confirm`: The question of a confirmation, or the verb that answers the question.
+- `detail`: A phrase beside or under the thing the phrase qualifies, as a row's detail line, a reading or a count. Not a sentence, so a state on a detail ends without a period.
+- `empty`: Fills an empty list or panel.
+- `error`: Names what failed.
 - `heading`: Heads a section, group, dialog or list.
-- `hint`: A subordinate line under the thing it qualifies.
+- `hint`: A subordinate line under the thing the line qualifies.
 - `label`: Names a control, a field, a section or a destination.
 - `placeholder`: Sits inside an empty field, and goes when typing starts.
 - `status`: Reports what is true right now, on a badge or beside a row.
 - `title`: The title of a page, window or document.
-- `toast`: A notification that comes and goes.
+- `toast`: A notification that shows for a few seconds, then closes.
 - `tooltip`: Appears on hover.
 
 ## Formats
 
-A number, date, list, duration or relative time is shown in a format the config names, so it reads the same on every page: `{value, relative, recent}`. Name the one that fits rather than writing its options in the message; one the config lacks is added there.
+A number, date, list, duration or relative time is shown in a format the config names, so the value reads the same on every page: `{value, relative, recent}`. Name the format that fits rather than writing options in the message. A format the config lacks is added to the config.
 
 <!-- Samples of 05bffd5e5b, as the runtime that generated this writes them. -->
 
@@ -45,19 +47,18 @@ A number, date, list, duration or relative time is shown in a format the config 
 
 ## Guidelines
 
-- A label over a value names the field, as a noun: `Reporter`, not `Reported by`; `Members`, not `People in this team`.
-- Use the word the app, or the platform it runs on, has for a thing, not an everyday paraphrase: `Get notified`, not `Hear of your notifications`.
-- A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.
-- A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
-- A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.
-- A sentence doesn't lean on what only its writer had in view: `It`, `its`, `they`, `these` or `the questions`, standing for nothing named before them, point at what the reader can't see. `The workflow's name, instructions and models`, not `Its name, instructions and models`. A short status or label, `Added` or `Turned off`, sits beside what it's about and names nothing.
-- A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as it needs: `Saved the sandbox to resume later` is one. A sentence, with its subject, is for what takes explaining.
+- A label over a value names the field, as a noun: `Reporter`, not `Reported by`. `Members`, not `People in this team`.
+- Every noun and verb is the word the product or the platform uses, the word a reader would search the docs for, never a figure of speech. A schedule runs, not comes. The app parses or accepts a value, not reads the value. A setting sets a value, not says the value. A model generates text, not writes text. The reader enters a value, not writes a value. A switch is `Enabled` or `Disabled` (or `On` or `Off`), never a phrase for what the switch does, such as `Starts work`. Nothing wants, knows, says, tells or moves: `Times less than 15 minutes apart`, not `Times come closer together than 15 minutes`.
+- A control names what the control does, not how to work the control: `Replay`, not `Click this if you want to replay`. Name what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.
+- A message reads right with every value a placeholder holds, long or short, plural, ending in s or starting with a vowel: a possessive or an article on a placeholder turns into `Sales's usage` or `a Enterprise plan`.
+- Copy names each thing outright, every time, and never points at a thing with `it`, `its`, `they`, `their`, `them`, `these` or `there`, even one named earlier in the sentence. A reader lands on one line alone, and a translator has to guess what a pronoun stands for. `The workflow’s name, instructions and models`, not `Its name, instructions and models`. `Each session gets a separate folder`, not `Each session gets a folder of its own`. `Sandboxes have no shell or files`, not `The agent has no shell or files there`. A short status or label beside the thing, `Added` or `Disabled`, needs no name.
+- A phrase where a phrase does: a status, a detail, a toast or a label reads `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as the phrase needs: `Saved the sandbox to resume later` is one. A sentence, with a subject, is for what takes explaining.
 - On `error`: An error says what failed and what the shopper can do about it.
 - Talk to the shopper as someone behind the counter would: plainly, without selling.
 - In `de`: Address the shopper as du, never Sie.
 
 ## Before you finish
 
-Run `prosebook lint` and fix what it finds; `--fix` writes the fixes it offers. Where a rule is wrong about an entry, exempt the entry under `allow` with the reason. An entry's `comment` or `remove` is a request: make the change, then delete the field.
+Run `prosebook lint` and fix every finding. `--fix` writes the fixes the lint offers. Where a rule is wrong about an entry, exempt the entry under `allow` with the reason. An entry's `comment` or `remove` is a request. Make the change, then delete the field.
 
 <!-- prettier-ignore-end -->

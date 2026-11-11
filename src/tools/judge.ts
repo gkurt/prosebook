@@ -69,7 +69,7 @@ export interface Judge {
   ask?: boolean;
   /**
    * The probability from which this model's answer is a break, over `judge.threshold`: models spread
-   * their answers differently, as a language model's product of two answers seldom reaches Jev's 0.7.
+   * their answers differently, and one model's clear breaks may start lower or higher than another's.
    */
   threshold?: number;
 }
@@ -88,12 +88,18 @@ export interface JudgeConfig {
   /** Said to the models beside every entry: what the app is, who reads it, what its copy holds to. */
   prompt?: string;
   /**
-   * The probability from which an entry breaks a guideline: 0.7 by default. Under it a fast model is
-   * more often unsure than right: Jev finds the clear breaks of the `voice` guidelines from 0.7 up.
+   * The probability from which an entry breaks a guideline: 0.5 by default, the product of two answers
+   * of about 0.7 each. Jev gives a guideline's own bad examples 0.7 or more, but an app's real breaks
+   * from about 0.5: on 1,686 entries of one app, 0.7 found 1 break in 11,802 answers, and 0.5 found 174.
    */
   threshold?: number;
   /** Requests in flight at once: 8 by default. */
   concurrency?: number;
+  /**
+   * What `prosebook check` makes of an entry the lock holds no verdict on as written: `error` by
+   * default, so an entry nobody ran `prosebook judge` on fails CI, or `warn`.
+   */
+  unjudged?: 'error' | 'warn';
 }
 
 export type ResolvedJudge = Required<Omit<JudgeConfig, 'prompt'>> & Pick<JudgeConfig, 'prompt'>;

@@ -22,7 +22,7 @@ app.greeting:
 app.last-visit:
   kind: state
   surface: hint
-  context: Under the greeting, says when the person last visited.
+  context: Under the greeting, the time of the person's last visit.
   args:
     when: the date and time of the last visit
   en: Your last visit was {when, date, medium} at {when, time, short}.
@@ -30,7 +30,7 @@ app.last-visit:
 app.now:
   kind: state
   surface: hint
-  context: What a time under a minute from now reads as, in place of "0 minutes ago", wherever the app says how long ago something was.
+  context: What a time under a minute from now reads as, in place of "0 minutes ago", wherever the app shows how long ago something happened.
   args:
     tense: past, or future for a time just ahead
   fragment: true

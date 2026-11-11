@@ -23,11 +23,11 @@
         "oneOf": [
           {
             "const": "name",
-            "description": "Identifies a thing so it can be found again. One to four words, a noun phrase, no period."
+            "description": "Identifies a thing, so a reader can find the thing again. One to four words, a noun phrase, no period."
           },
           {
             "const": "action",
-            "description": "Says what pressing it does. One to three words, verb first, no period."
+            "description": "Names what pressing the control does. One to three words, verb first, no period."
           },
           {
             "const": "description",
@@ -35,7 +35,7 @@
           },
           {
             "const": "state",
-            "description": "Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do."
+            "description": "Reports what is true right now. One sentence, present tense. On an error or an empty state, one more sentence on what to do next."
           }
         ]
       },
@@ -48,7 +48,7 @@
           },
           {
             "const": "aria",
-            "description": "Reached only by a screen reader, so nothing on screen carries it."
+            "description": "Reached only by a screen reader, so nothing on screen carries the words."
           },
           {
             "const": "choice",
@@ -56,19 +56,19 @@
           },
           {
             "const": "confirm",
-            "description": "The question of a confirmation, or the verb that answers it."
+            "description": "The question of a confirmation, or the verb that answers the question."
           },
           {
             "const": "detail",
-            "description": "A phrase beside or under the thing it qualifies: a row's detail line, a reading, a count. Not a sentence, so a state here ends without a period."
+            "description": "A phrase beside or under the thing the phrase qualifies, as a row's detail line, a reading or a count. Not a sentence, so a state on a detail ends without a period."
           },
           {
             "const": "empty",
-            "description": "Fills a list or a panel that has nothing in it."
+            "description": "Fills an empty list or panel."
           },
           {
             "const": "error",
-            "description": "Says what failed."
+            "description": "Names what failed."
           },
           {
             "const": "heading",
@@ -76,7 +76,7 @@
           },
           {
             "const": "hint",
-            "description": "A subordinate line under the thing it qualifies."
+            "description": "A subordinate line under the thing the line qualifies."
           },
           {
             "const": "label",
@@ -96,7 +96,7 @@
           },
           {
             "const": "toast",
-            "description": "A notification that comes and goes."
+            "description": "A notification that shows for a few seconds, then closes."
           },
           {
             "const": "tooltip",
@@ -177,11 +177,15 @@
             "duplicate",
             "voice/field-names",
             "voice/own-words",
-            "voice/no-intent",
             "voice/no-instructions",
             "voice/placeholder-values",
             "voice/familiar-context",
             "voice/phrases",
+            "voice/pointing",
+            "voice/of-its-own",
+            "voice/semicolons",
+            "voice/colon-clause",
+            "voice/figurative-verbs",
             "shop/error-next",
             "shop/plain",
             "shop/du"

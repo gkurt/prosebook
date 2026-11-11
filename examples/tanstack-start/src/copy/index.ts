@@ -40,7 +40,7 @@ export type Messages = {
   /**
    * Your last visit was {when, date, medium} at {when, time, short}.
    *
-   * Under the greeting, says when the person last visited.
+   * Under the greeting, the time of the person's last visit.
    */
   "app.last-visit": {
     args: {
@@ -52,7 +52,7 @@ export type Messages = {
   /**
    * {tense, select, future {in a moment} other {just now}}
    *
-   * What a time under a minute from now reads as, in place of "0 minutes ago", wherever the app says how long ago something was.
+   * What a time under a minute from now reads as, in place of "0 minutes ago", wherever the app shows how long ago something happened.
    */
   "app.now": {
     args: {
@@ -100,7 +100,7 @@ export type Messages = {
   /**
    * Today's {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} order!
    *
-   * Says how this order ranks among the shop's orders today, as a small celebration.
+   * How this order ranks among the shop's orders today, as a small celebration.
    */
   "cart.place": {
     args: {
@@ -118,7 +118,7 @@ export type Messages = {
   /**
    * Saved {at, relative, recent}.
    *
-   * Under the cart's buttons, says when the cart last changed. It moves on by itself as time passes.
+   * Under the cart's buttons, when the cart last changed. The time updates by itself as time passes.
    */
   "cart.saved": {
     args: {
@@ -130,7 +130,7 @@ export type Messages = {
   /**
    * Arrives in {days, plural, one {# working day} other {# working days}}. {speed, select, express {Express delivery is on.} other {Choose express at checkout for next-day delivery.}}
    *
-   * Under the total, says how long delivery takes. The second sentence depends on the delivery speed chosen.
+   * Under the total, how long delivery takes. The second sentence depends on the delivery speed chosen.
    */
   "cart.shipping": {
     args: {

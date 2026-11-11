@@ -32,7 +32,7 @@ export type Messages = {
   /**
    * Printed on {when, date, long} at {when, time, short}.
    *
-   * Under the total, says when the receipt was printed.
+   * Under the total, when the receipt was printed.
    */
   "receipt.printed": {
     args: {
@@ -56,7 +56,7 @@ export type Messages = {
   /**
    * Total: {amount, number, ::currency/EUR}
    *
-   * The sum of the receipt, on its last line.
+   * The sum of the receipt, on the receipt's last line.
    */
   "receipt.total": {
     args: {

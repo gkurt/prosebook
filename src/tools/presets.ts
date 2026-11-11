@@ -1,6 +1,6 @@
 /**
- * The defaults: four kinds of string, the surfaces they sit on, the word lists of the strict lint preset,
- * the voice guidelines, and the presets a config extends for a tone.
+ * The defaults: four kinds of string, the surfaces each sits on, the word lists of the strict lint preset,
+ * and the presets a config extends for a tone. The voice guidelines are `voice.ts`'s.
  *
  * The kinds are the four any UI writing guide comes down to. A name identifies, an action says what
  * pressing it does, a description adds what the name cannot carry, a state reports what is true.
@@ -29,14 +29,14 @@ export interface KindRule {
 
 export const DEFAULT_KINDS: Record<string, KindRule> = {
   name: {
-    doc: 'Identifies a thing so it can be found again. One to four words, a noun phrase, no period.',
+    doc: 'Identifies a thing, so a reader can find the thing again. One to four words, a noun phrase, no period.',
     maxWords: 4,
     period: 'never',
     sentenceCase: true,
     bare: true,
   },
   action: {
-    doc: 'Says what pressing it does. One to three words, verb first, no period.',
+    doc: 'Names what pressing the control does. One to three words, verb first, no period.',
     maxWords: 3,
     period: 'never',
     sentenceCase: true,
@@ -47,7 +47,7 @@ export const DEFAULT_KINDS: Record<string, KindRule> = {
     period: 'always',
   },
   state: {
-    doc: 'Reports what is true right now. One sentence, present tense; on an error or empty state, one more saying what to do.',
+    doc: 'Reports what is true right now. One sentence, present tense. On an error or an empty state, one more sentence on what to do next.',
     maxSentences: 1,
     maxSentencesOn: { error: 2, empty: 2, hint: 2, status: 2 },
     period: ['hint', 'status', 'error', 'empty', 'confirm'],
@@ -56,20 +56,20 @@ export const DEFAULT_KINDS: Record<string, KindRule> = {
 
 export const DEFAULT_SURFACES: Record<string, string> = {
   action: 'The text of a button or a menu entry.',
-  aria: 'Reached only by a screen reader, so nothing on screen carries it.',
+  aria: 'Reached only by a screen reader, so nothing on screen carries the words.',
   choice: 'One option among a set offered together.',
-  confirm: 'The question of a confirmation, or the verb that answers it.',
+  confirm: 'The question of a confirmation, or the verb that answers the question.',
   detail:
-    "A phrase beside or under the thing it qualifies: a row's detail line, a reading, a count. Not a sentence, so a state here ends without a period.",
-  empty: 'Fills a list or a panel that has nothing in it.',
-  error: 'Says what failed.',
+    "A phrase beside or under the thing the phrase qualifies, as a row's detail line, a reading or a count. Not a sentence, so a state on a detail ends without a period.",
+  empty: 'Fills an empty list or panel.',
+  error: 'Names what failed.',
   heading: 'Heads a section, group, dialog or list.',
-  hint: 'A subordinate line under the thing it qualifies.',
+  hint: 'A subordinate line under the thing the line qualifies.',
   label: 'Names a control, a field, a section or a destination.',
   placeholder: 'Sits inside an empty field, and goes when typing starts.',
   status: 'Reports what is true right now, on a badge or beside a row.',
   title: 'The title of a page, window or document.',
-  toast: 'A notification that comes and goes.',
+  toast: 'A notification that shows for a few seconds, then closes.',
   tooltip: 'Appears on hover.',
 };
 
@@ -162,54 +162,6 @@ export const STRICT_LISTS = {
     whilst: 'while',
     amongst: 'among',
   } as Record<string, string>,
-};
-
-/**
- * The habits of copy written off the code, as a model or a developer tends to write it, said in the
- * writing guide so the writer meets them first. Guidelines, not checks: each is a matter of meaning,
- * which a word list would flag in sound copy as often as it caught. Written for English, so on only
- * where the source is; `'voice/*': 'off'` turns them all off.
- */
-export const VOICE: Plugin = {
-  name: 'voice',
-  rules: {
-    'field-names': {
-      type: 'guideline',
-      description: 'A label over a value names the field, as a noun: `Reporter`, not `Reported by`; `Members`, not `People in this team`.',
-    },
-    'own-words': {
-      type: 'guideline',
-      description:
-        'Use the word the app, or the platform it runs on, has for a thing, not an everyday paraphrase: `Get notified`, not `Hear of your notifications`.',
-    },
-    'no-intent': {
-      type: 'guideline',
-      description:
-        "A thing doesn't want, know, decide, say, tell or take in: say what happens. `Runs on new issues`, not `The workflow takes in new issues`; `Alerts above 90%`, not `The metric tells it to alert above 90%`.",
-    },
-    'no-instructions': {
-      type: 'guideline',
-      description:
-        'A control names what it does, not how to work it: `Replay`, not `Click this if you want to replay`. Say what the reader gets, not what the code does: `Saved`, not `Your changes were sent to the server`.',
-    },
-    'placeholder-values': {
-      type: 'guideline',
-      description:
-        "A message reads right with every value its placeholders hold, long or short, plural, ending in s or starting with a vowel: a possessive or an article on one comes to `Sales's usage` or `a Enterprise plan`.",
-    },
-    // The habit of a writer who had the component in view: the pronoun's referent is in the code, the
-    // entry's context or the prompt, never on screen.
-    'familiar-context': {
-      type: 'guideline',
-      description:
-        "A sentence doesn't lean on what only its writer had in view: `It`, `its`, `they`, `these` or `the questions`, standing for nothing named before them, point at what the reader can't see. `The workflow's name, instructions and models`, not `Its name, instructions and models`. A short status or label, `Added` or `Turned off`, sits beside what it's about and names nothing.",
-    },
-    phrases: {
-      type: 'guideline',
-      description:
-        'A phrase where a phrase does: a status, a detail, a toast or a label says `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as it needs: `Saved the sandbox to resume later` is one. A sentence, with its subject, is for what takes explaining.',
-    },
-  },
 };
 
 /** How a product sounds, said in the writing guide, the translation prompt and the judge's notes. */
@@ -373,14 +325,14 @@ export function toneIn(config: Pick<ResolvedConfig, 'tone'>, area: string | unde
  */
 const TONES = {
   plain: {
-    doc: 'Plain and neutral, for services anyone may have to use: government, health, banking, insurance. Short, common words, one idea a sentence, the main point first. No jokes, no exclamation marks, no idioms a reader of English as a second language would stumble on. Say what happened, then what the reader can do. Address the reader as `you`.',
+    doc: 'Plain and neutral, for services anyone may have to use: government, health, banking, insurance. Short, common words, one idea a sentence, the main point first. No jokes, no exclamation marks, no idioms a reader of English as a second language would stumble on. Write what happened, then what the reader can do. Address the reader as `you`.',
     formality: 'formal',
     examples: [
       { kind: 'name', surface: 'heading', say: 'Your applications' },
       {
         kind: 'state',
         surface: 'error',
-        say: 'Your application was not sent. Check your internet connection, then send it again.',
+        say: 'Your application was not sent. Check your internet connection, then send the application again.',
         not: 'Submission failed due to a network error.',
       },
       { kind: 'state', surface: 'empty', say: 'You have no applications. Start one to apply for a permit.' },
@@ -390,24 +342,24 @@ const TONES = {
     ],
   },
   professional: {
-    doc: 'Calm, exact and brief, for tools people use at work all day. Neutral words, few contractions, no exclamation marks, no humor: the reader is busy, and the copy stays out of the way. An error names the cause and the next step without apologizing. Terms of the trade are fine where the reader uses them; terms of the product are not.',
+    doc: 'Calm, exact and brief, for tools people use at work all day. Neutral words, few contractions, no exclamation marks, no humor. The reader is busy, and the copy stays out of the way. An error names the cause and the next step without apologizing. Terms of the trade are fine where the reader uses the same terms. Terms of the product are not.',
     formality: 'formal',
     examples: [
       { kind: 'name', surface: 'heading', say: 'Billing contacts' },
       {
         kind: 'state',
         surface: 'error',
-        say: 'The report could not be exported: it has more rows than an export holds. Choose a shorter date range.',
+        say: 'The report could not be exported: an export holds 10,000 rows at most. Choose a shorter date range.',
         not: "Sorry, we couldn't export your report. Please try again later.",
       },
-      { kind: 'state', surface: 'empty', say: 'No invoices match these filters. Clear a filter to see more.' },
+      { kind: 'state', surface: 'empty', say: 'No invoices match the filters. Clear a filter to see more.' },
       { kind: 'state', surface: 'toast', say: 'Invoice sent' },
       { kind: 'description', surface: 'hint', say: 'Shown on invoices and in emails to customers.' },
       { kind: 'action', surface: 'confirm', say: 'Delete invoices' },
     ],
   },
   friendly: {
-    doc: "Warm and direct, for apps people choose to use. Contractions and everyday words; the reader is `you`, and the product is `we` where it does something on the reader's behalf. Warmth comes from being clear and on the reader's side, not from exclamation marks, apologies or emoji. A little personality in empty states and onboarding; errors stay straightforward.",
+    doc: "Warm and direct, for apps people choose to use. Contractions and everyday words. The reader is `you`, and the product is `we` where the product acts on the reader's behalf. Warmth is in being clear and on the reader's side, not in exclamation marks, apologies or emoji. A little personality in empty states and onboarding. Errors stay straightforward.",
     formality: 'informal',
     examples: [
       { kind: 'name', surface: 'heading', say: 'Your lists' },
@@ -420,7 +372,7 @@ const TONES = {
       {
         kind: 'state',
         surface: 'empty',
-        say: "You haven't saved any recipes yet. Tap the heart on a recipe to keep it here.",
+        say: "You haven't saved any recipes yet. Tap the heart on a recipe to add the recipe here.",
         not: 'No saved recipes.',
       },
       { kind: 'state', surface: 'toast', say: 'Recipe saved', not: 'Yay! Your recipe has been saved!' },
@@ -429,7 +381,7 @@ const TONES = {
     ],
   },
   technical: {
-    doc: 'Terse and exact, for developers and operators. The precise term over the friendly one, and names, commands, codes and values exactly as the system writes them, so the reader can search for them. Numbers with their units. An error says what failed as the system reported it, then the fix; no reassurance, no humor. The reader knows the domain: explain the product, not the field.',
+    doc: "Terse and exact, for developers and operators. The precise term over the friendly one: every name, command, code and value exactly as the system prints the term, and every verb and state as the product's docs use the word, so a reader can search for the same words. A schedule runs, a switch is Enabled or Disabled. Numbers with units. An error names what failed in the system's own words, then the fix. No reassurance, no humor. The reader knows the domain, so explain the product, not the field.",
     formality: 'formal',
     examples: [
       { kind: 'name', surface: 'heading', say: 'Environment variables' },
@@ -446,7 +398,7 @@ const TONES = {
     ],
   },
   playful: {
-    doc: "Light and personable, for products people use for fun: games, hobbies, lifestyle. Humor goes where nothing is at stake: empty states, success, onboarding. Errors, payments, deletion and privacy stay plain, since a joke there reads as not taking the problem seriously. One joke a screen at most, never at the reader's expense, and never one a translation can't carry. Contractions throughout; an exclamation mark only for a real success.",
+    doc: "Light and personable, for products people use for fun: games, hobbies, lifestyle. Humor goes where nothing is at stake: empty states, success, onboarding. Errors, payments, deletion and privacy stay plain, since a joke beside a problem reads as not taking the problem seriously. One joke a screen at most, never at the reader's expense, and never one a translation can't carry. Contractions throughout, and an exclamation mark only for a real success.",
     formality: 'informal',
     examples: [
       { kind: 'name', surface: 'heading', say: 'Up next' },

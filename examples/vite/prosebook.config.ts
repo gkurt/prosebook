@@ -36,8 +36,6 @@ export default {
     models: [
       languageJudge(anthropic('claude-haiku-5-5'), {
         price: { input: 0.1, output: 0.5 },
-        // Haiku's answers seldom reach Jev's 0.7: its clear breaks are from about 0.5.
-        threshold: 0.5,
         ask: Boolean(process.env['ANTHROPIC_API_KEY']),
       }),
       decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 }, ask: Boolean(process.env['TYPESAFE_AI_API_KEY']) }),

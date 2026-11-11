@@ -131,8 +131,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `checkedFormats` holds each named format to a name a message can say and to options `Intl` reads.
   `loadConfig` imports a config file, and the formatters module, anew once it changed (a query for Node, `require.cache` for Bun),
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
-  `presets.ts`: kinds, surfaces, the strict preset's word lists, and `VOICE`, the built-in `voice` plugin: guidelines
-  against the habits of generated copy, on only for an English source. And `PRESETS`, what the config's
+  `voice.ts`: `VOICE`, the built-in `voice` plugin against the habits of generated copy, on only for an
+  English source: guidelines the judge weighs, and checks for the habits a pattern finds reliably (`pointing`,
+  `of-its-own`, `semicolons`, `colon-clause`, `figurative-verbs`), all but `colon-clause` read in the context
+  too (`context: true`), and off in the docs (`DOCS_OFF`, `config.ts`). The tones, kinds and surfaces in
+  `presets.ts` and the guide's own sentences keep to these rules, as agents copy them.
+  `presets.ts`: kinds, surfaces, the strict preset's word lists, and `PRESETS`, what the config's
   `extends` names: each a `Preset`, a tone (`doc`, `formality`, `examples`, the same six moments in every
   tone) and lint rules and words, its plugins data rules. `presetsOf` (`config.ts`) flattens a list, each
   preset after those it extends, once; `toneOf` and `lintOf` merge them, and a preset's severity is
@@ -248,6 +252,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   by the rules whose `on.locale` reads it; unset is the source only, since most rules are English.
   `on.area` scopes a rule to areas, and `lint.areas` sets severities per area (`severityOf`); there and in
   `lint.rules`, `<plugin>/*` sets every rule of a plugin, a rule's own name winning (`severityIn`).
+  A rule with `context: true` also reads the entry's `context`, as one literal in the source, after the
+  locales; its findings say `in the context,` and carry no `at` or `fix`, which point into the message.
   `places.ts` finds a finding's match again in the written text, which readings lose: in the
   literals (`literalsIn`), or, for a string taking in a `HOLE`, in the whole text with `HOLE` as any
   placeholder's syntax (`WRITTEN_HOLE`). `asWritten` gives the text found, which `{match}` shows.
@@ -459,7 +465,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `serializeLock` writing each entry's on one line, and the CLI `brokenGuidelines` on one per entry),
   the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
   each model only what it hasn't answered; raise `PROMPT` when the questions' words change. With several
-  models, the first in `models` that answered an entry decides it, by its own `threshold` where it has one. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`
+  models, the first in `models` that answered an entry decides it, by its own `threshold` where it has one, else
+  `judge.threshold` (0.5: the product of two answers of about 0.7). `check` fails on entries `unanswered` as
+  written (`checkUnjudged`, `cli.ts`) unless `judge.unjudged` is `warn`. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`
   (`authorHash`) under a hash of the entry's own state and the one rule's description, text in code by
   its words alone, so a new model or prompt keeps it, against any rule: those the lint finds broken
   (`heldTo`), and with a judge every guideline held to. An approved guideline is neither asked nor found

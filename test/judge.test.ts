@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import type { Experimental_DecisionModel } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
@@ -355,6 +356,36 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     expect(approved.stdout).toContain('approved form.reporter (en) against house/labels');
     expect(cli(config.root, 'lint').stderr).not.toContain('house/labels');
     expect(cli(config.root, 'approve', '--all').stderr).toContain('none needs approving');
+  });
+
+  test('the CLI: check fails on an entry not judged as written, unless judge.unjudged is warn', () => {
+    const configFile = (unjudged: string) => `import { definePlugin } from 'prosebook/config';
+const house = definePlugin({ name: 'house', rules: { labels: { type: 'guideline', description: 'A label names the field, as a noun.' } } });
+const model = { id: 'fake/check', judge: async ({ questions }) => ({ probabilities: Object.fromEntries(Object.keys(questions).map((q) => [q, 0.1])) }) };
+export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge: { models: [model]${unjudged} } };
+`;
+    const config = fixture({
+      'prosebook.config.ts': configFile(''),
+      'copy/catalog/form.yaml': 'form.reporter:\n  kind: name\n  surface: label\n  context: The label over the reporter.\n  en: Reporter\n',
+    });
+    expect(cli(config.root, 'generate').code).toBe(0);
+    const failed = cli(config.root, 'check');
+    expect(failed.code).toBe(1);
+    expect(failed.stderr).toContain('error form.reporter (en): not judged on house/labels');
+    expect(failed.stderr).toContain('1 entry is not judged against the guidelines as written: run prosebook judge');
+    expect(cli(config.root, 'judge').code).toBe(0);
+    expect(cli(config.root, 'check').code).toBe(0);
+    writeFileSync(
+      join(config.catalog, 'form.yaml'),
+      'form.reporter:\n  kind: name\n  surface: label\n  context: The label over the reporter.\n  en: Filed by\n',
+    );
+    writeFileSync(join(config.root, 'prosebook.config.ts'), configFile(", unjudged: 'warn'"));
+    // The writing guide says check warns now.
+    cli(config.root, 'generate');
+    expect(readFileSync(join(config.catalog, 'WRITING.md'), 'utf8')).toContain('`prosebook check` warns of every entry no judge has read');
+    const warned = cli(config.root, 'check');
+    expect(warned.code).toBe(0);
+    expect(warned.stderr).toContain('warn  1 entry is not judged against the guidelines as written');
   });
 
   test('the CLI: a run failing before any answer says why, and not that the lock had it all', () => {

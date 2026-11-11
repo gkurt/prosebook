@@ -98,8 +98,9 @@ Commands:
                           entry breaking one; --locale, and --rule for one rule). With catalog:
                           false, name text in code by its words or as file:line; with --docs,
                           the docs' prose the same way
-  check                   generate --check, lint and status --strict together, for CI, and warns
-                          of reads whose key a pruned build can't see and of entries not judged
+  check                   generate --check, lint and status --strict together, for CI: fails on
+                          entries not judged as written (judge.unjudged: 'warn' to warn instead),
+                          and warns of reads whose key a pruned build can't see
 
 Options:
   --root <dir>            Project root (default: the current directory)
@@ -281,14 +282,13 @@ async function main(argv: string[]): Promise<number> {
         return runApprove(config, rest, values.all === true, values.locale, values.rule, docs);
       case 'check': {
         if (config.inCode) {
-          code = runLint(config, report);
-          warnUnjudged(config);
+          const linted = runLint(config, report);
+          code = checkUnjudged(config) || linted !== 0 ? 1 : 0;
           break;
         }
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
-        warnUnjudged(config);
-        code = results.some((r) => r !== 0) ? 1 : 0;
+        code = checkUnjudged(config) || results.some((r) => r !== 0) ? 1 : 0;
         break;
       }
       default:
@@ -729,13 +729,23 @@ function runApprove(
   return result.problems.length > 0 ? 1 : 0;
 }
 
-function warnUnjudged(config: ResolvedConfig): void {
+/**
+ * The entries `check` finds not judged as written: errors by default (`judge.unjudged`), each named
+ * with the guidelines it waits on, since an agent that never runs `prosebook judge` leaves a feature's
+ * copy unread by any model. Gives back whether `check` fails on them.
+ */
+function checkUnjudged(config: ResolvedConfig): boolean {
   const open = unjudged(config, entriesOf(config, false), false);
-  if (open.length === 0) return;
+  if (open.length === 0) return false;
   const one = open.length === 1;
-  err(
-    `warn  ${open.length} entr${one ? 'y is' : 'ies are'} not judged against the guidelines as ${one ? 'it is' : 'they are'} now: run prosebook judge`,
-  );
+  const fix = 'run prosebook judge, then rewrite or approve what it finds';
+  if (config.judge?.unjudged === 'warn') {
+    err(`warn  ${open.length} entr${one ? 'y is' : 'ies are'} not judged against the guidelines as written: ${fix}`);
+    return false;
+  }
+  for (const a of open) err(`error ${named(config, a.message.key)} (${a.locale}): not judged on ${[...a.questions.keys()].join(', ')}`);
+  err(`${open.length} entr${one ? 'y is' : 'ies are'} not judged against the guidelines as written: ${fix}`);
+  return true;
 }
 
 async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, report?: SarifReport, scope?: Paths): Promise<number> {
@@ -846,7 +856,7 @@ const isGuidelineFinding = (config: ResolvedConfig, f: Finding) => {
 
 /**
  * The guidelines the models judged an entry to break, said on one line per entry and severity, which
- * the first of them carries: `[voice/phrases, voice/no-intent]`. Each guideline's words, which run
+ * the first of them carries: `[voice/phrases, voice/own-words]`. Each guideline's words, which run
  * long, are said once, after all of them (`sayGuidelines`).
  */
 function brokenGuidelines<F extends Finding>(config: ResolvedConfig, findings: readonly F[]): Map<F, string | undefined> {

@@ -16,7 +16,7 @@ receipt.items:
 receipt.total:
   kind: state
   surface: status
-  context: The sum of the receipt, on its last line.
+  context: The sum of the receipt, on the receipt's last line.
   args:
     amount: the total price, in euros
   fragment: true
@@ -25,7 +25,7 @@ receipt.total:
 receipt.printed:
   kind: state
   surface: hint
-  context: Under the total, says when the receipt was printed.
+  context: Under the total, when the receipt was printed.
   args:
     when: the date and time the receipt was printed
   en: Printed on {when, date, long} at {when, time, short}.

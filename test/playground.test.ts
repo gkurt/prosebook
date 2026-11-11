@@ -38,7 +38,7 @@ const files = {
     'order.items:',
     '  kind: state',
     '  surface: status',
-    '  context: On an order, counts what is in it.',
+    "  context: On an order, counts the order's items.",
     '  fragment: true',
     '  args:',
     '    count: how many items the order holds',

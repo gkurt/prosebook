@@ -78,7 +78,7 @@ export type Messages = {
    */
   "agents.title": { args: {}; tags: never };
   /**
-   * In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.
+   * In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry in place.
    *
    * Under the heading about the inspector, beside a picture of a page with each string's key shown.
    */
@@ -86,7 +86,7 @@ export type Messages = {
   /**
    * This page runs the inspector too. Hold Alt over any text.
    *
-   * Under the inspector's description, on devices with a pointer, says the inspector runs on this page.
+   * Under the inspector's description, on devices with a pointer, notes that the inspector runs on this page.
    */
   "features.inspector.here": { args: {}; tags: never };
   /**
@@ -152,7 +152,7 @@ export type Messages = {
   /**
    * prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can drive.
    *
-   * Under the headline, says what prosebook does.
+   * Under the headline, what prosebook does.
    */
   "hero.lead": { args: {}; tags: never };
   /**
@@ -230,7 +230,7 @@ export type Messages = {
   /**
    * the runtime, gzipped
    *
-   * Beside the runtime's size, says what the figure measures.
+   * Beside the runtime's size, what the figure measures.
    */
   "notes.small.caption": { args: {}; tags: never };
   /**
@@ -254,7 +254,7 @@ export type Messages = {
   /**
    * @gkurttech
    *
-   * A link in the footer to the author's profile on X, by the author's handle there.
+   * A link in the footer to the author's profile on X, by the author's handle on X.
    */
   "site.author": { args: {}; tags: never };
   /**
@@ -368,19 +368,19 @@ export type Messages = {
   /**
    * The catalog
    *
-   * Heads the left half of the demo, the entry as the catalog file holds it.
+   * Heads the left half of the demo, the entry as written in the catalog file.
    */
   "try.entry": { args: {}; tags: never };
   /**
    * Fix
    *
-   * A button on a lint finding in the demo, which makes the change the finding asks for.
+   * A button on a lint finding in the demo, which makes the change the finding names.
    */
   "try.fix": { args: {}; tags: never };
   /**
    * Edit the text. The lint runs as you type, with the rules of a strict project.
    *
-   * Under the demo's heading, says what the demo does.
+   * Under the demo's heading, what the demo does.
    */
   "try.lead": { args: {}; tags: never };
   /**
@@ -422,7 +422,7 @@ export type Messages = {
   /**
    * The app
    *
-   * Heads the right half of the demo, the text as the app would show it.
+   * Heads the right half of the demo, the text as shown in the app.
    */
   "try.shown": { args: {}; tags: never };
   /**

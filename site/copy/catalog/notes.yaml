@@ -62,7 +62,7 @@ notes.small.size:
 notes.small.caption:
   kind: name
   surface: detail
-  context: Beside the runtime's size, says what the figure measures.
+  context: Beside the runtime's size, what the figure measures.
   en: the runtime, gzipped
   fragment: true
 

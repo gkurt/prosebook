@@ -70,7 +70,7 @@ describe('prosebook todo', () => {
     expect(text).toContain('A plural in Polish takes the forms one, few, many, and other');
     expect(text).not.toContain('ordinal');
     expect(text).not.toContain('stale');
-    expect(text).toContain('- action: Says what pressing it does.');
+    expect(text).toContain('- action: Names what pressing the control does.');
     expect(text).toContain('- heading: ');
     expect(text).toEndWith('cart.title: ""\n```');
   });

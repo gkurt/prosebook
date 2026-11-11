@@ -21,7 +21,7 @@ export default {
   "agents.slop.body": "Built-in guidelines name the habits of generated copy, such as instructions on a button or a sentence that leans on what only the writer saw.",
   "agents.slop.title": "Slop, named",
   "agents.title": "Built for agents",
-  "features.inspector.body": "In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry there.",
+  "features.inspector.body": "In dev, hold Alt to see the key behind each string. Alt-click a string to rewrite the entry in place.",
   "features.inspector.here": "This page runs the inspector too. Hold Alt over any text.",
   "features.inspector.title": "Edits on the page",
   "features.lead": "The words live in YAML, each with the context a translator needs, and the code holds only keys.",

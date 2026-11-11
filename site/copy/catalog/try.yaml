@@ -8,7 +8,7 @@ try.title:
 try.lead:
   kind: description
   surface: hint
-  context: Under the demo's heading, says what the demo does.
+  context: Under the demo's heading, what the demo does.
   en: Edit the text. The lint runs as you type, with the rules of a strict project.
 
 try.samples:
@@ -44,7 +44,7 @@ try.sample.count:
 try.entry:
   kind: name
   surface: label
-  context: Heads the left half of the demo, the entry as the catalog file holds it.
+  context: Heads the left half of the demo, the entry as written in the catalog file.
   en: The catalog
 
 try.message:
@@ -56,7 +56,7 @@ try.message:
 try.shown:
   kind: name
   surface: label
-  context: Heads the right half of the demo, the text as the app would show it.
+  context: Heads the right half of the demo, the text as shown in the app.
   en: The app
 
 try.count:
@@ -74,5 +74,5 @@ try.clean:
 try.fix:
   kind: action
   surface: action
-  context: A button on a lint finding in the demo, which makes the change the finding asks for.
+  context: A button on a lint finding in the demo, which makes the change the finding names.
   en: Fix

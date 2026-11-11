@@ -30,13 +30,13 @@ import {
   DEFAULT_SURFACES,
   PRESETS,
   STRICT_LISTS,
-  VOICE,
   type Formality,
   type KindRule,
   type Severity,
   type Tone,
   type ToneExample,
 } from './presets.ts';
+import { VOICE } from './voice.ts';
 
 export type { Formality, KindRule, Severity, Tone, ToneExample };
 export {
@@ -97,8 +97,9 @@ export interface LintConfig extends WordLists {
   guessed?: RuleSeverities;
   /**
    * Severities for the prose of the `docs`, over `rules`. Off there unless set: `word-budget`, as a
-   * heading in a guide runs longer than a name in an app, and `voice/placeholder-values`, as a doc's
-   * code span is written as it stands, never a value that varies.
+   * heading in a guide runs longer than a name in an app, `voice/placeholder-values`, as a doc's code
+   * span is written as it stands, never a value that varies, and `voice/pointing`, `voice/of-its-own`,
+   * `voice/semicolons` and `voice/figurative-verbs`, as a guide's paragraphs run longer than a line of an app.
    */
   docs?: RuleSeverities;
   /**
@@ -562,6 +563,20 @@ function checkedFormatters(table: unknown, formats: Formats, at: string): Format
   return table;
 }
 
+/**
+ * The rules off in the docs unless `lint.docs` sets them: a heading in a guide runs longer than a name in
+ * an app, a doc's code span is written as it stands, never a value that varies, and a guide's paragraphs
+ * hold pronouns, semicolons and figures of speech a line of an app does not.
+ */
+const DOCS_OFF: Record<string, Severity> = {
+  'word-budget': 'off',
+  'voice/placeholder-values': 'off',
+  'voice/pointing': 'off',
+  'voice/of-its-own': 'off',
+  'voice/semicolons': 'off',
+  'voice/figurative-verbs': 'off',
+};
+
 /** What only a catalog's messages read, which a config with `catalog: false` is refused for naming. */
 const CATALOG_ONLY = ['locales', 'out', 'messageFormat', 'native', 'pseudo', 'bundled', 'stale', 'extract', 'require'] as const;
 
@@ -635,7 +650,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
         ]),
       ),
       guessed: lint.guessed ?? {},
-      docs: { 'word-budget': 'off', 'voice/placeholder-values': 'off', ...lint.docs },
+      docs: { ...DOCS_OFF, ...lint.docs },
       reasons: checkedReasons(lint.reasons ?? {}),
       banned: [...(strict ? STRICT_LISTS.banned : []), ...fromPresets.banned, ...(lint.banned ?? [])],
       spelling: { ...(strict ? STRICT_LISTS.spelling : {}), ...fromPresets.spelling, ...lint.spelling },
@@ -994,7 +1009,7 @@ function checkedFormats(formats: Formats, whole: boolean): Formats {
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
 /** `judge`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
 function checkedJudge(judge: JudgeConfig): ResolvedJudge {
-  const { models, prompt, threshold = 0.7, concurrency = 8 } = judge;
+  const { models, prompt, threshold = 0.5, concurrency = 8, unjudged = 'error' } = judge;
   if (!Array.isArray(models) || models.length === 0)
     throw new Error('judge.models is not a list of models: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts');
   const ids = new Set<string>();
@@ -1012,7 +1027,8 @@ function checkedJudge(judge: JudgeConfig): ResolvedJudge {
     throw new Error('judge.prompt is empty: say what the app is and who reads it, or leave it out');
   if (!(threshold > 0 && threshold < 1)) throw new Error(`judge.threshold is ${threshold}: give a probability between 0 and 1`);
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`judge.concurrency is ${concurrency}: give a whole number from 1`);
-  return { models, threshold, concurrency, ...(prompt !== undefined && { prompt }) };
+  if (unjudged !== 'error' && unjudged !== 'warn') throw new Error(`judge.unjudged is ${String(unjudged)}: set it to 'error' or 'warn'`);
+  return { models, threshold, concurrency, unjudged, ...(prompt !== undefined && { prompt }) };
 }
 
 function checkedReasons(reasons: Record<string, string>): Record<string, string> {

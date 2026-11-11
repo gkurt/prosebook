@@ -614,9 +614,12 @@ describe('lint', () => {
       'app.f [formatted-by-hand] "$" is typed before price: format it as a currency, which puts the symbol where the locale does',
       'app.g [formatted-by-hand] "%" is typed after rate: format it as a percent, which takes the fraction (0.5 for 50%)',
       'app.h [formatted-by-hand] "10,000" groups its digits the English way: make it a placeholder formatted as a number',
+      `app.j [voice/pointing] "it" points at a thing in place of naming the thing: write the name, as "the workflow's name" in place of "its name"`,
+      `app.j [voice/pointing] "their" points at a thing in place of naming the thing: write the name, as "the workflow's name" in place of "its name"`,
       'app.k [plural-count] total is followed by "IDs", which reads "1 IDs": make it a plural with a "# ID" arm',
       'app.l [plural-forms] English writes {count} in the forms one and other: add one, even where an arm says what other says',
       'app.n [plural-count] count is followed by "files", which reads "1 files": make it a plural with a "# file" arm',
+      'app.n [voice/pointing] "there" points at a place: name the place, as "in the sandbox"',
       'app.o [formatted-by-hand] "h" is typed after hours: format it as a unit, {hours, number, ::unit/hour unit-width-narrow}, which writes it as the locale does',
       'app.o [formatted-by-hand] "m" is typed after minutes: format it as a unit, {minutes, number, ::unit/minute unit-width-narrow}, which writes it as the locale does',
       'app.o [formatted-by-hand] "MB" is typed after size: format it as a unit, {size, number, ::unit/megabyte unit-width-narrow}, which writes it as the locale does',
@@ -694,7 +697,7 @@ describe('lint', () => {
     const catalog = [
       'app.a: Colour could not load...',
       "app.b: It''s gone...",
-      'app.c:\n  context: Kept as it was.\n  en: Pick a colour, any colour',
+      'app.c:\n  context: Kept as written.\n  en: Pick a colour, any colour',
       '',
     ].join('\n');
     const config = fixture(
@@ -712,14 +715,18 @@ describe('lint', () => {
       'de app.a [whitespace] {"start":5,"end":7} [" "]',
       // The literal reads "It's", but the text writes "It''s": nowhere to put the fix.
       'en app.b [ellipsis] undefined undefined',
+      'en app.b [voice/pointing] undefined undefined',
       'en app.c [spelling] {"start":7,"end":13} ["color","color"]',
     ]);
 
     expect(applyFixes(config, loadCatalog(config), findings)).toEqual({ fixed: 5, problems: [] });
     expect(readFileSync(join(config.catalog, 'app.yaml'), 'utf8')).toBe(
-      ["app.a: Color couldn't load…", "app.b: It''s gone...", 'app.c:\n  context: Kept as it was.\n  en: Pick a color, any color', ''].join(
-        '\n',
-      ),
+      [
+        "app.a: Color couldn't load…",
+        "app.b: It''s gone...",
+        'app.c:\n  context: Kept as written.\n  en: Pick a color, any color',
+        '',
+      ].join('\n'),
     );
     expect(readFileSync(join(config.locales, 'de.yaml'), 'utf8')).toBe('app.a: "Farbe nicht geladen."\n');
   });

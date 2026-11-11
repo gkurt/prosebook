@@ -246,7 +246,7 @@ describe('prosebook extract', () => {
       'plan.your-plan',
     ]);
     expect(shared.warnings).toEqual([]);
-    expect(writingGuide(config)).toContain('are one entry in `common.yaml`: read that one rather than adding another.');
+    expect(writingGuide(config)).toContain('are one entry in `common.yaml`. Read the shared entry rather than adding another.');
   });
 
   test('two files that would share an area each take their folder too, and say so', async () => {

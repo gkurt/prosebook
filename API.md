@@ -611,25 +611,51 @@ other's and `generate --check` passes on both.
 
 #### Voice guidelines
 
-The guide also says seven guidelines against the habits of copy written off the code, as an agent tends to write it:
+The guide also says six guidelines against the habits of copy written off the code, as an agent tends to write it:
 
 | Rule                       | Guideline                                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------------- |
 | `voice/field-names`        | A label over a value is a noun: `Reporter`, not `Reported by`                            |
-| `voice/own-words`          | The app's or the platform's word, not a paraphrase: `Get notified`, not `Hear of…`       |
-| `voice/no-intent`          | Things don't want, know, say or tell: `Runs on new issues`, not `The workflow takes in…` |
-| `voice/no-instructions`    | A control names what it does: `Replay`, not `Click this if you want to replay`           |
-| `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` comes to `Sales's usage`   |
-| `voice/familiar-context`   | A sentence names what it's about: `The workflow's name`, not `Its name`                  |
+| `voice/own-words`          | The product's noun and verb, the word a reader searches for: a schedule runs, not comes  |
+| `voice/no-instructions`    | A control names what the control does: `Replay`, not `Click this if you want to replay`  |
+| `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` turns into `Sales's usage` |
+| `voice/familiar-context`   | Copy names the thing, never points at the thing: `The workflow's name`, not `Its name`   |
 | `voice/phrases`            | A phrase where a phrase does: `Saved`, not `Your changes have been saved.`               |
 
 They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught, but a
-model can judge, with [`prosebook judge`](#judge). They're written in English, so they're on only where the source is. Turn them
-all off, or one, or in an area:
+model can judge, with [`prosebook judge`](#judge). A switch's state is one example `voice/own-words` gives: `Enabled` or
+`Disabled`, never a phrase for what the switch does, such as `Starts work`.
+
+Five habits are found reliably by a pattern, so the `voice` plugin checks them too, as warnings under `recommended` and errors
+under `strict`:
+
+| Rule                     | Finds                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `voice/pointing`         | `it`, `its`, `they`, `their`, `them`, and `there` for a place: `The agent has no files there` |
+| `voice/of-its-own`       | `of its own`, `of their own`, `of {name}'s own`: `a folder of its own` is `a separate folder` |
+| `voice/semicolons`       | Two facts joined with a semicolon, which make two sentences                                   |
+| `voice/colon-clause`     | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted   |
+| `voice/figurative-verbs` | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`        |
+
+`There is` and `is there` point at no place, and pass. `Region: {region}`, a short list after a colon, and `Build failed: npm
+run build exited with code 1.` on the `error` surface pass `voice/colon-clause`. Read and write are left to `voice/own-words`,
+since a tool named `Read` or a `Cache read` is the product's own word.
+
+Each entry's `context` is held to `voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` too,
+since the next writer copies the words of a context into the copy:
+
+```text
+warn  copy/catalog/cart.yaml:72:1 cart.saved: [voice/pointing] in the context, "it" points at a thing in place of naming the thing: …
+```
+
+A rule of your own reads the context with `context: true`. An `allow` exempts the message and the context alike.
+
+The `voice` plugin is written in English, so the plugin is on only where the source is. Turn the plugin off, or one rule, or the
+plugin in an area:
 
 ```ts
 lint: {
-  rules: { 'voice/*': 'off', 'voice/no-intent': 'warn' }, // <plugin>/* sets every rule of a plugin, a rule's own name wins
+  rules: { 'voice/*': 'off', 'voice/own-words': 'warn' }, // <plugin>/* sets every rule of a plugin, a rule's own name wins
   areas: { marketing: { 'voice/*': 'off' } },
 },
 ```
@@ -1100,7 +1126,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | `find <words>`           | The entries saying the words given, to read before adding one (`--kind`, `--surface`).                                    |
 | `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).                                    |
 | `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).                            |
-| `check`                  | `generate --check`, `lint` and `status --strict`, for CI.                                                                 |
+| `check`                  | `generate --check`, `lint` and `status --strict`, for CI, failing on an entry not judged as written.                      |
 
 `--root <dir>` sets the project root. `lint`, `scan`, `status`, `judge` and `check` take `--format sarif`.
 
@@ -1220,6 +1246,7 @@ export default defineConfig({ lint: { plugins: [house], rules: { 'house/error-sa
   `--fix` writes, and `group` (`{ key, message }`) a problem across entries, said once at `key`. A `match` taking in a `HOLE`
   points at the placeholder too, and has no fix, since a fix can't write the placeholder back.
 - `recommended` and `strict` set the severity under each preset; `guide: true` puts the description in the writing guide.
+  `context: true` reads each entry's `context` too, as plain text, its findings said `in the context, …` with no fix.
   `lint.rules` and `lint.areas` set one rule's (`house/error-says-what-to-do`) or every rule's of the plugin (`house/*`).
 
 **Plugins as data**, after [Vale](https://vale.sh)'s rule types, in a `prosebook.config.json` too:
@@ -1287,7 +1314,8 @@ export default defineConfig({
   judge: {
     models: [decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } })], // dollars per million tokens
     prompt: 'An incident tool for on-call engineers, read mid-incident.', // beside every entry, as `notes`
-    threshold: 0.7, // the probability from which an entry breaks a guideline
+    threshold: 0.5, // the probability from which an entry breaks a guideline
+    unjudged: 'error', // what `check` makes of an entry not judged as written, or 'warn'
     concurrency: 8, // requests in flight
   },
 });
@@ -1314,8 +1342,7 @@ guideline, with its words.
   the entry breaks a guideline, and the next decides where the first hasn't answered. A model of your own, for one the AI SDK
   doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
   `judge({ state, questions })` giving each question's probability of a yes.
-- **A model's own `threshold`** reads its answers over `judge.threshold`, as models spread their answers differently: Claude
-  Haiku's clear breaks are from about 0.5, where Jev's are from 0.7.
+- **A model's own `threshold`** reads the model's answers over `judge.threshold`, as models spread answers differently.
 - **`ask: false`** declares a model that can't be asked on this machine, as when the model's key isn't set: no run asks the
   model, and `--check` waits on none of the model's answers, but the answers the lock holds count, so every machine reads the
   same verdicts whatever keys the machine has.
@@ -1328,8 +1355,10 @@ guideline, with its words.
   request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
   run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and
   what they cost.
-- **`lint` and `check` read the verdicts** from the lock, with no model and no key, and `check` warns of entries not judged
-  as they are now. The lock keeps the probability, so a new `threshold` needs no new run.
+- **`lint` and `check` read the verdicts** from the lock, with no model and no key. The lock keeps the probability, so a new
+  `threshold` needs no new run.
+- **`check` fails on an entry not judged as written**, naming each, so an entry nobody ran `prosebook judge` on fails CI:
+  `unjudged: 'warn'` warns instead. A model set `ask: false` waits on no answer, as `--check` does.
 - **`--check`** asks nothing and fails on any entry not judged as it is now.
 
 #### Suggestions
@@ -1347,7 +1376,7 @@ judge: {
 ```
 
 ```text
-warn  copy/catalog/home.yaml:4:1 home.greeting: [voice/no-intent] breaks this guideline, the models judge
+warn  copy/catalog/home.yaml:4:1 home.greeting: [voice/own-words] breaks this guideline, the models judge
       suggested: "Welcome, {name}."
 1 entry has a judge's rewrite: read it, then write it with prosebook lint --fix --unsafe.
 ```
@@ -1374,11 +1403,13 @@ prosebook approve --all                    # every entry breaking one
 An approval is the author's verdict, kept in the lock as `author` beside the models', under a hash of the entry and the
 rule alone. It passes the entry whatever the rule or the models say, and no model is asked of it, until the entry's words,
 role or context change, or the rule's description; a new model or prompt keeps it. It needs no `judge` for a rule that isn't
-a guideline. `allow: { voice/no-intent: <why> }` passes an entry for good instead, through every edit, and is called stale
+a guideline. `allow: { voice/own-words: <why> }` passes an entry for good instead, through every edit, and is called stale
 only once a verdict says the entry keeps to the guideline.
 
-The default threshold is from the guidelines' own examples: Jev judged each bad example broken from 0.7 to 0.96, and none of
-the good ones from 0.7. Below it, the model is more often unsure than right.
+The probability an entry breaks a guideline is the product of the two answers, so the default threshold, 0.5, asks for about
+0.7 on each. Jev judges a guideline's own bad examples broken from 0.7 up, but an app's real breaks from about 0.5: on the
+copy of one app, 0.7 found 1 break in about twelve thousand answers, and 0.5 found 174. The product, rather than the mean, keeps a doubtful
+answer to whether a guideline concerns the entry from passing on a sure answer to whether the entry breaks the guideline.
 
 ### Scan
 
@@ -1502,8 +1533,9 @@ error docs/setup.md:14:3 "It syncs every five minutes.": [voice/familiar-context
 - Front matter, code blocks, HTML blocks and MDX's imports aren't prose. In the prose, a code span or a bare URL is a
   placeholder, `{code}` or `{link}`, so the rules read the words around it; links, emphasis and tags leave their words.
 - A heading, and a table's column heading, is a name on a heading, so `sentence-case` reads it; the rest takes no kind.
-  `lint.docs` sets severities for the docs over `lint.rules`. Off there unless set: `word-budget`, and
-  `voice/placeholder-values`, since a code span in a doc is fixed text, never a value that varies:
+  `lint.docs` sets severities for the docs over `lint.rules`. Off there unless set: `word-budget`,
+  `voice/placeholder-values`, since a code span in a doc is fixed text, never a value that varies, and `voice/pointing`,
+  `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs`, since a guide's paragraphs run longer than a line of an app:
 
   ```ts
   lint: { docs: { 'word-budget': 'warn', contractions: 'off' } },
@@ -1870,7 +1902,7 @@ export default defineConfig({
     rules: {},
     areas: {},
     guessed: {}, // severities for text in code whose role was guessed
-    docs: {}, // severities for the docs' prose; word-budget off unless set
+    docs: {}, // severities for the docs' prose; word-budget and four voice rules off unless set
     reasons: {},
     quotes: {}, // { de: ['»', '«'] }
     banned: [],
@@ -1879,7 +1911,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
-  judge: undefined, // { models, prompt, threshold: 0.7, concurrency: 8 }: decision models for `prosebook judge`
+  judge: undefined, // { models, prompt, threshold: 0.5, concurrency: 8, unjudged: 'error' }: decision models for `prosebook judge`
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says
