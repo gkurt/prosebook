@@ -15,6 +15,7 @@ import { AUTHOR, type Judge, type JudgeConfig, type ResolvedJudge } from './judg
 import {
   compileRule,
   CORE_RULES,
+  isGuideline,
   namesRule,
   REASON_NAME,
   reasonProblem,
@@ -680,7 +681,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       ...(roles !== undefined && { roles }),
     },
     docs: pathsFrom(root, config.docs ?? []),
-    ...(config.judge !== undefined && { judge: checkedJudge(config.judge) }),
+    ...(config.judge !== undefined && { judge: checkedJudge(config.judge, rules) }),
   };
 }
 
@@ -1008,8 +1009,23 @@ function checkedFormats(formats: Formats, whole: boolean): Formats {
 
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
 /** `judge`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
-function checkedJudge(judge: JudgeConfig): ResolvedJudge {
+/**
+ * The guidelines' own thresholds unless `judge.thresholds` sets them: Jev at 0.5 found 123 of an app's
+ * phrases breaking `voice/phrases`, the very phrases the guideline asks for among them, and 10 from 0.7.
+ */
+const DEFAULT_THRESHOLDS: Record<string, number> = { 'voice/phrases': 0.7 };
+
+function checkedJudge(judge: JudgeConfig, rules: ResolvedConfig['lint']['rules']): ResolvedJudge {
   const { models, prompt, threshold = 0.5, concurrency = 8, unjudged = 'error' } = judge;
+  const thresholds = { ...DEFAULT_THRESHOLDS, ...judge.thresholds };
+  for (const [rule, t] of Object.entries(thresholds)) {
+    if (!(typeof t === 'number' && t > 0 && t < 1))
+      throw new Error(`judge.thresholds.${rule} is ${String(t)}: give a probability between 0 and 1`);
+    const named = rules[rule];
+    if (named !== undefined && isGuideline(named.rule)) continue;
+    const guidelines = Object.keys(rules).filter((r) => isGuideline(rules[r]!.rule));
+    throw new Error(`judge.thresholds.${rule} names no guideline: name one of ${guidelines.join(', ')}`);
+  }
   if (!Array.isArray(models) || models.length === 0)
     throw new Error('judge.models is not a list of models: decisionJudge(model) from prosebook/ai makes one, in a prosebook.config.ts');
   const ids = new Set<string>();
@@ -1028,7 +1044,7 @@ function checkedJudge(judge: JudgeConfig): ResolvedJudge {
   if (!(threshold > 0 && threshold < 1)) throw new Error(`judge.threshold is ${threshold}: give a probability between 0 and 1`);
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`judge.concurrency is ${concurrency}: give a whole number from 1`);
   if (unjudged !== 'error' && unjudged !== 'warn') throw new Error(`judge.unjudged is ${String(unjudged)}: set it to 'error' or 'warn'`);
-  return { models, threshold, concurrency, unjudged, ...(prompt !== undefined && { prompt }) };
+  return { models, threshold, thresholds, concurrency, unjudged, ...(prompt !== undefined && { prompt }) };
 }
 
 function checkedReasons(reasons: Record<string, string>): Record<string, string> {

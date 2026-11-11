@@ -465,7 +465,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `serializeLock` writing each entry's on one line, and the CLI `brokenGuidelines` on one per entry),
   the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
   each model only what it hasn't answered; raise `PROMPT` when the questions' words change. With several
-  models, the first in `models` that answered an entry decides it, by its own `threshold` where it has one, else
+  models, the first in `models` that answered an entry decides it, by the guideline's own threshold
+  (`judge.thresholds`, over `DEFAULT_THRESHOLDS` in `config.ts`), else the model's own `threshold`, else
   `judge.threshold` (0.5: the product of two answers of about 0.7). `check` fails on entries `unanswered` as
   written (`checkUnjudged`, `cli.ts`) unless `judge.unjudged` is `warn`. The author is the judge `AUTHOR`: `approve` writes `<hash>:0`
   (`authorHash`) under a hash of the entry's own state and the one rule's description, text in code by

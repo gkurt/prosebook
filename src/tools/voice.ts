@@ -141,7 +141,7 @@ export const VOICE: Plugin = {
     'own-words': {
       type: 'guideline',
       description:
-        'Every noun and verb is the word the product or the platform uses, the word a reader would search the docs for, never a figure of speech. A schedule runs, not comes. The app parses or accepts a value, not reads the value. A setting sets a value, not says the value. A model generates text, not writes text. The reader enters a value, not writes a value. A switch is `Enabled` or `Disabled` (or `On` or `Off`), never a phrase for what the switch does, such as `Starts work`. Nothing wants, knows, says, tells or moves: `Times less than 15 minutes apart`, not `Times come closer together than 15 minutes`.',
+        'Every noun and verb is the word the product or the platform uses, the word a reader would search the docs for, never a figure of speech. A schedule runs, not comes. The app parses or accepts a value, not reads the value. A setting sets a value, not says the value. A model generates text, not writes text. The reader enters a value, not writes a value. Read and write stay where a thing reads or writes in fact, as a tool reads a file: `Couldn’t read the file`, `Tool calls that write`. A switch is `Enabled` or `Disabled` (or `On` or `Off`), never a phrase for what the switch does, such as `Starts work`. Nothing wants, knows, says, tells or moves: `Times less than 15 minutes apart`, not `Times come closer together than 15 minutes`.',
     },
     'no-instructions': {
       type: 'guideline',

@@ -261,6 +261,31 @@ describe('judge', () => {
     expect(judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [fakeJudge()], threshold: 0.9 } }))).toHaveLength(0);
   });
 
+  test("a guideline's own threshold reads every model's answers of the guideline, and voice/phrases is 0.7 unless set", async () => {
+    const config = project(fakeJudge());
+    await run(config);
+    const at = (thresholds: Record<string, number>, model: Partial<Judge> = {}) =>
+      judged(resolveConfig(config.root, { ...configOf(config), judge: { models: [{ ...fakeJudge(), ...model }], thresholds } })).map(
+        (f) => f.rule,
+      );
+    expect(at({})).toEqual(['house/labels']);
+    expect(at({ 'house/labels': 0.9 })).toEqual([]);
+    // Over a model's own threshold too.
+    expect(at({ 'house/labels': 0.9 }, { threshold: 0.01 })).not.toContain('house/labels');
+    expect(config.judge?.thresholds).toEqual({ 'voice/phrases': 0.7 });
+    expect(
+      resolveConfig(config.root, { judge: { models: [fakeJudge()], thresholds: { 'voice/phrases': 0.5 } } }).judge?.thresholds,
+    ).toEqual({
+      'voice/phrases': 0.5,
+    });
+    expect(() => resolveConfig(config.root, { judge: { models: [fakeJudge()], thresholds: { 'no-period': 0.6 } } })).toThrow(
+      'judge.thresholds.no-period names no guideline',
+    );
+    expect(() => resolveConfig(config.root, { judge: { models: [fakeJudge()], thresholds: { 'voice/phrases': 2 } } })).toThrow(
+      'judge.thresholds.voice/phrases is 2: give a probability between 0 and 1',
+    );
+  });
+
   test("an exemption hides the finding, and is stale only once a verdict says it isn't needed", async () => {
     const judge = fakeJudge();
     const config = project(judge);

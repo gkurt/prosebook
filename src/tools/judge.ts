@@ -93,6 +93,12 @@ export interface JudgeConfig {
    * from about 0.5: on 1,686 entries of one app, 0.7 found 1 break in 11,802 answers, and 0.5 found 174.
    */
   threshold?: number;
+  /**
+   * A guideline's own threshold, by rule name, over every model's: a guideline a model finds broken
+   * too readily takes a higher one. `voice/phrases` is 0.7 unless set: Jev at 0.5 found phrases
+   * such as `Link sent to {email}` breaking the guideline, and kept its clear breaks from 0.7 up.
+   */
+  thresholds?: Record<string, number>;
   /** Requests in flight at once: 8 by default. */
   concurrency?: number;
   /**
@@ -288,9 +294,10 @@ export function verdictsOf(config: ResolvedConfig, messages: readonly Message[],
     const a = byEntry.get(message)?.get(locale);
     if (a === undefined || judge === undefined || !a.questions.has(rule)) return undefined;
     // The first model that answered decides: one not asked here, or not yet, leaves the next to.
+    // A guideline's own threshold, else the model's, else every guideline's.
     for (const { id, threshold = judge.threshold } of judge.models) {
       const p = answerOf(lock.judged, a, rule, id);
-      if (p !== undefined) return p >= threshold;
+      if (p !== undefined) return p >= (judge.thresholds[rule] ?? threshold);
     }
     return undefined;
   };

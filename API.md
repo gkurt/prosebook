@@ -1315,6 +1315,7 @@ export default defineConfig({
     models: [decisionJudge(typeSafeAi.decisionModel('jev-latest'), { price: { input: 0.042 } })], // dollars per million tokens
     prompt: 'An incident tool for on-call engineers, read mid-incident.', // beside every entry, as `notes`
     threshold: 0.5, // the probability from which an entry breaks a guideline
+    thresholds: { 'voice/phrases': 0.7 }, // a guideline's own, over every model's
     unjudged: 'error', // what `check` makes of an entry not judged as written, or 'warn'
     concurrency: 8, // requests in flight
   },
@@ -1343,6 +1344,9 @@ guideline, with its words.
   doesn't reach, is a `Judge` from `prosebook/config`: an `id`, which names its answers in the lock, and
   `judge({ state, questions })` giving each question's probability of a yes.
 - **A model's own `threshold`** reads the model's answers over `judge.threshold`, as models spread answers differently.
+- **A guideline's own threshold**, under `thresholds` by rule name, reads every model's answers of the guideline, over a model's
+  `threshold`: a guideline a model finds broken too readily takes a higher one. `voice/phrases` is 0.7 unless set, since Jev at 0.5
+  found phrases such as `Link sent to {email}` breaking the guideline.
 - **`ask: false`** declares a model that can't be asked on this machine, as when the model's key isn't set: no run asks the
   model, and `--check` waits on none of the model's answers, but the answers the lock holds count, so every machine reads the
   same verdicts whatever keys the machine has.
@@ -1911,7 +1915,7 @@ export default defineConfig({
     properNouns: [],
     pathSeparator: '›',
   },
-  judge: undefined, // { models, prompt, threshold: 0.5, concurrency: 8, unjudged: 'error' }: decision models for `prosebook judge`
+  judge: undefined, // { models, prompt, threshold: 0.5, thresholds, concurrency: 8, unjudged: 'error' }: models for `prosebook judge`
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says
