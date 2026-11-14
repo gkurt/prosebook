@@ -129,9 +129,10 @@ test('watching, an edit to the catalog is built again', async () => {
       }
     });
   });
-  for (let i = 0; i < 100 && builds.length < 2; i++) await Bun.sleep(50);
+  // Not the second build: on Windows webpack builds again first for the folder `generate` wrote as the watch began.
+  for (let i = 0; i < 100 && builds.at(-1)?.includes('Edited message') !== true; i++) await Bun.sleep(50);
   await new Promise<void>((done) => watching.close(done));
   expect(builds[0]).toContain('Used message');
   expect(builds.at(-1)).toContain('Edited message');
-  // Longer than the 5 seconds it waits for the second build, which Bun's default timeout would cut short under load.
+  // Longer than the 5 seconds it waits for the edit's build, which Bun's default timeout would cut short under load.
 }, 20_000);
