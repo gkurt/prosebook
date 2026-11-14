@@ -24,7 +24,7 @@ export type Messages = {
    */
   "agents.cli.body": { args: {}; tags: never };
   /**
-   * A CLI to run
+   * A CLI to run from a shell
    *
    * Heads the feature about the command line.
    */

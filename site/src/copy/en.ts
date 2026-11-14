@@ -12,7 +12,7 @@ import type { CompiledMessages } from 'prosebook';
 // prettier-ignore
 export default {
   "agents.cli.body": "Finding, linting, extracting and renaming all run from a shell, and every problem states the fix.",
-  "agents.cli.title": "A CLI to run",
+  "agents.cli.title": "A CLI to run from a shell",
   "agents.guide.body": "Every project gets a writing guide, generated from the config, with where an entry goes and the guidelines no rule can check.",
   "agents.guide.title": "A guide to read first",
   "agents.judge.body": "A decision model holds each entry to the guidelines no rule can check. Only changed entries are asked again, and a language model can suggest the rewrite.",

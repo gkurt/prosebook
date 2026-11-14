@@ -27,7 +27,7 @@ agents.cli.title:
   kind: name
   surface: heading
   context: Heads the feature about the command line.
-  en: A CLI to run
+  en: A CLI to run from a shell
 
 agents.cli.body:
   kind: description
