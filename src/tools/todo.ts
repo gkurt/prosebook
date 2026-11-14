@@ -2,8 +2,8 @@
  * `prosebook todo`: a locale's missing and stale entries, each with what a translator needs above it,
  * as the YAML to fill in. `prosebook import` reads it back filled.
  *
- * With `prompt`, it leads with what a model must be told to reply in that form. prosebook writes the
- * prompt and checks the reply; which model answers it, and how, is left to whoever runs it.
+ * With `prompt`, it leads with what a model must be told to reply in that form: for whoever hands it
+ * to a model, or for `prosebook translate`, which asks the config's model of `only` a batch of keys.
  */
 import { stringify } from 'yaml';
 
@@ -28,8 +28,9 @@ export function todoOf(
   stale: ReadonlyMap<string, StaleTranslation>,
   locale: string,
   prompt = false,
+  only?: ReadonlySet<string>,
 ): Todo {
-  const wanted = todoMessages(catalog, stale, locale);
+  const wanted = todoMessages(catalog, stale, locale).filter((m) => only === undefined || only.has(m.key));
   if (wanted.length === 0) return { count: 0, text: `# ${locale} is complete` };
   const byArea = new Map<string, string[]>();
   for (const m of wanted) {

@@ -7,6 +7,7 @@
  */
 export { addArea, createCopy, defineCatalog, type Catalog, type Copy, type CopyOptions, type Translate } from './runtime/copy.ts';
 export { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from './runtime/locale.ts';
+export { localeRoutes, type LocaleRoutes, type LocaleRoutesOptions } from './runtime/routes.ts';
 export { createHelpers, flatten, type HelperOptions } from './runtime/helpers.ts';
 export { defineFormatters } from './runtime/formats.ts';
 export { relativeTime, type RelativeTime } from './runtime/relative.ts';

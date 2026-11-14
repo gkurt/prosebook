@@ -49,6 +49,7 @@ import { inPaths, isReferenced, scan, sourceFiles, unscanned, whereOf as hardcod
 import { lintScanned, scannedMessages, scannedOf, type PlacedFinding } from './tools/scanned.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 import { todoOf } from './tools/todo.ts';
+import { translateLocale } from './tools/translate.ts';
 
 const HELP = `prosebook: every string your app shows, in one typed catalog
 
@@ -73,6 +74,9 @@ Commands:
   import <locale> [file]  Write translations from todo's YAML filled in, a model's reply to --prompt,
                           or a tool's XLIFF or JSON (stdin without a file); each is checked first,
                           and one that fails is left out
+  translate [locales]     Translate the missing and stale entries of each locale named, or of every
+                          locale, through the config's translate.model: the model gets what todo
+                          --prompt says, and its reply is checked as import checks one
   scan                    Find hardcoded text in JSX, numbers, dates and lists formatted in code, catalog
                           keys no code reads, and reads whose key a pruned build can't see
                           (--strict: fail on any of them; --lint: hold the hardcoded text to the
@@ -142,6 +146,7 @@ const CATALOG_COMMANDS = [
   'todo',
   'export',
   'import',
+  'translate',
   'extract',
   'migrate',
   'diff',
@@ -281,6 +286,8 @@ async function main(argv: string[]): Promise<number> {
         return runExport(config, rest[0], rest[1], values.format, values.all === true);
       case 'import':
         return runImport(config, rest[0], rest[1]);
+      case 'translate':
+        return await runTranslate(config, rest);
       case 'scan':
         code = runScan(config, values.strict === true, values.lint === true, report);
         break;
@@ -1157,6 +1164,68 @@ function runImport(config: ResolvedConfig, locale: string | undefined, file: str
   if (problems.length === 0) return 0;
   err(`\n${problems.length} left out: fix them, or hand these lines back to the model, and import again.`);
   return 1;
+}
+
+const TRANSLATE_OFF =
+  'prosebook: translate is off: set translate.model in the config, as languageTranslator from prosebook/ai makes one; `prosebook todo <locale> --prompt` writes the prompt for a model of your own';
+
+async function runTranslate(config: ResolvedConfig, named: string[]): Promise<number> {
+  const translate = config.translate;
+  if (translate === undefined) {
+    err(TRANSLATE_OFF);
+    return 1;
+  }
+  const locales = named.length > 0 ? named : rendered(config).catalog.locales;
+  if (locales.length === 0) {
+    err('prosebook: no locale to translate into: name one, `prosebook translate de`');
+    return 1;
+  }
+  const refused = locales.find((l) => l === config.source || l === config.pseudo);
+  if (refused !== undefined) {
+    err(
+      `prosebook: ${refused} is ${refused === config.source ? 'the source' : 'the pseudo-locale'}: translate takes the locales translated into`,
+    );
+    return 1;
+  }
+  let failed = false;
+  for (const locale of locales) {
+    const done = await translateLocale(config, translate, locale, {
+      progress: (settled, total) => err(`prosebook: ${locale} ${count(settled)} of ${count(total)} entries`),
+    });
+    if (done.requests === 0) {
+      out(`prosebook: ${locale} is complete`);
+      continue;
+    }
+    reportProblems(config, done.problems);
+    const accepted = done.accepted.length > 0 ? `, and accepted ${count(done.accepted.length)} stale one(s) as still right` : '';
+    out(`prosebook: translated ${count(done.written.length)} entr${done.written.length === 1 ? 'y' : 'ies'} into ${locale}${accepted}`);
+    const cost =
+      done.unpriced === done.requests
+        ? 'cost unknown: give languageTranslator a price'
+        : `$${done.cost.toFixed(done.cost < 0.01 ? 6 : 4)}${done.unpriced > 0 ? ` (${count(done.unpriced)} requests unpriced)` : ''}`;
+    out(
+      `  ${count(done.requests)} request(s) to ${translate.model.id}; ${count(done.inputTokens)} input tokens, ${count(done.outputTokens)} output; ${cost}`,
+    );
+    if (done.written.length > 0) {
+      const { catalog } = rendered(config);
+      const written = new Set(done.written);
+      printFindings(
+        config,
+        lint(
+          catalog.messages.filter((m) => written.has(m.key)),
+          config,
+          catalog.messages,
+        ).filter((f) => f.locale === locale),
+      );
+    }
+    if (done.left.length > 0) {
+      failed = true;
+      err(
+        `\n${count(done.left.length)} left without a translation in ${locale}: ${done.left.join(', ')}. \`prosebook todo ${locale}\` lists them.`,
+      );
+    }
+  }
+  return failed ? 1 : 0;
 }
 
 function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, report?: SarifReport): number {

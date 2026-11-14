@@ -142,6 +142,7 @@ cart.items: '{count, plural, =0 {Dein Warenkorb ist leer.} other {# Artikel im W
 prosebook status              # coverage and stale translations per locale
 prosebook todo de > de.yaml   # what German is missing, with context
 prosebook todo de --prompt    # the same, as a prompt for a model
+prosebook translate de        # or ask the config's model, each reply checked first
 prosebook import de de.yaml   # written back, each entry checked first
 prosebook export de de.xlf    # XLIFF 2.0 or JSON for a translation tool
 ```
@@ -171,6 +172,9 @@ generated copy](API.md#voice-guidelines), held to the messages and their context
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.
+- [**GitHub action**](API.md#github-action): `uses: gkurt/prosebook@main` checks the copy on a pull request, shows the findings in code scanning and posts the diff.
+- [**Translate**](API.md#translating-with-a-model): `prosebook translate` asks a model for what a locale is missing, and writes only what holds.
+- [**Locale in the URL**](API.md#locale-in-the-url): `localeRoutes` reads `/de/cart`, writes a page's URL in another locale, lists `hreflang` alternates and says where to redirect.
 - [**Docs**](API.md#docs): `lint --docs` holds the README and the guides to the same rules and guidelines as the copy.
 - [**Without a catalog**](API.md#without-a-catalog): the text in the code held to the same rules, for an app that hasn't moved it into a catalog.
 - [**Tone**](API.md#tone): `extends: 'friendly'`, or `plain`, `professional`, `technical`, `playful`: a tone said in the writing guide, the translation prompt and to the judge, with the rules that go with it.

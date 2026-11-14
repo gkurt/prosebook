@@ -1,0 +1,98 @@
+name: prosebook
+description: Checks an app's copy on a pull request, shows its findings in code scanning, and comments the copy the pull request changes.
+author: Gokhan Kurt
+branding:
+  icon: book-open
+  color: gray-dark
+
+inputs:
+  root:
+    description: The project's folder, where its prosebook config is, from the repository's root.
+    default: .
+  command:
+    description: How the workflow runs prosebook, after its own steps installed it.
+    default: npx prosebook
+  check:
+    description: Run `prosebook check`, and fail the job where it fails.
+    default: 'true'
+  sarif:
+    description: Upload the check's findings to code scanning, which shows them on the lines they are about. Needs `security-events:write`.
+    default: 'true'
+  comment:
+    description: On a pull request, comment the copy it changes, as `prosebook diff` reads it, and update that comment on each push. Needs `pull-requests:write`.
+    default: 'true'
+  base:
+    description: The revision the pull request's copy is compared with. The pull request's base unless set.
+    default: ${{ github.event.pull_request.base.sha }}
+  token:
+    description: The token that comments.
+    default: ${{ github.token }}
+
+outputs:
+  changed:
+    description: '`true` where the pull request changes the copy.'
+    value: ${{ steps.diff.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    # The log goes to a file and the text to the job's log; the job fails only in the last step, once
+    # the findings are uploaded and the comment posted.
+    - id: check
+      if: inputs.check == 'true'
+      shell: bash
+      env:
+        PROSEBOOK: ${{ inputs.command }}
+        ROOT: ${{ inputs.root }}
+      run: |
+        set +e
+        $PROSEBOOK check --root "$ROOT" --format sarif > "$RUNNER_TEMP/prosebook.sarif"
+        echo "code=$?" >> "$GITHUB_OUTPUT"
+
+    # A pull request from a fork gets a token that can't upload, and a private repository may have no
+    # code scanning: the check's own exit code still decides the job.
+    - if: inputs.check == 'true' && inputs.sarif == 'true'
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ runner.temp }}/prosebook.sarif
+        category: prosebook-${{ inputs.root }}
+
+    - id: diff
+      if: inputs.comment == 'true' && github.event_name == 'pull_request' && inputs.base != ''
+      shell: bash
+      env:
+        PROSEBOOK: ${{ inputs.command }}
+        ROOT: ${{ inputs.root }}
+        BASE: ${{ inputs.base }}
+        GH_TOKEN: ${{ inputs.token }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        # A shallow checkout has only the pull request's commit: the base's files are all diff reads.
+        git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE"
+        body="$RUNNER_TEMP/prosebook-diff.md"
+        $PROSEBOOK diff "$BASE" --root "$ROOT" --format markdown > "$body"
+        # One comment per project, found again by this line.
+        mark="<!-- prosebook action: $ROOT -->"
+        if [ "$ROOT" != "." ]; then sed -i.bak "s|^### Copy changes\$|### Copy changes in \`$ROOT\`|" "$body"; fi
+        echo "$mark" >> "$body"
+        cat "$body" >> "$GITHUB_STEP_SUMMARY"
+        if grep -q '^No copy changes since' "$body"; then changed=false; else changed=true; fi
+        echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+        comments="repos/$GITHUB_REPOSITORY/issues/$PR/comments"
+        id=$(gh api "$comments" --paginate --jq ".[] | select(.body | contains(\"$mark\")) | .id" | head -n 1) || id=
+        # Nothing to say and nothing said before: no comment. One said before is updated, as its copy went back.
+        if [ -n "$id" ]; then
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$body" > /dev/null \
+            || echo "::warning::prosebook could not update its comment: give the job pull-requests:write"
+        elif [ "$changed" = true ]; then
+          gh api "$comments" -F body=@"$body" > /dev/null \
+            || echo "::warning::prosebook could not comment: give the job pull-requests:write. A pull request from a fork gets a token that can't."
+        fi
+
+    - if: inputs.check == 'true' && steps.check.outputs.code != '0'
+      shell: bash
+      run: |
+        echo "::error::prosebook check failed: its findings are in the log of the step above"
+        exit 1

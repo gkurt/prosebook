@@ -1,0 +1,39 @@
+# The repo's own action on its own pull requests: each catalog checked, its findings shown in code
+# scanning, and the copy the pull request changes posted as a comment.
+#
+# A pull request from a fork gets a read-only token, whatever is asked for here, so the action's upload
+# and comment are skipped there with a warning, and the check still decides the job.
+name: Copy
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - root: site
+            check: true
+          # The example leaves translations out on purpose, to show the fallback, so `check` fails there by
+          # design: only its copy's changes are posted. Its lint runs in CI's examples job.
+          - root: examples/vite
+            check: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun i --frozen-lockfile
+      # From source, as `bun run cli` runs it, so the pull request's own prosebook reads the copy.
+      - uses: ./
+        with:
+          root: ${{ matrix.root }}
+          check: ${{ matrix.check }}
+          command: bun --conditions=prosebook@dev src/cli.ts

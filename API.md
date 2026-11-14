@@ -3,7 +3,7 @@
 The full reference. For an overview, see the [README](README.md).
 
 - [Integrations](#integrations): [Vite](#vite) · [Next.js](#nextjs) · [Bun](#bun) · [Astro](#astro) · [Options](#integration-options)
-- [Runtime](#runtime): [`createCopy`](#createcopy) · [A copy](#a-copy) · [Locales](#locales) · [Types](#types) · [Errors](#errors)
+- [Runtime](#runtime): [`createCopy`](#createcopy) · [A copy](#a-copy) · [Locales](#locales) · [Locale in the URL](#locale-in-the-url) · [Types](#types) · [Errors](#errors)
 - [Bindings](#bindings): [React](#react) · [Preact](#preact) · [Vue](#vue) · [Svelte](#svelte) · [Solid](#solid) ·
   [Plain JavaScript](#plain-javascript) · [On a server](#on-a-server) · [In tests](#in-tests)
 - [The catalog](#the-catalog): [Fields](#fields) · [The writing guide](#the-writing-guide)
@@ -11,7 +11,7 @@ The full reference. For an overview, see the [README](README.md).
   [MessageFormat 2](#messageformat-2)
 - [Translations](#translations): [Stale](#stale-translations) · [With a model](#translating-with-a-model) ·
   [Translation tools](#translation-tools) · [Pseudo-locale](#pseudo-locale)
-- [CLI](#cli): [Lint](#lint) · [Judge](#judge) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Find](#find) · [Rename](#rename) · [Diff](#diff)
+- [CLI](#cli): [Lint](#lint) · [Judge](#judge) · [Scan](#scan) · [SARIF](#sarif) · [Extract](#extract) · [Find](#find) · [Rename](#rename) · [Diff](#diff) · [GitHub action](#github-action)
 - [Builds](#builds): [Pruning](#pruning) · [Splitting](#splitting)
 - [Inspector](#inspector)
 - [Native targets](#native-targets): [Rust, Swift, Kotlin](#rust-swift-kotlin) · [Android](#android-resources) ·
@@ -286,6 +286,39 @@ A key a locale leaves out falls back, key by key, through its parents to the sou
 
 `dirOf` reads the script a tag names, or its language's usual one (`pa-PK` is Arabic script). Set `<html lang={copy.locale}
 dir={copy.dir}>`, and write layout with logical properties (`margin-inline-start`), which follow it.
+
+### Locale in the URL
+
+`localeRoutes` reads and writes a locale kept in the URL's path, `/de/cart` beside `/cart`, for any router:
+
+```ts
+import { acceptedLocales, localeRoutes } from 'prosebook';
+
+const routes = localeRoutes({ locales: catalog.locales, source: 'en' });
+
+routes.split('/de/cart'); // { locale: 'de', path: '/cart' }: what the router matches
+routes.path('/de/cart?page=2', 'pt-BR'); // '/pt-BR/cart?page=2': the same page, for a language switch
+routes.alternates('https://shop.example/cart'); // each locale's URL and x-default, for <link rel="alternate" hreflang>
+routes.redirect('/cart', acceptedLocales(header)); // '/de/cart' for a German reader, else undefined
+```
+
+A middleware redirects where `redirect` returns a URL, and otherwise renders `split`'s path in its locale:
+
+```ts
+const picked = cookies.get('locale'); // what the reader chose in the language switch, first
+const to = routes.redirect(request.url, picked ? [picked, ...asked] : asked);
+if (to !== undefined) return Response.redirect(to, 307);
+const { locale, path } = routes.split(request.url);
+```
+
+- **`prefix`** is `as-needed` unless set: the source's pages have no prefix, and `/en/cart` redirects to `/cart`. With
+  `always` the source has one too, and a URL with no prefix redirects to the locale asked for.
+- **`redirect`** sends a URL with no prefix to the best locale the reader asks for, so put the reader's own choice first, as
+  above: a reader who picked English on a German browser stays on `/cart`. A URL with a prefix is served in that locale,
+  whatever the browser asks for.
+- **`base`** is the path the app is served under, `/docs`, kept before the locale.
+- A path, a whole URL or a `URL` comes back as a string of the same kind, query and hash kept. `hreflang` needs whole URLs.
+- Call `redirect` for pages only, not for assets or API routes.
 
 ### Types
 
@@ -1072,16 +1105,42 @@ Stale translations still show; `stale: 'fallback'` shows the source instead.
 
 ### Translating with a model
 
-prosebook calls no model. `todo --prompt` writes the prompt: how to reply, the locale's plural forms, the kinds and surfaces, the
-guidelines that read the locale. `import` reads the YAML block out of the reply:
+`prosebook translate` asks the config's model for each locale's missing and stale entries, and writes what holds:
+
+```ts
+// prosebook.config.ts
+import { anthropic } from '@ai-sdk/anthropic';
+import { languageTranslator } from 'prosebook/ai';
+
+export default defineConfig({
+  translate: { model: languageTranslator(anthropic('claude-sonnet-5-5'), { price: { input: 3, output: 15 } }) },
+});
+```
+
+```text
+$ prosebook translate de
+prosebook: de 12 of 12 entries
+prosebook: translated 11 entries into de, and accepted 1 stale one(s) as still right
+  1 request(s) to anthropic.messages/claude-sonnet-5-5; 2,104 input tokens, 611 output; $0.0155
+```
+
+- **The model gets the prompt `todo --prompt` writes**: how to reply, the locale's plural forms, the kinds and surfaces, the
+  tone, and the guidelines that read the locale. The reply is checked as `import` checks one.
+- **An entry whose placeholders, tags or syntax don't hold is left out** and asked again with its problem, `attempts` times
+  (2 unless set). An entry still wrong then stays untranslated, the command says which, and it exits with 1.
+- **A stale translation given back unchanged is accepted.** The written ones are linted in their locale.
+- **`batch`** is how many entries one request holds, 40 unless set. With no locale named, every locale the catalog has is
+  translated; a locale with no file yet is translated by name, `prosebook translate fr`.
+- `languageTranslator` takes any AI SDK language model, with `ai` installed, and a `price` in US dollars per million tokens
+  to say what a run cost. A `Translator` of your own is `{ id, translate({ prompt, locale }) }`, returning `{ text }`.
+
+Without a model in the config, `todo --prompt` writes the same prompt for a model of your own choosing, and `import` reads the
+YAML block out of the reply:
 
 ```bash
 prosebook todo de --prompt | pbcopy
 prosebook import de reply.md
 ```
-
-An entry whose placeholders, tags or syntax don't hold is left out with its fix; the rest are written and linted. A stale
-translation given back unchanged is accepted.
 
 ### Translation tools
 
@@ -1118,6 +1177,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | `todo <locale>`          | Missing and stale entries, ready to translate (`--prompt`).                                                               |
 | `export <locale> [file]` | XLIFF 2.0 or JSON for a translation tool (`--all`, `--format xliff\|json`).                                               |
 | `import <locale> [file]` | Translations from `todo`'s YAML, a model's reply, XLIFF or JSON (stdin without a file).                                   |
+| `translate [locales]`    | Missing and stale entries translated by the config's `translate.model`, each reply checked as `import` checks one.        |
 | `scan`                   | Hardcoded text, unread keys and unseen reads (`--strict`, `--lint`).                                                      |
 | `extract [paths]`        | Hardcoded JSX text into the catalog (`--write`, `--area`).                                                                |
 | `migrate <1\|2>`         | The catalog in ICU MessageFormat or MessageFormat 2 (`--write`).                                                          |
@@ -1647,38 +1707,48 @@ added    cart.total: {+Total: {sum, number, ::currency/EUR}+}
 ```
 
 The base is `HEAD` by default. A key gone and one come with the same words is a rename. `--format markdown` writes a table for a
-pull request's comment:
+pull request's comment, which the [GitHub action](#github-action) posts.
+
+### GitHub action
+
+The repository is its own action: it checks the copy on a pull request, uploads the findings to code scanning, and comments the
+copy the pull request changes, updating that comment on each push.
 
 ```yaml
 # .github/workflows/copy.yml
-name: Copy review
+name: Copy
 on: pull_request
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write # the comment
+  security-events: write # code scanning
 jobs:
   copy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0 # the base branch, to compare with
       - uses: actions/setup-node@v7
       - run: npm ci
-      - run: npx prosebook diff origin/${{ github.base_ref }} --format markdown > copy.md
-      - name: Post the review, or update the one posted before
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.number }}
-        run: |
-          marker='<!-- prosebook diff -->'
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
-          if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@copy.md
-          else gh pr comment "$PR" --body-file copy.md; fi
+      - uses: gkurt/prosebook@main
 ```
 
-A pull request from a fork gets a token that can't comment: post from a `workflow_run` workflow instead.
+| Input     | Default                 |                                                                                                     |
+| --------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `root`    | `.`                     | The project's folder, where its prosebook config is. One comment is kept per `root`.                |
+| `command` | `npx prosebook`         | How to run prosebook, once the workflow's own steps installed it: `bunx prosebook`.                 |
+| `check`   | `true`                  | Run `prosebook check`, and fail the job where it fails.                                             |
+| `sarif`   | `true`                  | Upload the check's findings to code scanning, as [SARIF](#sarif).                                   |
+| `comment` | `true`                  | Comment what [`prosebook diff`](#diff) says of the pull request, and write it to the job's summary. |
+| `base`    | the pull request's base | The revision to compare with. A shallow checkout is enough: the action fetches it.                  |
+| `token`   | the workflow's token    | The token that comments.                                                                            |
+
+- The job fails after the upload and the comment, so both show on a failing pull request. `changed` is the action's output:
+  `true` where the pull request changes the copy.
+- A pull request that changes no copy gets no comment. One posted before is updated, as when a push takes the change back.
+- A pull request from a fork gets a token that can neither comment nor upload: the action warns, and the check still decides
+  the job.
+- Code scanning is free for public repositories. In a private one without it, set `sarif: false`.
+- Pin the action to a commit, `gkurt/prosebook@<sha>`, to keep a workflow from changing under you.
 
 ## Builds
 
@@ -1922,6 +1992,7 @@ export default defineConfig({
     pathSeparator: '›',
   },
   judge: undefined, // { models, prompt, threshold: 0.5, thresholds, concurrency: 8, unjudged: 'error' }: models for `prosebook judge`
+  translate: undefined, // { model, batch: 40, attempts: 2 }: the model for `prosebook translate`
   guide: 'copy/catalog/WRITING.md', // false for none
   native: [], // Rust, Swift, Kotlin, Android, Apple
   extract: {}, // shared: an area for words every feature says

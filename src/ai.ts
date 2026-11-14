@@ -1,9 +1,10 @@
 /**
- * `prosebook/ai`: judges for `prosebook judge` made from AI SDK models. An entry of its own, so only a
- * project that judges needs `ai`, an optional peer. `decisionJudge` takes a decision model, through the
+ * `prosebook/ai`: judges for `prosebook judge` and a translator for `prosebook translate`, made from AI
+ * SDK models. An entry of its own, so only a project that asks a model needs `ai`, an optional peer. `decisionJudge` takes a decision model, through the
  * SDK's `experimental_decide`: `typeSafeAi.decisionModel('jev-latest')` from `@ai-sdk/typesafe-ai`, or
  * a model ID the AI Gateway resolves (`'typesafe-ai/jev'`). `languageJudge` takes a language model,
- * through structured output, and can suggest a rewrite as well.
+ * through structured output, and can suggest a rewrite as well. `languageTranslator` is the model
+ * `prosebook translate` asks.
  */
 import {
   experimental_decide,
@@ -16,6 +17,7 @@ import {
 } from 'ai';
 
 import type { Judge } from './tools/judge.ts';
+import type { Translator } from './tools/translate.ts';
 
 type ProviderOptions = NonNullable<Parameters<typeof experimental_decide>[0]['providerOptions']>;
 
@@ -132,6 +134,34 @@ export function languageJudge(model: LanguageModel, options: LanguageJudgeOption
         ...(cost !== undefined && { cost }),
         ...(typeof rewrite === 'string' && rewrite.trim() !== '' && { suggestion: rewrite }),
       };
+    },
+  };
+}
+
+export type TranslatorOptions = Pick<DecisionJudgeOptions, 'price' | 'maxRetries' | 'providerOptions' | 'headers'>;
+
+/**
+ * A translator for `prosebook translate` asking a language model, `anthropic('claude-sonnet-5-5')` from
+ * `@ai-sdk/anthropic` or any the AI SDK reaches: the prompt `prosebook todo --prompt` writes goes in,
+ * and the reply comes back as text, which prosebook checks as `import` does.
+ */
+export function languageTranslator(model: LanguageModel, options: TranslatorOptions = {}): Translator {
+  const { price, maxRetries, providerOptions, headers } = options;
+  return {
+    id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    async translate({ prompt, signal }) {
+      const result = await generateText({
+        model,
+        prompt,
+        ...(maxRetries !== undefined && { maxRetries }),
+        ...(providerOptions !== undefined && { providerOptions }),
+        ...(headers !== undefined && { headers }),
+        ...(signal !== undefined && { abortSignal: signal }),
+      });
+      const { inputTokens, outputTokens } = result.usage;
+      const usage = { ...(inputTokens !== undefined && { inputTokens }), ...(outputTokens !== undefined && { outputTokens }) };
+      const cost = gatewayCost(result.providerMetadata) ?? priced(price, inputTokens, outputTokens);
+      return { text: result.text, usage, ...(cost !== undefined && { cost }) };
     },
   };
 }

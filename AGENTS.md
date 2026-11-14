@@ -81,6 +81,11 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   a signal per moment (`freshness`), bumped by `at` then, so only what read the text runs again.
 - `src/runtime/locale.ts`: `negotiate`, `chainOf`, `preferredLocales`, `acceptedLocales` for servers, and `dirOf`, a
   locale's direction from `Intl.Locale`'s likely script, or from the tag's own subtags where Hermes has no `Intl.Locale`.
+- `src/runtime/routes.ts`: `localeRoutes`, a locale in the URL's path, for any router: `split` (the locale and the path a
+  router matches), `path` (the page in another locale), `alternates` (for `hreflang`) and `redirect` (where a server sends a
+  request, by `negotiate`). A URL is read with one expression (`PARTS`), not `URL`, so a path comes back a path and a whole
+  URL whole; `read` keeps the path after the prefix as written, so `/de` becomes `/fr`, not `/fr/`. Nothing imports it but
+  the app, so it costs an app that reads no URL nothing.
 - `src/runtime/formats.ts`: the named formats (`formats` in the config) and `formatIn`, a format's options in a
   locale, its own over its parents' over the default. The tools read messages through it, and the generated index
   ships the table as the catalog's `formats`, which `copy.number`, `copy.date`, `copy.list`, `copy.duration` and
@@ -237,8 +242,13 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   the samples differ and the hash of what decides them (`samplesFrom`, a comment in the Formats section) holds. `lock.ts`: stale translations and the source texts
   they were made from; `diff.ts`: the word diff that shows what changed. `todo.ts`: `prosebook todo`,
   and with `--prompt` the prompt for a model, which says the rules marked `guide` that read the
-  locale and some entry in it (`applies`, as the lint decides). prosebook never calls a model: it writes the prompt, and
-  `import` (`importTranslations` in `entry.ts`) checks the reply. `exchange.ts`: `prosebook export`,
+  locale and some entry in it (`applies`, as the lint decides). `import` (`importTranslations` in `entry.ts`)
+  checks the reply, whoever asked the model. `translate.ts`: `prosebook translate`, which asks the config's
+  `translate.model` (a `Translator`: an `id` and `translate({ prompt, locale })`): `translateLocale` takes the wanted keys
+  a batch at a time, hands the model `todoOf`'s prompt for those keys alone (`only`), reads the reply with
+  `importTranslations`, runs `generate` so what was written is no longer stale and a stale one given back unchanged is
+  accepted, and asks again of the keys that didn't land, with the problems said (`retryNote`), up to `attempts` times.
+  Batches run one after another, since each writes the locale's files. `exchange.ts`: `prosebook export`,
   the same entries as XLIFF 2.0 or JSON for translation tools, and `readReturned`, which reads every
   format `import` takes (todo's YAML, JSON, XLIFF, through a small XML reader of its own). Messages
   travel as their ICU or MF2 text, never as XLIFF inline codes; a unit's `state` says whether someone
@@ -487,7 +497,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `src/ai.ts` is `prosebook/ai`, a tsdown entry of its own so only it imports `ai`, an optional peer:
   `decisionJudge`, a `Judge` over an AI SDK decision model through `experimental_decide`, and
   `languageJudge`, over a language model through `generateText`'s structured output, each question a
-  probability, and the rewrite where it finds one broken. Its cost is the AI Gateway's where it says
+  probability, and the rewrite where it finds one broken; and `languageTranslator`, a `Translator` over
+  a language model, the prompt in and the reply's text out. Its cost is the AI Gateway's where it says
   one, else the tokens at the `price` given.
 - `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)
   and their key past its area, which the writing guide tells writers to run before adding one.
@@ -526,6 +537,15 @@ catalog's (types, stale translations, the inspector), each feature a card (a dra
 to its section of API.md, a sentence or two), then six notes (a sketch of a line or two, a name, a sentence)
 and setup with what it works with. The exhibits' words are the tools' own, copied from real output. A feature
 earns a card only over one there; a smaller one a note, or the docs.
+`action.yml`, at the root, is the GitHub action (`uses: gkurt/prosebook@main`), composite, so it runs the prosebook the
+workflow installed (`command`): `check` as SARIF into a file, uploaded with `github/codeql-action/upload-sarif`, then
+`diff --format markdown` against the pull request's base, fetched shallow, posted with `gh api` as one comment per `root`,
+found again by a line the action adds after the review (`<!-- prosebook action: <root> -->`), and last the step that fails
+the job where the check failed. `.github/workflows/copy.yml` runs it on this repo's pull requests, from source, over the
+site's catalog and the Vite example's, the example without `check`, since it leaves translations out to show the fallback.
+Both locks must hold a verdict for every entry as written, or the site's `check` fails: run `bun run judge` after
+changing either catalog, and commit the locks.
+
 `site/public/icon.svg` is the project's icon: the favicon, the top bar's mark and, from its Pages URL, the README's
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.

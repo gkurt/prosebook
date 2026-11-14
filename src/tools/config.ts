@@ -37,6 +37,7 @@ import {
   type Tone,
   type ToneExample,
 } from './presets.ts';
+import type { ResolvedTranslate, TranslateConfig } from './translate.ts';
 import { VOICE } from './voice.ts';
 
 export type { Formality, KindRule, Severity, Tone, ToneExample };
@@ -60,6 +61,7 @@ export {
 } from './lint.ts';
 export { asWritten, HOLE } from './places.ts';
 export type { Judge, JudgeConfig, JudgeQuestion, JudgeRequest, JudgeResponse, ResolvedJudge } from './judge.ts';
+export type { ResolvedTranslate, TranslateConfig, TranslateRequest, TranslateResponse, Translator } from './translate.ts';
 
 export interface WordLists {
   /** Words a string never uses, in groups that say why. */
@@ -261,6 +263,12 @@ export interface ProsebookConfig {
    */
   judge?: JudgeConfig;
   /**
+   * The model `prosebook translate` asks for a locale's missing and stale entries:
+   * `{ model: languageTranslator(anthropic('claude-sonnet-5-5')) }`, with `languageTranslator` from
+   * `prosebook/ai`. Each reply is checked as `prosebook import` checks one.
+   */
+  translate?: TranslateConfig;
+  /**
    * The writing guide `generate` writes for whoever writes the copy, a person or an agent: the kinds,
    * the surfaces and the rules the lint holds them to, as instructions. `WRITING.md` in the catalog
    * folder by default; `false` writes none. Point AGENTS.md at it.
@@ -366,6 +374,7 @@ export interface ResolvedConfig {
   /** The Markdown files `--docs` reads where it names none. */
   docs: Paths;
   judge?: ResolvedJudge;
+  translate?: ResolvedTranslate;
 }
 
 /** Files, folders and globs from the root with `/`: those `include` names, less those `exclude` does, from `!` ones. */
@@ -579,7 +588,18 @@ const DOCS_OFF: Record<string, Severity> = {
 };
 
 /** What only a catalog's messages read, which a config with `catalog: false` is refused for naming. */
-const CATALOG_ONLY = ['locales', 'out', 'messageFormat', 'native', 'pseudo', 'bundled', 'stale', 'extract', 'require'] as const;
+const CATALOG_ONLY = [
+  'locales',
+  'out',
+  'messageFormat',
+  'native',
+  'pseudo',
+  'bundled',
+  'stale',
+  'extract',
+  'require',
+  'translate',
+] as const;
 
 /** The attributes whose values a person reads, which `scan.attributes` defaults to. */
 export const READABLE_ATTRIBUTES = ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'];
@@ -682,6 +702,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     },
     docs: pathsFrom(root, config.docs ?? []),
     ...(config.judge !== undefined && { judge: checkedJudge(config.judge, rules) }),
+    ...(config.translate !== undefined && { translate: checkedTranslate(config.translate) }),
   };
 }
 
@@ -1008,6 +1029,16 @@ function checkedFormats(formats: Formats, whole: boolean): Formats {
 }
 
 /** Each named reason is a name `allow` can give, and a reason a reviewer can check. */
+/** `translate`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
+function checkedTranslate(translate: TranslateConfig): ResolvedTranslate {
+  const { model, batch = 40, attempts = 2 } = translate;
+  if (typeof model?.id !== 'string' || typeof model.translate !== 'function')
+    throw new Error('translate.model is not a model: languageTranslator(model) from prosebook/ai makes one, in a prosebook.config.ts');
+  if (!Number.isInteger(batch) || batch < 1) throw new Error(`translate.batch is ${String(batch)}: give a whole number from 1`);
+  if (!Number.isInteger(attempts) || attempts < 1) throw new Error(`translate.attempts is ${String(attempts)}: give a whole number from 1`);
+  return { model, batch, attempts };
+}
+
 /** `judge`, with its defaults: a JSON config can't hold a model, and is not type-checked. */
 /**
  * The guidelines' own thresholds unless `judge.thresholds` sets them: Jev at 0.5 found 123 of an app's
