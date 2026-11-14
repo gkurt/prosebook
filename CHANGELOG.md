@@ -1,3 +1,17 @@
+## prosebook@0.22.0
+
+### `localeRoutes` reads and writes a locale in the URL's path
+
+`split` gives the locale and the path a router matches, `path` the same page in another locale, `alternates` every locale's URL for `hreflang`, and `redirect` where a server sends a request, by what the reader asks for.
+
+### A GitHub action checks the copy on a pull request
+
+`uses: gkurt/prosebook@main` runs `prosebook check`, uploads its findings to code scanning, and comments the copy the pull request changes, updating that comment on each push.
+
+### `prosebook translate` asks a model for what a locale is missing
+
+`translate.model` in the config, `languageTranslator(model)` from `prosebook/ai`, gets the prompt `todo --prompt` writes, a batch of entries at a time. Each reply is checked as `import` checks one: an entry that drops a placeholder is asked again with its problem, and left untranslated if it is still wrong.
+
 ## prosebook@0.21.0
 
 ### `npx prosebook lint` runs in a codebase with nothing set up
