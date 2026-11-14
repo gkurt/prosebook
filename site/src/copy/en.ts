@@ -12,12 +12,12 @@ import type { CompiledMessages } from 'prosebook';
 // prettier-ignore
 export default {
   "agents.cli.body": "Finding, linting, extracting and renaming all run from a shell, and every problem states the fix.",
-  "agents.cli.title": "A CLI to drive",
+  "agents.cli.title": "A CLI to run",
   "agents.guide.body": "Every project gets a writing guide, generated from the config, with where an entry goes and the guidelines no rule can check.",
   "agents.guide.title": "A guide to read first",
   "agents.judge.body": "A decision model holds each entry to the guidelines no rule can check. Only changed entries are asked again, and a language model can suggest the rewrite.",
   "agents.judge.title": "A judge for meaning",
-  "agents.lead": "Agents write most copy now. prosebook gives an agent a guide to read, a CLI to drive, and checks for the habits that give generated text away.",
+  "agents.lead": "Agents generate most copy now. prosebook gives an agent a guide to read, a CLI to run, and checks for the habits that give generated text away.",
   "agents.slop.body": "Built-in guidelines name the habits of generated copy, such as instructions on a button or a sentence that leans on what only the writer saw.",
   "agents.slop.title": "Slop, named",
   "agents.title": "Built for agents",
@@ -40,7 +40,7 @@ export default {
   "notes.diff.title": "Pull request diffs",
   "notes.docs.body": "The README and the guides are held to the same rules and guidelines.",
   "notes.docs.title": "Docs",
-  "notes.extract.body": "Hardcoded JSX text moves into the catalog, a sentence at a time.",
+  "notes.extract.body": "Hardcoded JSX text is extracted into the catalog, a sentence at a time.",
   "notes.extract.title": "Extract",
   "notes.native.body": "One catalog generates Rust, Swift and Kotlin, and the string resources of Android and Apple.",
   "notes.native.title": "Native targets",

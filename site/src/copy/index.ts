@@ -24,7 +24,7 @@ export type Messages = {
    */
   "agents.cli.body": { args: {}; tags: never };
   /**
-   * A CLI to drive
+   * A CLI to run
    *
    * Heads the feature about the command line.
    */
@@ -54,7 +54,7 @@ export type Messages = {
    */
   "agents.judge.title": { args: {}; tags: never };
   /**
-   * Agents write most copy now. prosebook gives an agent a guide to read, a CLI to drive, and checks for the habits that give generated text away.
+   * Agents generate most copy now. prosebook gives an agent a guide to read, a CLI to run, and checks for the habits that give generated text away.
    *
    * Under the heading of the section about agents.
    */
@@ -192,7 +192,7 @@ export type Messages = {
    */
   "notes.docs.title": { args: {}; tags: never };
   /**
-   * Hardcoded JSX text moves into the catalog, a sentence at a time.
+   * Hardcoded JSX text is extracted into the catalog, a sentence at a time.
    *
    * Under the name of the extract feature.
    */

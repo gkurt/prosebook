@@ -15,7 +15,7 @@ notes.extract.body:
   kind: description
   surface: hint
   context: Under the name of the extract feature.
-  en: Hardcoded JSX text moves into the catalog, a sentence at a time.
+  en: Hardcoded JSX text is extracted into the catalog, a sentence at a time.
 
 notes.docs.title:
   kind: name

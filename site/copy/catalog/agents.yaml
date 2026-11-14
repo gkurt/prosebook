@@ -9,7 +9,7 @@ agents.lead:
   kind: description
   surface: hint
   context: Under the heading of the section about agents.
-  en: Agents write most copy now. prosebook gives an agent a guide to read, a CLI to drive, and checks for the habits that give generated text away.
+  en: Agents generate most copy now. prosebook gives an agent a guide to read, a CLI to run, and checks for the habits that give generated text away.
 
 agents.guide.title:
   kind: name
@@ -27,7 +27,7 @@ agents.cli.title:
   kind: name
   surface: heading
   context: Heads the feature about the command line.
-  en: A CLI to drive
+  en: A CLI to run
 
 agents.cli.body:
   kind: description
