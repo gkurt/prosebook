@@ -497,7 +497,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `src/ai.ts` is `prosebook/ai`, a tsdown entry of its own so only it imports `ai`, an optional peer:
   `decisionJudge`, a `Judge` over an AI SDK decision model through `experimental_decide`, and
   `languageJudge`, over a language model through `generateText`'s structured output, each question a
-  probability, and the rewrite where it finds one broken; and `languageTranslator`, a `Translator` over
+  probability, and the rewrite where it finds one broken, each named by its `id` option, else by provider and
+  model (`idOf`), so a model reached through another provider keeps its answers only under an `id`; and `languageTranslator`, a `Translator` over
   a language model, the prompt in and the reply's text out. Its cost is the AI Gateway's where it says
   one, else the tokens at the `price` given.
 - `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)

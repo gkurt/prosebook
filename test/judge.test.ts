@@ -486,6 +486,11 @@ describe('decisionJudge', () => {
     expect(calls[0]!.state).toEqual([{ type: 'json', value: { message: 'Reported by' } }]);
   });
 
+  test('an id of its own names it in the lock, whatever the provider', () => {
+    expect(decisionJudge(model([]), { id: 'decider' }).id).toBe('decider');
+    expect(decisionJudge('gateway/decider').id).toBe('gateway/decider');
+  });
+
   test('without a price, the cost is unknown', async () => {
     const response = await decisionJudge(model([])).judge({
       state: {},

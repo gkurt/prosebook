@@ -1419,6 +1419,14 @@ guideline, with its words.
   languageJudge(anthropic('claude-haiku-5-5'), { ask: Boolean(process.env.ANTHROPIC_API_KEY) }),
   ```
 
+- **`id`** names a model in the lock. Unset, it is the provider's name and the model's, `anthropic.messages/claude-haiku-5-5`,
+  so the same model through another provider, the AI Gateway say, is asked of every entry again. A name of your own
+  holds across providers; to keep the answers a lock already has, give the name the lock has.
+
+  ```ts
+  languageJudge('anthropic/claude-haiku-5.5', { id: 'anthropic.messages/claude-haiku-5-5' }),
+  ```
+
 - **Verdicts live in the lock**, under `judged`, one line per entry and locale, by guideline and judge, each beside a hash of everything its
   request said: the model, the prompt, the entry and the guidelines, so changing one asks again of every entry it reads. A
   run asks only of what changed since, and only the models that haven't answered, and says how long it took, the tokens and

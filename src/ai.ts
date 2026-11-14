@@ -23,6 +23,13 @@ type ProviderOptions = NonNullable<Parameters<typeof experimental_decide>[0]['pr
 
 export interface DecisionJudgeOptions {
   /**
+   * The name the lock keeps this model's answers under, in place of the provider's and the model's
+   * (`anthropic.messages/claude-haiku-5-5`), which names one model differently through each provider.
+   * A name of your own keeps the answers when the provider changes; set it to the name already in
+   * the lock to keep those.
+   */
+  id?: string;
+  /**
    * The model's prices in US dollars per million tokens, to say what a run cost where the provider
    * doesn't, a price not given being free: Jev's is `{ input: 0.042 }`. The AI Gateway says each request's cost.
    */
@@ -37,11 +44,15 @@ export interface DecisionJudgeOptions {
   threshold?: number;
 }
 
+/** A model's name where none is given: the gateway's ID as written, else the provider's and the model's. */
+const idOf = (model: string | { provider: string; modelId: string }) =>
+  typeof model === 'string' ? model : `${model.provider}/${model.modelId}`;
+
 /** A judge asking `model`, which must answer boolean questions. */
 export function decisionJudge(model: Experimental_DecisionModel, options: DecisionJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers, ask, threshold } = options;
+  const { id, price, maxRetries, providerOptions, headers, ask, threshold } = options;
   return {
-    id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    id: id ?? idOf(model),
     ...(ask !== undefined && { ask }),
     ...(threshold !== undefined && { threshold }),
     async judge({ state, questions, signal }) {
@@ -86,9 +97,9 @@ Where you find a guideline broken, a \`breaks\` question you answer above 0.5 wh
  * probability, and with `suggest`, a rewrite of an entry it finds breaking a guideline.
  */
 export function languageJudge(model: LanguageModel, options: LanguageJudgeOptions = {}): Judge {
-  const { price, maxRetries, providerOptions, headers, ask, threshold, suggest = true } = options;
+  const { id, price, maxRetries, providerOptions, headers, ask, threshold, suggest = true } = options;
   return {
-    id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    id: id ?? idOf(model),
     ...(ask !== undefined && { ask }),
     ...(threshold !== undefined && { threshold }),
     async judge({ state, questions, signal }) {
@@ -148,7 +159,7 @@ export type TranslatorOptions = Pick<DecisionJudgeOptions, 'price' | 'maxRetries
 export function languageTranslator(model: LanguageModel, options: TranslatorOptions = {}): Translator {
   const { price, maxRetries, providerOptions, headers } = options;
   return {
-    id: typeof model === 'string' ? model : `${model.provider}/${model.modelId}`,
+    id: idOf(model),
     async translate({ prompt, signal }) {
       const result = await generateText({
         model,
