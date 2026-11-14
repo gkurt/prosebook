@@ -1,52 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `localeRoutes` reads and writes a locale in the URL's path\n\n`split` gives the locale and the path a router matches, `path` the same page in another locale, `alternates` every locale's URL for `hreflang`, and `redirect` where a server sends a request, by what the reader asks for.\n"
-    filename: locale-routes.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A GitHub action checks the copy on a pull request\n\n`uses: gkurt/prosebook@main` runs `prosebook check`, uploads its findings to code scanning, and comments the copy the pull request changes, updating that comment on each push.\n"
-    filename: github-action.md
-    v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook translate` asks a model for what a locale is missing\n\n`translate.model` in the config, `languageTranslator(model)` from `prosebook/ai`, gets the prompt `todo --prompt` writes, a batch of entries at a time. Each reply is checked as `import` checks one: an entry that drops a placeholder is asked again with its problem, and left untranslated if it is still wrong.\n"
-    filename: translate.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A judge's `id` keeps its verdicts when the provider changes\n\n`decisionJudge` and `languageJudge` take an `id`, the name the lock keeps the model's answers under. Without one the name is the provider's and the model's, so the same model through another provider was asked of the whole catalog again. Give the name the lock already has, `languageJudge(model, { id: 'anthropic.messages/claude-haiku-5-5' })`, to keep those answers.\n"
+    filename: judge-id.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - locale-routes.md
-      - github-action.md
-      - translate.md
+      - judge-id.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vue
+    updated: false
   - id: npm:example-rspack
     updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-svelte
-    updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-preact
+  - id: npm:example-next
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
+  - id: npm:example-vite
+  - id: npm:example-bun
+  - id: npm:example-preact
+  - id: npm:example-svelte
+  - id: npm:example-tanstack-start
+  - id: npm:example-vue
   - id: npm:example-rspack
   - id: npm:example-solid
-  - id: npm:example-vite
-  - id: npm:example-next
-  - id: npm:example-bun
-  - id: npm:example-vue
-  - id: npm:example-svelte
   - id: npm:example-node
-  - id: npm:example-tanstack-start
-  - id: npm:example-preact
+  - id: npm:example-next
