@@ -1,48 +1,52 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `npx prosebook lint` runs in a codebase with nothing set up\n\nWith no config file and no catalog, `lint` and `scan` read the text in the code under the strict rules, from `src` or the project's root, and say so.\n"
-    filename: lint-before-setup.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `localeRoutes` reads and writes a locale in the URL's path\n\n`split` gives the locale and the path a router matches, `path` the same page in another locale, `alternates` every locale's URL for `hreflang`, and `redirect` where a server sends a request, by what the reader asks for.\n"
+    filename: locale-routes.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### prosebook judge says the time left and the cost so far, in a terminal or not\n\nThe progress line counts requests, with the time left and the cost so far, rewritten in place in a terminal. Without a terminal, as an agent or CI reads the output, the line is printed at each tenth of the run, where the run used to print nothing until the end.\n"
-    filename: judge-progress.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A GitHub action checks the copy on a pull request\n\n`uses: gkurt/prosebook@main` runs `prosebook check`, uploads its findings to code scanning, and comments the copy the pull request changes, updating that comment on each push.\n"
+    filename: github-action.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook translate` asks a model for what a locale is missing\n\n`translate.model` in the config, `languageTranslator(model)` from `prosebook/ai`, gets the prompt `todo --prompt` writes, a batch of entries at a time. Each reply is checked as `import` checks one: an entry that drops a placeholder is asked again with its problem, and left untranslated if it is still wrong.\n"
+    filename: translate.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - lint-before-setup.md
-      - judge-progress.md
+      - locale-routes.md
+      - github-action.md
+      - translate.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-preact
-    updated: false
   - id: npm:example-rspack
     updated: false
   - id: npm:example-solid
     updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-node
+    updated: false
   - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-vite
-  - id: npm:example-next
-  - id: npm:example-vue
-  - id: npm:example-bun
-  - id: npm:example-node
-  - id: npm:example-svelte
-  - id: npm:example-preact
   - id: npm:example-rspack
   - id: npm:example-solid
+  - id: npm:example-vite
+  - id: npm:example-next
+  - id: npm:example-bun
+  - id: npm:example-vue
+  - id: npm:example-svelte
+  - id: npm:example-node
   - id: npm:example-tanstack-start
+  - id: npm:example-preact
