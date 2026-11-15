@@ -151,6 +151,43 @@ describe('voice', () => {
     );
   });
 
+  test('dangling-modifier: a sentence opens with a modifier whose thing the sentence leaves out', () => {
+    holds(
+      'dangling-modifier',
+      [
+        { text: 'Enabled, a session in a git repository works in a worktree.' },
+        { text: 'Left empty, each session gets a separate folder.' },
+        { text: "Disabled, or in a folder that isn't a repository, sessions share the configuration folder." },
+        { text: 'Saved to the cloud. Signed in, members see the drafts.' },
+        { text: 'Based on your plan, we recommend the team tier.' },
+        { text: 'Off, sessions share the configuration folder.' },
+        { text: 'Set to {mode}, the agent asks before each command.' },
+      ],
+      [
+        { text: 'With worktrees enabled, a session in a git repository works in a worktree.' },
+        { text: 'When enabled, each session gets a separate folder.' },
+        { text: 'If the field is empty, each session gets a separate folder.' },
+        // A second clause about the same subject, a short detail, or a list.
+        { text: 'Saved, but not published yet.' },
+        { text: 'Copied, ready to paste.' },
+        { text: 'Connected, 3 devices' },
+        { text: 'Archived, then deleted after 30 days.' },
+        { text: 'Detailed logs, traces and metrics' },
+        { text: 'Accented, padded text shows the strings the catalog missed.' },
+        // `need` and `speed` are no participles.
+        { text: 'Need help, reach out to the team.' },
+        { text: 'Embedded in the page.' },
+        // A preposition, a clause, and a pronoun naming what the modifier describes.
+        { text: 'On a server, each request gets a separate copy.' },
+        { text: 'Hardcoded text is the code’s, and the scan finds the text.' },
+        { text: 'Unset, it is the provider’s name.' },
+      ],
+    );
+    expect(found('dangling-modifier', [{ text: 'Left empty, each session gets a separate folder.' }])[0]).toEqual([
+      '"Left empty," describes a thing the sentence never names, so it reads as describing the subject after it: name the thing, as "With worktrees enabled, a session…" or "If the field is empty, each session…"',
+    ]);
+  });
+
   test('a context is held to the rules against pointing, semicolons and figurative verbs, and not to the rest', () => {
     const context = (text: string) => found('pointing', [{ text: 'Saved', context: text }])[0];
     expect(context('A toast after the form is saved; it closes after a few seconds.')).toEqual([
@@ -185,7 +222,7 @@ describe('voice', () => {
 
   test('the checked rules are warnings in recommended, errors in strict, off in the docs, and off with voice/*', () => {
     const config = fixture({}, { lint: { extends: 'strict' } });
-    for (const rule of ['pointing', 'of-its-own', 'semicolons', 'colon-clause', 'figurative-verbs']) {
+    for (const rule of ['pointing', 'of-its-own', 'semicolons', 'colon-clause', 'figurative-verbs', 'dangling-modifier']) {
       expect(fixture({}).lint.rules[`voice/${rule}`]?.severity).toBe('warn');
       expect(config.lint.rules[`voice/${rule}`]?.severity).toBe('error');
       expect(fixture({}, { lint: { rules: { 'voice/*': 'off' } } }).lint.rules[`voice/${rule}`]?.severity).toBe('off');

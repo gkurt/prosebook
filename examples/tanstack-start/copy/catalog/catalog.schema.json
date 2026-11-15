@@ -185,7 +185,8 @@
             "voice/of-its-own",
             "voice/semicolons",
             "voice/colon-clause",
-            "voice/figurative-verbs"
+            "voice/figurative-verbs",
+            "voice/dangling-modifier"
           ]
         },
         "additionalProperties": {

@@ -659,20 +659,24 @@ They're guidelines, not checks: each is about meaning, which a word list would f
 model can judge, with [`prosebook judge`](#judge). A switch's state is one example `voice/own-words` gives: `Enabled` or
 `Disabled`, never a phrase for what the switch does, such as `Starts work`.
 
-Five habits are found reliably by a pattern, so the `voice` plugin checks them too, as warnings under `recommended` and errors
+Six habits are found reliably by a pattern, so the `voice` plugin checks them too, as warnings under `recommended` and errors
 under `strict`:
 
-| Rule                     | Finds                                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `voice/pointing`         | `it`, `its`, `they`, `their`, `them`, and `there` for a place: `The agent has no files there` |
-| `voice/of-its-own`       | `of its own`, `of their own`, `of {name}'s own`: `a folder of its own` is `a separate folder` |
-| `voice/semicolons`       | Two facts joined with a semicolon, which make two sentences                                   |
-| `voice/colon-clause`     | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted   |
-| `voice/figurative-verbs` | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`        |
+| Rule                      | Finds                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `voice/pointing`          | `it`, `its`, `they`, `their`, `them`, and `there` for a place: `The agent has no files there` |
+| `voice/of-its-own`        | `of its own`, `of their own`, `of {name}'s own`: `a folder of its own` is `a separate folder` |
+| `voice/semicolons`        | Two facts joined with a semicolon, which make two sentences                                   |
+| `voice/colon-clause`      | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted   |
+| `voice/figurative-verbs`  | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`        |
+| `voice/dangling-modifier` | A sentence opening with a modifier of a thing the sentence leaves out: `Enabled, a session…`  |
 
 `There is` and `is there` point at no place, and pass. `Region: {region}`, a short list after a colon, and `Build failed: npm
 run build exited with code 1.` on the `error` surface pass `voice/colon-clause`. Read and write are left to `voice/own-words`,
 since a tool named `Read` or a `Cache read` is the product's own word.
+
+`voice/dangling-modifier` passes a modifier naming the setting, `With worktrees enabled, a session…`, an opening
+conjunction, `When enabled,`, and a second clause about the same subject, `Saved, but not published`.
 
 Each entry's `context` is held to `voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` too,
 since the next writer copies the words of a context into the copy:

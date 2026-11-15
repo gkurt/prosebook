@@ -130,6 +130,52 @@ const figurativeVerbs: CheckRule = {
     }),
 };
 
+/**
+ * A participle that opens a sentence before a comma: `Enabled,`, `Left empty,`, `Set to Always,`, `Based on
+ * your plan,`. `When enabled,` and `If set,` open with a conjunction, and pass. `-eed` is `need`, `speed`.
+ * `On`, `Off` and `Empty` stand alone, as `On a server,` opens with a preposition, and a finite verb ends
+ * the modifier, as `Hardcoded text is JSX's,` is a clause.
+ */
+const FRONTED = new RegExp(
+  String.raw`(?:^|(?<=[.!?…]\s+))((?:\p{L}{2,}(?<!e)ed|left|shown|hidden|written|given|held|kept|chosen|taken|built|unset|set(?=\s+to\s))(?:\s+(?!(?:is|are|was|were|has|have|had|can|will|does|do)(?![\p{L}'’-]))[\p{L}\p{N}${HOLE}'’-]+){0,4}|on|off|empty),\s*`,
+  'giu',
+);
+
+/**
+ * Words that start a second clause about the same subject, `Saved, but not published`, not the subject.
+ * A pronoun after the modifier is the thing the modifier describes, which `pointing` asks to be named.
+ */
+const JOINED = /^(?:but|not|so|and|then|yet|now|ready|since|as|until|it|they|this|these)(?![\p{L}'’-])/iu;
+
+/** A second participle after the comma: `Accented, padded text` is two adjectives on one noun. */
+const STACKED = /^\p{L}{2,}(?<!e)ed(?![\p{L}'’-])/iu;
+
+const WORD = /[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu;
+
+const danglingModifier: CheckRule = {
+  description:
+    'A sentence never opens with a modifier whose thing the sentence leaves out, which reads as the subject after the modifier: `With worktrees enabled, a session works in a worktree`, not `Enabled, a session works in a worktree`.',
+  recommended: 'warn',
+  check: ({ text }) => {
+    for (const v of text.variants) {
+      for (const m of v.matchAll(FRONTED)) {
+        // A clause of three words or more follows, to the sentence's end, past an `or` that runs the modifier on.
+        let rest = /^[^.!?…]*/u.exec(v.slice(m.index + m[0].length))![0];
+        if (/^or\s/iu.test(rest)) rest = rest.includes(',') ? rest.slice(rest.indexOf(',') + 1).trimStart() : '';
+        if ((rest.match(WORD) ?? []).length < 3 || JOINED.test(rest) || STACKED.test(rest) || isList(rest)) continue;
+        const opening = m[1]!;
+        return [
+          {
+            message: `"${opening}," describes a thing the sentence never names, so it reads as describing the subject after it: name the thing, as "With worktrees enabled, a session…" or "If the field is empty, each session…"`,
+            match: opening,
+          },
+        ];
+      }
+    }
+    return [];
+  },
+};
+
 export const VOICE: Plugin = {
   name: 'voice',
   rules: {
@@ -170,5 +216,6 @@ export const VOICE: Plugin = {
     semicolons,
     'colon-clause': colonClause,
     'figurative-verbs': figurativeVerbs,
+    'dangling-modifier': danglingModifier,
   },
 };
