@@ -26,8 +26,11 @@ export function unscanned(config: Pick<ResolvedConfig, 'out' | 'formatters'>): s
   return config.formatters === undefined ? [config.out] : [config.out, config.formatters.file];
 }
 
+/** The source files under each folder, and each path that is a file itself, as `scan.dirs` may name one. */
 export function sourceFiles(dirs: string[], extensions: string[], skip: string[] = []): string[] {
   const files: string[] = [];
+  const isSource = (name: string) => extensions.includes(extname(name)) && !name.endsWith('.d.ts');
+  const skipped = (path: string) => skip.some((s) => path === s || path.startsWith(`${s}/`) || path.startsWith(`${s}\\`));
   const visit = (dir: string) => {
     let names: string[];
     try {
@@ -37,16 +40,19 @@ export function sourceFiles(dirs: string[], extensions: string[], skip: string[]
     }
     for (const name of names) {
       const path = join(dir, name);
-      if (skip.some((s) => path === s || path.startsWith(`${s}/`) || path.startsWith(`${s}\\`))) continue;
+      if (skipped(path)) continue;
       if (statSync(path).isDirectory()) {
         if (!SKIP_DIRS.has(name) && !name.startsWith('.')) visit(path);
-      } else if (extensions.includes(extname(name)) && !name.endsWith('.d.ts')) {
+      } else if (isSource(name)) {
         files.push(path);
       }
     }
   };
-  for (const dir of dirs) visit(dir);
-  return files.sort();
+  for (const dir of dirs) {
+    if (!statSync(dir, { throwIfNoEntry: false })?.isFile()) visit(dir);
+    else if (isSource(dir) && !skipped(dir)) files.push(dir);
+  }
+  return [...new Set(files)].sort();
 }
 
 /** Whether a file, named from the root with `/`, is one `patterns` names, or in a folder one names: `src/server`, `**\/*.server.ts`. */

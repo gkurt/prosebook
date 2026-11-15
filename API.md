@@ -1256,10 +1256,11 @@ The summary counts each rule's findings, and names words `sentence-case` finds c
 never written in lowercase, for `lint.properNouns`. Warnings alone exit 0: a rule CI should fail on is set to `'error'` under `lint.rules`.
 
 `duplicate` says each group once, at the entry to keep. `prosebook lint --fix --unsafe` also merges each group: the first entry
-stays (moved into `extract.shared` where the group spans areas), the others go with their translations, and every string literal
-naming one reads the kept key. It's unsafe because words alike may be translated apart: a group whose translations differ in a
+stays, the others go with their translations, and every string literal naming one reads the kept key. A group spanning areas
+keeps the entry `extract.shared` already holds, or moves the first there under a key from its words (`common.saving`, then
+`common.saving-state` where that is taken). The kept entry's `context` is every context the group had. It's unsafe because words alike may be translated apart: a group whose translations differ in a
 locale is left and named, and an entry exempt from `duplicate` is never merged. A read through a key prefix is named, to fix by
-hand.
+hand. The code rewritten is the project's, [as a rename's is](#rename).
 
 **Exemptions.** Where a rule is wrong about an entry, say why:
 
@@ -1506,6 +1507,7 @@ Finds text a person reads that is still in the code: JSX text, readable attribut
 what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`), the text given to `scan.calls` (`toast`, `alert`,
 `confirm`), and in components the values of `scan.properties`. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
 and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
+`scan.dirs` names the folders read (`src` unset), or single files: `['src', 'desktop/app.config.ts']`.
 
 JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,
 `Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes aren't text: `className=`, what `cn`, `clsx`,
@@ -1703,8 +1705,10 @@ prosebook rename cart basket                 # an area: cart.yaml becomes basket
 ```
 
 Renames in the catalog, every translation, the lock, every message [saying it](#names-in-other-messages) and every string literal
-naming the key under `scan.dirs`. A read through a
-prefix moves with an area (``t(`cart.${id}`)``); one that only may reach a renamed key is named, to rename by hand. A dry run
+naming the key in the project's source: every file with one of `scan.extensions` under the config's folder, `e2e/` and scripts
+included, and under `scan.dirs`. A read through a
+prefix moves with an area (``t(`cart.${id}`)``); one that only may reach a renamed key is named, to rename by hand, unless it is
+what something other than `t` or `rich` is called with, as a test's name is. A dry run
 unless `--write`, checked first, then regenerated.
 
 ### Diff

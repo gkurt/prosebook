@@ -1377,8 +1377,7 @@ function runUnseen(config: ResolvedConfig, level: 'error' | 'warning', report?: 
 
 async function runExtract(config: ResolvedConfig, paths: string[], write: boolean, area: string | undefined): Promise<number> {
   const targets = paths.length > 0 ? paths.map((p) => resolve(config.root, p)) : config.scan.dirs;
-  const files = sourceFiles(targets, ['.tsx', '.jsx'], [config.out]).concat(targets.filter((t) => /\.[jt]sx$/.test(t) && existsSync(t)));
-  const plan = await planExtract(config, [...new Set(files)], { area });
+  const plan = await planExtract(config, sourceFiles(targets, ['.tsx', '.jsx'], [config.out]), { area });
   const extractions = plan.files.flatMap((f) => f.extractions);
   for (const x of extractions) {
     out(`${x.file}:${x.line}:${x.column}  ${x.where === 'text' ? '' : `${x.where}=`}"${x.message}"`);

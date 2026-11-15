@@ -331,6 +331,21 @@ function withFields(file: string, key: string, fields: EntryFields, source: stri
   return print(doc);
 }
 
+/** An entry's context replaced, and nothing else: a `key: message` entry gains a mapping to hold it. */
+export function withContext(file: string, key: string, context: string, source: string): string {
+  const doc = parse(file);
+  const entry = doc.get(key, true);
+  if (!isMap(entry)) {
+    doc.set(key, doc.createNode({ context, [source]: isScalar(entry) ? entry.value : '' }));
+  } else if (entry.has('context')) {
+    setValue(doc, entry, 'context', context);
+  } else {
+    const at = entry.items.findIndex((p) => isScalar(p.key) && p.key.value === source);
+    entry.items.splice(at === -1 ? entry.items.length : at, 0, doc.createPair('context', context));
+  }
+  return print(doc);
+}
+
 /** The source message replaced, and nothing else: a `key: message` entry stays one. */
 function withMessage(file: string, key: string, message: string, source: string): string {
   const doc = parse(file);

@@ -511,10 +511,16 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   YAML block (`snippetOf` and the comments above it) cut from its file and written, rekeyed, to its new
   area's, in every locale; the lock's anchors moved with it, the messages saying it as an entry
   (`rewriteReferences`), and string literals naming a key, or a
-  prefix under the one renamed, rewritten in the code (`scan.ts`'s literal reading, not calls). Checked
+  prefix under the one renamed, rewritten in the code (`scan.ts`'s literal reading, not calls), which is every
+  source file under the config's folder and `scan.dirs`, so a test in `e2e/` follows. A prefix that only may
+  reach a renamed key is named, unless something other than a reader is called with it (`CALLED`, `ALIAS`). Checked
   through `checkEdit` before anything is written; `loadCatalog` reads a catalog file the rename would
   create, as it does a translation file. `planMerge` is `lint --fix --unsafe`'s merge of each
-  `duplicate` group, through the same moves and code rewrite (`rewriteCode`, here without a prefix).
+  `duplicate` group, through the same moves and code rewrite (`rewriteCode`, here without a prefix). A group
+  spanning areas keeps the entry the shared area holds, else moves its first there under `sharedKey`: its
+  words' slug, as `extract` names one, then with its kind, then numbered. The kept entry's context is the
+  group's contexts joined (`withContext`, `entry.ts`). A moved entry stands a blank line apart where the
+  file's entries do (`spaced`), and `cut` takes an entry's blank line with it.
 
 `site/` is the homepage, and the only demo: an Astro site and a workspace, importing prosebook from `dist`
 as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` builds it into `_site` and

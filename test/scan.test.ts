@@ -324,6 +324,20 @@ describe('key references', () => {
     expect(isReferenced('status.offline', refs)).toBe(true);
     expect(isReferenced('cart.empty', refs)).toBe(false);
   });
+
+  test('scan.dirs names a file as it names a folder', () => {
+    const config = fixture(
+      {
+        'src/App.tsx': "export const a = t('cart.title');\n",
+        'desktop/app.config.ts': "export const name = t('app.name');\n",
+        'desktop/other.ts': "export const b = t('cart.other');\n",
+      },
+      { scan: { dirs: ['src', 'desktop/app.config.ts'] } },
+    );
+    const found = scan(config.scan, config.root);
+    expect(found.files).toBe(2);
+    expect([...found.refs.exact].sort()).toEqual(['app.name', 'cart.title']);
+  });
 });
 
 describe('reads a pruned build cannot see', () => {

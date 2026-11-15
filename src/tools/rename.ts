@@ -5,7 +5,8 @@
  * and every string literal in the code that names it is rewritten. The whole is checked as the
  * catalog it makes before anything is written, as an edit is.
  *
- * The code is read as `scan` reads it, for literals, not calls: a key held in a map is renamed too. A
+ * The code is read as `scan` reads it, for literals, not calls: a key held in a map is renamed too. All
+ * of the project's is, not `scan.dirs` alone, since a test outside the app names keys as the app does. A
  * read through a prefix (`cart.${id}`) can't be followed unless the whole prefix moves, so it is named.
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,9 +17,10 @@ import { isMap, isScalar, parseDocument } from 'yaml';
 import { KEY_PATTERN, loadCatalog, withSchemaLine, type Message, type Problem } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { duplicateGroups } from './duplicates.ts';
-import { checkEdit, contentOf, snippetOf } from './entry.ts';
+import { checkEdit, contentOf, snippetOf, withContext } from './entry.ts';
+import { slugOf } from './extract.ts';
 import { readLock, serializeLock } from './lock.ts';
-import { sourceFiles } from './scan.ts';
+import { READERS, sourceFiles } from './scan.ts';
 
 export interface RenamePlan {
   /** Old key to new, in the order they are written. */
@@ -130,11 +132,13 @@ export interface MergePlan extends RenamePlan {
 }
 
 /**
- * `prosebook lint --fix --unsafe`: each `duplicate` group made one entry. The first stays, moved into
- * `extract.shared` where the group spans areas; the others go, with their translations, and the code
- * naming them reads the one kept. Unsafe, since words alike may still be translated apart: a group
- * whose translations already differ in some locale is left, and a translation only another entry
- * has is kept. A read through a key prefix can't be followed, so it is named, as a rename names it.
+ * `prosebook lint --fix --unsafe`: each `duplicate` group made one entry. The first stays, or, where
+ * the group spans areas, the one `extract.shared` holds already, else the first moved there under a
+ * key from its words (`sharedKey`); the others go, with their translations, and the code naming them
+ * reads the one kept, whose context is every context the group had, since it now stands in each of
+ * their places. Unsafe, since words alike may still be translated apart: a group whose translations
+ * already differ in some locale is left, and a translation only another entry has is kept. A read
+ * through a key prefix can't be followed, so it is named, as a rename names it.
  */
 export function planMerge(config: ResolvedConfig): MergePlan {
   const plan: MergePlan = { keys: new Map(), files: new Map(), code: [], prefixed: [], problems: [], merged: [], skipped: [] };
@@ -146,23 +150,24 @@ export function planMerge(config: ResolvedConfig): MergePlan {
   // Per locale, the key whose translation the kept entry takes, for its anchor in the lock.
   const anchored: { into: string; keys: string[]; from: Map<string, string> }[] = [];
   for (const group of duplicateGroups(catalog.messages)) {
-    const [kept, ...rest] = group as [Message, ...Message[]];
     const keys = group.map((m) => m.key);
-    const across = shared !== undefined && rest.some((m) => m.area !== kept.area);
-    const into = across ? `${shared}.${kept.key.slice(kept.area.length + 1)}` : kept.key;
-    if (into !== kept.key && taken.has(into)) {
-      plan.skipped.push({ keys, why: `${into} is an entry already: merge them by hand` });
-      continue;
-    }
+    const across = shared !== undefined && group.some((m) => m.area !== group[0]!.area);
+    const kept = (across ? group.find((m) => m.area === shared) : undefined) ?? group[0]!;
+    const rest = group.filter((m) => m !== kept);
     const locales = [...new Set(group.flatMap((m) => [...m.translations.keys()]))];
     const differ = locales.filter((l) => new Set(group.flatMap((m) => m.translations.get(l)?.text ?? [])).size > 1);
     if (differ.length > 0) {
       plan.skipped.push({ keys, why: `their ${differ.join(', ')} translations differ: merge them by hand, or exempt one` });
       continue;
     }
+    const into = !across || kept.area === shared ? kept.key : sharedKey(taken, shared, kept);
     taken.add(into);
     const area = into.slice(0, into.indexOf('.'));
-    moveEntry(config, unsaved, kept.file, rel(join(config.catalog, `${area}.yaml`)), kept.key, into, true);
+    const file = rel(join(config.catalog, `${area}.yaml`));
+    moveEntry(config, unsaved, kept.file, file, kept.key, into, true);
+    const contexts = [...new Set([kept, ...rest].flatMap((m) => m.context?.trim() || []))];
+    if (contexts.length > 1 || contexts[0] !== kept.context?.trim())
+      unsaved.set(resolve(config.root, file), withContext(contentOf(config, file, unsaved), into, contexts.join(' '), config.source));
     const from = new Map<string, string>();
     for (const l of locales) {
       const owner = group.find((m) => m.translations.has(l))!;
@@ -200,12 +205,44 @@ export function planMerge(config: ResolvedConfig): MergePlan {
   return plan;
 }
 
+/**
+ * The key a group's entry takes in the shared area: its words, as `extract` names one there, since the
+ * key it had says where it stood (`password.saving`). Where another entry has that key, the same
+ * words in another role, its kind sets it apart, then a number.
+ */
+function sharedKey(taken: Set<string>, shared: string, kept: Message): string {
+  const base = `${shared}.${slugOf(kept.text)}`;
+  const named = [base, ...(kept.kind === undefined ? [] : [`${base}-${kept.kind}`])].find(
+    (key) => KEY_PATTERN.test(key) && !taken.has(key),
+  );
+  if (named !== undefined) return named;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
 /** An entry, with the comments above it, cut from its file. */
 function removeEntry(config: ResolvedConfig, unsaved: Map<string, string>, file: string, key: string): void {
   const source = contentOf(config, file, unsaved);
   const block = blockOf(source, key);
   if (block === undefined) return;
-  unsaved.set(resolve(config.root, file), source.slice(0, block.start) + source.slice(block.end).replace(/^\r?\n/, ''));
+  unsaved.set(resolve(config.root, file), cut(source, block));
+}
+
+/** A file without a block, and without the blank line that set it apart from the entry above. */
+function cut(source: string, block: { start: number; end: number }): string {
+  const before = source.slice(0, block.start);
+  const after = source.slice(block.end).replace(/^\r?\n/, '');
+  if (after.trim() === '') return before.replace(/\s*$/, before.trim() === '' ? '' : '\n');
+  return before + (/(?:^|\n)[ \t]*\r?\n$/.test(before) ? after.replace(/^[ \t]*\r?\n/, '') : after);
+}
+
+/**
+ * Whether a file sets its entries apart with blank lines: one stands after its first entry. A file
+ * with fewer than two entries says neither.
+ */
+function spaced(file: string): boolean | undefined {
+  const first = file.search(/^[^\s#]/m);
+  const entries = first === -1 ? '' : file.slice(first).trimEnd();
+  return /\n[^\s#]/.test(entries) ? /\n[ \t]*\r?\n/.test(entries) : undefined;
 }
 
 /**
@@ -250,9 +287,11 @@ function moveEntry(
     unsaved.set(resolve(config.root, from), source.slice(0, block.start) + renamed + source.slice(block.end));
     return;
   }
-  unsaved.set(resolve(config.root, from), source.slice(0, block.start) + source.slice(block.end).replace(/^\r?\n/, ''));
+  unsaved.set(resolve(config.root, from), cut(source, block));
   const target = contentOf(config, to, unsaved);
-  const added = target.trim() === '' ? `${renamed}\n` : `${target.replace(/\n*$/, '\n')}${renamed}\n`;
+  // Set apart as the file's entries are, or, where it has too few to tell, as they were where this one stood.
+  const apart = (spaced(target) ?? spaced(source)) === true ? '\n' : '';
+  const added = target.trim() === '' ? `${renamed}\n` : `${target.replace(/\n*$/, '\n')}${apart}${renamed}\n`;
   unsaved.set(resolve(config.root, to), isCatalog ? withSchemaLine(added) : added);
 }
 
@@ -279,9 +318,16 @@ function rewriteReferences(config: ResolvedConfig, unsaved: Map<string, string>,
   }
 }
 
+/** A name a module binds a copy's reader to: `{ t: translate }`, `import { t as translate }`. */
+const ALIAS = /\b(?:t|rich)\s*(?::|\bas\b)\s*([A-Za-z_$][\w$]*)/g;
+/** What is called with the text after it as its first argument: a name, or none where no name is called. */
+const CALLED = /(?:([\w$]+)|[)\]])\s*\(\s*$/;
+
 /**
- * Every literal naming a renamed key, rewritten. A prefix under `from.` moves with it, so `cart.${id}`
- * becomes `basket.${id}` when `cart` is renamed; one that only may reach a renamed key is named.
+ * Every literal naming a renamed key, rewritten, in the project's source: the config's folder and
+ * `scan.dirs`. A prefix under `from.` moves with it, so `cart.${id}` becomes `basket.${id}` when `cart`
+ * is renamed; one that only may reach a renamed key is named, unless it is what something other than
+ * a copy's reader is called with, as a test's name is: `` test(`admin.users.${procedure}`) ``.
  */
 function rewriteCode(config: ResolvedConfig, plan: RenamePlan, moved?: { from: string; to: string }): void {
   const keys = [...plan.keys.keys()].sort((a, b) => b.length - a.length).map(escape);
@@ -289,7 +335,9 @@ function rewriteCode(config: ResolvedConfig, plan: RenamePlan, moved?: { from: s
   const under = moved && new RegExp(`(['"\`])${escape(moved.from)}\\.((?:[\\w-]+\\.)*)(?=\\1|\\$\\{)`, 'g');
   const prefix = /(['"`])([a-z0-9][\w-]*(?:\.[\w-]+)*\.)(?:\1|\$\{)/g;
   const reaches = (p: string) => (moved ? `${moved.from}.`.startsWith(p) : [...plan.keys.keys()].some((key) => key.startsWith(p)));
-  for (const path of sourceFiles(config.scan.dirs, config.scan.extensions, [config.out])) {
+  const readers = new Set(READERS);
+  const called: ((typeof plan.prefixed)[number] & { by: string })[] = [];
+  for (const path of sourceFiles([config.root, ...config.scan.dirs], config.scan.extensions, [config.out])) {
     const code = readFileSync(path, 'utf8');
     const file = relative(config.root, path).replaceAll('\\', '/');
     let count = 0;
@@ -307,10 +355,17 @@ function rewriteCode(config: ResolvedConfig, plan: RenamePlan, moved?: { from: s
       plan.files.set(path, next);
       plan.code.push({ file, count });
     }
+    for (const m of next.matchAll(ALIAS)) readers.add(m[1]!);
     for (const m of next.matchAll(prefix)) {
       const p = m[2]!;
       if (!reaches(p)) continue;
-      plan.prefixed.push({ file, line: next.slice(0, m.index).split('\n').length, prefix: p });
+      const found = { file, line: next.slice(0, m.index).split('\n').length, prefix: p };
+      const call = CALLED.exec(next.slice(Math.max(0, m.index - 200), m.index));
+      if (call === null) plan.prefixed.push(found);
+      else called.push({ ...found, by: call[1] ?? '' });
     }
   }
+  // Once every module is read, so a reader bound in one and called in another is known.
+  for (const { by, ...found } of called) if (readers.has(by)) plan.prefixed.push(found);
+  plan.prefixed.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
 }

@@ -311,7 +311,7 @@ function splitRules(
     all: [
       'browser',
       { not: 'foreign' },
-      ...(dirs.length > 0 && dirs.length === config.scan.dirs.length ? [{ path: new RegExp(`(?:^|/)(?:${dirs.join('|')})/`) }] : []),
+      ...(dirs.length > 0 && dirs.length === config.scan.dirs.length ? [{ path: new RegExp(`(?:^|/)(?:${dirs.join('|')})(?:/|$)`) }] : []),
       { not: { path: new RegExp(`(?:^|/)${under(config.out)}/`) } },
       // As `keyRefs` reads a key: a quote, then the area.
       { content: new RegExp(`['"\`](?:${areas.map(escape).join('|')})\\.`) },

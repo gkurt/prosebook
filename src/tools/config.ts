@@ -293,6 +293,7 @@ export interface ProsebookConfig {
   docs?: string[];
   /** Where `prosebook scan` looks for hardcoded text and catalog keys. */
   scan?: {
+    /** Folders, read through, and single files: `['src', 'desktop/app.config.ts']`. */
     dirs?: string[];
     extensions?: string[];
     /** JSX attributes whose literal value a person reads. */

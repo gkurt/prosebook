@@ -144,6 +144,91 @@ describe('rename', () => {
     expect(cli(config.root, 'lint', '--unsafe').stderr).toContain('--unsafe goes with --fix');
   });
 
+  test('a merged entry is named for its words, keeps every context, and stands apart as the file’s entries do', () => {
+    const config = fixture(
+      {
+        'prosebook.config.json': '{ "require": [], "extract": { "shared": "common" } }',
+        'copy/catalog/settings.yaml': [
+          SCHEMA_LINE,
+          '',
+          'settings.password.saving:\n  kind: state\n  context: Under the password form while it saves.\n  en: Saving…',
+          '',
+          'settings.dismiss:\n  kind: action\n  context: Closes the cookie notice.\n  en: Decline',
+          '',
+          'settings.title: Settings',
+          '',
+          'settings.loading:\n  kind: state\n  en: Loading…',
+          '',
+          'settings.name:\n  kind: name\n  en: Name',
+          '',
+        ].join('\n'),
+        'copy/catalog/editor.yaml': [
+          SCHEMA_LINE,
+          '',
+          'editor.outputs.saving:\n  kind: state\n  context: Beside an output being saved.\n  en: Saving…',
+          '',
+          'editor.refuse:\n  kind: action\n  context: Closes the cookie notice.\n  en: Decline',
+          '',
+          'editor.loading:\n  kind: state\n  en: Loading…',
+          '',
+          'editor.name:\n  kind: name\n  en: Name',
+          '',
+        ].join('\n'),
+        // Keys the words would take: one says other words, one the same words in another role, and one is the group's own.
+        'copy/catalog/common.yaml': [
+          SCHEMA_LINE,
+          '',
+          'common.dismiss:\n  kind: action\n  en: Dismiss',
+          '',
+          'common.loading:\n  kind: name\n  en: Loading…',
+          '',
+          'common.name:\n  kind: name\n  en: Name',
+          '',
+        ].join('\n'),
+        'src/App.tsx': "export const App = ({ t }) => [t('settings.dismiss'), t('editor.name')];\n",
+        // Outside `scan.dirs`, and a test's name that is no read beside a read that is one.
+        'e2e/app.spec.ts': [
+          "const key = 'editor.outputs.saving';",
+          'test(`editor.outputs.${procedure}`, () => {});',
+          'expect(copy.t(`editor.outputs.${state}`)).toBe(key);',
+          '',
+        ].join('\n'),
+      },
+      { require: [], extract: { shared: 'common' } },
+    );
+    generate(config);
+    const merged = cli(config.root, 'lint', '--fix', '--unsafe');
+    expect(merged.stdout).toContain('merged settings.password.saving into common.saving');
+    expect(merged.stdout).toContain('merged settings.dismiss into common.decline');
+    expect(merged.stdout).toContain('merged settings.loading into common.loading-state');
+    expect(merged.stdout).toContain('merged editor.name, settings.name into common.name');
+    expect(merged.stderr).not.toContain('apart');
+    expect(read(config.root, 'copy/catalog/common.yaml')).toBe(
+      [
+        SCHEMA_LINE,
+        '',
+        'common.dismiss:\n  kind: action\n  en: Dismiss',
+        '',
+        'common.loading:\n  kind: name\n  en: Loading…',
+        '',
+        'common.name:\n  kind: name\n  en: Name',
+        '',
+        'common.loading-state:\n  kind: state\n  en: Loading…',
+        '',
+        'common.saving:\n  kind: state\n  context: Beside an output being saved. Under the password form while it saves.\n  en: Saving…',
+        '',
+        'common.decline:\n  kind: action\n  context: Closes the cookie notice.\n  en: Decline',
+        '',
+      ].join('\n'),
+    );
+    expect(read(config.root, 'copy/catalog/settings.yaml')).toBe(`${SCHEMA_LINE}\n\nsettings.title: Settings\n`);
+    expect(existsSync(join(config.root, 'copy/catalog/editor.yaml'))).toBe(false);
+    expect(read(config.root, 'src/App.tsx')).toContain("[t('common.decline'), t('common.name')]");
+    expect(read(config.root, 'e2e/app.spec.ts')).toStartWith("const key = 'common.saving';");
+    expect(merged.stderr).toContain('e2e/app.spec.ts:3 reads a key through `editor.outputs.`');
+    expect(merged.stderr).not.toContain('e2e/app.spec.ts:2');
+  });
+
   test('the command is a dry run until --write, then regenerates', () => {
     const config = shop();
     const dry = cli(config.root, 'rename', 'cart.items', 'cart.count');

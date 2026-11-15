@@ -184,7 +184,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
       });
       const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
       const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);
-      build.onLoad({ filter: new RegExp(`^(?:${dirs})[\\\\/].*\\.[cm]?[jt]sx?$`) }, (args) => {
+      build.onLoad({ filter: new RegExp(`^(?:${dirs})(?:[\\\\/].*\\.[cm]?[jt]sx?)?$`) }, (args) => {
         if (!client(args) || out.test(args.path) || /[\\/]node_modules[\\/]/.test(args.path)) return undefined;
         const code = readFileSync(args.path, 'utf8');
         const areas = areasNamed(code, lazyAreas(generated, options.keep));
