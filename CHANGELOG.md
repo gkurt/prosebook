@@ -1,3 +1,9 @@
+## prosebook@0.25.0
+
+### `voice/dangling-modifier` finds a sentence opening with a modifier of a thing the sentence leaves out
+
+`Enabled, a session works in a worktree` reads as the session being enabled: the finding asks for the thing by name, as `With worktrees enabled, a session…`. A warning under `recommended`, an error under `strict`.
+
 ## prosebook@0.24.1
 
 ### `lint --fix --unsafe` and `rename` rewrite keys in all of the project's source, and a merge names and writes its entry better
