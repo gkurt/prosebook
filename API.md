@@ -1704,12 +1704,11 @@ prosebook rename cart.checkout pay.button   # and cart.checkout.hint with it
 prosebook rename cart basket                 # an area: cart.yaml becomes basket.yaml
 ```
 
-Renames in the catalog, every translation, the lock, every message [saying it](#names-in-other-messages) and every string literal
-naming the key in the project's source: every file with one of `scan.extensions` under the config's folder, `e2e/` and scripts
-included, and under `scan.dirs`. A read through a
-prefix moves with an area (``t(`cart.${id}`)``); one that only may reach a renamed key is named, to rename by hand, unless it is
-what something other than `t` or `rich` is called with, as a test's name is. A dry run
-unless `--write`, checked first, then regenerated.
+Renames the key in the catalog, every translation, the lock, every message [referencing the key](#names-in-other-messages) and
+every string literal naming the key in the project's source: every file with one of `scan.extensions` under the config's
+folder, `e2e/` and scripts included, and under `scan.dirs`. Renaming an area also rewrites a read through the area's prefix
+(``t(`cart.${id}`)``). A prefix that may match a renamed key is reported, to rename by hand, unless the prefix is the argument
+of a call other than `t` or `rich`, such as a test's name. A dry run unless `--write`, checked first, then regenerated.
 
 ### Diff
 
