@@ -474,13 +474,32 @@ export interface JudgeRun {
   /** The lock's suggestions the same way: those given now, and those kept that still hold. */
   suggestions: Suggestions;
   stats: JudgeStats;
-  /** Why requests failed; a run stops asking at the first, and keeps what was answered. */
+  /** Why requests failed; the run goes on past one, and keeps what was answered. */
   failures: { key: string; locale: string; model: string; error: unknown }[];
+  /** The models the run gave up on, with requests of theirs unasked: `STOP_AFTER` failed in a row, as with no key or no network. */
+  stopped: string[];
 }
 
+/**
+ * A model's requests failing in a row, with no answer of its own between, at which a run asks it no more:
+ * a model refusing one entry mustn't keep the entries after it from being asked, a key that is wrong mustn't
+ * be tried on them all, and one model down mustn't stop the others.
+ */
+const STOP_AFTER = 5;
+
 export interface JudgeOptions {
-  /** Called as each request ends, with how many have and how many will. */
+  /** Called as each request ends, answered or failed, with how many have and how many will. */
   progress?: (done: number, total: number, stats: Readonly<JudgeStats>) => void;
+  /**
+   * Called with the verdicts and suggestions so far as answers land, at most once per `saveEvery`, to
+   * write them: a run killed midway then loses only what came after, and the next asks from there.
+   * Whole at every call, the lock's own kept beside the new, so each can replace the lock's.
+   */
+  save?: (verdicts: Verdicts, suggestions: Suggestions) => void;
+  /** Milliseconds between two calls of `save`: 5000 by default. */
+  saveEvery?: number;
+  /** Aborted to end the run early, as on Ctrl+C: nothing more is asked, and what was answered is given back. */
+  signal?: AbortSignal;
   /** Ask nothing: only bring the verdicts up to date with the catalog, as `--check` does. */
   dry?: boolean;
   /** Ask only of these entries, as `judge <paths>` does; the lock keeps what it said of the rest. */
@@ -569,8 +588,15 @@ export async function judgeCatalog(
     }
   }
   const stop = new AbortController();
+  if (options.signal?.aborted === true) stop.abort();
+  options.signal?.addEventListener('abort', () => stop.abort(), { once: true });
   const started = performance.now();
+  const saveEvery = options.saveEvery ?? 5000;
+  let saved = started;
   let next = 0;
+  let ended = 0;
+  const failing = new Map<string, number>();
+  const stopped = new Set<string>();
   const ask = async ({ a, model, rules }: Request) => {
     // By a plain ID of its own, as a provider may hold IDs to a pattern a rule's name doesn't keep to.
     const questions = Object.fromEntries(
@@ -605,20 +631,36 @@ export async function judgeCatalog(
       suggest(a, model.id, response.suggestion);
       stats.suggestions++;
     }
-    options.progress?.(stats.requests, open.length, stats);
+    if (options.save === undefined || performance.now() - saved < saveEvery) return;
+    saved = performance.now();
+    // A save that fails loses nothing yet: the run goes on, and whoever writes the run's end says why.
+    try {
+      options.save(verdicts, suggestions);
+    } catch {}
   };
   const worker = async () => {
     while (next < open.length && !stop.signal.aborted) {
       const request = open[next++]!;
+      const { id } = request.model;
+      ended++;
+      if (stopped.has(id)) continue;
       try {
         await ask(request);
+        failing.set(id, 0);
       } catch (error) {
-        if (!stop.signal.aborted) failures.push({ key: request.a.message.key, locale: request.a.locale, model: request.model.id, error });
-        stop.abort();
+        // Ended from outside: the request was cut off, not refused.
+        if (stop.signal.aborted) return;
+        // One in flight as its model was given up on says nothing new.
+        if (stopped.has(id)) continue;
+        failures.push({ key: request.a.message.key, locale: request.a.locale, model: id, error });
+        const row = (failing.get(id) ?? 0) + 1;
+        failing.set(id, row);
+        if (row >= STOP_AFTER) stopped.add(id);
       }
+      options.progress?.(ended, open.length, stats);
     }
   };
   await Promise.all(Array.from({ length: Math.min(judge.concurrency, open.length) }, worker));
   stats.ms = performance.now() - started;
-  return { verdicts, suggestions, stats, failures };
+  return { verdicts, suggestions, stats, failures, stopped: [...stopped] };
 }

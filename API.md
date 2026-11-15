@@ -1129,6 +1129,9 @@ prosebook: translated 11 entries into de, and accepted 1 stale one(s) as still r
 - **An entry whose placeholders, tags or syntax don't hold is left out** and asked again with its problem, `attempts` times
   (2 unless set). An entry still wrong then stays untranslated, the command says which, and it exits with 1.
 - **A stale translation given back unchanged is accepted.** The written ones are linted in their locale.
+- **Each batch is written as its reply is read**, so a run that fails or is killed keeps every batch before, and the next
+  run asks only what is still missing. A request that fails leaves its batch and the run goes on; three failing in a row
+  stop the locale. Ctrl+C stops before the next batch, and the command exits with 130.
 - **`batch`** is how many entries one request holds, 40 unless set. With no locale named, every locale the catalog has is
   translated; a locale with no file yet is translated by name, `prosebook translate fr`.
 - `languageTranslator` takes any AI SDK language model, with `ai` installed, and a `price` in US dollars per million tokens
@@ -1433,6 +1436,10 @@ guideline, with its words.
   what they cost.
 - **Progress** is one line in a terminal, rewritten as each request ends, with the time left and the cost so far. Without a
   terminal, as an agent or CI reads the output, the same line is printed at each tenth of the run.
+- **A run saves the lock every few seconds**, so one killed or crashing midway keeps the answers it had, and the next run
+  asks only the rest. Ctrl+C ends a run the same way: the answers are written, and the command exits with 130.
+- **A request that fails is said, and the run goes on** to the next entry, exiting with 1 at the end. A model failing five in a
+  row, as without a key or a network, is asked no more in that run; the other models go on, and every answer is kept.
 - **`lint` and `check` read the verdicts** from the lock, with no model and no key. The lock keeps the probability, so a new
   `threshold` needs no new run.
 - **`check` fails on an entry not judged as written**, naming each, so an entry nobody ran `prosebook judge` on fails CI:

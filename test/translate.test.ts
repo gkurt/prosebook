@@ -125,6 +125,43 @@ describe('prosebook translate', () => {
     expect(done.written).toHaveLength(3);
   });
 
+  test('a request that fails leaves its batch and the run goes on, the batches before and after written', async () => {
+    const { translator } = model(() => GERMAN);
+    let requests = 0;
+    const flaky: Translator = {
+      id: 'test/flaky',
+      translate: (request) => (++requests === 2 ? Promise.reject(new Error('rate limited')) : translator.translate(request)),
+    };
+    const config = project(flaky, { batch: 1 });
+    const done = await translateLocale(config, config.translate!, 'de');
+    expect(done.failures.map((f) => String(f.error))).toEqual(['Error: rate limited']);
+    expect(done.failures[0]!.keys).toEqual(done.left);
+    expect(done).toMatchObject({ requests: 2, stopped: false });
+    expect(done.written).toHaveLength(2);
+    // What is written stays written: the next run asks only of the batch that failed.
+    const again = await translateLocale(config, config.translate!, 'de');
+    expect(again).toMatchObject({ written: done.left, left: [], requests: 1 });
+  });
+
+  test('stops once requests fail in a row, and on a signal aborted, with the rest left', async () => {
+    const down: Translator = { id: 'test/down', translate: () => Promise.reject(new Error('no network')) };
+    const config = project(down, { batch: 1 });
+    writeFileSync(join(config.root, 'copy/catalog/more.yaml'), 'more.pay:\n  context: The button that pays.\n  en: Pay\n');
+    const failed = await translateLocale(config, config.translate!, 'de');
+    expect(failed).toMatchObject({ requests: 0, stopped: true, written: [] });
+    // The fourth is never asked.
+    expect(failed.failures).toHaveLength(3);
+    expect(failed.left).toHaveLength(4);
+
+    const stop = new AbortController();
+    const { translator } = model(() => GERMAN);
+    const interrupted = project(translator, { batch: 1 });
+    const done = await translateLocale(interrupted, interrupted.translate!, 'de', { signal: stop.signal, progress: () => stop.abort() });
+    expect(done).toMatchObject({ requests: 1, stopped: true, failures: [] });
+    expect(done.written).toHaveLength(1);
+    expect(done.left).toHaveLength(2);
+  });
+
   test('the command is off without a model, and says how to turn it on', () => {
     const off = fixture({ 'copy/catalog/cart.yaml': CATALOG, 'copy/locales/de/cart.yaml': '' });
     const refused = cli(off.root, 'translate');

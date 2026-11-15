@@ -60,7 +60,14 @@ export interface Translated {
   cost: number;
   /** Requests whose cost isn't known. */
   unpriced: number;
+  /** Why requests failed: each one's batch is in `left`, and the run went on to the next. */
+  failures: { keys: string[]; error: unknown }[];
+  /** Whether the run ended with batches unasked, their keys in `left`: aborted, or `STOP_AFTER` requests failed in a row. */
+  stopped: boolean;
 }
+
+/** Requests failing in a row at which a locale's run gives up, as with no key or no network. */
+const STOP_AFTER = 3;
 
 export interface TranslateOptions {
   signal?: AbortSignal;
@@ -68,7 +75,10 @@ export interface TranslateOptions {
   progress?: (done: number, total: number) => void;
 }
 
-/** `locale`'s missing and stale entries, asked of the model a batch at a time and written as each reply is read. */
+/**
+ * `locale`'s missing and stale entries, asked of the model a batch at a time and written as each reply is read,
+ * so a run that fails or is killed keeps every batch before, and the next asks only what is still wanted.
+ */
 export async function translateLocale(
   config: ResolvedConfig,
   translate: ResolvedTranslate,
@@ -85,7 +95,12 @@ export async function translateLocale(
     outputTokens: 0,
     cost: 0,
     unpriced: 0,
+    failures: [],
+    stopped: false,
   };
+  let failing = 0;
+  // Asked anew each time: the signal aborts while a request is awaited, which a narrowed read wouldn't see.
+  const aborted = () => options.signal?.aborted === true;
   const read = () => {
     const { catalog, stale } = render(config, undefined, { partial: true });
     return { catalog, stale: stale.get(locale) ?? new Map<string, StaleTranslation>() };
@@ -94,17 +109,33 @@ export async function translateLocale(
   const wanted = todoMessages(first.catalog, first.stale, locale).map((m) => m.key);
 
   for (let at = 0; at < wanted.length; at += translate.batch) {
+    if (aborted() || failing >= STOP_AFTER) {
+      done.stopped = true;
+      done.left.push(...wanted.slice(at));
+      break;
+    }
     let keys = wanted.slice(at, at + translate.batch);
     let said: Problem[] = [];
     for (let attempt = 0; attempt < translate.attempts && keys.length > 0; attempt++) {
       // Read again: the batch before wrote translations, and an accepted one is no longer stale.
       const { catalog, stale } = read();
       const todo = todoOf(config, catalog, stale, locale, true, new Set(keys));
-      const response = await translate.model.translate({
-        prompt: said.length === 0 ? todo.text : `${todo.text}\n\n${retryNote(said)}`,
-        locale,
-        ...(options.signal !== undefined && { signal: options.signal }),
-      });
+      let response: TranslateResponse;
+      try {
+        response = await translate.model.translate({
+          prompt: said.length === 0 ? todo.text : `${todo.text}\n\n${retryNote(said)}`,
+          locale,
+          ...(options.signal !== undefined && { signal: options.signal }),
+        });
+      } catch (error) {
+        // The batches before are written already: this one's keys are left, and the next is asked.
+        if (!aborted()) {
+          done.failures.push({ keys, error });
+          failing++;
+        }
+        break;
+      }
+      failing = 0;
       done.requests++;
       done.inputTokens += response.usage?.inputTokens ?? 0;
       done.outputTokens += response.usage?.outputTokens ?? 0;

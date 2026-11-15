@@ -310,17 +310,91 @@ describe('judge', () => {
     expect(allowFindings()).toEqual(['form.save']);
   });
 
-  test('stops at the first failure, and keeps what was answered', async () => {
+  /** Eight entries, `many.e0` to `many.e7`, each held to `house/plain`, asked one at a time, in order. */
+  const many = (judge: Judge) =>
+    fixture(
+      {
+        'copy/catalog/many.yaml': Array.from(
+          { length: 8 },
+          (_, i) => `many.e${i}:\n  kind: action\n  surface: action\n  context: Button ${i}.\n  en: Save ${i}\n`,
+        ).join('\n'),
+      },
+      { lint: { plugins: [HOUSE], rules: { 'voice/*': 'off' } }, judge: { models: [judge], concurrency: 1 } },
+    );
+
+  test('goes on past a request that fails, and keeps what was answered', async () => {
+    const refusing: Judge = {
+      id: 'fake/refusing',
+      judge: (request) => (request.state['key'] === 'many.e1' ? Promise.reject(new Error('refused')) : fakeJudge().judge(request)),
+    };
+    const config = many(refusing);
+    const done: number[] = [];
+    const { failures, stats, verdicts, stopped } = await judgeCatalog(config, loadCatalog(config), readLock(config.lock), {
+      progress: (n) => done.push(n),
+    });
+    expect(failures.map((f) => [f.key, String(f.error)])).toEqual([['many.e1', 'Error: refused']]);
+    expect(stopped).toEqual([]);
+    expect(stats.requests).toBe(7);
+    expect(Object.keys(verdicts['en']!)).toHaveLength(7);
+    expect(done).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  test('stops once requests fail in a row, as with no key, and keeps what was answered', async () => {
     let calls = 0;
-    const flaky: Judge = {
-      id: 'fake/flaky',
+    const down: Judge = {
+      id: 'fake/down',
       judge: (request) => (calls++ === 0 ? fakeJudge().judge(request) : Promise.reject(new Error('rate limited'))),
     };
-    const config = project(flaky, { judge: { models: [flaky], concurrency: 1 } });
-    const { failures, stats, verdicts } = await run(config);
-    expect(failures.map((f) => String(f.error))).toEqual(['Error: rate limited']);
-    expect(stats.requests).toBe(1);
-    expect(Object.keys(verdicts['en']!)).toHaveLength(1);
+    // A second model answering between the first's failures doesn't keep the first from being given up on.
+    const up = fakeJudge('fake/up');
+    const one = many(down);
+    const config = resolveConfig(one.root, { ...configOf(one), judge: { models: [down, up], concurrency: 1 } });
+    const { failures, stats, verdicts, stopped } = await run(config);
+    expect(failures).toHaveLength(5);
+    expect(stopped).toEqual(['fake/down']);
+    expect(calls).toBe(6);
+    expect(up.asked).toHaveLength(8);
+    expect(stats.requests).toBe(9);
+    expect(Object.keys(verdicts['en']!)).toHaveLength(8);
+  });
+
+  test('saves as answers land, each save the whole of the verdicts, so a run killed midway asks only the rest', async () => {
+    const judge = fakeJudge();
+    const config = many(judge);
+    const saves: number[] = [];
+    const killed = new Error('killed');
+    const run = judgeCatalog(config, loadCatalog(config), readLock(config.lock), {
+      saveEvery: 0,
+      save: (verdicts) => {
+        writeFileSync(config.lock, serializeLock({ ...readLock(config.lock), judged: verdicts }));
+        saves.push(Object.keys(verdicts['en']!).length);
+      },
+      // The process dying after the third answer: nothing the run would have given back is read.
+      progress: (n) => {
+        if (n === 3) throw killed;
+      },
+    });
+    expect(await run.catch((error: unknown) => error)).toBe(killed);
+    expect(saves).toEqual([1, 2, 3]);
+    judge.asked.length = 0;
+    const next = await judgeCatalog(config, loadCatalog(config), readLock(config.lock));
+    expect(next.stats).toMatchObject({ entries: 8, cached: 3, requests: 5 });
+    expect(judge.asked.map((r) => r.state['key'])).toEqual(['many.e3', 'many.e4', 'many.e5', 'many.e6', 'many.e7']);
+  });
+
+  test('a signal aborted ends the run with what was answered, and no failure', async () => {
+    const stop = new AbortController();
+    const config = many(fakeJudge());
+    const { failures, stats, verdicts, stopped } = await judgeCatalog(config, loadCatalog(config), readLock(config.lock), {
+      signal: stop.signal,
+      progress: (n) => {
+        if (n === 2) stop.abort();
+      },
+    });
+    expect(failures).toEqual([]);
+    expect(stopped).toEqual([]);
+    expect(stats.requests).toBe(2);
+    expect(Object.keys(verdicts['en']!)).toHaveLength(2);
   });
 
   test('the writing guide says to run judge where the config has one', () => {
@@ -447,7 +521,7 @@ export default { lint: { plugins: [house], rules: { 'voice/*': 'off' } }, judge:
     });
     const run = cli(config.root, 'judge');
     expect(run.code).toBe(1);
-    expect(run.stderr).toContain('fake/broke failed, so the run stopped there: no credits');
+    expect(run.stderr).toContain('fake/broke failed: no credits');
     expect(run.stdout).not.toContain('nothing was asked');
   });
 });

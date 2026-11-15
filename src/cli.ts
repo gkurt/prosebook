@@ -3,7 +3,7 @@
  * The `prosebook` command. Each subcommand is a function of the resolved config; `check` runs the
  * ones CI needs in one go.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -708,8 +708,39 @@ function writeVerdicts(config: ResolvedConfig, docs: boolean, verdicts: Verdicts
   const lock = readLock(config.lock);
   const kept = suggestions === undefined ? {} : docs ? { docsSuggested: suggestions } : { suggested: suggestions };
   mkdirSync(dirname(config.lock), { recursive: true });
-  writeFileSync(config.lock, serializeLock({ ...lock, ...(docs ? { docs: verdicts } : { judged: verdicts }), ...kept }));
+  const text = serializeLock({ ...lock, ...(docs ? { docs: verdicts } : { judged: verdicts }), ...kept });
+  // Written beside the lock, then moved over it: a judge run saves as it goes, and one killed mid-write
+  // would leave half a lock, which no later run could read.
+  const beside = `${config.lock}.tmp`;
+  writeFileSync(beside, text);
+  try {
+    renameSync(beside, config.lock);
+  } catch {
+    // Windows refuses the move while an editor or a scanner holds the lock open.
+    writeFileSync(config.lock, text);
+    rmSync(beside, { force: true });
+  }
 }
+
+/**
+ * A signal the first Ctrl+C, or a `kill`, aborts, so a run of requests ends by writing what it has;
+ * the listeners are gone once it fires, so a second ends the process as it always did.
+ */
+function interruptible(): { signal: AbortSignal; release: () => void } {
+  const stop = new AbortController();
+  const abort = () => stop.abort();
+  const release = () => {
+    process.off('SIGINT', abort);
+    process.off('SIGTERM', abort);
+  };
+  process.once('SIGINT', abort);
+  process.once('SIGTERM', abort);
+  stop.signal.addEventListener('abort', release, { once: true });
+  return { signal: stop.signal, release };
+}
+
+/** The exit code of a run Ctrl+C ended, as shells have it. */
+const INTERRUPTED = 130;
 
 /** An entry as said to people: its key, or text in code and the docs by its words, which a key never has a space in. */
 const named = (config: ResolvedConfig, key: string) => (config.inCode || /\s/.test(key) ? `"${key}"` : key);
@@ -797,15 +828,25 @@ async function runJudge(config: ResolvedConfig, check: boolean, docs: boolean, r
     const problems = config.inCode || docs ? [] : rendered(config).catalog.problems;
     // In scope, the models are asked of its entries alone; the lock keeps what it said of the rest.
     const only = scope === undefined ? {} : { only: (m: Message) => read.has(m) };
-    const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, progress });
-    if (tty && run.stats.requests > 0) process.stderr.write('\n');
-    writeVerdicts(config, docs, run.verdicts, run.suggestions);
+    // Saved as it goes, so a run killed or crashing midway keeps its answers, and the next asks the rest.
+    const save = (verdicts: Verdicts, suggestions: Suggestions) => writeVerdicts(config, docs, verdicts, suggestions);
+    const interrupt = interruptible();
+    const run = await judgeCatalog(config, { messages, problems }, lock, { ...only, progress, save, signal: interrupt.signal });
+    interrupt.release();
+    if (tty && run.stats.requests + run.failures.length > 0) process.stderr.write('\n');
+    save(run.verdicts, run.suggestions);
     for (const { key, locale, model, error } of run.failures) {
       const why = error instanceof Error ? error.message : String(error);
-      err(`error ${named(config, key)} (${locale}): ${model} failed, so the run stopped there: ${why}`);
+      err(`error ${named(config, key)} (${locale}): ${model} failed: ${why}`);
     }
+    const again = 'the answers so far are in the lock, so `prosebook judge` asks only the rest';
+    for (const model of run.stopped) err(`prosebook: ${model} failed several requests in a row, so the run asked it no more: ${again}`);
     // A run failing before any answer asked nothing that came back, which the stats would say as the lock having it all.
     if (run.failures.length === 0 || run.stats.requests > 0) sayStats(run.stats);
+    if (interrupt.signal.aborted) {
+      err(`prosebook: interrupted: ${again}`);
+      return INTERRUPTED;
+    }
     failed = run.failures.length > 0;
   }
   const findings = lintEntries(config, messages, docs, report, (f) => {
@@ -1188,12 +1229,23 @@ async function runTranslate(config: ResolvedConfig, named: string[]): Promise<nu
     return 1;
   }
   let failed = false;
+  const interrupt = interruptible();
   for (const locale of locales) {
     const done = await translateLocale(config, translate, locale, {
+      signal: interrupt.signal,
       progress: (settled, total) => err(`prosebook: ${locale} ${count(settled)} of ${count(total)} entries`),
     });
+    for (const { keys, error } of done.failures) {
+      const why = error instanceof Error ? error.message : String(error);
+      err(`error ${locale}: ${translate.model.id} failed on ${count(keys.length)} entr${keys.length === 1 ? 'y' : 'ies'}: ${why}`);
+    }
+    if (done.stopped && !interrupt.signal.aborted)
+      err(`prosebook: ${done.failures.length} requests failed in a row, so ${locale} stopped there: what was translated is written`);
+
     if (done.requests === 0) {
-      out(`prosebook: ${locale} is complete`);
+      if (done.left.length === 0) out(`prosebook: ${locale} is complete`);
+      else failed = true;
+      if (interrupt.signal.aborted) break;
       continue;
     }
     reportProblems(config, done.problems);
@@ -1224,6 +1276,12 @@ async function runTranslate(config: ResolvedConfig, named: string[]): Promise<nu
         `\n${count(done.left.length)} left without a translation in ${locale}: ${done.left.join(', ')}. \`prosebook todo ${locale}\` lists them.`,
       );
     }
+    if (interrupt.signal.aborted) break;
+  }
+  interrupt.release();
+  if (interrupt.signal.aborted) {
+    err('prosebook: interrupted: what was translated is written, so `prosebook translate` asks only the rest');
+    return INTERRUPTED;
   }
   return failed ? 1 : 0;
 }

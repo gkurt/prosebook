@@ -248,7 +248,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   a batch at a time, hands the model `todoOf`'s prompt for those keys alone (`only`), reads the reply with
   `importTranslations`, runs `generate` so what was written is no longer stale and a stale one given back unchanged is
   accepted, and asks again of the keys that didn't land, with the problems said (`retryNote`), up to `attempts` times.
-  Batches run one after another, since each writes the locale's files. `exchange.ts`: `prosebook export`,
+  Batches run one after another, since each writes the locale's files, so a run cut short keeps every batch before; a
+  request that fails leaves its batch (`failures`) and the next is asked, until `STOP_AFTER` fail in a row or the `signal` aborts. `exchange.ts`: `prosebook export`,
   the same entries as XLIFF 2.0 or JSON for translation tools, and `readReturned`, which reads every
   format `import` takes (todo's YAML, JSON, XLIFF, through a small XML reader of its own). Messages
   travel as their ICU or MF2 text, never as XLIFF inline codes; a unit's `state` says whether someone
@@ -475,7 +476,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   Each answer is kept in the lock's `judged` (per locale, key, rule and judge, `<hash>:<probability>`,
   `serializeLock` writing each entry's on one line, and the CLI `brokenGuidelines` on one per entry),
   the hash over `PROMPT`, the model's `id`, the state and the questions, so a run (`judgeCatalog`) asks
-  each model only what it hasn't answered; raise `PROMPT` when the questions' words change. With several
+  each model only what it hasn't answered; raise `PROMPT` when the questions' words change. A run hands its `save` the
+  verdicts so far every `saveEvery`, whole each time, which the CLI writes to the lock (`writeVerdicts`, beside the lock
+  then moved over it, so a kill mid-write leaves no half lock), goes on past a request that fails and gives up on a
+  model at `STOP_AFTER` of its own in a row (`stopped`), and ends early on its `signal`, which the CLI's `interruptible` aborts on the first Ctrl+C. With several
   models, the first in `models` that answered an entry decides it, by the guideline's own threshold
   (`judge.thresholds`, over `DEFAULT_THRESHOLDS` in `config.ts`), else the model's own `threshold`, else
   `judge.threshold` (0.5: the product of two answers of about 0.7). `check` fails on entries `unanswered` as
