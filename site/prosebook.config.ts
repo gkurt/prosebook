@@ -17,7 +17,8 @@ export default {
       languageJudge(anthropic('claude-haiku-5-5'), {
         id: 'anthropic.messages/claude-haiku-5-5',
         price: { input: 0.1, output: 0.5 },
-        ask: Boolean(process.env['ANTHROPIC_API_KEY']),
+        // Off for now, the account being out of credits: was `Boolean(process.env['ANTHROPIC_API_KEY'])`.
+        ask: false,
       }),
       decisionJudge(typeSafeAi.decisionModel('jev-latest'), {
         id: 'typesafe.decision/jev-latest',
