@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `lint --fix --unsafe` and `rename` rewrite keys in all of the project's source, and a merge names and writes its entry better\n\nKeys are rewritten in every source file under the config's folder, `e2e/` included, not under `scan.dirs` alone. A group merged into `extract.shared` keeps the entry already there, or takes a key from its words (`common.saving`, then `common.saving-state` where that is taken) and is no longer left apart over a taken name. The kept entry's context is every context the group had, and it stands a blank line apart where the file's entries do. A key prefix something other than `t` or `rich` is called with, as a test's name is, is no longer warned of.\n\n### `scan.dirs` reads a file it names\n\n`scan: { dirs: ['src', 'desktop/app.config.ts'] }` reads the file, which was passed by silently.\n"
-    filename: merge-gaps.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `voice/dangling-modifier` finds a sentence opening with a modifier of a thing the sentence leaves out\n\n`Enabled, a session works in a worktree` reads as the session being enabled: the finding asks for the thing by name, as `With worktrees enabled, a session…`. A warning under `recommended`, an error under `strict`.\n"
+    filename: dangling-modifier.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - merge-gaps.md
+      - dangling-modifier.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-svelte
+  - id: npm:example-tanstack-start
     updated: false
   - id: npm:example-vite
     updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-vue
-    updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-node
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-next
     updated: false
   - id: npm:example-preact
     updated: false
-  - id: npm:example-next
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-node
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-rspack
-  - id: npm:example-bun
-  - id: npm:example-svelte
-  - id: npm:example-vite
   - id: npm:example-tanstack-start
-  - id: npm:example-vue
+  - id: npm:example-vite
   - id: npm:example-solid
-  - id: npm:example-node
-  - id: npm:example-preact
+  - id: npm:example-bun
+  - id: npm:example-rspack
+  - id: npm:example-svelte
   - id: npm:example-next
+  - id: npm:example-preact
+  - id: npm:example-vue
+  - id: npm:example-node
