@@ -75,6 +75,15 @@ describe('diff', () => {
     );
   });
 
+  test('a base whose files pass 1 MiB, as a lock of many verdicts does', () => {
+    const config = edited();
+    // A comment, so the catalog's entries stay the same while git's output passes execFileSync's default buffer.
+    writeFileSync(join(config.catalog, 'big.yaml'), `# ${'x'.repeat(1.5 * 1024 * 1024)}\nbig.one: One\n`);
+    git(config.root, 'add', join(config.catalog, 'big.yaml'));
+    git(config.root, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '-m', 'big');
+    expect(reviewed(config).changes.map((c) => c.key)).toEqual(['cart.checkout', 'cart.count', 'cart.old', 'cart.title', 'cart.total']);
+  });
+
   test('as Markdown, every cell escaped, for a pull request comment', () => {
     const markdown = reviewMarkdown(reviewed(edited()));
     expect(markdown.startsWith(`${REVIEW_MARKER}\n### Copy changes\n`)).toBe(true);

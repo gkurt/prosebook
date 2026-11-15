@@ -50,7 +50,9 @@ export interface Review {
   changes: CopyChange[];
 }
 
-const git = (cwd: string, args: string[]) => execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+// No cap on output: a lock holding every judge's verdicts passes execFileSync's 1 MiB default, and
+// each file is read whole into memory anyway.
+const git = (cwd: string, args: string[]) => execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: Infinity });
 
 /** The copy changed since `base`, a branch, tag or commit; or why it can't be read. */
 export function reviewOf(config: ResolvedConfig, base: string): Review | { problem: string } {
