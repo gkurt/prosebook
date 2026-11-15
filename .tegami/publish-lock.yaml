@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A judge's `id` keeps its verdicts when the provider changes\n\n`decisionJudge` and `languageJudge` take an `id`, the name the lock keeps the model's answers under. Without one the name is the provider's and the model's, so the same model through another provider was asked of the whole catalog again. Give the name the lock already has, `languageJudge(model, { id: 'anthropic.messages/claude-haiku-5-5' })`, to keep those answers.\n"
-    filename: judge-id.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### A judge or translate run cut short keeps what it had\n\n`prosebook judge` writes the lock every few seconds, so a run killed or crashing midway keeps its answers and the next asks only the rest. Ctrl+C ends `judge` and `translate` by writing what they have, exiting with 130. A request that fails no longer stops the run: it goes on to the next entry or batch, and a model is given up on only once several of its requests fail in a row. `judgeCatalog` takes `save`, `saveEvery` and `signal`, and its run and `translateLocale`'s say `stopped`.\n"
+    filename: judge-saves.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - judge-id.md
+      - judge-saves.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-svelte
+  - id: npm:example-solid
     updated: false
   - id: npm:example-tanstack-start
     updated: false
-  - id: npm:example-vue
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-next
     updated: false
   - id: npm:example-rspack
     updated: false
-  - id: npm:example-solid
+  - id: npm:example-vite
     updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-next
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-preact
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-vite
-  - id: npm:example-bun
-  - id: npm:example-preact
-  - id: npm:example-svelte
-  - id: npm:example-tanstack-start
-  - id: npm:example-vue
-  - id: npm:example-rspack
   - id: npm:example-solid
-  - id: npm:example-node
+  - id: npm:example-tanstack-start
+  - id: npm:example-svelte
+  - id: npm:example-bun
   - id: npm:example-next
+  - id: npm:example-rspack
+  - id: npm:example-vite
+  - id: npm:example-node
+  - id: npm:example-vue
+  - id: npm:example-preact
