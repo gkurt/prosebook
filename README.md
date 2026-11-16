@@ -31,8 +31,8 @@ const { t } = useCopy();
   Bun and Astro can split them by route.
 - **Times as times.** `{at, relative}` says "5 minutes ago" from the time itself, and every binding keeps it fresh, as
   `<Text>` or as a string from `t`: [relative times](API.md#relative-times).
-- **Numbers by size.** A named format's `ladder` shows "512B", "1.5 kB", "1 MB", and a list's `separator` writes a line of
-  facts, "Ann · Draft": [named formats](API.md#named-formats).
+- **Numbers by size.** A named format's `ladder` shows "512B", "1.5 kB", "1 MB", and a list's `separator` joins items into one
+  line, "Ann · Draft": [named formats](API.md#named-formats).
 - **Written well.** A lint holds the words to a writing guide: word budgets, periods, case, plurals, punctuation per language.
 - **Native too.** The same catalog generates Rust, Swift and Kotlin, and Android's and Apple's string resources.
 
@@ -126,7 +126,7 @@ en: 'By checking out you agree to our <link>terms</link>.'
 
 Each placeholder's type comes from the message: `n: number`, `mode: 'dark' | (string & {})`, `when: Date | number`, `tools: readonly string[]`. Set
 `messageFormat: 2` to write [MessageFormat 2](API.md#messageformat-2) instead, name formats used across the app once in
-the config with [named formats](API.md#named-formats), and say a name in other messages with
+the config with [named formats](API.md#named-formats), and use a name in other messages with
 [`{app.title, entry}`](API.md#names-in-other-messages).
 
 ## Translating

@@ -9,7 +9,7 @@ tone.lead:
   kind: description
   surface: hint
   context: Under the heading of the section about tones, above a button per preset.
-  en: A preset gives the copy a tone. The tone goes into the writing guide, the translation prompt and the judge's notes, with the lint rules that fit.
+  en: A preset sets the copy's tone and the lint rules that fit the tone. The writing guide, the translation prompt and the judge's notes include the tone.
 
 tone.presets:
   kind: name

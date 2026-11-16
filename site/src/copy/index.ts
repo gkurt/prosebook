@@ -96,7 +96,7 @@ export type Messages = {
    */
   "features.inspector.title": { args: {}; tags: never };
   /**
-   * The words live in YAML, each with the context a translator needs, and the code holds only keys.
+   * Every string is in YAML with the context a translator needs. The code has only keys.
    *
    * Under the heading of the section about the catalog.
    */
@@ -108,7 +108,7 @@ export type Messages = {
    */
   "features.stale.body": { args: {}; tags: never };
   /**
-   * Translations that keep up
+   * Stale translations flagged
    *
    * Heads the feature about stale translations.
    */
@@ -150,7 +150,7 @@ export type Messages = {
    */
   "hero.docs": { args: {}; tags: never };
   /**
-   * prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can drive.
+   * prosebook keeps the copy in one typed catalog and holds every string to your writing rules, with a lint, a judge, and a CLI an agent can run.
    *
    * Under the headline, what prosebook does.
    */
@@ -342,7 +342,7 @@ export type Messages = {
    */
   "start.title": { args: {}; tags: never };
   /**
-   * A preset gives the copy a tone. The tone goes into the writing guide, the translation prompt and the judge's notes, with the lint rules that fit.
+   * A preset sets the copy's tone and the lint rules that fit the tone. The writing guide, the translation prompt and the judge's notes include the tone.
    *
    * Under the heading of the section about tones, above a button per preset.
    */

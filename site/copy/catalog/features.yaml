@@ -9,7 +9,7 @@ features.lead:
   kind: description
   surface: hint
   context: Under the heading of the section about the catalog.
-  en: The words live in YAML, each with the context a translator needs, and the code holds only keys.
+  en: Every string is in YAML with the context a translator needs. The code has only keys.
 
 features.typed.title:
   kind: name
@@ -27,7 +27,7 @@ features.stale.title:
   kind: name
   surface: heading
   context: Heads the feature about stale translations.
-  en: Translations that keep up
+  en: Stale translations flagged
 
 features.stale.body:
   kind: description

@@ -302,7 +302,7 @@ routes.alternates('https://shop.example/cart'); // each locale's URL and x-defau
 routes.redirect('/cart', acceptedLocales(header)); // '/de/cart' for a German reader, else undefined
 ```
 
-A middleware redirects where `redirect` returns a URL, and otherwise renders `split`'s path in its locale:
+A middleware redirects where `redirect` returns a URL, and otherwise renders the path `split` returns, in the locale `split` found:
 
 ```ts
 const picked = cookies.get('locale'); // what the reader chose in the language switch, first
@@ -332,7 +332,7 @@ const summary = (t: Translate, run: Run) => t(STATUS[run.status]);
 `MessageKey` is any key of the catalog; `Translate` is a copy's `t`. A map of labels holds keys rather than text, so each is read in
 the locale of the moment it renders. A [pruned build](#pruning) sees reads through a module's `const` map of keys.
 
-Tags the provider renders by default needn't be passed at each call. Tell the types which ones:
+Tags the provider renders by default needn't be passed at each call. List those tags in the types:
 
 ```ts
 declare module 'prosebook' {
@@ -644,16 +644,17 @@ other's and `generate --check` passes on both.
 
 #### Voice guidelines
 
-The guide also says six guidelines against the habits of copy written off the code, as an agent tends to write it:
+The guide also lists seven guidelines against the habits an agent shows when writing copy from the code:
 
-| Rule                       | Guideline                                                                                |
-| -------------------------- | ---------------------------------------------------------------------------------------- |
-| `voice/field-names`        | A label over a value is a noun: `Reporter`, not `Reported by`                            |
-| `voice/own-words`          | The product's noun and verb, the word a reader searches for: a schedule runs, not comes  |
-| `voice/no-instructions`    | A control names what the control does: `Replay`, not `Click this if you want to replay`  |
-| `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` turns into `Sales's usage` |
-| `voice/familiar-context`   | Copy names the thing, never points at the thing: `The workflow's name`, not `Its name`   |
-| `voice/phrases`            | A phrase where a phrase does: `Saved`, not `Your changes have been saved.`               |
+| Rule                       | Guideline                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| `voice/field-names`        | A label over a value is a noun: `Reporter`, not `Reported by`                                |
+| `voice/own-words`          | The product's noun and verb, the word a reader searches for: a schedule runs, not comes      |
+| `voice/no-instructions`    | A control names what the control does: `Replay`, not `Click this if you want to replay`      |
+| `voice/placeholder-values` | Every value a placeholder holds reads right: `{team}'s usage` turns into `Sales's usage`     |
+| `voice/familiar-context`   | Copy names the thing, never points at the thing: `The workflow's name`, not `Its name`       |
+| `voice/phrases`            | A phrase where a phrase does: `Saved`, not `Your changes have been saved.`                   |
+| `voice/state-consequence`  | A condition is a clause: `When worktrees are enabled, a session…`, not `Enabled, a session…` |
 
 They're guidelines, not checks: each is about meaning, which a word list would flag in sound copy as often as it caught, but a
 model can judge, with [`prosebook judge`](#judge). A switch's state is one example `voice/own-words` gives: `Enabled` or
@@ -775,7 +776,7 @@ en: 'Due {at, relative, short}' # "Due in 2 hr."; long, short, narrow
 en: 'By checking out you agree to our <link>terms</link>.' # a tag
 ```
 
-- A bare `{n}` is a `string`. A number says how it's shown: `{n, number}` is `1,234` in English, `1.234` in German.
+- A bare `{n}` is a `string`. `{n, number}` is a number, shown as `1,234` in English and `1.234` in German.
 - A placeholder holds a value, never a translated fragment. A word that changes with the sentence belongs in an arm.
 - An argument used twice must agree: a select's argument can be printed too, and two selects take both's arms. A number and a
   select on one argument fail.
@@ -785,8 +786,8 @@ en: 'By checking out you agree to our <link>terms</link>.' # a tag
   milliseconds with `Intl.DurationFormat`, from the largest unit it reaches, two units at most, the last rounded. In MF2,
   `{$names :list type=disjunction}` and `{$took :duration style=narrow}`. Where a browser lacks `Intl.DurationFormat`, the
   placeholder's fallback shows and `onError` says why. Native targets refuse both; pass the text formatted in code.
-- `relative` is prosebook's too: `{at, relative}` shows a point in time as how long ago or ahead of now it is, as
-  [relative times](#relative-times) says. In MF2, `{$at :relative style=short}`.
+- `relative` is prosebook's too: `{at, relative}` shows a point in time relative to now, as `3 days ago` or `in 2 hours`
+  ([relative times](#relative-times)). In MF2, `{$at :relative style=short}`.
 
 ### Named formats
 
@@ -1064,7 +1065,7 @@ en: |-
 - **Text direction.** In right-to-left locales each placeholder is wrapped in isolation marks. `u:dir=ltr` picks a direction;
   `isolate: 'always'` isolates everywhere, `false` nowhere.
 - **Options from arguments.** `currency`, `currencyDisplay`, `currencySign`, `unit`, `unitDisplay`, `signDisplay`, the digit
-  counts, `timeZone` and `calendar` can come from an argument, which is typed with the rest:
+  counts, `timeZone` and `calendar` can be set by an argument, which is typed with the rest:
 
   ```yaml
   en: 'Total: {$price :currency currency=$code}' # t('cart.total', { price: 9, code: 'USD' }): $9.00
@@ -1111,7 +1112,7 @@ Stale translations still show; `stale: 'fallback'` shows the source instead.
 
 ### Translating with a model
 
-`prosebook translate` asks the config's model for each locale's missing and stale entries, and writes what holds:
+`prosebook translate` asks the config's model for each locale's missing and stale entries, and writes the translations that pass the checks:
 
 ```ts
 // prosebook.config.ts
@@ -1138,8 +1139,8 @@ prosebook: translated 11 entries into de, and accepted 1 stale one(s) as still r
 - **Each batch is written as its reply is read**, so a run that fails or is killed keeps every batch before, and the next
   run asks only what is still missing. A request that fails leaves its batch and the run goes on; three failing in a row
   stop the locale. Ctrl+C stops before the next batch, and the command exits with 130.
-- **`batch`** is how many entries one request holds, 40 unless set. With no locale named, every locale the catalog has is
-  translated; a locale with no file yet is translated by name, `prosebook translate fr`.
+- **`batch`** is how many entries one request holds, 40 unless set. When the command names no locale, prosebook
+  translates every locale the catalog has. To translate a locale with no file yet, name the locale, as `prosebook translate fr`.
 - `languageTranslator` takes any AI SDK language model, with `ai` installed, and a `price` in US dollars per million tokens
   to say what a run cost. A `Translator` of your own is `{ id, translate({ prompt, locale }) }`, returning `{ text }`.
 
@@ -1193,7 +1194,7 @@ message is padded to the length a translation is likely to reach. Builds through
 | `diff [base]`            | The copy changed since a git revision (`--format markdown`).                                                              |
 | `rename <from> <to>`     | A key, or an area, everywhere it's written (`--write`).                                                                   |
 | `find <words>`           | The entries saying the words given, to read before adding one (`--kind`, `--surface`).                                    |
-| `judge`                  | Each entry held to the guidelines by a model, asking only of what changed (`--check`).                                    |
+| `judge`                  | Holds each entry to the guidelines with a model, and asks only about entries that changed (`--check`).                    |
 | `approve [keys]`         | Pass entries as written against the rules they break, until they change ([Judge](#approving)).                            |
 | `check`                  | `generate --check`, `lint` and `status --strict`, for CI, failing on an entry not judged as written.                      |
 
@@ -1689,7 +1690,7 @@ profile.hi-read-the-terms:
 - `kind` and `surface` come from the element (`<button>` an action, `<h2>` a heading).
 - `{n} {n === 1 ? 'file' : 'files'}` becomes one plural. A sentence whose parts code picks stays, with a warning.
 - Placeholders are typed through the project's TypeScript 7: a number becomes `{n, number}`, a `Date` `{when, date, medium}`, a
-  number before a plural noun a plural. Without it, the syntax decides.
+  number before a plural noun a plural. Without TypeScript 7, the placeholder's syntax decides the type.
 - Code-like text, `<code>`, `<pre>`, `<kbd>` and `prosebook-ignore` lines stay.
 - Draft contexts and args are warnings in `generate` and `check` until rewritten.
 

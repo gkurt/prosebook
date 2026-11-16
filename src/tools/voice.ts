@@ -222,6 +222,13 @@ export const VOICE: Plugin = {
       description:
         'A phrase where a phrase does: a status, a detail, a toast or a label reads `Saved`, `Not connected` or `3 running`, not `Your changes have been saved.` A phrase leaves out the subject and the helping verb, and may run as long as the phrase needs: `Sandbox saved to resume later`, `Password set for {email}` and `Signing in with GitHub…` are phrases, and keep to this guideline. Only a full sentence, with a subject and a helping verb, on a surface where a phrase would do, breaks the guideline.',
     },
+    // `fronted-modifier` finds the participles a pattern can; the judge weighs the rest, a state written as an
+    // adjective or a phrase (`Offline,`, `Outside a repository,`), which no pattern tells from a time or a place.
+    'state-consequence': {
+      type: 'guideline',
+      description:
+        'A condition and the consequence make a whole sentence, the condition a clause naming the thing: `When worktrees are enabled, each session works in a worktree`, or `Each session works in a worktree when worktrees are enabled`. A bare state, a comma and the consequence breaks the guideline, whatever words the state is: `Enabled, a session works in a worktree`, `Offline, the app queues each change`, `Outside a repository, sessions share the configuration folder`. A time or a place that reads whole, such as `On the server, each request gets a separate copy`, is no state.',
+    },
     pointing,
     'of-its-own': ofItsOwn,
     semicolons,
