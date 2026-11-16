@@ -1,13 +1,17 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `voice/dangling-modifier` finds a sentence opening with a modifier of a thing the sentence leaves out\n\n`Enabled, a session works in a worktree` reads as the session being enabled: the finding asks for the thing by name, as `With worktrees enabled, a session…`. A warning under `recommended`, an error under `strict`.\n"
-    filename: dangling-modifier.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### `prosebook diff` reads a base whose catalog, translations or lock pass 1 MiB\n\nIt failed with `spawnSync git ENOBUFS` there, as a lock holding many judges' verdicts does.\n"
+    filename: diff-large-files.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - dangling-modifier.md
+      - diff-large-files.md
     id: npm:prosebook
     updated: true
   - id: npm:site
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-bun
     updated: false
   - id: npm:example-tanstack-start
     updated: false
@@ -15,13 +19,9 @@ core:packages:
     updated: false
   - id: npm:example-solid
     updated: false
-  - id: npm:example-bun
+  - id: npm:example-next
     updated: false
   - id: npm:example-rspack
-    updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-next
     updated: false
   - id: npm:example-preact
     updated: false
@@ -32,13 +32,13 @@ core:packages:
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
+  - id: npm:example-svelte
+  - id: npm:example-bun
   - id: npm:example-tanstack-start
   - id: npm:example-vite
   - id: npm:example-solid
-  - id: npm:example-bun
-  - id: npm:example-rspack
-  - id: npm:example-svelte
   - id: npm:example-next
+  - id: npm:example-rspack
   - id: npm:example-preact
   - id: npm:example-vue
   - id: npm:example-node
