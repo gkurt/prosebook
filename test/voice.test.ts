@@ -151,14 +151,15 @@ describe('voice', () => {
     );
   });
 
-  test('dangling-modifier: a sentence opens with a modifier whose thing the sentence leaves out', () => {
+  test('dangling-modifier: a sentence opens with a setting’s state', () => {
     holds(
       'dangling-modifier',
       [
         { text: 'Enabled, a session in a git repository works in a worktree.' },
         { text: 'Left empty, each session gets a separate folder.' },
         { text: "Disabled, or in a folder that isn't a repository, sessions share the configuration folder." },
-        { text: 'Saved to the cloud. Signed in, members see the drafts.' },
+        { text: 'Saved to the cloud. Enabled for a team, members see the drafts.' },
+        { text: 'Turned off, the inspector hides each key.' },
         { text: 'Based on your plan, we recommend the team tier.' },
         { text: 'Off, sessions share the configuration folder.' },
         { text: 'Set to {mode}, the agent asks before each command.' },
@@ -181,10 +182,18 @@ describe('voice', () => {
         { text: 'On a server, each request gets a separate copy.' },
         { text: 'Hardcoded text is the code’s, and the scan finds the text.' },
         { text: 'Unset, it is the provider’s name.' },
+        // A participle naming the subject after it, a verb with its object, and words that modify nothing.
+        { text: 'Opened from the Finder, the app takes the folder as its root.' },
+        { text: 'Left alone, OpenCode fetches the model list once a day.' },
+        { text: 'Signed in, the connector syncs every hour.' },
+        { text: 'Added {name}, and the list is sorted again.' },
+        { text: 'Enabled {name}, so the workflow runs on every push.' },
+        { text: 'Generated, formatting, imports and whitespace hunks are folded.' },
+        { text: 'Named values, with a format for each.' },
       ],
     );
     expect(found('dangling-modifier', [{ text: 'Left empty, each session gets a separate folder.' }])[0]).toEqual([
-      '"Left empty," describes a thing the sentence never names, so it reads as describing the subject after it: name the thing, as "With worktrees enabled, a session…" or "If the field is empty, each session…"',
+      '"Left empty," is the state of a setting the sentence never names, so it reads as the state of the subject after it: name the setting, as "With worktrees enabled, a session…" or "If the field is empty, each session…"',
     ]);
   });
 

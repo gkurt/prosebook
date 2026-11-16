@@ -669,14 +669,16 @@ under `strict`:
 | `voice/semicolons`        | Two facts joined with a semicolon, which make two sentences                                   |
 | `voice/colon-clause`      | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted   |
 | `voice/figurative-verbs`  | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`        |
-| `voice/dangling-modifier` | A sentence opening with a modifier of a thing the sentence leaves out: `Enabled, a session…`  |
+| `voice/dangling-modifier` | A sentence opening with a setting's state: `Enabled, a session…`, `Left empty,`, `Based on…,` |
 
 `There is` and `is there` point at no place, and pass. `Region: {region}`, a short list after a colon, and `Build failed: npm
 run build exited with code 1.` on the `error` surface pass `voice/colon-clause`. Read and write are left to `voice/own-words`,
 since a tool named `Read` or a `Cache read` is the product's own word.
 
-`voice/dangling-modifier` passes a modifier naming the setting, `With worktrees enabled, a session…`, an opening
-conjunction, `When enabled,`, and a second clause about the same subject, `Saved, but not published`.
+`voice/dangling-modifier` finds only a setting's state, `Enabled`, `Disabled`, `Turned off`, `Left empty`, `Set to`,
+`On`, `Off`, `Empty` and `Based on`, since a participle in general may describe the subject after the comma, as in
+`Opened from the Finder, the app…`. `With worktrees enabled, a session…`, `When enabled,` and `Enabled {name},`, a verb and
+the verb's object, pass.
 
 Each entry's `context` is held to `voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` too,
 since the next writer copies the words of a context into the copy:

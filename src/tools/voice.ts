@@ -130,14 +130,17 @@ const figurativeVerbs: CheckRule = {
     }),
 };
 
+const FRONT_WORD = String.raw`[\p{L}\p{N}${HOLE}'’-]+`;
+
 /**
- * A participle that opens a sentence before a comma: `Enabled,`, `Left empty,`, `Set to Always,`, `Based on
- * your plan,`. `When enabled,` and `If set,` open with a conjunction, and pass. `-eed` is `need`, `speed`.
- * `On`, `Off` and `Empty` stand alone, as `On a server,` opens with a preposition, and a finite verb ends
- * the modifier, as `Hardcoded text is JSX's,` is a clause.
+ * A setting's state that opens a sentence before a comma: `Enabled,`, `Left empty,`, `Set to Always,`, and
+ * `Based on your plan,`, which never describes the subject after it. Only these: a participle in general
+ * may describe that subject, as `Opened from the Finder, the app…` does, which a pattern can't tell from
+ * `Enabled, a session…`. A state may go on with a preposition, `Enabled for a team,`, never an object, as
+ * `Enabled {name},` is a verb and its object. `When enabled,` opens with a conjunction, and passes.
  */
 const FRONTED = new RegExp(
-  String.raw`(?:^|(?<=[.!?…]\s+))((?:\p{L}{2,}(?<!e)ed|left|shown|hidden|written|given|held|kept|chosen|taken|built|unset|set(?=\s+to\s))(?:\s+(?!(?:is|are|was|were|has|have|had|can|will|does|do)(?![\p{L}'’-]))[\p{L}\p{N}${HOLE}'’-]+){0,4}|on|off|empty),\s*`,
+  String.raw`(?:^|(?<=[.!?…]\s+))((?:(?:enabled|disabled|checked|unchecked|cleared|(?:turned|switched|toggled)\s+(?:on|off))(?:\s+(?:for|in|on|at|by|per)(?:\s+${FRONT_WORD}){1,3})?|left\s+(?:empty|blank|unset|unchecked|on|off)|set\s+to(?:\s+${FRONT_WORD}){1,3}|based\s+on(?:\s+${FRONT_WORD}){1,4}|unset|on|off|empty|blank)),\s*`,
   'giu',
 );
 
@@ -154,7 +157,7 @@ const WORD = /[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu;
 
 const danglingModifier: CheckRule = {
   description:
-    'A sentence never opens with a modifier whose thing the sentence leaves out, which reads as the subject after the modifier: `With worktrees enabled, a session works in a worktree`, not `Enabled, a session works in a worktree`.',
+    'A sentence never opens with a setting’s state, which reads as the state of the subject after the state: `With worktrees enabled, a session works in a worktree`, not `Enabled, a session works in a worktree`.',
   recommended: 'warn',
   check: ({ text }) => {
     for (const v of text.variants) {
@@ -166,7 +169,7 @@ const danglingModifier: CheckRule = {
         const opening = m[1]!;
         return [
           {
-            message: `"${opening}," describes a thing the sentence never names, so it reads as describing the subject after it: name the thing, as "With worktrees enabled, a session…" or "If the field is empty, each session…"`,
+            message: `"${opening}," is the state of a setting the sentence never names, so it reads as the state of the subject after it: name the setting, as "With worktrees enabled, a session…" or "If the field is empty, each session…"`,
             match: opening,
           },
         ];
