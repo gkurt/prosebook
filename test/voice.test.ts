@@ -151,9 +151,9 @@ describe('voice', () => {
     );
   });
 
-  test('dangling-modifier: a sentence opens with a setting’s state', () => {
+  test('fronted-modifier: a sentence opens with a modifier and a comma', () => {
     holds(
-      'dangling-modifier',
+      'fronted-modifier',
       [
         { text: 'Enabled, a session in a git repository works in a worktree.' },
         { text: 'Left empty, each session gets a separate folder.' },
@@ -163,11 +163,18 @@ describe('voice', () => {
         { text: 'Based on your plan, we recommend the team tier.' },
         { text: 'Off, sessions share the configuration folder.' },
         { text: 'Set to {mode}, the agent asks before each command.' },
+        // The modifier describes the subject after the comma, and still opens the sentence.
+        { text: 'Opened from the Finder, the app takes the folder as its root.' },
+        { text: 'Left alone, OpenCode fetches the model list once a day.' },
+        { text: 'Signed in, the connector syncs every hour.' },
+        { text: 'Unset, it is the provider’s name.' },
+        { text: 'Run automatically, the check blocks the merge.' },
       ],
       [
-        { text: 'With worktrees enabled, a session in a git repository works in a worktree.' },
+        { text: 'When worktrees are enabled, a session in a git repository works in a worktree.' },
         { text: 'When enabled, each session gets a separate folder.' },
         { text: 'If the field is empty, each session gets a separate folder.' },
+        { text: 'On a server, each request gets a separate copy.' },
         // A second clause about the same subject, a short detail, or a list.
         { text: 'Saved, but not published yet.' },
         { text: 'Copied, ready to paste.' },
@@ -175,25 +182,19 @@ describe('voice', () => {
         { text: 'Archived, then deleted after 30 days.' },
         { text: 'Detailed logs, traces and metrics' },
         { text: 'Accented, padded text shows the strings the catalog missed.' },
+        { text: 'Generated, formatting, imports and whitespace hunks are folded.' },
+        // An adjective on a noun, and a verb with the verb's object, modify nothing.
+        { text: 'Named values, with a format for each.' },
+        { text: 'Hardcoded text is the code’s, and the scan finds the text.' },
+        { text: 'Added {name}, the list is sorted again.' },
+        { text: 'Enabled the {name} workflow, the next push runs the workflow.' },
         // `need` and `speed` are no participles.
         { text: 'Need help, reach out to the team.' },
         { text: 'Embedded in the page.' },
-        // A preposition, a clause, and a pronoun naming what the modifier describes.
-        { text: 'On a server, each request gets a separate copy.' },
-        { text: 'Hardcoded text is the code’s, and the scan finds the text.' },
-        { text: 'Unset, it is the provider’s name.' },
-        // A participle naming the subject after it, a verb with its object, and words that modify nothing.
-        { text: 'Opened from the Finder, the app takes the folder as its root.' },
-        { text: 'Left alone, OpenCode fetches the model list once a day.' },
-        { text: 'Signed in, the connector syncs every hour.' },
-        { text: 'Added {name}, and the list is sorted again.' },
-        { text: 'Enabled {name}, so the workflow runs on every push.' },
-        { text: 'Generated, formatting, imports and whitespace hunks are folded.' },
-        { text: 'Named values, with a format for each.' },
       ],
     );
-    expect(found('dangling-modifier', [{ text: 'Left empty, each session gets a separate folder.' }])[0]).toEqual([
-      '"Left empty," is the state of a setting the sentence never names, so it reads as the state of the subject after it: name the setting, as "With worktrees enabled, a session…" or "If the field is empty, each session…"',
+    expect(found('fronted-modifier', [{ text: 'Left empty, each session gets a separate folder.' }])[0]).toEqual([
+      '"Left empty," opens the sentence with a modifier: start with the subject or a whole clause, as "When worktrees are enabled, a session…" or "A session works in a worktree when…"',
     ]);
   });
 
@@ -231,7 +232,7 @@ describe('voice', () => {
 
   test('the checked rules are warnings in recommended, errors in strict, off in the docs, and off with voice/*', () => {
     const config = fixture({}, { lint: { extends: 'strict' } });
-    for (const rule of ['pointing', 'of-its-own', 'semicolons', 'colon-clause', 'figurative-verbs', 'dangling-modifier']) {
+    for (const rule of ['pointing', 'of-its-own', 'semicolons', 'colon-clause', 'figurative-verbs', 'fronted-modifier']) {
       expect(fixture({}).lint.rules[`voice/${rule}`]?.severity).toBe('warn');
       expect(config.lint.rules[`voice/${rule}`]?.severity).toBe('error');
       expect(fixture({}, { lint: { rules: { 'voice/*': 'off' } } }).lint.rules[`voice/${rule}`]?.severity).toBe('off');

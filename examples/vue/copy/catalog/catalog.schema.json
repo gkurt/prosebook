@@ -186,7 +186,7 @@
             "voice/semicolons",
             "voice/colon-clause",
             "voice/figurative-verbs",
-            "voice/dangling-modifier"
+            "voice/fronted-modifier"
           ]
         },
         "additionalProperties": {

@@ -662,23 +662,23 @@ model can judge, with [`prosebook judge`](#judge). A switch's state is one examp
 Six habits are found reliably by a pattern, so the `voice` plugin checks them too, as warnings under `recommended` and errors
 under `strict`:
 
-| Rule                      | Finds                                                                                         |
-| ------------------------- | --------------------------------------------------------------------------------------------- |
-| `voice/pointing`          | `it`, `its`, `they`, `their`, `them`, and `there` for a place: `The agent has no files there` |
-| `voice/of-its-own`        | `of its own`, `of their own`, `of {name}'s own`: `a folder of its own` is `a separate folder` |
-| `voice/semicolons`        | Two facts joined with a semicolon, which make two sentences                                   |
-| `voice/colon-clause`      | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted   |
-| `voice/figurative-verbs`  | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`        |
-| `voice/dangling-modifier` | A sentence opening with a setting's state: `Enabled, a session…`, `Left empty,`, `Based on…,` |
+| Rule                     | Finds                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `voice/pointing`         | `it`, `its`, `they`, `their`, `them`, and `there` for a place: `The agent has no files there`    |
+| `voice/of-its-own`       | `of its own`, `of their own`, `of {name}'s own`: `a folder of its own` is `a separate folder`    |
+| `voice/semicolons`       | Two facts joined with a semicolon, which make two sentences                                      |
+| `voice/colon-clause`     | A lowercase clause after a colon in a `description` or a `state`, an error's cause excepted      |
+| `voice/figurative-verbs` | `comes`, `says` and `asks for`: a schedule `runs`, a setting `sets`, a tool `requests`           |
+| `voice/fronted-modifier` | A sentence opening with a modifier and a comma: `Enabled, a session…`, `Opened from the Finder,` |
 
 `There is` and `is there` point at no place, and pass. `Region: {region}`, a short list after a colon, and `Build failed: npm
 run build exited with code 1.` on the `error` surface pass `voice/colon-clause`. Read and write are left to `voice/own-words`,
 since a tool named `Read` or a `Cache read` is the product's own word.
 
-`voice/dangling-modifier` finds only a setting's state, `Enabled`, `Disabled`, `Turned off`, `Left empty`, `Set to`,
-`On`, `Off`, `Empty` and `Based on`, since a participle in general may describe the subject after the comma, as in
-`Opened from the Finder, the app…`. `With worktrees enabled, a session…`, `When enabled,` and `Enabled {name},`, a verb and
-the verb's object, pass.
+`voice/fronted-modifier` finds the modifier whether the modifier describes the subject after the comma or a thing the
+sentence leaves out, as both read compressed. `When worktrees are enabled, a session…` and `On a server,` open with a
+conjunction or a preposition, and pass, as do `Named values, with…`, an adjective on a noun, and `Added {name},`, a verb
+and the verb's object.
 
 Each entry's `context` is held to `voice/pointing`, `voice/of-its-own`, `voice/semicolons` and `voice/figurative-verbs` too,
 since the next writer copies the words of a context into the copy:
@@ -1429,9 +1429,10 @@ guideline, with its words.
   languageJudge(anthropic('claude-haiku-5-5'), { ask: Boolean(process.env.ANTHROPIC_API_KEY) }),
   ```
 
-- **`id`** names a model in the lock. Unset, it is the provider's name and the model's, `anthropic.messages/claude-haiku-5-5`,
-  so the same model through another provider, the AI Gateway say, is asked of every entry again. A name of your own
-  holds across providers; to keep the answers a lock already has, give the name the lock has.
+- **`id`** names a model in the lock. Without an `id`, the lock names the model `<provider>/<model>`, as
+  `anthropic.messages/claude-haiku-5-5`, so a model reached through another provider, such as the AI Gateway, is asked
+  about every entry again. An `id` stays the same across providers. To keep the answers a lock already has, give the `id`
+  the lock has.
 
   ```ts
   languageJudge('anthropic/claude-haiku-5.5', { id: 'anthropic.messages/claude-haiku-5-5' }),

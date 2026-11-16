@@ -130,34 +130,41 @@ const figurativeVerbs: CheckRule = {
     }),
 };
 
+/**
+ * What may follow a participle that modifies: a preposition, a particle or a complement, `Opened from the Finder`,
+ * `Left empty`, `Turned off`, or an adverb in `-ly`. A noun, an article or a placeholder makes the participle an
+ * adjective, `Named values`, or a verb with the verb's object, `Added {name}`, and neither is a modifier.
+ */
+const MODIFIES = String.raw`(?:from|to|in|into|on|onto|off|by|for|with|without|at|as|through|over|under|after|before|during|via|per|across|inside|outside|alone|empty|blank|unset|once|again|here|up|down|out|back|away|together|\p{L}+ly)(?![\p{L}'’-])`;
+
 const FRONT_WORD = String.raw`[\p{L}\p{N}${HOLE}'’-]+`;
 
 /**
- * A setting's state that opens a sentence before a comma: `Enabled,`, `Left empty,`, `Set to Always,`, and
- * `Based on your plan,`, which never describes the subject after it. Only these: a participle in general
- * may describe that subject, as `Opened from the Finder, the app…` does, which a pattern can't tell from
- * `Enabled, a session…`. A state may go on with a preposition, `Enabled for a team,`, never an object, as
- * `Enabled {name},` is a verb and its object. `When enabled,` opens with a conjunction, and passes.
+ * A modifier that opens a sentence before a comma: `Enabled,`, `Left empty,`, `Opened from the Finder,`,
+ * `Set to Always,`, `Based on your plan,`, `Off,`. Whether the modifier describes the subject after the comma
+ * or a thing the sentence leaves out, the sentence reads compressed: the subject, or a whole clause, goes
+ * first. `When enabled,` opens with a conjunction, and `On a server,` with a preposition, so neither is found.
+ * `-eed` is `need`, `speed`.
  */
 const FRONTED = new RegExp(
-  String.raw`(?:^|(?<=[.!?…]\s+))((?:(?:enabled|disabled|checked|unchecked|cleared|(?:turned|switched|toggled)\s+(?:on|off))(?:\s+(?:for|in|on|at|by|per)(?:\s+${FRONT_WORD}){1,3})?|left\s+(?:empty|blank|unset|unchecked|on|off)|set\s+to(?:\s+${FRONT_WORD}){1,3}|based\s+on(?:\s+${FRONT_WORD}){1,4}|unset|on|off|empty|blank)),\s*`,
+  String.raw`(?:^|(?<=[.!?…]\s+))((?:\p{L}{2,}(?<!e)ed|left|shown|hidden|written|given|held|kept|chosen|taken|built|run|made|done|seen|known|found|sent|bound|unset|set(?=\s+to\s))(?:\s+${MODIFIES}(?:\s+${FRONT_WORD}){0,4})?|based\s+on(?:\s+${FRONT_WORD}){1,4}|on|off|empty|blank),\s*`,
   'giu',
 );
 
-/**
- * Words that start a second clause about the same subject, `Saved, but not published`, not the subject.
- * A pronoun after the modifier is the thing the modifier describes, which `pointing` asks to be named.
- */
-const JOINED = /^(?:but|not|so|and|then|yet|now|ready|since|as|until|it|they|this|these)(?![\p{L}'’-])/iu;
+/** Words that start a second clause about the same subject, `Saved, but not published`, not the subject. */
+const JOINED = /^(?:but|not|so|and|then|yet|now|ready|since|as|until)(?![\p{L}'’-])/iu;
 
 /** A second participle after the comma: `Accented, padded text` is two adjectives on one noun. */
 const STACKED = /^\p{L}{2,}(?<!e)ed(?![\p{L}'’-])/iu;
 
+/** A series: `Generated, formatting, imports and whitespace hunks` opens with the series' first item. */
+const SERIES = /^[\p{L}\p{N}'’-]+(?:\s+[\p{L}\p{N}'’-]+)?\s*,/u;
+
 const WORD = /[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu;
 
-const danglingModifier: CheckRule = {
+const frontedModifier: CheckRule = {
   description:
-    'A sentence never opens with a setting’s state, which reads as the state of the subject after the state: `With worktrees enabled, a session works in a worktree`, not `Enabled, a session works in a worktree`.',
+    'A sentence opens with the subject or a whole clause, never a modifier and a comma: `When worktrees are enabled, a session works in a worktree`, not `Enabled, a session works in a worktree`, and `The app takes the folder it was opened from`, not `Opened from the Finder, the app takes the folder`.',
   recommended: 'warn',
   check: ({ text }) => {
     for (const v of text.variants) {
@@ -165,11 +172,12 @@ const danglingModifier: CheckRule = {
         // A clause of three words or more follows, to the sentence's end, past an `or` that runs the modifier on.
         let rest = /^[^.!?…]*/u.exec(v.slice(m.index + m[0].length))![0];
         if (/^or\s/iu.test(rest)) rest = rest.includes(',') ? rest.slice(rest.indexOf(',') + 1).trimStart() : '';
-        if ((rest.match(WORD) ?? []).length < 3 || JOINED.test(rest) || STACKED.test(rest) || isList(rest)) continue;
+        const words = (rest.match(WORD) ?? []).length;
+        if (words < 3 || JOINED.test(rest) || STACKED.test(rest) || SERIES.test(rest) || isList(rest)) continue;
         const opening = m[1]!;
         return [
           {
-            message: `"${opening}," is the state of a setting the sentence never names, so it reads as the state of the subject after it: name the setting, as "With worktrees enabled, a session…" or "If the field is empty, each session…"`,
+            message: `"${opening}," opens the sentence with a modifier: start with the subject or a whole clause, as "When worktrees are enabled, a session…" or "A session works in a worktree when…"`,
             match: opening,
           },
         ];
@@ -219,6 +227,6 @@ export const VOICE: Plugin = {
     semicolons,
     'colon-clause': colonClause,
     'figurative-verbs': figurativeVerbs,
-    'dangling-modifier': danglingModifier,
+    'fronted-modifier': frontedModifier,
   },
 };
