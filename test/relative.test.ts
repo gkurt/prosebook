@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { join } from 'node:path';
 
 import {
@@ -13,6 +13,7 @@ import {
 } from 'prosebook';
 import { generate, loadCatalog, readMessage, writeMessage, type ProsebookConfig } from 'prosebook/tools';
 
+import { wait } from '#src/runtime/clock.ts';
 import { relativeOf } from '#src/runtime/relative.ts';
 import type { Entry } from '#src/tools/compile.ts';
 import { formatsCode } from '#src/tools/generate.ts';
@@ -446,6 +447,20 @@ describe('now, and keeping a time fresh', () => {
     cancel();
     await Bun.sleep(80);
     expect(ran).toEqual(['soon']);
+  });
+
+  test('a wait whose timer fires before Date.now() reaches it is waited for again', async () => {
+    const real = Date.now.bind(Date);
+    const ran: string[] = [];
+    wait(20, () => ran.push('ran'));
+    // The system clock set back 30ms: the timer fires while Date.now() reads 10ms short of the moment.
+    const behind = spyOn(Date, 'now').mockImplementation(() => real() - 30);
+    try {
+      await Bun.sleep(120);
+    } finally {
+      behind.mockRestore();
+    }
+    expect(ran).toEqual(['ran']);
   });
 });
 

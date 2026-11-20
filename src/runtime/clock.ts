@@ -13,6 +13,10 @@ let watching = false;
 const LONGEST = 2 ** 31 - 1;
 
 function check() {
+  // The timer has fired: `plan` sets the next one even for the same moment, as a timer may fire while `Date.now()`
+  // still reads a millisecond short of it, or behind it once the system clock is set back.
+  timer = undefined;
+  timerAt = Infinity;
   const now = Date.now();
   for (const w of waiting) {
     if (w.at > now) continue;
