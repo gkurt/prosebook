@@ -1,3 +1,9 @@
+## prosebook@0.27.1
+
+### A relative time keeps updating when its timer fires a moment early
+
+A timer firing while `Date.now()` still read short of the moment, or after the system clock was set back, left every relative time on the page as it was until the next one began waiting.
+
 ## prosebook@0.27.0
 
 ### `voice/tagline` finds a noun and a participle after a comma
