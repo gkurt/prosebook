@@ -1,3 +1,9 @@
+## prosebook@0.27.0
+
+### `voice/tagline` finds a noun and a participle after a comma
+
+`Slop, named` and `Every word in your app, written well.` are found, and the finding asks for the phrase whole, as `Guidelines against slop`. Entries on the `status`, `aria`, `label` and `choice` surfaces pass, where `Wi-Fi, connected` reads right. A warning under `recommended`, an error under `strict`.
+
 ## prosebook@0.26.0
 
 ### `voice/state-consequence`: a condition and the consequence make a whole sentence
