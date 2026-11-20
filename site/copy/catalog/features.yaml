@@ -27,7 +27,7 @@ features.stale.title:
   kind: name
   surface: heading
   context: Heads the feature about stale translations.
-  en: Stale translations flagged
+  en: Stale translation tracking
 
 features.stale.body:
   kind: description

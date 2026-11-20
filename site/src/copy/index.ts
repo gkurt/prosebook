@@ -66,7 +66,7 @@ export type Messages = {
    */
   "agents.slop.body": { args: {}; tags: never };
   /**
-   * Slop, named
+   * Guidelines against slop
    *
    * Heads the feature about the guidelines against generated copy.
    */
@@ -108,7 +108,7 @@ export type Messages = {
    */
   "features.stale.body": { args: {}; tags: never };
   /**
-   * Stale translations flagged
+   * Stale translation tracking
    *
    * Heads the feature about stale translations.
    */
@@ -156,7 +156,7 @@ export type Messages = {
    */
   "hero.lead": { args: {}; tags: never };
   /**
-   * Every word in your app, written well.
+   * Lint your app's copy as you lint the code.
    *
    * The headline at the top of the page.
    */
@@ -234,7 +234,7 @@ export type Messages = {
    */
   "notes.small.body": { args: {}; tags: never };
   /**
-   * the runtime, gzipped
+   * the runtime after gzip
    *
    * Beside the runtime's size, what the figure measures.
    */

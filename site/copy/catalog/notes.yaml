@@ -63,7 +63,7 @@ notes.small.caption:
   kind: name
   surface: detail
   context: Beside the runtime's size, what the figure measures.
-  en: the runtime, gzipped
+  en: the runtime after gzip
   fragment: true
 
 notes.diff.title:

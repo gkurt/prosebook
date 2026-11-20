@@ -3,7 +3,7 @@ hero.title:
   kind: description
   surface: title
   context: The headline at the top of the page.
-  en: Every word in your app, written well.
+  en: Lint your app's copy as you lint the code.
 
 hero.lead:
   kind: description

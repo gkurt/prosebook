@@ -39,7 +39,7 @@ agents.slop.title:
   kind: name
   surface: heading
   context: Heads the feature about the guidelines against generated copy.
-  en: Slop, named
+  en: Guidelines against slop
 
 agents.slop.body:
   kind: description
