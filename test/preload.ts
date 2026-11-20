@@ -1,10 +1,12 @@
 /**
  * What the framework tests need from Bun. Solid and Svelte name their server builds for every runtime
  * but a browser's, and those don't react, so each server module here hands over its browser twin; and
- * `.svelte` files are compiled as the app's bundler would.
+ * `.svelte` files are compiled as the app's bundler would. And `Error.prepareStackTrace` is put back after
+ * each test.
  */
 import { readFileSync } from 'node:fs';
 
+import { afterEach } from 'bun:test';
 import { plugin } from 'bun';
 import { compile } from 'svelte/compiler';
 
@@ -25,4 +27,15 @@ plugin({
       loader: 'js',
     }));
   },
+});
+
+// Babel sets `Error.prepareStackTrace` the first time it transforms and never unsets it, and Vite's module runner
+// leaves its own while one is open. Every test file runs in one process, and under such a hook Bun's
+// `Error.captureStackTrace` refuses an object that isn't an Error, which a Vite loaded afresh passes it as it
+// loads: whichever file runs after the framework plugins fails, so the outcome hung on the order Bun reads the
+// folder in.
+const PREPARE = Object.getOwnPropertyDescriptor(Error, 'prepareStackTrace');
+afterEach(() => {
+  if (PREPARE === undefined) Reflect.deleteProperty(Error, 'prepareStackTrace');
+  else Object.defineProperty(Error, 'prepareStackTrace', PREPARE);
 });
