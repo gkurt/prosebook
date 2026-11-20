@@ -13,9 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-        # Bun 1.4.5 fails as Vite loads (`Error.captureStackTrace`); raise once a release reads Vite again.
-        with:
-          bun-version-file: .bun-version
       - run: bun i --frozen-lockfile
       # First: the examples import prosebook as an app does, from dist, and the type-aware lint reads them.
       - run: bun run build
@@ -46,9 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-        # Bun 1.4.5 fails as Vite loads (`Error.captureStackTrace`); raise once a release reads Vite again.
-        with:
-          bun-version-file: .bun-version
       # Next and the Node example run under Node, which strips the types from `.ts` files.
       - uses: actions/setup-node@v7
         with:
@@ -72,9 +66,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
-        # Bun 1.4.5 fails as Vite loads (`Error.captureStackTrace`); raise once a release reads Vite again.
-        with:
-          bun-version-file: .bun-version
       - run: bun i --frozen-lockfile
       - run: bun run build
       # prosebook's bin exists only once built, so the site is linked again to get it.
