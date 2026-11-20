@@ -192,13 +192,17 @@ const frontedModifier: CheckRule = {
 const PARTICIPLE = String.raw`(?:\p{L}{2,}(?<!e)ed|written|shown|hidden|given|held|kept|chosen|taken|built|made|done|seen|known|found|sent|bound|left|run|set|spent|read|won|told|paid|sold)`;
 
 /**
- * A sentence that is a noun phrase, a comma and a participle, with an adverb at most after: `Slop, named`, `Every
- * word in your app, written well.`, `the runtime, gzipped`. The comma stands where a verb or a preposition belongs.
+ * The end of a sentence that is a noun phrase, a comma and a participle, with an adverb at most after: `Slop, named`,
+ * `Every word in your app, written well.`, `the runtime, gzipped`. The comma stands where a verb or a preposition
+ * belongs. Read from the comma, so a long sentence costs one pass.
  */
-const TAGGED = new RegExp(
-  String.raw`^([^,]*[\p{L}\p{N}${HOLE}'’)][^,]*),\s+(${PARTICIPLE}(?:\s+(?:well|right|first|again|once|together|\p{L}+ly))?)[.!…]?$`,
-  'iu',
-);
+const TAGGED = new RegExp(String.raw`,\s+(${PARTICIPLE}(?:\s+(?:well|right|first|again|once|together|\p{L}+ly))?)[.!…]?$`, 'iu');
+
+/** What stands before the comma: some words, and no other comma. */
+const NOUN = new RegExp(String.raw`^[^,]*[\p{L}\p{N}${HOLE}][^,]*$`, 'u');
+
+/** `Saved, synced`: two states, as a status line lists them. */
+const STATE = new RegExp(String.raw`^${PARTICIPLE}$`, 'iu');
 
 /** Surfaces where a state beside a thing's name reads right: `Wi-Fi, connected`, a field's `Email, required`. */
 const BESIDE = ['status', 'aria', 'label', 'choice'];
@@ -212,12 +216,12 @@ const tagline: CheckRule = {
     for (const v of text.variants) {
       for (const sentence of v.split(/(?<=[.!?…])\s+/u)) {
         const m = TAGGED.exec(sentence.trim());
-        // `Saved, synced`: two states, as a status line lists them.
-        if (m === null || new RegExp(`^${PARTICIPLE}$`, 'iu').test(m[1]!.trim())) continue;
+        const before = m === null ? '' : sentence.trim().slice(0, m.index).trim();
+        if (m === null || !NOUN.test(before) || STATE.test(before)) continue;
         return [
           {
-            message: `", ${m[2]}" tags a participle onto a noun: say the phrase whole, with a verb or a preposition, as "Guidelines against slop" in place of "Slop, named"`,
-            match: `, ${m[2]}`,
+            message: `", ${m[1]}" tags a participle onto a noun: say the phrase whole, with a verb or a preposition, as "Guidelines against slop" in place of "Slop, named"`,
+            match: `, ${m[1]}`,
           },
         ];
       }
