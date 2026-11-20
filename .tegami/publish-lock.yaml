@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `voice/tagline` finds a noun and a participle after a comma\n\n`Slop, named` and `Every word in your app, written well.` are found, and the finding asks for the phrase whole, as `Guidelines against slop`. Entries on the `status`, `aria`, `label` and `choice` surfaces pass, where `Wi-Fi, connected` reads right. A warning under `recommended`, an error under `strict`.\n"
-    filename: voice-tagline.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A relative time keeps updating when its timer fires a moment early\n\nA timer firing while `Date.now()` still read short of the moment, or after the system clock was set back, left every relative time on the page as it was until the next one began waiting.\n"
+    filename: clock-early-timer.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - voice-tagline.md
+      - clock-early-timer.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-bun
+  - id: npm:site
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-preact
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-vite
     updated: false
   - id: npm:example-tanstack-start
     updated: false
-  - id: npm:example-vue
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-solid
     updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-next
+  - id: npm:example-rspack
     updated: false
-  - id: npm:site
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-vue
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-rspack
-  - id: npm:example-solid
-  - id: npm:example-vite
-  - id: npm:example-bun
-  - id: npm:example-svelte
-  - id: npm:example-preact
-  - id: npm:example-tanstack-start
-  - id: npm:example-vue
-  - id: npm:example-node
-  - id: npm:example-next
   - id: npm:site
+  - id: npm:example-svelte
+  - id: npm:example-next
+  - id: npm:example-vite
+  - id: npm:example-tanstack-start
+  - id: npm:example-bun
+  - id: npm:example-solid
+  - id: npm:example-node
+  - id: npm:example-rspack
+  - id: npm:example-preact
+  - id: npm:example-vue
