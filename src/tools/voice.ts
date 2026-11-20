@@ -6,7 +6,8 @@
  * Most are guidelines, matters of meaning a word list would flag in sound copy as often as it caught,
  * which a judge weighs (`judge.ts`). The rest are checks, each a pattern found reliably enough to flag
  * every time: words that point at a thing in place of naming the thing, semicolons, a colon before a
- * clause, and verbs that give a thing a voice or legs. The pointing words, the semicolons and the
+ * clause, verbs that give a thing a voice or legs, a modifier opening a sentence, and a participle tagged
+ * onto a noun after a comma. The pointing words, the semicolons and the
  * verbs are checked in each entry's `context` too, as a writer copies the context's words into the copy.
  */
 import { phrase, type CheckRule, type Plugin, type Report, type RuleContext } from './lint.ts';
@@ -187,6 +188,44 @@ const frontedModifier: CheckRule = {
   },
 };
 
+/** A participle, past `need` and `speed`, or one of the irregular ones copy uses. */
+const PARTICIPLE = String.raw`(?:\p{L}{2,}(?<!e)ed|written|shown|hidden|given|held|kept|chosen|taken|built|made|done|seen|known|found|sent|bound|left|run|set|spent|read|won|told|paid|sold)`;
+
+/**
+ * A sentence that is a noun phrase, a comma and a participle, with an adverb at most after: `Slop, named`, `Every
+ * word in your app, written well.`, `the runtime, gzipped`. The comma stands where a verb or a preposition belongs.
+ */
+const TAGGED = new RegExp(
+  String.raw`^([^,]*[\p{L}\p{N}${HOLE}'’)][^,]*),\s+(${PARTICIPLE}(?:\s+(?:well|right|first|again|once|together|\p{L}+ly))?)[.!…]?$`,
+  'iu',
+);
+
+/** Surfaces where a state beside a thing's name reads right: `Wi-Fi, connected`, a field's `Email, required`. */
+const BESIDE = ['status', 'aria', 'label', 'choice'];
+
+const tagline: CheckRule = {
+  description:
+    'A heading, a title or a caption is a whole phrase, never a noun and a participle after a comma: `Guidelines against slop`, not `Slop, named`, and `The runtime after gzip`, not `The runtime, gzipped`.',
+  recommended: 'warn',
+  check: ({ message, text }) => {
+    if (BESIDE.includes(message.surface ?? '')) return [];
+    for (const v of text.variants) {
+      for (const sentence of v.split(/(?<=[.!?…])\s+/u)) {
+        const m = TAGGED.exec(sentence.trim());
+        // `Saved, synced`: two states, as a status line lists them.
+        if (m === null || new RegExp(`^${PARTICIPLE}$`, 'iu').test(m[1]!.trim())) continue;
+        return [
+          {
+            message: `", ${m[2]}" tags a participle onto a noun: say the phrase whole, with a verb or a preposition, as "Guidelines against slop" in place of "Slop, named"`,
+            match: `, ${m[2]}`,
+          },
+        ];
+      }
+    }
+    return [];
+  },
+};
+
 export const VOICE: Plugin = {
   name: 'voice',
   rules: {
@@ -235,5 +274,6 @@ export const VOICE: Plugin = {
     'colon-clause': colonClause,
     'figurative-verbs': figurativeVerbs,
     'fronted-modifier': frontedModifier,
+    tagline,
   },
 };

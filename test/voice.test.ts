@@ -198,6 +198,37 @@ describe('voice', () => {
     ]);
   });
 
+  test('tagline: a noun and a participle after a comma', () => {
+    holds(
+      'tagline',
+      [
+        { text: 'Slop, named', kind: 'name', surface: 'heading' },
+        { text: 'Every word in your app, written well.', kind: 'description', surface: 'title' },
+        { text: 'the runtime, gzipped', kind: 'name', surface: 'detail' },
+        { text: 'Your changes, saved.', kind: 'state', surface: 'toast' },
+        { text: 'Prices, updated daily', kind: 'name', surface: 'heading' },
+        { text: 'Run the command. Every file, checked.', kind: 'description', surface: 'hint' },
+        { text: 'Plans for {team}, compared', kind: 'name', surface: 'heading' },
+      ],
+      [
+        { text: 'Guidelines against slop', kind: 'name', surface: 'heading' },
+        { text: 'Saved, but not published yet.', kind: 'state', surface: 'toast' },
+        { text: 'Copied, ready to paste.', kind: 'state', surface: 'toast' },
+        { text: 'Archived, then deleted after 30 days.', kind: 'state', surface: 'hint' },
+        { text: 'Accented, padded text shows the strings the catalog missed.' },
+        { text: 'When the file is saved, the change is applied.' },
+        { text: 'Saved, synced', kind: 'state', surface: 'detail' },
+        // A state beside a name reads right where a screen reader, a badge or a field's label says it.
+        { text: 'Wi-Fi, connected', kind: 'name', surface: 'aria' },
+        { text: 'Build, failed', kind: 'state', surface: 'status' },
+        { text: 'Email, required', kind: 'name', surface: 'label' },
+      ],
+    );
+    expect(found('tagline', [{ text: 'Slop, named', kind: 'name', surface: 'heading' }])[0]).toEqual([
+      '", named" tags a participle onto a noun: say the phrase whole, with a verb or a preposition, as "Guidelines against slop" in place of "Slop, named"',
+    ]);
+  });
+
   test('a context is held to the rules against pointing, semicolons and figurative verbs, and not to the rest', () => {
     const context = (text: string) => found('pointing', [{ text: 'Saved', context: text }])[0];
     expect(context('A toast after the form is saved; it closes after a few seconds.')).toEqual([

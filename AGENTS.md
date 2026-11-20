@@ -138,8 +138,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   so a dev server reloading it gets the edit; the modules it imports stay as first loaded.
   `voice.ts`: `VOICE`, the built-in `voice` plugin against the habits of generated copy, on only for an
   English source: guidelines the judge weighs, and checks for the habits a pattern finds reliably (`pointing`,
-  `of-its-own`, `semicolons`, `colon-clause`, `figurative-verbs`, `fronted-modifier`), all but `colon-clause` and
-  `fronted-modifier` read in the context too (`context: true`), and off in the docs (`DOCS_OFF`, `config.ts`). The tones, kinds and surfaces in
+  `of-its-own`, `semicolons`, `colon-clause`, `figurative-verbs`, `fronted-modifier`, `tagline`), all but `colon-clause`,
+  `fronted-modifier` and `tagline` read in the context too (`context: true`), and off in the docs (`DOCS_OFF`, `config.ts`). The tones, kinds and surfaces in
   `presets.ts` and the guide's own sentences keep to these rules, as agents copy them.
   `presets.ts`: kinds, surfaces, the strict preset's word lists, and `PRESETS`, what the config's
   `extends` names: each a `Preset`, a tone (`doc`, `formality`, `examples`, the same six moments in every
