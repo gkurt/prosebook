@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A relative time keeps updating when its timer fires a moment early\n\nA timer firing while `Date.now()` still read short of the moment, or after the system clock was set back, left every relative time on the page as it was until the next one began waiting.\n"
-    filename: clock-early-timer.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Vue's and Solid's providers stop waiting for relative times once unmounted\n\nAn app gone kept its last waits in the page's one clock, and a test environment that cancelled their timer left every later relative time unchanged.\n"
+    filename: unmount-cancels-waits.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - clock-early-timer.md
+      - unmount-cancels-waits.md
     id: npm:prosebook
     updated: true
-  - id: npm:site
-    updated: false
-  - id: npm:example-svelte
-    updated: false
   - id: npm:example-next
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-node
     updated: false
   - id: npm:example-rspack
     updated: false
-  - id: npm:example-preact
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-svelte
     updated: false
   - id: npm:example-vue
+    updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:site
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:site
-  - id: npm:example-svelte
   - id: npm:example-next
-  - id: npm:example-vite
-  - id: npm:example-tanstack-start
-  - id: npm:example-bun
-  - id: npm:example-solid
-  - id: npm:example-node
   - id: npm:example-rspack
-  - id: npm:example-preact
+  - id: npm:example-node
+  - id: npm:example-svelte
   - id: npm:example-vue
+  - id: npm:example-preact
+  - id: npm:example-bun
+  - id: npm:example-tanstack-start
+  - id: npm:example-vite
+  - id: npm:example-solid
+  - id: npm:site
