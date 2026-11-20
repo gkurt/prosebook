@@ -30,15 +30,17 @@ export function CopyProvider(props: CopyProviderProps): JSX.Element {
   const { copy, tags = {} } = props;
   const [version, setVersion] = createSignal(copy.version);
   onCleanup(copy.subscribe(() => setVersion(copy.version)));
+  // A signal per moment a read next changes: what read the text tracks it, and alone updates.
+  const [fresh, stopWaiting] = freshness(copy, (wait) => {
+    const [tick, setTick] = createSignal(0);
+    wait(() => setTick((n) => n + 1));
+    return tick;
+  });
+  onCleanup(stopWaiting);
   const value = bindCopy<JSX.Element, JSX.Element>(copy, tags, {
     track: version,
     whole: (parts) => parts as JSX.Element,
-    // A signal per moment a read next changes: what read the text tracks it, and alone updates.
-    fresh: freshness(copy, (wait) => {
-      const [tick, setTick] = createSignal(0);
-      wait(() => setTick((n) => n + 1));
-      return tick;
-    }),
+    fresh,
   });
   return createComponent(CopyContext.Provider, {
     value,

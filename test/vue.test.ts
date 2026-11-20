@@ -66,7 +66,7 @@ test('provideCopy scopes a copy to a subtree, and in dev a catalog edit renders 
 });
 
 test('a <Text> saying a relative time renders again once it reads differently, and nothing else does', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let renders = 0;
   const View = defineComponent(() => () => {
     renders++;
@@ -81,10 +81,11 @@ test('a <Text> saying a relative time renders again once it reads differently, a
   expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
   expect(renders).toBe(1);
   app.unmount();
+  expect(waiting()).toBe(0);
 });
 
 test('a relative time read as text stays current, rendering again only the component that read it', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   const renders = { line: 0, other: 0 };
   const Line = defineComponent(() => {
     const { t } = useCopy() as unknown as { t: (key: string, values: object) => string };
@@ -110,4 +111,5 @@ test('a relative time read as text stays current, rendering again only the compo
   expect(host.innerHTML).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
   expect(renders).toEqual({ line: 2, other: 1 });
   app.unmount();
+  expect(waiting()).toBe(0);
 });

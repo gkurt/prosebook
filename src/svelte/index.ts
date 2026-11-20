@@ -51,7 +51,7 @@ export function setCopy(copy: Copy, options: CopyOptions = {}): SvelteCopy {
   const reader = bindCopy<never, RichPart[]>(copy, options.tags ?? {}, {
     track,
     // A subscriber per moment a read next changes, waiting only while something reads it: what read the text alone runs again.
-    fresh: freshness(copy, (wait) => createSubscriber(wait)),
+    fresh: freshness(copy, (wait) => createSubscriber(wait))[0],
     // A snippet renders only inside markup, so a tag's parts wait there for `<Text>`.
     tag: (snippet, chunks) => ({ snippet, chunks }),
     whole: (parts) => parts as RichPart[],

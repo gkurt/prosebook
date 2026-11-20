@@ -38,7 +38,7 @@ test('markup runs again on a locale switch, and tags render through snippets, ne
 });
 
 test('a <Text> saying a relative time renders again once it reads differently, and nothing else does', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let renders = 0;
   const host = document.createElement('div');
   const app = mount(Opened, { target: host, props: { copy, at, rendered: () => renders++ } });
@@ -49,10 +49,11 @@ test('a <Text> saying a relative time renders again once it reads differently, a
   expect(html(host)).toBe('<p>Opened 1 minute ago</p>');
   expect(renders).toBe(1);
   await unmount(app);
+  expect(waiting()).toBe(0);
 });
 
 test('a relative time read as text stays current, rendering again only what read it', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   const renders = { line: 0, other: 0 };
   const host = document.createElement('div');
   const app = mount(Line, {
@@ -66,4 +67,5 @@ test('a relative time read as text stays current, rendering again only what read
   expect(html(host)).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
   expect(renders).toEqual({ line: 2, other: 1 });
   await unmount(app);
+  expect(waiting()).toBe(0);
 });

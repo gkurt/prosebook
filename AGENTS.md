@@ -120,7 +120,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   framework's reactivity: `track` on every read, the provider's tags under each rich read's own, `tag` for
   what a tag renderer becomes, `whole` for what a rich read returns and `fresh` for when a read's relative
   time next changes (`freshness`: a framework signal per moment, made on first read, gone once bumped, no
-  timer where there is no `document`). Also `<Text>`'s prop types.
+  timer where there is no `document`, and a `stop` canceling every wait, which Vue and Solid call as their
+  provider goes, since their signals wait from the start). Also `<Text>`'s prop types.
 - `src/preact/index.ts`, `src/vue/index.ts`, `src/solid/index.ts`, `src/svelte/index.ts`: one binding
   each, written without JSX or a framework compiler. React and Preact rebuild the reader per version;
   Vue tracks a ref, Solid a signal, Svelte a `createSubscriber`. Vue's `<Text>` takes tags as slots;

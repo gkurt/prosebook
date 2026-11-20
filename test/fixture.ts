@@ -119,11 +119,26 @@ export interface RouteApp {
 
 /**
  * A copy whose clock reads `at` as now for another 50ms, then as a minute ago, over `a.opened`:
- * `Opened {at, relative}`. What a `<Text>` keeping itself fresh is tested with.
+ * `Opened {at, relative}`. What a `<Text>` keeping itself fresh is tested with. `waiting()` counts the waits on its
+ * clock not yet run or cancelled: one left once an app is gone stays in the clock every test file shares.
  */
 export function turning() {
   const start = Date.now();
   const now = Date.UTC(2026, 10, 9, 12);
   const copy = copyOf({ en: { 'a.opened': 'Opened {at, relative}' } }, { now: () => now + Date.now() - start });
-  return { copy, at: now - 59_950 };
+  const pending = new Set<object>();
+  const at = copy.at;
+  copy.at = (time, run) => {
+    const token = {};
+    pending.add(token);
+    const cancel = at(time, () => {
+      pending.delete(token);
+      run();
+    });
+    return () => {
+      pending.delete(token);
+      cancel();
+    };
+  };
+  return { copy, at: now - 59_950, waiting: () => pending.size };
 }

@@ -1,12 +1,11 @@
 /**
  * What the framework tests need from Bun. Solid and Svelte name their server builds for every runtime
  * but a browser's, and those don't react, so each server module here hands over its browser twin; and
- * `.svelte` files are compiled as the app's bundler would. And `Error.prepareStackTrace` is put back after
- * each test.
+ * `.svelte` files are compiled as the app's bundler would. And `Error.captureStackTrace` takes any object,
+ * whatever `Error.prepareStackTrace` hook a tool left.
  */
 import { readFileSync } from 'node:fs';
 
-import { afterEach } from 'bun:test';
 import { plugin } from 'bun';
 import { compile } from 'svelte/compiler';
 
@@ -30,12 +29,18 @@ plugin({
 });
 
 // Babel sets `Error.prepareStackTrace` the first time it transforms and never unsets it, and Vite's module runner
-// leaves its own while one is open. Every test file runs in one process, and under such a hook Bun's
-// `Error.captureStackTrace` refuses an object that isn't an Error, which a Vite loaded afresh passes it as it
-// loads: whichever file runs after the framework plugins fails, so the outcome hung on the order Bun reads the
-// folder in.
-const PREPARE = Object.getOwnPropertyDescriptor(Error, 'prepareStackTrace');
-afterEach(() => {
-  if (PREPARE === undefined) Reflect.deleteProperty(Error, 'prepareStackTrace');
-  else Object.defineProperty(Error, 'prepareStackTrace', PREPARE);
-});
+// leaves its own while one is open. Each wraps the hook it found, Bun's own, which throws when
+// `Error.captureStackTrace` is given an object that isn't an Error, as a Vite loaded afresh gives it. Every test file
+// runs in one process, and such a hook may be set between tests or as a file loads, where no test hook puts it back;
+// once one was, putting Bun's back doesn't help. So a capture refused is made into an Error and its stack copied over.
+// (Vite's errors inherit from `Error.prototype` without being made by it, so `instanceof` can't tell.)
+const capture = Error.captureStackTrace.bind(Error);
+Error.captureStackTrace = (target: object, constructor?: Function) => {
+  try {
+    capture(target, constructor);
+  } catch {
+    const into = new Error();
+    capture(into, constructor);
+    Object.defineProperty(target, 'stack', { value: into.stack, writable: true, configurable: true });
+  }
+};

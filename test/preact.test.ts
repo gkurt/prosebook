@@ -74,7 +74,7 @@ test("useCopy()'s t keeps its identity while the provider renders again, until t
 });
 
 test('a <Text> saying a relative time renders itself again once it reads differently, and nothing else', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let renders = 0;
   function View() {
     renders++;
@@ -87,10 +87,11 @@ test('a <Text> saying a relative time renders itself again once it reads differe
   expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
   expect(renders).toBe(1);
   await act(() => render(null, host));
+  expect(waiting()).toBe(0);
 });
 
 test('a relative time read as text stays current, rendering again only the component that read it', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let lineRenders = 0;
   let otherRenders = 0;
   function Line() {
@@ -110,4 +111,5 @@ test('a relative time read as text stays current, rendering again only the compo
   expect(host.innerHTML).toBe('<span title="Opened 1 minute ago">Opened 1 minute ago</span><i></i>');
   expect([lineRenders, otherRenders]).toEqual([2, 1]);
   await act(() => render(null, host));
+  expect(waiting()).toBe(0);
 });

@@ -81,7 +81,7 @@ test('in dev, a catalog edit updates what reads it, keeping the locale', async (
 });
 
 test('a <Text> saying a relative time updates once it reads differently, and nothing else does', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let renders = 0;
   function View(): JSX.Element {
     renders++;
@@ -103,10 +103,11 @@ test('a <Text> saying a relative time updates once it reads differently, and not
   expect(host.innerHTML).toBe('<p>Opened 1 minute ago</p>');
   expect(renders).toBe(1);
   dispose();
+  expect(waiting()).toBe(0);
 });
 
 test('a relative time read as text stays current, updating only what read it', async () => {
-  const { copy, at } = turning();
+  const { copy, at, waiting } = turning();
   let lineRuns = 0;
   let otherRuns = 0;
   function Line(): JSX.Element {
@@ -142,4 +143,5 @@ test('a relative time read as text stays current, updating only what read it', a
   // Each place that read the text ran once more; what read only the locale didn't.
   expect([lineRuns, otherRuns]).toEqual([before[0]! * 2, before[1]!]);
   dispose();
+  expect(waiting()).toBe(0);
 });

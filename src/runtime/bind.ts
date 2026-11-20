@@ -53,23 +53,41 @@ export function waitingReader<N, R>(copy: Copy, tags: Tags, binding: Binding<R>)
 /**
  * The moments reads next change, each a signal of the framework's that is bumped then: what read the text tracks it, so
  * that alone runs again. Made on first read and gone once bumped. A server sets no timer: nothing there renders twice.
+ * Also returns what cancels every wait, for a binding whose signals wait from the start rather than while read: an
+ * app gone would otherwise keep its last waits in the page's clock.
  */
-export function freshness(copy: Copy, signal: (wait: (run: () => void) => () => void) => () => void): (next: number) => void {
+export function freshness(
+  copy: Copy,
+  signal: (wait: (run: () => void) => () => void) => () => void,
+): [fresh: (next: number) => void, stop: () => void] {
   const signals = new Map<number, () => void>();
-  return (next) => {
+  const pending = new Set<() => void>();
+  const fresh = (next: number) => {
     let read = signals.get(next);
     if (read === undefined) {
       read = signal((run) => {
         if (typeof document === 'undefined') return () => {};
-        return copy.at(next, () => {
+        const cancel = () => {
+          pending.delete(cancel);
+          stopWaiting();
+        };
+        const stopWaiting = copy.at(next, () => {
+          pending.delete(cancel);
           signals.delete(next);
           run();
         });
+        pending.add(cancel);
+        return cancel;
       });
       signals.set(next, read);
     }
     read();
   };
+  const stop = () => {
+    for (const cancel of pending) cancel();
+    signals.clear();
+  };
+  return [fresh, stop];
 }
 
 /** A reader of `copy` whose reads go through `track`, and whose rich reads get `tags` unless they give their own. */

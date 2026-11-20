@@ -47,17 +47,24 @@ function bound(copy: Copy, tags: Tags = {}): [VueCopy, () => void] {
   const stop = copy.subscribe(() => {
     version.value = copy.version;
   });
+  // A ref per moment a read next changes: what read the text tracks it, and alone runs again.
+  const [fresh, stopWaiting] = freshness(copy, (wait) => {
+    const tick = shallowRef(0);
+    wait(() => tick.value++);
+    return () => void tick.value;
+  });
   const reader = bindCopy<VNodeChild, VNode>(copy, tags, {
     track: () => void version.value,
     whole: (parts) => h(Fragment, null, parts as VNodeChild[]),
-    // A ref per moment a read next changes: what read the text tracks it, and alone runs again.
-    fresh: freshness(copy, (wait) => {
-      const tick = shallowRef(0);
-      wait(() => tick.value++);
-      return () => void tick.value;
-    }),
+    fresh,
   });
-  return [reader, stop];
+  return [
+    reader,
+    () => {
+      stop();
+      stopWaiting();
+    },
+  ];
 }
 
 /** The copy for the whole app: `app.use(copyPlugin(copy, { tags }))`. */
