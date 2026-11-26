@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### test-text passes codes, keys and arms that are only a placeholder; prosebook/test's copy formats values and matches a text's start or end\n"
-    filename: test-copy-fixes.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### test-text passes the values a test hands copy.t and copy.match\n"
+    filename: test-text-values.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - test-copy-fixes.md
+      - test-text-values.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-vue
-    updated: false
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-next
     updated: false
   - id: npm:example-solid
+    updated: false
+  - id: npm:example-rspack
     updated: false
   - id: npm:example-node
     updated: false
   - id: npm:example-svelte
     updated: false
+  - id: npm:example-vue
+    updated: false
+  - id: npm:example-preact
+    updated: false
   - id: npm:example-bun
     updated: false
-  - id: npm:example-next
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vite
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-vue
-  - id: npm:example-rspack
-  - id: npm:example-preact
-  - id: npm:example-vite
-  - id: npm:example-tanstack-start
+  - id: npm:example-next
   - id: npm:example-solid
+  - id: npm:example-rspack
   - id: npm:example-node
   - id: npm:example-svelte
+  - id: npm:example-vue
+  - id: npm:example-preact
   - id: npm:example-bun
-  - id: npm:example-next
+  - id: npm:example-tanstack-start
+  - id: npm:example-vite
