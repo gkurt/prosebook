@@ -25,6 +25,8 @@ const project = () =>
         'cart.state: "{state, select, open {Open} other {Closed}}"',
         'cart.total: "Total: {sum, number, ::currency/EUR}"',
         'cart.owner: "{name} has {count, plural, one {# item} other {# items}}"',
+        'cart.role: "{role, select, assistant {Assistant} other {{role}}}"',
+        'cart.method: "{method} {path}"',
         '',
       ].join('\n'),
       'copy/locales/de/cart.yaml': 'cart.checkout: Zur Kasse\n',
@@ -57,6 +59,18 @@ describe('prosebook/test', () => {
     expect(copy.match('cart.state').test('Closed')).toBe(true);
     expect(copy.match('cart.checkout').test('Check out (2)')).toBe(false);
     expect(copy.match('cart.checkout', {}, { partial: true }).test('Check out (2)')).toBe(true);
+    expect(copy.match('cart.checkout', {}, { partial: 'start' }).test('Check out (2)')).toBe(true);
+    expect(copy.match('cart.checkout', {}, { partial: 'start' }).test('(2) Check out')).toBe(false);
+    expect(copy.match('cart.checkout', {}, { partial: 'end' }).test('(2) Check out')).toBe(true);
+    expect(copy.match('cart.checkout', {}, { partial: 'end' }).test('Check out (2)')).toBe(false);
+  });
+
+  test('formats values as the app does', async () => {
+    const copy = await loadCopy({ root: project().root, timeZone: 'UTC' });
+    expect(copy.number(1234.5)).toBe('1,234.5');
+    expect(copy.date(Date.UTC(2026, 10, 9), { dateStyle: 'medium' })).toBe('Nov 9, 2026');
+    expect(copy.list(['a', 'b', 'c'])).toBe('a, b, and c');
+    expect(copy.in('de').number(1234.5)).toBe('1.234,5');
   });
 
   test('match writes a value given as the app would', async () => {
@@ -167,6 +181,20 @@ describe('test-text', () => {
     expect(fixTestText(code, found)).toBe(
       "import { copy } from './copy.ts';\nexpect(a).toBe(copy.t('cart.checkout'));\nexpect(b).toBe('2 items');\n",
     );
+  });
+
+  test('an arm that is only a placeholder, a code, or a key read by the copy is no message', () => {
+    const patterns = testPatterns(loadCatalog(project()).messages, 'en');
+    const code = [
+      "send('assistant', 'POST', 'q1', 'sendNow');",
+      "expect(text).toBe(copy.t('cart.checkout'));",
+      "copy.in('de');",
+      "getByText('Assistant');",
+      '',
+    ].join('\n');
+    expect(testText('e2e/a.spec.ts', code, patterns, 'en').map((f) => [f.text, f.read])).toEqual([
+      ['Assistant', "copy.match('cart.role')"],
+    ]);
   });
 
   test('a literal mostly placeholder is no message', () => {

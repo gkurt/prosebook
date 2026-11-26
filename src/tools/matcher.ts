@@ -142,8 +142,8 @@ function elementPattern(el: MessageFormatElement, cx: Context, pound: Pound, edi
 }
 
 export interface PatternOptions {
-  /** Matches the text anywhere inside what it is tested on, not only the whole of it. */
-  partial?: boolean;
+  /** Matches the text anywhere inside what it is tested on (`true`), at its start or at its end, not only the whole of it. */
+  partial?: boolean | 'start' | 'end';
   /** How many characters of the message's own words may differ from the text, inserted, deleted or replaced. 0 unset. */
   distance?: number;
   /** How dates and relative times are written, as the copy's options say: its time zone and clock. */
@@ -159,5 +159,8 @@ export function messageRegExp(ast: MessageFormatElement[], locale: string, value
     const why = `a distance of ${distance} makes this message an expression of ${body.length} characters`;
     throw new Error(`${why}: give a smaller one, or values for its plurals and selects`);
   }
-  return new RegExp(options.partial === true ? body : `^\\s*${body}\\s*$`);
+  const { partial } = options;
+  const start = partial === true || partial === 'end' ? '' : '^\\s*';
+  const end = partial === true || partial === 'start' ? '' : '\\s*$';
+  return new RegExp(`${start}${body}${end}`);
 }

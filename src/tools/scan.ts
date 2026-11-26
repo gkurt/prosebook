@@ -469,11 +469,11 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
 }
 
 /** A string no person reads as words: lowercase with no space, as a reason code, `not-found`, or a category, `messages`. */
-const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_.:/][a-z0-9]+)*$/;
+export const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_.:/][a-z0-9]+)*$/;
 /** A name in camel or Pascal case, a capital inside it: `sendNow`, `ChildProcess`. */
-const CAMEL = /^(?=.*[a-z])[A-Za-z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$/;
+export const CAMEL = /^(?=.*[a-z])[A-Za-z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$/;
 /** A constant's name, `UNAUTHORIZED`, `NOT_FOUND`: a code where a call is given it, a label's text where a property is. */
-const CONSTANT = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
+export const CONSTANT = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
 /** Text that reads as more than a word: a space in it, or a stop or an ellipsis at its end. */
 const PHRASE = /\s|[.!?…:]$/u;
 

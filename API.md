@@ -598,13 +598,16 @@ test('checks out', async ({ page }) => {
 - `copy.match` gives a regular expression matching every text the message can come to, for a test that doesn't know every value:
   a placeholder given is written as the app writes it (`{ sum: 9.5 }` as `€9.50`), any other matches any text, and a plural or
   select not given matches any of its arms. Whitespace matches any run of it, so the no-break spaces `Intl` writes match too.
-  It matches the whole text; `copy.match('cart.items', {}, { partial: true })` matches inside it. Playwright, Vitest, Cypress and
-  Testing Library all take a regular expression where they take text.
+  It matches the whole text; `copy.match('cart.items', {}, { partial: true })` matches inside it, `partial: 'start'` a text
+  opening with it and `partial: 'end'` one closing with it. Playwright, Vitest, Cypress and Testing Library all take a regular
+  expression where they take text.
 - `copy.match('cart.checkout', {}, { distance: 1 })` also matches text a character off, `Checkout` or `Check-out`: up to
   that many characters of the message's own words inserted, deleted or replaced, in all. It's for a page built from a catalog
   a little older or newer than the test's, such as a deployed one. Values given and placeholders aren't counted. The
   expression grows with the distance and the message's length: past a few characters it throws, saying to give a smaller one.
 - `copy.in('de')` reads another locale, falling back as the app does.
+- `copy.number`, `copy.date`, `copy.list`, `copy.duration` and `copy.relative` write a value as the app's copy does, with
+  options or a named format: a test checking a date shown outside a message needn't repeat the app's `Intl` options.
 - `copy` is the project whose config is nearest from the working directory up. `loadCopy({ root, locale, timeZone, now })`
   loads another, or with options: the app's `timeZone`, and a fixed clock, `now: () => Date.UTC(2026, 10, 9)`, which reads a
   relative time the same on every run.
@@ -623,7 +626,10 @@ warn  e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read co
   there are) and the test files under `scan.dirs` (`*.test.ts`, `*.spec.tsx`). `scan.ignore['test-text']` leaves a folder
   out, and `prosebook-ignore` a line.
 - A literal is a message's text where the whole of it matches the message and at least half its letters are the message's own
-  words, so `'Hi Grace, how are you today?'` isn't `Hi {name}`. A test's title, an import and an object's key aren't read.
+  words, so `'Hi Grace, how are you today?'` isn't `Hi {name}`. Each arm of a plural or select is a text of its own, so
+  `{role, select, assistant {Assistant} other {{role}}}` says `'Assistant'` but not every literal. A literal that reads as
+  code, `'assistant'`, `'POST'` or `'sendNow'`, is only a message that says that alone. A test's title, an import, an
+  object's key and the key or locale a read of the copy takes (`copy.t('cart.checkout')`, `copy.in('de')`) aren't read.
 - A literal two messages say is reported with both, and not rewritten. A file with a `copy` of its own gets `copy.t` for a
   message with no placeholders, and is told to read `prosebook/test` for the rest.
 - `prosebook check` warns of them too, `scan --strict` fails on them, and [`prosebook diff`](#diff) names the tests still saying

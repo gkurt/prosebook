@@ -28,8 +28,11 @@ export interface TestCopyOptions {
 }
 
 export interface MatchOptions {
-  /** Matches the text anywhere in what it is tested on, not only the whole of it. */
-  partial?: boolean;
+  /**
+   * Matches the text anywhere in what it is tested on (`true`), at its start (`'start'`: a text opening with the
+   * message) or at its end (`'end'`), not only the whole of it.
+   */
+  partial?: boolean | 'start' | 'end';
   /**
    * How many characters of the message's own words may differ from the text, each inserted, deleted or replaced: for a
    * page built from a catalog a little older or newer than the test's. Placeholders and values given aren't counted.
@@ -46,6 +49,16 @@ export interface TestCopy<M extends MessageShapes = RegisteredMessages, L extend
    * would write it, each other one any text, and a plural or select not given any of its arms.
    */
   match<K extends keyof M & string>(this: void, key: K, values?: Partial<M[K]['args']>, options?: MatchOptions): RegExp;
+  /** A number as the app writes it in this locale, with options or a named format of the config's. */
+  number: Copy<M, L>['number'];
+  /** A date as the app writes it, in the copy's `timeZone`. */
+  date: Copy<M, L>['date'];
+  /** Items joined as a list in this locale. */
+  list: Copy<M, L>['list'];
+  /** A duration in milliseconds, written out. */
+  duration: Copy<M, L>['duration'];
+  /** A time said relative to the copy's `now`. */
+  relative: Copy<M, L>['relative'];
   /** The same catalog in another locale. */
   in(this: void, locale: L | (string & {})): TestCopy<M, L>;
 }
@@ -101,6 +114,11 @@ async function copyOf(config: ResolvedConfig, options: TestCopyOptions): Promise
     return {
       locale: copy.locale,
       t: copy.t,
+      number: copy.number,
+      date: copy.date,
+      list: copy.list,
+      duration: copy.duration,
+      relative: copy.relative,
       match: (key, values = {}, { partial, distance } = {}) => {
         const found = chainOf(copy.locale, copy.locales, copy.source)
           .map((l) => [l, asts.get(l)?.get(key)] as const)
@@ -140,6 +158,11 @@ function unloaded(error: unknown): TestCopy {
       return fail();
     },
     t: fail,
+    number: fail,
+    date: fail,
+    list: fail,
+    duration: fail,
+    relative: fail,
     match: fail,
     in: fail,
   };

@@ -475,7 +475,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   from the working directory (a failed load kept, thrown by each read, so importing `loadCopy` alone works), and
   `loadCopy`. It renders the YAML in memory (`render` without native targets, `evaluatedCatalog`), and makes a copy per
   locale up front, each awaited, since `setLocale` is asynchronous and `in` isn't; `negotiate` falling back to the source
-  is refused there. Its copies throw from `onMissing` and `onError`, as a test should fail. `match` is
+  is refused there. Its copies throw from `onMissing` and `onError`, as a test should fail, and lend it their `number`, `date`, `list`,
+  `duration` and `relative`. `match` (`partial`: anywhere, `'start'` or `'end'`) is
   `matcher.ts`'s `messageRegExp` over the locale's AST, found along `chainOf`: each element a pattern, a placeholder not
   given `ANY`, a plural or select not given every arm, one given rendered alone by `renderer` (`compile.ts`), so its text is
   the runtime's; the arm a given plural or select takes is learnt by rendering it with each arm saying its own name
@@ -485,7 +486,10 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   so the split loses no alignment, and is far shorter than splitting by character), and `fuzzyPattern` spends it in a
   word. It grows as the length to the power of the distance, so past `LONGEST` it throws. `tests.ts`: `test-text`, the literals in test files (`scan.tests`
   and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale (`says`: the whole
-  text, at least half its letters the message's own), past titles, imports and keys (`testLiterals`); `fixTestText`
+  text, at least half its letters the message's own, each arm of a plural or select a pattern of its own, `textsOf`, up to
+  `MOST_TEXTS`, so an arm that is only a placeholder matches nothing; a literal shaped as code, scan's `IDENTIFIER`,
+  `CAMEL`, `CONSTANT` or `looksLikeCode`, only a plain message saying it alone), past titles, imports, keys and the first
+  argument of a read (`READS`: `copy.t('k')`, `copy.in('de')`) (`testLiterals`); `fixTestText`
   writes `copy.t` (no placeholders) or `copy.match`, and the import after the file's last, which `scan --fix` runs and
   `check` warns of. A file binding a `copy` of its own (`copyBinding`) gets only `copy.t`.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,

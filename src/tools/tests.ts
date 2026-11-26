@@ -11,14 +11,16 @@ import { parseSync } from 'oxc-parser';
 
 import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
-import { TYPE, walk, type MessageFormatElement } from './icu.ts';
+import { inlined, TYPE, type MessageFormatElement } from './icu.ts';
 import { messageRegExp } from './matcher.ts';
-import { isUnder, sourceFiles, unscanned, type Node } from './scan.ts';
+import { CAMEL, CONSTANT, IDENTIFIER, isUnder, looksLikeCode, sourceFiles, unscanned, type Node } from './scan.ts';
 
 /** A unit or component test beside the app's code: `cart.test.ts`, `Cart.spec.tsx`. Stories are no test. */
 const TEST_FILE = /\.(?:test|spec)(?:\.[\w-]+)*\.[cm]?[jt]sx?$/;
 const FROM = 'prosebook/test';
 /** What names a test or a group of them, whose title is a sentence about the app and no text on it. */
+/** The copy's reads, whose first argument is a key or a locale: `copy.t('cart.checkout')`, `copy.in('de')`. */
+const READS = new Set(['t', 'match', 'in', 'has', 'rich']);
 const TITLES = new Set(['describe', 'it', 'test', 'suite', 'context', 'bench', 'step', 'fixme', 'skip', 'only', 'todo', 'fail', 'slow']);
 
 /** The test files `test-text` reads: every source file under `scan.tests`, and the test files under `scan.dirs`. */
@@ -91,6 +93,9 @@ export function testLiterals(file: string, code: string): TestLiteral[] {
       const name = calleeName(node.callee as Node);
       const first = (node.arguments as Node[])[0];
       if (first !== undefined && name !== undefined && TITLES.has(name)) skipped.add(first);
+      const callee = node.callee as Node;
+      const method = callee.type === 'MemberExpression' ? (callee.property as Node) : undefined;
+      if (first !== undefined && method?.type === 'Identifier' && READS.has(method.name as string)) skipped.add(first);
       if (node.callee !== undefined && (node.callee as Node).type === 'Identifier' && (node.callee as Node).name === 'require' && first)
         skipped.add(first);
     }
@@ -112,7 +117,7 @@ function isNode(value: unknown): value is Node {
   return typeof value === 'object' && value !== null && typeof (value as Node).type === 'string';
 }
 
-/** A message as a test reads it: its key, the locale it is in and every text it can come to. */
+/** A text a message can come to, as a test reads it: its key, the locale it is in and the pattern matching it. */
 export interface TestPattern {
   key: string;
   locale: string;
@@ -124,18 +129,43 @@ export interface TestPattern {
 }
 
 const lettersIn = (text: string) => text.match(/\p{L}/gu)?.length ?? 0;
+/** Past this many texts a message comes to, it is read whole, by the fewest letters any of them holds. */
+const MOST_TEXTS = 32;
 
-function ownLetters(ast: MessageFormatElement[]): number {
+/** The texts a message comes to, each arm of a plural or select apart and a tag its words; none past `MOST_TEXTS`. */
+function textsOf(elements: MessageFormatElement[]): MessageFormatElement[][] | undefined {
+  let rows: MessageFormatElement[][] = [[]];
+  for (const el of elements) {
+    let options: MessageFormatElement[][] | undefined = [[el]];
+    if (el.type === TYPE.select || el.type === TYPE.plural) {
+      const arms = Object.values(el.options).map((o) => textsOf(o.value));
+      options = arms.every((a) => a !== undefined) ? arms.flat() : undefined;
+    } else if (el.type === TYPE.tag) {
+      options = textsOf(el.children);
+    }
+    if (options === undefined) return undefined;
+    rows = rows.flatMap((row) => options.map((o) => [...row, ...o]));
+    if (rows.length > MOST_TEXTS) return undefined;
+  }
+  return rows;
+}
+
+/** The letters of a message's own words in the text that has the fewest. */
+function fewestLetters(elements: MessageFormatElement[]): number {
   let count = 0;
-  walk(ast, (el) => {
+  for (const el of elements) {
     if (el.type === TYPE.literal) count += lettersIn(el.value);
-  });
+    if (el.type === TYPE.tag) count += fewestLetters(el.children);
+    if (el.type === TYPE.select || el.type === TYPE.plural)
+      count += Math.min(...Object.values(el.options).map((o) => fewestLetters(o.value)));
+  }
   return count;
 }
 
 /**
- * Each message, in the source and every translation, as a test would find it. A message whose own words hold
- * no letter, `{name}` or `{a}: {b}`, matches too much to say a literal is it.
+ * Each message, in the source and every translation, as a test would find it: each text it comes to apart, so an
+ * arm that is only a placeholder, `other {{role}}`, doesn't make the whole message match any literal. A text whose
+ * own words hold no letter, `{name}` or `{a}: {b}`, matches too much to say a literal is it.
  */
 export function testPatterns(messages: Message[], source: string, locales: readonly string[] = []): TestPattern[] {
   return messages.flatMap((m) =>
@@ -146,16 +176,28 @@ export function testPatterns(messages: Message[], source: string, locales: reado
         return t === undefined ? [] : [[l, t.ast] as const];
       }),
     ].flatMap(([locale, ast]) => {
-      const letters = ownLetters(ast);
-      return letters === 0 ? [] : [{ key: m.key, locale, regex: messageRegExp(ast, locale), plain: m.args.size === 0, letters }];
+      const whole = inlined(ast);
+      const texts = textsOf(whole) ?? [whole];
+      return texts.flatMap((text) => {
+        const letters = fewestLetters(text);
+        return letters === 0 ? [] : [{ key: m.key, locale, regex: messageRegExp(text, locale), plain: m.args.size === 0, letters }];
+      });
     }),
   );
 }
 
-/** Whether a literal says a message: its whole text, made at least half of the message's own letters. */
+/** A literal that reads as code, an ID or a constant: `assistant`, `POST`, `q1`, `sendNow`. */
+const codeLike = (text: string) => IDENTIFIER.test(text) || CAMEL.test(text) || CONSTANT.test(text) || looksLikeCode(text);
+
+/**
+ * Whether a literal says a message: its whole text, made at least half of the message's own letters. A literal
+ * reading as code says only a message that is that text alone, word for word.
+ */
 export function says(text: string, pattern: TestPattern): boolean {
   const letters = lettersIn(text);
-  return letters > 0 && pattern.letters * 2 >= letters && pattern.regex.test(text);
+  if (letters === 0 || pattern.letters * 2 < letters) return false;
+  if (codeLike(text) && !(pattern.plain && pattern.letters === letters)) return false;
+  return pattern.regex.test(text);
 }
 
 export interface TestText {
@@ -197,7 +239,11 @@ export function testText(file: string, code: string, patterns: TestPattern[], so
   const binding = copyBinding(code);
   return testLiterals(file, code).flatMap((literal): TestText[] => {
     const text = literal.text.trim();
-    const hits = patterns.filter((p) => says(text, p)).map(({ key, locale, plain }) => ({ key, locale, plain }));
+    const hits = [
+      ...new Map(
+        patterns.filter((p) => says(text, p)).map(({ key, locale, plain }) => [`${key} ${locale}`, { key, locale, plain }]),
+      ).values(),
+    ];
     if (hits.length === 0) return [];
     // A message saying it word for word decides between those that say it through a placeholder.
     const exact = hits.filter((h) => h.plain);
