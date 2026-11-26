@@ -488,8 +488,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale (`says`: the whole
   text, at least half its letters the message's own, each arm of a plural or select a pattern of its own, `textsOf`, up to
   `MOST_TEXTS`, so an arm that is only a placeholder matches nothing; a literal shaped as code, scan's `IDENTIFIER`,
-  `CAMEL`, `CONSTANT` or `looksLikeCode`, only a plain message saying it alone), past titles, imports, keys and the first
-  argument of a read (`READS`: `copy.t('k')`, `copy.in('de')`) (`testLiterals`); `fixTestText`
+  `CAMEL`, `CONSTANT` or `looksLikeCode`, only a plain message saying it alone), past titles, imports, keys and every
+  argument of a read (`READS`: `copy.t('k', { source: 'GitHub' })`, `copy.in('de')`) (`testLiterals`); `fixTestText`
   writes `copy.t` (no placeholders) or `copy.match`, and the import after the file's last, which `scan --fix` runs and
   `check` warns of. A file binding a `copy` of its own (`copyBinding`) gets only `copy.t`.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,

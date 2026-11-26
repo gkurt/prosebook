@@ -629,7 +629,8 @@ warn  e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read co
   words, so `'Hi Grace, how are you today?'` isn't `Hi {name}`. Each arm of a plural or select is a text of its own, so
   `{role, select, assistant {Assistant} other {{role}}}` says `'Assistant'` but not every literal. A literal that reads as
   code, `'assistant'`, `'POST'` or `'sendNow'`, is only a message that says that alone. A test's title, an import, an
-  object's key and the key or locale a read of the copy takes (`copy.t('cart.checkout')`, `copy.in('de')`) aren't read.
+  object's key and what a read of the copy is given (`copy.t('cart.checkout', { source: 'GitHub' })`, `copy.in('de')`)
+  aren't read.
 - A literal two messages say is reported with both, and not rewritten. A file with a `copy` of its own gets `copy.t` for a
   message with no placeholders, and is told to read `prosebook/test` for the rest.
 - `prosebook check` warns of them too, `scan --strict` fails on them, and [`prosebook diff`](#diff) names the tests still saying

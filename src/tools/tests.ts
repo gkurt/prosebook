@@ -19,7 +19,7 @@ import { CAMEL, CONSTANT, IDENTIFIER, isUnder, looksLikeCode, sourceFiles, unsca
 const TEST_FILE = /\.(?:test|spec)(?:\.[\w-]+)*\.[cm]?[jt]sx?$/;
 const FROM = 'prosebook/test';
 /** What names a test or a group of them, whose title is a sentence about the app and no text on it. */
-/** The copy's reads, whose first argument is a key or a locale: `copy.t('cart.checkout')`, `copy.in('de')`. */
+/** The copy's reads, whose arguments are a key or a locale, values and options: `copy.t('cart.checkout')`, `copy.in('de')`. */
 const READS = new Set(['t', 'match', 'in', 'has', 'rich']);
 const TITLES = new Set(['describe', 'it', 'test', 'suite', 'context', 'bench', 'step', 'fixme', 'skip', 'only', 'todo', 'fail', 'slow']);
 
@@ -95,7 +95,8 @@ export function testLiterals(file: string, code: string): TestLiteral[] {
       if (first !== undefined && name !== undefined && TITLES.has(name)) skipped.add(first);
       const callee = node.callee as Node;
       const method = callee.type === 'MemberExpression' ? (callee.property as Node) : undefined;
-      if (first !== undefined && method?.type === 'Identifier' && READS.has(method.name as string)) skipped.add(first);
+      // A read's key, the values it fills placeholders with (`source: 'GitHub'`) and its options are the test's, not the copy's.
+      if (method?.type === 'Identifier' && READS.has(method.name as string)) return;
       if (node.callee !== undefined && (node.callee as Node).type === 'Identifier' && (node.callee as Node).name === 'require' && first)
         skipped.add(first);
     }

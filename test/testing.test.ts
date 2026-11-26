@@ -183,12 +183,14 @@ describe('test-text', () => {
     );
   });
 
-  test('an arm that is only a placeholder, a code, or a key read by the copy is no message', () => {
+  test('an arm that is only a placeholder, a code, or what a read of the copy is given is no message', () => {
     const patterns = testPatterns(loadCatalog(project()).messages, 'en');
     const code = [
       "send('assistant', 'POST', 'q1', 'sendNow');",
       "expect(text).toBe(copy.t('cart.checkout'));",
       "copy.in('de');",
+      "copy.t('cart.greeting', { name: 'Assistant' });",
+      "copy.in('de').match('cart.role', { role: 'Assistant' }, { partial: 'start' });",
       "getByText('Assistant');",
       '',
     ].join('\n');
