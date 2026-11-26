@@ -632,8 +632,9 @@ warn  e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read co
 - A literal is text the catalog returns: the whole of it matches the message, each arm of a plural or select apart. A
   number the message shows matches only text with no letters, so `'12 items'` is `{count, plural, …}` but `'the items'`
   isn't. A placeholder taking words counts only where the message has four words of its own around it:
-  `"localhost isn't a public address."` is `{host} isn't a public address.`, but `'On it.'` isn't `On {branch}`. A literal
-  that reads as code, `'assistant'`, `'POST'` or `'sendNow'`, is only a message that says that alone. A test's title, an
+  `"localhost isn't a public address."` is `{host} isn't a public address.`, but `'On it.'` isn't `On {branch}`. A single
+  word, `'Canvas'` or `'Default'`, isn't read, being more often test data equal to a label than copy repeated; a literal
+  that reads as code, `'npm run dev'`, is only a message that says that alone. A test's title, an
   import, an object's key and what a read of the copy is given (`copy.t('cart.checkout', { source: 'GitHub' })`) aren't
   read.
 - A literal two messages say is reported with both, and not rewritten. A file with a `copy` of its own gets `copy.t` for a

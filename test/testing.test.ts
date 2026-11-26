@@ -22,10 +22,10 @@ const project = () =>
         'cart.checkout: Check out',
         'cart.items: "{count, plural, one {# item} other {# items}}"',
         'cart.greeting: "Hi {name}, <b>welcome</b> back."',
-        'cart.state: "{state, select, open {Open} other {Closed}}"',
+        'cart.state: "{state, select, open {Open now} other {Closed}}"',
         'cart.total: "Total: {sum, number, ::currency/EUR}"',
         'cart.owner: "{name} has {count, plural, one {# item} other {# items}}"',
-        'cart.role: "{role, select, assistant {Assistant} other {{role}}}"',
+        'cart.role: "{role, select, assistant {AI assistant} other {{role}}}"',
         'cart.method: "{method} {path}"',
         'cart.on: "On {branch}"',
         `cart.host: "{host} isn't a public address."`,
@@ -79,7 +79,7 @@ describe('prosebook/test', () => {
     const copy = await loadCopy({ root: project().root });
     expect(copy.match('cart.items', { count: 1 }).test('1 item')).toBe(true);
     expect(copy.match('cart.items', { count: 1 }).test('2 items')).toBe(false);
-    expect(copy.match('cart.state', { state: 'open' }).test('Open')).toBe(true);
+    expect(copy.match('cart.state', { state: 'open' }).test('Open now')).toBe(true);
     expect(copy.match('cart.state', { state: 'open' }).test('Closed')).toBe(false);
     expect(copy.match('cart.total', { sum: 1234.5 }).test('Total: €1,234.50')).toBe(true);
     expect(copy.match('cart.total', { sum: 1234.5 }).test('Total: €9.00')).toBe(false);
@@ -193,11 +193,11 @@ describe('test-text', () => {
       "copy.in('de');",
       "copy.t('cart.greeting', { name: 'Assistant' });",
       "copy.in('de').match('cart.role', { role: 'Assistant' }, { partial: 'start' });",
-      "getByText('Assistant');",
+      "getByText('AI assistant');",
       '',
     ].join('\n');
     expect(testText('e2e/a.spec.ts', code, patterns, 'en').map((f) => [f.text, f.read])).toEqual([
-      ['Assistant', "copy.match('cart.role')"],
+      ['AI assistant', "copy.match('cart.role')"],
     ]);
   });
 
@@ -214,17 +214,18 @@ describe('test-text', () => {
     expect(reads("expect(a).toHaveText('the items');")).toEqual([]);
   });
 
-  test('only what a test expects of the page, less what it put in itself', () => {
+  test('only what a test expects of the page, less what it put in itself and single words', () => {
     const patterns = testPatterns(loadCatalog(project()).messages, 'en');
     const code = [
       "await page.getByLabel('Name').fill('Check out');",
       "await expect(page.getByText('Check out')).toBeVisible();",
       "seed({ title: 'Closed' });",
-      "await page.locator('li').filter({ hasText: 'Open' }).click();",
-      "expect(screen.getAllByRole('button', { name: 'Assistant' })).toHaveLength(1);",
+      "await page.locator('li').filter({ hasText: 'Open now' }).click();",
+      "await expect(page.getByRole('status')).toHaveText('Closed');",
+      "expect(screen.getAllByRole('button', { name: 'AI assistant' })).toHaveLength(1);",
       '',
     ].join('\n');
-    expect(testText('e2e/a.spec.ts', code, patterns, 'en').map((f) => f.text)).toEqual(['Open', 'Assistant']);
+    expect(testText('e2e/a.spec.ts', code, patterns, 'en').map((f) => f.text)).toEqual(['Open now', 'AI assistant']);
   });
 
   test('scan.ignore keeps it out of a folder', () => {

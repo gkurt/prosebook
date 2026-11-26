@@ -490,8 +490,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   puts in elsewhere) (`says`: the whole text, a number not given matching only text with no letters (`numbers` in
   `messageRegExp`, `\P{L}`), a placeholder taking words only beside `PHRASE_WORDS` of the message's own, at least half its
   letters the message's own, each arm of a plural or select a pattern of its own, `textsOf`, up to
-  `MOST_TEXTS`, so an arm that is only a placeholder matches nothing; a literal shaped as code, scan's `IDENTIFIER`,
-  `CAMEL`, `CONSTANT` or `looksLikeCode`, only a plain message saying it alone), past titles, imports, keys and every
+  `MOST_TEXTS`, so an arm that is only a placeholder matches nothing; never one word, often test data equal to a label;
+  a literal `looksLikeCode` only a plain message saying it alone), past titles, imports, keys and every
   argument of a read (`READS`: `copy.t('k', { source: 'GitHub' })`, `copy.in('de')`) (`testLiterals`); `fixTestText`
   writes `copy.t` (no placeholders) or `copy.match`, and the import after the file's last, which `scan --fix` runs and
   `check` warns of. A file binding a `copy` of its own (`copyBinding`) gets only `copy.t`.

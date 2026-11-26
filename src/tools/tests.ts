@@ -13,7 +13,7 @@ import type { Message } from './catalog.ts';
 import type { ResolvedConfig } from './config.ts';
 import { inlined, TYPE, type MessageFormatElement } from './icu.ts';
 import { messageRegExp } from './matcher.ts';
-import { CAMEL, CONSTANT, IDENTIFIER, isUnder, looksLikeCode, sourceFiles, unscanned, type Node } from './scan.ts';
+import { isUnder, looksLikeCode, sourceFiles, unscanned, type Node } from './scan.ts';
 
 /** A unit or component test beside the app's code: `cart.test.ts`, `Cart.spec.tsx`. Stories are no test. */
 const TEST_FILE = /\.(?:test|spec)(?:\.[\w-]+)*\.[cm]?[jt]sx?$/;
@@ -248,20 +248,18 @@ export function testPatterns(messages: Message[], source: string, locales: reado
   );
 }
 
-/** A literal that reads as code, an ID or a constant: `assistant`, `POST`, `q1`, `sendNow`. */
-const codeLike = (text: string) => IDENTIFIER.test(text) || CAMEL.test(text) || CONSTANT.test(text) || looksLikeCode(text);
-
 /**
  * Whether a literal says a message: text the catalog returns, its whole, made at least half of the message's own
- * letters. Through a placeholder that takes words, only where the message's own words make a phrase around it, so
- * `On it.` isn't `On {branch}` but `localhost isn't a public address.` is `{host} isn't a public address.`. A literal
- * reading as code says only a message that is that text alone, word for word.
+ * letters. One word, `Canvas` or `Default`, is too often test data equal to a label to say, and a literal that reads
+ * as code, `npm run dev`, says only a message that is that text alone. Through a placeholder that takes words, only
+ * where the message's own words make a phrase around it, so `On it.` isn't `On {branch}` but
+ * `localhost isn't a public address.` is `{host} isn't a public address.`.
  */
 export function says(text: string, pattern: TestPattern): boolean {
   const letters = lettersIn(text);
-  if (letters === 0 || pattern.letters * 2 < letters) return false;
+  if (letters === 0 || pattern.letters * 2 < letters || !/\S\s+\S/.test(text.trim())) return false;
   if (pattern.filled && pattern.words < PHRASE_WORDS) return false;
-  if (codeLike(text) && !(pattern.plain && pattern.letters === letters)) return false;
+  if (looksLikeCode(text) && !(pattern.plain && pattern.letters === letters)) return false;
   return pattern.regex.test(text);
 }
 
