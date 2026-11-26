@@ -1541,16 +1541,19 @@ and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a delibe
 
 ```ts
 scan: {
-  calls: ['toast', 'alert', 'confirm', '*Error'], // new TeamError('…'), super('…') in a class extending one
+  calls: ['toast', 'alert', 'confirm', /.Error$/], // new TeamError('…'), super('…') in a class extending one
   skipCalls: ['generateText'], // a prompt for a model: no person reads it
   scriptProperties: ['message', 'problem'], // { problem: '…' } in server code too
 }
 ```
 
-- A class `scan.calls` names counts with the classes extending it in the same module. `*` is one character or more, so
-  `*Error` names every error subclass and leaves out `Error`, whose messages are mostly checks for developers.
+- A name is written out or matched by a regular expression. `/.Error$/` names every error subclass and leaves out `Error`,
+  whose messages are mostly checks for developers. A class a name covers counts with the classes extending it in the same module.
 - In a call or a property, a lowercase string with no space is a code or a category, not text: `new TeamError('not-found')`,
   `{ message: 'messages' }`.
+- A message for developers opens with a name in brackets, and isn't read: `[React] useDrawer must be used inside a Drawer.`
+  Write them so, and `Error` can stand in `scan.calls` too. `scan.developerText` is how such a message starts, a regular
+  expression (its source as a string in JSON), or `false` to read them all.
 - Nothing in a call `scan.skipCalls` names is read, its options and the templates in it included.
 
 JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,

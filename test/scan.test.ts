@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { formattedInCode, hardcodedText, isReferenced, keyRefs, looksLikeCode, unseenReads, type ProsebookConfig } from 'prosebook/tools';
 
+import { DEVELOPER_TEXT } from '#src/tools/config.ts';
 import { scan, whereOf } from '#src/tools/scan.ts';
 import { fixture } from './fixture.ts';
 
@@ -109,19 +110,24 @@ export const keyed = { message: key('api-errors.not-found') };`;
     ]);
   });
 
-  test('a code or a category is no text, *Error names subclasses alone, and skipCalls passes a call by whole', () => {
+  test("a code, a category or a developer's text is no text, /.Error$/ names subclasses alone, and skipCalls passes a call by whole", () => {
     const code = `
 export const CATEGORY = { chat: { message: 'messages', problem: 'Messages could not load' } };
 export const fail = () => {
   if (a) throw new TeamError('not-found');
   if (b) throw new TeamError('The team is gone');
   if (c) throw new Error('useDrawer must be used within a Drawer.');
+  if (d) throw new TeamError('[React] useTeam must be used inside a TeamProvider.');
   toast('saved');
   return generateText({ system: 'You are a helpful assistant.', prompt: \`Summarize \${doc}\` });
 };`;
-    expect(
-      found('server.ts', code, { calls: ['*Error', 'toast'], skipCalls: ['generateText'], scriptProperties: ['message', 'problem'] }),
-    ).toEqual(['2:65 problem: Messages could not load', '5:30 TeamError(…) The team is gone']);
+    const options = { calls: [/.Error$/, 'toast'], skipCalls: [/^generate/], scriptProperties: ['message', 'problem'] };
+    expect(found('server.ts', code, { ...options, developerText: DEVELOPER_TEXT })).toEqual([
+      '2:65 problem: Messages could not load',
+      '5:30 TeamError(…) The team is gone',
+    ]);
+    // Without developerText, a developer's text in brackets is read as any other.
+    expect(found('server.ts', code, options)).toContain('7:30 TeamError(…) [React] useTeam must be used inside a TeamProvider.');
   });
 });
 

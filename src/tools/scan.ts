@@ -317,7 +317,7 @@ export const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*
  * tests and stories.
  */
 export function hardcodedText(file: string, code: string, options: Pick<ScanOptions, 'attributes'> & Partial<ScanOptions>): Hardcoded[] {
-  const { attributes, calls = [], properties = [], scriptProperties = [], skipCalls = [] } = options;
+  const { attributes, calls = [], properties = [], scriptProperties = [], skipCalls = [], developerText } = options;
   if (NOT_APP.test(file)) return [];
   // A label map sits in a component; elsewhere, a `title` or `description` is as often a model's or an API's.
   const component = /\.[jt]sx$/.test(file);
@@ -329,6 +329,7 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
     // A call's or a property's value may be a code, `new TeamError('not-found')`, or a category, `message: 'messages'`.
     if (via !== 'jsx' && IDENTIFIER.test(trimmed)) return;
+    if (via !== 'jsx' && developerText !== undefined && matches(developerText, trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
     const allow = allowed(at.line);
@@ -453,18 +454,15 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
 /** A string no person reads as words: lowercase with no space, as a reason code, `not-found`, or a category, `messages`. */
 const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_.:/][a-z0-9]+)*$/;
 
-/** Whether `names` holds a name, each exactly or with `*` for one character or more: `*Error` is `TeamError`, not `Error`. */
-function namedIn(names: readonly string[], name: string): boolean {
-  return names.some((n) =>
-    n.includes('*')
-      ? new RegExp(
-          `^${n
-            .split('*')
-            .map((part) => RegExp.escape(part))
-            .join('.+')}$`,
-        ).test(name)
-      : n === name,
-  );
+/** Whether `names` holds a name, written out or matched by a regular expression. */
+function namedIn(names: readonly (string | RegExp)[], name: string): boolean {
+  return names.some((n) => (typeof n === 'string' ? n === name : matches(n, name)));
+}
+
+/** A config's expression tested from the start each time, as one with the `g` flag would go on from its last match. */
+function matches(pattern: RegExp, text: string): boolean {
+  pattern.lastIndex = 0;
+  return pattern.test(text);
 }
 
 /** A module's classes that extend another by name, `class NotFound extends AppError`, as name to the name extended. */

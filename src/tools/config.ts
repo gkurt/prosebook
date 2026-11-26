@@ -301,13 +301,19 @@ export interface ProsebookConfig {
     /**
      * Functions and classes whose text arguments a person reads, by name: `toast` covers `toast('…')` and
      * `toast.error('…')`, and the text of an options object passed to them; `AppError` covers
-     * `new AppError('…')`, and `super('…')` in a class extending it, or extending one that does. `*` stands
-     * for one character or more: `*Error` covers `TeamError` and `NotFoundError`, not `Error`. A lowercase
-     * string with no space, `'not-found'`, is taken for a code, not text.
+     * `new AppError('…')`, and `super('…')` in a class extending it, or extending one that does. A regular
+     * expression names every name it matches: `/.Error$/` covers `TeamError` and `NotFoundError`, not `Error`.
+     * A lowercase string with no space, `'not-found'`, is taken for a code, not text.
      */
-    calls?: string[];
-    /** Functions and classes whose arguments no person reads, as a prompt for a model: `['generateText', 'prompt']`. */
-    skipCalls?: string[];
+    calls?: (string | RegExp)[];
+    /** Functions and classes whose arguments no person reads, as a prompt for a model: `['generateText', /^prompt/]`. */
+    skipCalls?: (string | RegExp)[];
+    /**
+     * Text a call or a property is given that is a developer's, not a person's using the app, by how it starts:
+     * `[React] useDrawer must be used inside a Drawer.` by default, a name in brackets. A regular expression, its
+     * source as a string in a JSON config, or `false` to read all of it.
+     */
+    developerText?: RegExp | string | false;
     /** Object properties whose literal value a person reads in a component, as in a label map: `{ value: 'done', label: 'Done' }`. */
     properties?: string[];
     /** Object properties whose literal value a person reads, read in any script: `['message', 'problem']`. */
@@ -336,8 +342,10 @@ export interface ScanOptions {
   dirs: string[];
   extensions: string[];
   attributes: string[];
-  calls: string[];
-  skipCalls: string[];
+  calls: (string | RegExp)[];
+  skipCalls: (string | RegExp)[];
+  /** What a developer's text starts with, unless the config turned it off. */
+  developerText?: RegExp;
   properties: string[];
   scriptProperties: string[];
   /** Paths and globs from the root, with `/`. */
@@ -611,6 +619,9 @@ const CATALOG_ONLY = [
   'translate',
 ] as const;
 
+/** A name in brackets opening a message, `[React] useDrawer must be used inside a Drawer.`: a developer's, not a person's using the app. */
+export const DEVELOPER_TEXT = /^\[[^\]\s]+\]/;
+
 /** The attributes whose values a person reads, which `scan.attributes` defaults to. */
 export const READABLE_ATTRIBUTES = ['alt', 'title', 'placeholder', 'label', 'aria-label', 'aria-description', 'aria-placeholder'];
 
@@ -644,6 +655,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
   const kinds = config.kinds ?? DEFAULT_KINDS;
   const surfaces = config.surfaces ?? DEFAULT_SURFACES;
   const roles = config.scan?.roles;
+  const developerText = config.scan?.developerText ?? DEVELOPER_TEXT;
   for (const [name, off] of Object.entries(roles === false || roles === undefined ? {} : roles)) {
     if (off) throw new Error(`scan.roles.${name} is ${String(off)}: set it to false to stop guessing it`);
     if (kinds[name] !== undefined || surfaces[name] !== undefined) continue;
@@ -707,6 +719,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       attributes: config.scan?.attributes ?? READABLE_ATTRIBUTES,
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
       skipCalls: config.scan?.skipCalls ?? [],
+      ...(developerText !== false && { developerText: typeof developerText === 'string' ? new RegExp(developerText) : developerText }),
       properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
       scriptProperties: config.scan?.scriptProperties ?? ['message'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),

@@ -293,8 +293,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   only asked its `resolvedOptions()`. `unscanned` leaves out the generated modules and the formatters module. `scan.ignore` keeps either check, by its name (`SCAN_CHECKS`), or `*` both, out of
   paths and globs, matched with `path.matchesGlob` against the file's path from the root, a folder's covering what's under it. Hardcoded text is JSX's, what its
   expressions render (`shownLiterals`: ternary arms, fallbacks, templates), what `scan.calls` are given
-  in any script (`new` and `super(...)` too, the classes extending one named counting as named, `classesIn`; `*` in a
-  name, `namedIn`), never a call `scan.skipCalls` names, nor anything inside one, `scan.scriptProperties`' values in any
+  in any script (`new` and `super(...)` too, the classes extending one named counting as named, `classesIn`; a name a
+  `RegExp` matches, `namedIn`; text `scan.developerText` opens, `[React] …`, being a developer's), never a call `scan.skipCalls` names, nor anything inside one, `scan.scriptProperties`' values in any
   script and, in components only, `scan.properties`', a call's or property's lowercase string with no space being a code
   (`IDENTIFIER`), none of it in tests or stories
   or their helpers (`NOT_APP`). An element's run of text and values (`isRunValue`: `{name}`, or `pickOf`'s
