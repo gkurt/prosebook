@@ -1,3 +1,7 @@
+## prosebook@0.32.0
+
+### test-text passes codes, keys and arms that are only a placeholder; prosebook/test's copy formats values and matches a text's start or end
+
 ## prosebook@0.31.0
 
 ### `prosebook/test` finds the page's text by key, and `scan` finds tests that say the copy's words
