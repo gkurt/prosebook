@@ -1,48 +1,48 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `key()` marks a key that code names ahead of the read, and a read under `copy.has` is seen\n\n`key('api-errors.not-found')` returns the key as given, typed as that key, and `Key<'api-errors'>` is any key of that area: one\nhelper for error classes and API contracts instead of each project's own. A read of a `const` holding a marked key is seen by the\nbuild's check for reads it can't see, and so is a read under a `has` check of the same key, `if (copy.has(error.key))\ncopy.t(error.key)`, as `has` is false where the build dropped the message. Neither needs `prosebook-ignore` any more.\n\n`scan` finds the text given to a class `scan.calls` names, `new AppError('…')`, and to `super('…')` in a class extending it, and a\n`message` property's text in any script, not only in components.\n"
-    filename: key-marker.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A key written twice costs only its second entry, and an unquoted `: ` says to quote the value\n\nA catalog or translation file with a key written twice, as a merge leaves it, lost every entry in it. Now the error names\nthe key and both lines, and the second entry is left out. A value holding `: ` unquoted, `en: Note: the name shows.`, says to\nquote the value rather than giving the YAML parser's error. And an ellipsis no longer ends a sentence: `Importing… 3 files\nleft.` is one sentence to `sentence-budget`.\n"
+    filename: yaml-errors.md
     v: 0.0.0
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Vue's and Solid's providers stop waiting for relative times once unmounted\n\nAn app gone kept its last waits in the page's one clock, and a test environment that cancelled their timer left every later relative time unchanged.\n"
-    filename: unmount-cancels-waits.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `scan` names error subclasses alone, passes codes and calls for a model by, and reads chosen properties in any script\n\n`scan.calls` and `scan.skipCalls` take regular expressions beside names: `/.Error$/` names `TeamError` and every other class\nending in `Error`, not `Error` itself. Text a call or a property is given that opens with a name in brackets, `[React] useDrawer\nmust be used inside a Drawer.`, is a developer's and isn't read; `scan.developerText` sets how such text starts, or `false`. A lowercase string with no space given to a call or a property is a code or a category, not text:\n`new TeamError('not-found')` and `{ message: 'messages' }` are passed by. `scan.skipCalls` names calls whose arguments no person\nreads, as a prompt for a model, and nothing in them is reported. `scan.scriptProperties` names the properties read in any\nscript, not only in components: `message`, as before, unless set, and `problem` added by `['message', 'problem']`.\n`scan.properties` no longer holds `message`.\n\nA dot after no word, as in `Type . or .. for a folder.`, no longer ends a sentence for `sentence-budget`.\n"
+    filename: scan-noise.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - key-marker.md
-      - unmount-cancels-waits.md
+      - yaml-errors.md
+      - scan-noise.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
   - id: npm:example-rspack
     updated: false
-  - id: npm:example-solid
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
   - id: npm:example-next
+    updated: false
+  - id: npm:example-vue
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-vite
+  - id: npm:example-solid
     updated: false
   - id: npm:example-preact
     updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-vite
+    updated: false
   - id: npm:example-bun
     updated: false
-  - id: npm:example-vue
+  - id: npm:example-node
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
   - id: npm:example-rspack
-  - id: npm:example-solid
-  - id: npm:example-node
-  - id: npm:example-tanstack-start
   - id: npm:example-next
-  - id: npm:example-svelte
-  - id: npm:example-vite
-  - id: npm:example-preact
-  - id: npm:example-bun
   - id: npm:example-vue
+  - id: npm:example-svelte
+  - id: npm:example-solid
+  - id: npm:example-preact
+  - id: npm:example-tanstack-start
+  - id: npm:example-vite
+  - id: npm:example-bun
+  - id: npm:example-node
