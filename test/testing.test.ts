@@ -72,6 +72,37 @@ describe('prosebook/test', () => {
     expect(owner.test('Ada has 1 item')).toBe(false);
   });
 
+  test('match with a distance takes that many characters inserted, deleted or replaced in all', async () => {
+    const copy = await loadCopy({ root: project().root });
+    const one = copy.match('cart.checkout', {}, { distance: 1 });
+    expect(['Check out', 'Checkout', 'Check-out', 'Check outs', 'check out'].map((t) => one.test(t))).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(['Chekc out', 'Pay now', 'Check it out'].map((t) => one.test(t))).toEqual([false, false, false]);
+    expect(copy.match('cart.checkout', {}, { distance: 2 }).test('Chekc out')).toBe(true);
+    // Shared across the words and arms of the whole message, not each.
+    const greeting = copy.match('cart.greeting', {}, { distance: 1 });
+    expect(greeting.test('Hi Ada, welcome back!')).toBe(true);
+    expect(greeting.test('Hey Ada, welcome back.')).toBe(false);
+    expect(copy.match('cart.greeting', {}, { distance: 2 }).test('Hey Ada, welcome back.')).toBe(true);
+    expect(copy.match('cart.greeting', {}, { distance: 2 }).test('Hey Ada, welcome back!')).toBe(false);
+    // A value given is written as the app writes it, and isn't counted.
+    const items = copy.match('cart.items', { count: 3 }, { distance: 1 });
+    expect(items.test('3 itens')).toBe(true);
+    expect(items.test('4 items')).toBe(false);
+    expect(copy.match('cart.items', {}, { distance: 1 }).test('1 iten')).toBe(true);
+  });
+
+  test('a distance is a whole number, and one too large for the message says so', async () => {
+    const copy = await loadCopy({ root: project().root });
+    expect(() => copy.match('cart.checkout', {}, { distance: 1.5 })).toThrow('distance is 1.5: give a whole number of characters');
+    expect(() => copy.match('cart.owner', {}, { distance: 9 })).toThrow('give a smaller one');
+  });
+
   test('in reads another locale, falling back to the source where it has no translation', async () => {
     const de = (await loadCopy({ root: project().root })).in('de');
     expect(de.t('cart.checkout')).toBe('Zur Kasse');

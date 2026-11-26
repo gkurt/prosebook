@@ -59,6 +59,25 @@ jobs:
         run: bun run --if-present build
       - run: bun scripts/smoke.mts ${{ matrix.example }}
 
+  # The Vite example in a browser, built and served, its Playwright tests finding the page's text through
+  # prosebook/test: by key, by `match` with values and without, in German, and a few characters off by distance.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: bun i --frozen-lockfile
+      - run: bun run build
+      # prosebook's bin exists only once built, so the examples are linked again to get it.
+      - run: rm -rf examples/*/node_modules && bun i --frozen-lockfile
+      - working-directory: examples/vite
+        run: bunx playwright install --with-deps chromium
+      - working-directory: examples/vite
+        run: bun run e2e
+
   # The homepage, an Astro app on the package as built: its catalog is generated and passes lint, it
   # typechecks, and it builds, as Pages builds it.
   site:

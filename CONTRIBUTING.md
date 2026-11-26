@@ -37,6 +37,7 @@ changing the compiler or the generator, regenerate them and commit their `src/co
 bun run examples:generate
 bun run --cwd examples/next dev    # run one
 bun run examples:smoke vite        # serve an example's production build and check it (after its build)
+bun run e2e                        # the Vite example's Playwright tests, in Chromium (bunx playwright install chromium once)
 bun run size                       # what the runtime and each binding weigh, gzipped, against budgets (after build)
 ```
 

@@ -19,6 +19,7 @@ bun run cli <cmd>  # the CLI from source, e.g. `bun run cli generate --root exam
 bun run example    # build, then the Vite example's dev server (`tsdown --watch` beside it for live edits)
 bun run examples:generate     # build, then `prosebook generate` in every example and the site
 bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
+bun run e2e        # build, then the Vite example's Playwright suite (`bunx playwright install chromium` once)
 bun run size       # the runtime and each binding, minified and gzipped from dist, against budgets (after `build`)
 bun run dev        # build, then the homepage's dev server (site/, Astro), with the inspector
 bun run site       # build, then the homepage (site/, Astro) into _site/, as Pages deploys it
@@ -478,7 +479,11 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   `matcher.ts`'s `messageRegExp` over the locale's AST, found along `chainOf`: each element a pattern, a placeholder not
   given `ANY`, a plural or select not given every arm, one given rendered alone by `renderer` (`compile.ts`), so its text is
   the runtime's; the arm a given plural or select takes is learnt by rendering it with each arm saying its own name
-  (`rearmed`), and a `#` by every arm saying `#`. `tests.ts`: `test-text`, the literals in test files (`scan.tests`
+  (`rearmed`), and a `#` by every arm saying `#`. A `distance` is a Levenshtein budget over the message's own words,
+  written out as alternatives, since Playwright hands the browser a regular expression's source: `patternOf` splits it
+  between the first element with words and the rest, a literal word by word (each edit is one word's or one space's,
+  so the split loses no alignment, and is far shorter than splitting by character), and `fuzzyPattern` spends it in a
+  word. It grows as the length to the power of the distance, so past `LONGEST` it throws. `tests.ts`: `test-text`, the literals in test files (`scan.tests`
   and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale (`says`: the whole
   text, at least half its letters the message's own), past titles, imports and keys (`testLiterals`); `fixTestText`
   writes `copy.t` (no placeholders) or `copy.match`, and the import after the file's last, which `scan --fix` runs and
@@ -583,7 +588,8 @@ changing either catalog, and commit the locks.
 title. `apple-touch-icon.png` (full bleed, as iOS rounds it) and `og.png`, the link preview card, are
 renders of it; render them again when it changes.
 
-`examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `rspack`, `bun`, `node`) and per
+The Vite example's `e2e/` is a Playwright suite over its build served by `vite preview`, through `prosebook/test`, which
+CI's `e2e` job runs; bunfig's `[test] root` keeps `bun test` out of it. `examples/` holds one app per integration (`vite`, `next`, `tanstack-start`, `rspack`, `bun`, `node`) and per
 binding beyond React (`preact`, `vue`, `svelte`, `solid`, each on Vite), each a
 private workspace whose copy follows its `copy/catalog/WRITING.md`, and that imports prosebook from `dist` as a user's app would, so build before running
 one. They share the shop catalog, but each is standalone. `scripts/smoke.mts` serves an example's

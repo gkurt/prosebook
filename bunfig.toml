@@ -8,6 +8,8 @@ linker = "isolated"
 
 # Only re-print failing tests on reruns.
 [test]
+# The unit tests: the examples' Playwright specs are Playwright's to run.
+root = "test"
 onlyFailures = true
 # Solid's and Svelte's browser builds, and `.svelte` compiled (see the file).
 preload = ["./test/preload.ts"]

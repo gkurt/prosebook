@@ -600,11 +600,16 @@ test('checks out', async ({ page }) => {
   select not given matches any of its arms. Whitespace matches any run of it, so the no-break spaces `Intl` writes match too.
   It matches the whole text; `copy.match('cart.items', {}, { partial: true })` matches inside it. Playwright, Vitest, Cypress and
   Testing Library all take a regular expression where they take text.
+- `copy.match('cart.checkout', {}, { distance: 1 })` also matches text a character off, `Checkout` or `Check-out`: up to
+  that many characters of the message's own words inserted, deleted or replaced, in all. It's for a page built from a catalog
+  a little older or newer than the test's, such as a deployed one. Values given and placeholders aren't counted. The
+  expression grows with the distance and the message's length: past a few characters it throws, saying to give a smaller one.
 - `copy.in('de')` reads another locale, falling back as the app does.
 - `copy` is the project whose config is nearest from the working directory up. `loadCopy({ root, locale, timeZone, now })`
   loads another, or with options: the app's `timeZone`, and a fixed clock, `now: () => Date.UTC(2026, 10, 9)`, which reads a
   relative time the same on every run.
 - The keys are typed where the tests' tsconfig includes the generated index, so a test naming a removed key fails `tsc`.
+- The Vite example's `e2e/` is a Playwright suite written this way.
 
 `prosebook scan` finds tests that say the copy's words instead (`test-text`, a warning), and `prosebook scan --fix`
 rewrites each to read the catalog:

@@ -30,6 +30,11 @@ export interface TestCopyOptions {
 export interface MatchOptions {
   /** Matches the text anywhere in what it is tested on, not only the whole of it. */
   partial?: boolean;
+  /**
+   * How many characters of the message's own words may differ from the text, each inserted, deleted or replaced: for a
+   * page built from a catalog a little older or newer than the test's. Placeholders and values given aren't counted.
+   */
+  distance?: number;
 }
 
 export interface TestCopy<M extends MessageShapes = RegisteredMessages, L extends string = RegisteredLocale> {
@@ -96,12 +101,16 @@ async function copyOf(config: ResolvedConfig, options: TestCopyOptions): Promise
     return {
       locale: copy.locale,
       t: copy.t,
-      match: (key, values = {}, { partial } = {}) => {
+      match: (key, values = {}, { partial, distance } = {}) => {
         const found = chainOf(copy.locale, copy.locales, copy.source)
           .map((l) => [l, asts.get(l)?.get(key)] as const)
           .find(([, ast]) => ast !== undefined);
         if (found === undefined) throw missing(key);
-        return messageRegExp(found[1]!, found[0], values, { ...(partial !== undefined && { partial }), helpers });
+        return messageRegExp(found[1]!, found[0], values, {
+          ...(partial !== undefined && { partial }),
+          ...(distance !== undefined && { distance }),
+          helpers,
+        });
       },
       in: make,
     };

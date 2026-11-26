@@ -14,7 +14,9 @@ export default function Cart() {
   return (
     <section>
       <h2>{copy.t('cart.title')}</h2>
-      <Text id="cart.items" values={{ count }} />
+      <p>
+        <Text id="cart.items" values={{ count }} />
+      </p>
       <p className="muted">
         <Text id="cart.saved" values={{ at: savedAt }} />
       </p>

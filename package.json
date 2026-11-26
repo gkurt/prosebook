@@ -220,6 +220,7 @@
     "example": "tsdown && bun run --cwd examples/vite dev",
     "examples:generate": "tsdown && bun run --filter 'example-*' --filter site generate",
     "examples:smoke": "bun scripts/smoke.mts",
+    "e2e": "tsdown && bun run --cwd examples/vite e2e",
     "size": "bun scripts/size.mts",
     "dev": "tsdown && bun run --cwd site dev",
     "site": "tsdown && bun run --cwd site build",
