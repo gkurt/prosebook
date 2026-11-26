@@ -154,7 +154,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   (`lint.ts`) finds, holding a locale with no form set to the one most of its entries take (`usualForm`).
 - `src/tools/catalog.ts`: loads and checks YAML; every problem is a `Problem` with its file, key and a fix.
   `partial` leaves out each broken entry and translation instead of throwing, which the CLI and the dev
-  servers load with, so one entry being edited doesn't stop the rest; builds stay strict. An edit,
+  servers load with, so one entry being edited doesn't stop the rest; builds stay strict. A key written twice
+  in a mapping is an error naming both lines, its second left out, not the whole file (`readYaml`). An edit,
   fix or import is checked for the errors it brings (`checkEdit` in `entry.ts`), not those already there.
   `entryLocator` finds an entry's line, reading each file once. `attachMore` sets what each list's format says itself
   (`Said`: `more`, given `{count}`, and `separator`) and each relative time's `now` (given `{tense}`): text, read in the

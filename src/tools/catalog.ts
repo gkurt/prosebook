@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-import { isMap, isScalar, LineCounter, parseDocument, parse as parseYaml, Scalar } from 'yaml';
+import { isMap, isScalar, isSeq, LineCounter, parseDocument, Scalar } from 'yaml';
 
 import type { Said } from '#src/runtime/formats.ts';
 import { chainOf } from '#src/runtime/locale.ts';
@@ -649,25 +649,67 @@ export function yamlFiles(dir: string): string[] {
  * under each fails here, naming the value to quote, rather than corrupting quietly in the next tool.
  */
 function readEntries(text: string, error: (message: string) => void): Record<string, unknown> {
-  let raw: unknown;
-  try {
-    raw = parseYaml(text);
-  } catch (e) {
-    error(`is not valid YAML: ${(e as Error).message}`);
+  const read = readYaml(text, '1.2');
+  if ('problem' in read) {
+    error(read.problem);
     return {};
   }
+  for (const repeated of read.repeated) error(repeated);
+  const raw = read.value;
   if (raw === null || raw === undefined) return {};
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     error('a catalog file is a mapping of key to entry');
     return {};
   }
-  try {
-    const found = divergence(raw, parseYaml(text, { version: '1.1' }), '');
+  const old = readYaml(text, '1.1');
+  if ('problem' in old) {
+    error(`does not parse as YAML 1.1, which another tool may well be: ${old.problem}`);
+  } else {
+    const found = divergence(raw, old.value, '');
     if (found !== undefined) error(found);
-  } catch (e) {
-    error(`does not parse as YAML 1.1, which another tool may well be: ${(e as Error).message}`);
   }
   return raw as Record<string, unknown>;
+}
+
+/**
+ * A file's YAML, each key written again in a mapping reported and left out, so one merge that wrote an
+ * entry twice costs only the second, not the whole file, which the parser refuses outright.
+ */
+function readYaml(text: string, version: '1.1' | '1.2'): { value: unknown; repeated: string[] } | { problem: string } {
+  const lines = new LineCounter();
+  const doc = parseDocument(text, { version, uniqueKeys: false, lineCounter: lines });
+  const [first] = doc.errors;
+  if (first !== undefined) {
+    // `en: Note: the name.` reads as a mapping under `en`, which the parser words as a compact mapping.
+    if (first.code === 'BLOCK_AS_IMPLICIT_KEY') {
+      return {
+        problem: `line ${first.linePos?.[0].line ?? '?'} holds ": " in a value, which YAML reads as a key: quote the value, as en: 'Note: the name.'`,
+      };
+    }
+    return { problem: `is not valid YAML: ${first.message}` };
+  }
+  const repeated: string[] = [];
+  const unique = (node: unknown, path: string) => {
+    if (isSeq(node)) for (const item of node.items) unique(item, path);
+    if (!isMap(node)) return;
+    const seen = new Map<string, number>();
+    node.items = node.items.filter((pair) => {
+      const name = isScalar(pair.key) ? String(pair.key.value) : undefined;
+      const here = path === '' ? (name ?? '?') : `${path}.${name ?? '?'}`;
+      const line = isScalar(pair.key) && pair.key.range ? lines.linePos(pair.key.range[0]).line : 0;
+      if (name !== undefined && seen.has(name)) {
+        repeated.push(
+          `${here} is written again at line ${line}, after line ${seen.get(name)}: write each key once, renaming one or merging the two; the second is left out`,
+        );
+        return false;
+      }
+      if (name !== undefined) seen.set(name, line);
+      unique(pair.value, here);
+      return true;
+    });
+  };
+  unique(doc.contents, '');
+  return { value: doc.toJS(), repeated };
 }
 
 function divergence(a: unknown, b: unknown, path: string): string | undefined {

@@ -275,11 +275,14 @@ export function words(text: string): string[] {
 
 const ABBREVIATIONS = /\b(?:e\.g|i\.e|vs|etc)\.$/i;
 
+/** Marks that trail off rather than stop: `Importing {name}… 3 files left.` is one sentence. */
+const ELLIPSIS = /^(?:…|\.{3})+$/;
+
 export function sentences(text: string): number {
   let count = 1;
-  const boundary = /[.!?…]+["')\]]*\s+(?=\S)/g;
+  const boundary = /([.!?…]+)["')\]]*\s+(?=\S)/g;
   for (let m = boundary.exec(text); m !== null; m = boundary.exec(text))
-    if (!ABBREVIATIONS.test(text.slice(0, m.index + m[0].trimEnd().length))) count += 1;
+    if (!ELLIPSIS.test(m[1]!) && !ABBREVIATIONS.test(text.slice(0, m.index + m[0].trimEnd().length))) count += 1;
 
   return count;
 }

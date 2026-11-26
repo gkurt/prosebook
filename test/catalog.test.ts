@@ -195,6 +195,37 @@ describe('catalog checks', () => {
     expect(problems.join()).toContain('quote it');
   });
 
+  test('a key written twice is named and its second left out, and the rest of the file still loads', () => {
+    const config = fixture(
+      {
+        'copy/catalog/app.yaml': 'app.a: First\napp.b:\n  en: Second\n  en: Again\napp.a: Again\n',
+        'copy/locales/de.yaml': 'app.a: Erste\napp.a: Wieder\n',
+      },
+      { require: [] },
+    );
+    const catalog = loadCatalog(config, undefined, { partial: true });
+    expect(catalog.messages.map((m) => [m.key, m.text])).toEqual([
+      ['app.a', 'First'],
+      ['app.b', 'Second'],
+    ]);
+    expect(catalog.messages[0]?.translations.get('de')?.text).toBe('Erste');
+    expect(catalog.problems.map((p) => `${p.file}: ${p.message}`)).toEqual([
+      'copy/catalog/app.yaml: app.b.en is written again at line 4, after line 3: write each key once, renaming one or merging the two; the second is left out',
+      'copy/catalog/app.yaml: app.a is written again at line 5, after line 1: write each key once, renaming one or merging the two; the second is left out',
+      'copy/locales/de.yaml: app.a is written again at line 2, after line 1: write each key once, renaming one or merging the two; the second is left out',
+    ]);
+  });
+
+  test('a value holding ": " unquoted is told to be quoted', () => {
+    const problems = problemsOf(
+      { 'copy/catalog/app.yaml': 'app.a:\n  context: Somewhere.\n  en: Note: the name shows.\n' },
+      { require: [] },
+    );
+    expect(problems).toEqual([
+      `copy/catalog/app.yaml: line 3 holds ": " in a value, which YAML reads as a key: quote the value, as en: 'Note: the name.'`,
+    ]);
+  });
+
   test('translations must keep the placeholders and tags of the source', () => {
     const problems = problemsOf(
       {
@@ -276,6 +307,17 @@ describe('lint', () => {
       'app.b [bare-name] a name carries no explanation after a dash or a colon',
       'app.c [period] a description ends with a period, or is marked fragment: true',
       'app.e [no-period] a name ends without a period',
+    ]);
+  });
+
+  test('an ellipsis trails off inside a sentence, where a period, ! or ? ends one', () => {
+    const yaml = [
+      'app.a:\n  kind: state\n  surface: toast\n  context: An import.\n  en: Importing… 3 files left.',
+      'app.b:\n  kind: state\n  surface: toast\n  context: An export.\n  en: Exporting... Almost done.',
+      'app.c:\n  kind: state\n  surface: toast\n  context: A save.\n  en: Saved. 3 files left.',
+    ].join('\n');
+    expect(findings(yaml).filter((f) => f.includes('sentence-budget'))).toEqual([
+      'app.c [sentence-budget] a state is 1 sentence(s) at most, and this is 2',
     ]);
   });
 
