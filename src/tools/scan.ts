@@ -317,7 +317,7 @@ export const ALLOW_COMMENT = /prosebook-allow\s+([\w@./*-]+)\s*:\s*(.*?)\s*(?=\*
  * tests and stories.
  */
 export function hardcodedText(file: string, code: string, options: Pick<ScanOptions, 'attributes'> & Partial<ScanOptions>): Hardcoded[] {
-  const { attributes, calls = [], properties = [] } = options;
+  const { attributes, calls = [], properties = [], scriptProperties = [], skipCalls = [] } = options;
   if (NOT_APP.test(file)) return [];
   // A label map sits in a component; elsewhere, a `title` or `description` is as often a model's or an API's.
   const component = /\.[jt]sx$/.test(file);
@@ -327,6 +327,8 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   const report = (node: Node, text: string, where: string, via: Hardcoded['via'], inside: readonly string[]) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
+    // A call's or a property's value may be a code, `new TeamError('not-found')`, or a category, `message: 'messages'`.
+    if (via !== 'jsx' && IDENTIFIER.test(trimmed)) return;
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
     const allow = allowed(at.line);
@@ -407,8 +409,8 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     if (node.type === 'CallExpression' || node.type === 'NewExpression') {
       // `super('…')` is a call to the class extended, by its name.
       const callee = (node.callee as Node).type === 'Super' ? base : calleeOf(node.callee as Node);
-      if (callee !== undefined && CLASS_CALLS.has(callee.root)) return;
-      if (callee !== undefined && named.has(callee.root)) {
+      if (callee !== undefined && (CLASS_CALLS.has(callee.root) || namedIn(skipCalls, callee.root))) return;
+      if (callee !== undefined && isNamed(callee.root)) {
         for (const arg of node.arguments as Node[]) {
           if (arg.type !== 'ObjectExpression') reportShown(arg, callee.name, 'call');
           else for (const p of arg.properties as Node[]) if (p.type === 'Property') reportShown(p.value as Node, callee.name, 'call');
@@ -417,7 +419,7 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     }
     if (node.type === 'Property' && node.kind === 'init') {
       const name = propertyName(node);
-      if (name !== undefined && properties.includes(name) && (component || ANY_SCRIPT.has(name)))
+      if (name !== undefined && ((component && properties.includes(name)) || scriptProperties.includes(name)))
         reportShown(node.value as Node, name, 'property');
     }
     const extended = node.type === 'ClassDeclaration' || node.type === 'ClassExpression' ? superOf(node) : base;
@@ -430,13 +432,14 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     }
   };
   // A class extending one `calls` names is named too, `class NotFound extends AppError`, as is one extending it.
-  const named = new Set(calls);
+  const derived = new Set<string>();
+  const isNamed = (name: string) => namedIn(calls, name) || derived.has(name);
   const classes = classesIn(program as unknown as Node);
   for (let grew = true; grew;) {
     grew = false;
     for (const [name, parent] of classes) {
-      if (!named.has(name) && named.has(parent)) {
-        named.add(name);
+      if (!isNamed(name) && isNamed(parent)) {
+        derived.add(name);
         grew = true;
       }
     }
@@ -447,8 +450,22 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   return found.sort((a, b) => (a.line === b.line ? a.column - b.column : a.line - b.line));
 }
 
-/** Properties read in any script, not only in components: an error's or a result's `message` is a person's to read. */
-const ANY_SCRIPT = new Set(['message']);
+/** A string no person reads as words: lowercase with no space, as a reason code, `not-found`, or a category, `messages`. */
+const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_.:/][a-z0-9]+)*$/;
+
+/** Whether `names` holds a name, each exactly or with `*` for one character or more: `*Error` is `TeamError`, not `Error`. */
+function namedIn(names: readonly string[], name: string): boolean {
+  return names.some((n) =>
+    n.includes('*')
+      ? new RegExp(
+          `^${n
+            .split('*')
+            .map((part) => RegExp.escape(part))
+            .join('.+')}$`,
+        ).test(name)
+      : n === name,
+  );
+}
 
 /** A module's classes that extend another by name, `class NotFound extends AppError`, as name to the name extended. */
 function classesIn(program: Node): Map<string, string> {

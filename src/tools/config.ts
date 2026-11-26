@@ -301,14 +301,17 @@ export interface ProsebookConfig {
     /**
      * Functions and classes whose text arguments a person reads, by name: `toast` covers `toast('…')` and
      * `toast.error('…')`, and the text of an options object passed to them; `AppError` covers
-     * `new AppError('…')`, and `super('…')` in a class extending it, or extending one that does.
+     * `new AppError('…')`, and `super('…')` in a class extending it, or extending one that does. `*` stands
+     * for one character or more: `*Error` covers `TeamError` and `NotFoundError`, not `Error`. A lowercase
+     * string with no space, `'not-found'`, is taken for a code, not text.
      */
     calls?: string[];
-    /**
-     * Object properties whose literal value a person reads, as in a label map: `{ value: 'done', label: 'Done' }`.
-     * Read in components, and `message` in any script.
-     */
+    /** Functions and classes whose arguments no person reads, as a prompt for a model: `['generateText', 'prompt']`. */
+    skipCalls?: string[];
+    /** Object properties whose literal value a person reads in a component, as in a label map: `{ value: 'done', label: 'Done' }`. */
     properties?: string[];
+    /** Object properties whose literal value a person reads, read in any script: `['message', 'problem']`. */
+    scriptProperties?: string[];
     /**
      * Folders and files a check leaves out, by its name, where what it finds is no person's to read:
      * `{ 'formatted-in-code': ['src/server'] }` for a server's numbers and dates, which a tool reads.
@@ -334,7 +337,9 @@ export interface ScanOptions {
   extensions: string[];
   attributes: string[];
   calls: string[];
+  skipCalls: string[];
   properties: string[];
+  scriptProperties: string[];
   /** Paths and globs from the root, with `/`. */
   ignore: Record<ScanCheck, string[]>;
   /** The kinds and surfaces not guessed, or `false` for every one. */
@@ -701,7 +706,9 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte', '.astro'],
       attributes: config.scan?.attributes ?? READABLE_ATTRIBUTES,
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
-      properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header', 'message'],
+      skipCalls: config.scan?.skipCalls ?? [],
+      properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
+      scriptProperties: config.scan?.scriptProperties ?? ['message'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
       ...(roles !== undefined && { roles }),
     },

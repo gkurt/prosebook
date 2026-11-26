@@ -1534,11 +1534,24 @@ prosebook scan
 
 Finds text a person reads that is still in the code: JSX text, readable attributes (`title`, `alt`, `placeholder`, `aria-label`),
 what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`), the text given to `scan.calls` (`toast`, `alert`,
-`confirm`), and in components the values of `scan.properties`, with `message` read in any script. Name an error class in
-`scan.calls`, `AppError`, and `new AppError('…')` is found, as is `super('…')` in a class extending it, or extending one that
-does. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
+`confirm`), the values of `scan.properties` in components, and of `scan.scriptProperties` (`message`) in any script. Also catalog
+keys no code reads, and [unseen reads](#pruning). Tests
 and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 `scan.dirs` names the folders read (`src` unset), or single files: `['src', 'desktop/app.config.ts']`.
+
+```ts
+scan: {
+  calls: ['toast', 'alert', 'confirm', '*Error'], // new TeamError('…'), super('…') in a class extending one
+  skipCalls: ['generateText'], // a prompt for a model: no person reads it
+  scriptProperties: ['message', 'problem'], // { problem: '…' } in server code too
+}
+```
+
+- A class `scan.calls` names counts with the classes extending it in the same module. `*` is one character or more, so
+  `*Error` names every error subclass and leaves out `Error`, whose messages are mostly checks for developers.
+- In a call or a property, a lowercase string with no space is a code or a category, not text: `new TeamError('not-found')`,
+  `{ message: 'messages' }`.
+- Nothing in a call `scan.skipCalls` names is read, its options and the templates in it included.
 
 JSX text is read as it renders: `&nbsp;` and `&ge;` as their characters, and a sentence with values in it as one string,
 `Restart from {clientName}.` found as `Restart from ${clientName}.`. Classes aren't text: `className=`, what `cn`, `clsx`,

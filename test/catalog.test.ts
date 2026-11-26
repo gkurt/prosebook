@@ -315,6 +315,8 @@ describe('lint', () => {
       'app.a:\n  kind: state\n  surface: toast\n  context: An import.\n  en: Importing… 3 files left.',
       'app.b:\n  kind: state\n  surface: toast\n  context: An export.\n  en: Exporting... Almost done.',
       'app.c:\n  kind: state\n  surface: toast\n  context: A save.\n  en: Saved. 3 files left.',
+      // A dot after no word is a dot written, not a stop.
+      `app.d:\n  kind: state\n  surface: toast\n  context: A path.\n  en: 'Type . or .. or "." for a folder.'`,
     ].join('\n');
     expect(findings(yaml).filter((f) => f.includes('sentence-budget'))).toEqual([
       'app.c [sentence-budget] a state is 1 sentence(s) at most, and this is 2',

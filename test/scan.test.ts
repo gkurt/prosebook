@@ -100,13 +100,28 @@ export const fail = () => {
   return { ok: false, message: 'Try again later', code: 'retry-later' };
 };
 export const keyed = { message: key('api-errors.not-found') };`;
-    expect(found('errors.ts', code, { calls: ['AppError'], properties: ['message'] })).toEqual([
+    expect(found('errors.ts', code, { calls: ['AppError'], scriptProperties: ['message'] })).toEqual([
       '5:29 AppError(…) ${what} was not found',
       '8:25 NotFound(…) It is gone',
       '11:29 AppError(…) Something broke',
       '12:29 NotFound(…) The page',
       '14:32 message: Try again later',
     ]);
+  });
+
+  test('a code or a category is no text, *Error names subclasses alone, and skipCalls passes a call by whole', () => {
+    const code = `
+export const CATEGORY = { chat: { message: 'messages', problem: 'Messages could not load' } };
+export const fail = () => {
+  if (a) throw new TeamError('not-found');
+  if (b) throw new TeamError('The team is gone');
+  if (c) throw new Error('useDrawer must be used within a Drawer.');
+  toast('saved');
+  return generateText({ system: 'You are a helpful assistant.', prompt: \`Summarize \${doc}\` });
+};`;
+    expect(
+      found('server.ts', code, { calls: ['*Error', 'toast'], skipCalls: ['generateText'], scriptProperties: ['message', 'problem'] }),
+    ).toEqual(['2:65 problem: Messages could not load', '5:30 TeamError(…) The team is gone']);
   });
 });
 
