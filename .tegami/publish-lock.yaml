@@ -1,44 +1,48 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### A relative time keeps updating when its timer fires a moment early\n\nA timer firing while `Date.now()` still read short of the moment, or after the system clock was set back, left every relative time on the page as it was until the next one began waiting.\n"
-    filename: clock-early-timer.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `key()` marks a key that code names ahead of the read, and a read under `copy.has` is seen\n\n`key('api-errors.not-found')` returns the key as given, typed as that key, and `Key<'api-errors'>` is any key of that area: one\nhelper for error classes and API contracts instead of each project's own. A read of a `const` holding a marked key is seen by the\nbuild's check for reads it can't see, and so is a read under a `has` check of the same key, `if (copy.has(error.key))\ncopy.t(error.key)`, as `has` is false where the build dropped the message. Neither needs `prosebook-ignore` any more.\n\n`scan` finds the text given to a class `scan.calls` names, `new AppError('…')`, and to `super('…')` in a class extending it, and a\n`message` property's text in any script, not only in components.\n"
+    filename: key-marker.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### Vue's and Solid's providers stop waiting for relative times once unmounted\n\nAn app gone kept its last waits in the page's one clock, and a test environment that cancelled their timer left every later relative time unchanged.\n"
+    filename: unmount-cancels-waits.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - clock-early-timer.md
+      - key-marker.md
+      - unmount-cancels-waits.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-vite
-    updated: false
-  - id: npm:example-tanstack-start
-    updated: false
-  - id: npm:example-bun
+  - id: npm:example-rspack
     updated: false
   - id: npm:example-solid
     updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-vite
     updated: false
   - id: npm:example-preact
+    updated: false
+  - id: npm:example-bun
     updated: false
   - id: npm:example-vue
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-svelte
-  - id: npm:example-next
-  - id: npm:example-vite
-  - id: npm:example-tanstack-start
-  - id: npm:example-bun
+  - id: npm:example-rspack
   - id: npm:example-solid
   - id: npm:example-node
-  - id: npm:example-rspack
+  - id: npm:example-tanstack-start
+  - id: npm:example-next
+  - id: npm:example-svelte
+  - id: npm:example-vite
   - id: npm:example-preact
+  - id: npm:example-bun
   - id: npm:example-vue
