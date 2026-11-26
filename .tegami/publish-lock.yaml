@@ -1,17 +1,25 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### test-text reads only what a test expects of the page, and a placeholder only beside a phrase of the message's own\n\nA matcher's argument or a locator's text counts, less what the file also puts in; a number fills only `#` and `{n, number}`.\n"
-    filename: test-text-assertions.md
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### test-text passes a literal of one word, which is more often test data equal to a label than copy\n"
+    filename: test-text-one-word.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - test-text-assertions.md
+      - test-text-one-word.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-rspack
+  - id: npm:site
     updated: false
   - id: npm:example-vue
     updated: false
-  - id: npm:example-solid
+  - id: npm:example-rspack
+    updated: false
+  - id: npm:example-next
+    updated: false
+  - id: npm:example-node
+    updated: false
+  - id: npm:example-svelte
+    updated: false
+  - id: npm:example-preact
     updated: false
   - id: npm:example-tanstack-start
     updated: false
@@ -19,26 +27,18 @@ core:packages:
     updated: false
   - id: npm:example-bun
     updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:site
+  - id: npm:example-solid
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-rspack
+  - id: npm:site
   - id: npm:example-vue
-  - id: npm:example-solid
+  - id: npm:example-rspack
+  - id: npm:example-next
+  - id: npm:example-node
+  - id: npm:example-svelte
+  - id: npm:example-preact
   - id: npm:example-tanstack-start
   - id: npm:example-vite
   - id: npm:example-bun
-  - id: npm:example-node
-  - id: npm:example-next
-  - id: npm:example-svelte
-  - id: npm:example-preact
-  - id: npm:site
+  - id: npm:example-solid
