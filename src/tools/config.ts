@@ -299,11 +299,15 @@ export interface ProsebookConfig {
     /** JSX attributes whose literal value a person reads. */
     attributes?: string[];
     /**
-     * Functions whose text arguments a person reads, by name: `toast` covers `toast('…')` and
-     * `toast.error('…')`, and the text of an options object passed to them.
+     * Functions and classes whose text arguments a person reads, by name: `toast` covers `toast('…')` and
+     * `toast.error('…')`, and the text of an options object passed to them; `AppError` covers
+     * `new AppError('…')`, and `super('…')` in a class extending it, or extending one that does.
      */
     calls?: string[];
-    /** Object properties whose literal value a person reads, as in a label map: `{ value: 'done', label: 'Done' }`. */
+    /**
+     * Object properties whose literal value a person reads, as in a label map: `{ value: 'done', label: 'Done' }`.
+     * Read in components, and `message` in any script.
+     */
     properties?: string[];
     /**
      * Folders and files a check leaves out, by its name, where what it finds is no person's to read:
@@ -697,7 +701,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte', '.astro'],
       attributes: config.scan?.attributes ?? READABLE_ATTRIBUTES,
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
-      properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header'],
+      properties: config.scan?.properties ?? ['label', 'title', 'description', 'placeholder', 'header', 'message'],
       ignore: scanIgnore(config.scan?.ignore ?? {}, (path) => relative(root, at(path)).replaceAll('\\', '/')),
       ...(roles !== undefined && { roles }),
     },

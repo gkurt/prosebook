@@ -332,6 +332,22 @@ const summary = (t: Translate, run: Run) => t(STATUS[run.status]);
 `MessageKey` is any key of the catalog; `Translate` is a copy's `t`. A map of labels holds keys rather than text, so each is read in
 the locale of the moment it renders. A [pruned build](#pruning) sees reads through a module's `const` map of keys.
 
+Code that names a key ahead of the read, as an error class or an API contract does, marks it with `key`:
+
+```ts
+import { key, type Key } from 'prosebook';
+
+export class NotFound extends AppError {
+  readonly key: Key<'api-errors'> = key('api-errors.connectors.not-found');
+}
+
+if (copy.has(error.key)) toast(copy.t(error.key));
+```
+
+`key` returns the key as given, typed as that key; `Key<'api-errors'>` is any key of that area. A read of a `const` holding a
+marked key is seen. A key that travels as data, such as an error from the server, is read under `copy.has`: a build that dropped its
+message makes `has` false, so the read never shows a raw key.
+
 Tags the provider renders by default needn't be passed at each call. List those tags in the types:
 
 ```ts
@@ -1518,7 +1534,9 @@ prosebook scan
 
 Finds text a person reads that is still in the code: JSX text, readable attributes (`title`, `alt`, `placeholder`, `aria-label`),
 what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`), the text given to `scan.calls` (`toast`, `alert`,
-`confirm`), and in components the values of `scan.properties`. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
+`confirm`), and in components the values of `scan.properties`, with `message` read in any script. Name an error class in
+`scan.calls`, `AppError`, and `new AppError('…')` is found, as is `super('…')` in a class extending it, or extending one that
+does. Also catalog keys no code reads, and [unseen reads](#pruning). Tests
 and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 `scan.dirs` names the folders read (`src` unset), or single files: `['src', 'desktop/app.config.ts']`.
 
@@ -1797,10 +1815,12 @@ A pruned message would show as its key, so a build fails on a read whose key it 
 ```ts
 t(item.key); // fails the build
 t(STATUS[s]); // fine: STATUS is a const map of keys in this module
+t(NOT_FOUND); // fine: const NOT_FOUND = key('api-errors.not-found')
+if (copy.has(error.key)) copy.t(error.key); // fine: has is false where the message was dropped
 t(id); // prosebook-ignore: every key it reads is written elsewhere
 ```
 
-Reads are known by name: `t` and `rich`, alone, as methods or destructured, and `<Text>` from any binding, in `.vue`, `.svelte`
+A `has` check of the same key guards a read in an `if`, a `?:`, after `&&`, or after an `if (!copy.has(k)) return`. Reads are known by name: `t` and `rich`, alone, as methods or destructured, and `<Text>` from any binding, in `.vue`, `.svelte`
 and `.astro` markup too. `prune: 'loose'` skips the check, `prune: false` ships everything. Under Next and Bun the source under `scan.dirs` is
 read for keys.
 

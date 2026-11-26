@@ -82,6 +82,32 @@ export function save() {
     // Outside a component, a title or description is as often a model's or an API's.
     expect(found('A.ts', code, options).filter((f) => f.includes(': '))).toEqual([]);
   });
+
+  test("the text given to a class calls names, to super() in one extending it, and a message's in any script", () => {
+    const code = `
+import { key } from 'prosebook';
+export class AppError extends Error {}
+export class NotFound extends AppError {
+  constructor(what) { super(\`\${what} was not found\`); }
+}
+class Gone extends NotFound {
+  constructor() { super('It is gone'); }
+}
+export const fail = () => {
+  if (x) throw new AppError('Something broke');
+  if (y) throw new NotFound('The page');
+  if (z) throw new Error('Unreachable state');
+  return { ok: false, message: 'Try again later', code: 'retry-later' };
+};
+export const keyed = { message: key('api-errors.not-found') };`;
+    expect(found('errors.ts', code, { calls: ['AppError'], properties: ['message'] })).toEqual([
+      '5:29 AppError(…) ${what} was not found',
+      '8:25 NotFound(…) It is gone',
+      '11:29 AppError(…) Something broke',
+      '12:29 NotFound(…) The page',
+      '14:32 message: Try again later',
+    ]);
+  });
 });
 
 test('numbers, dates and lists formatted in code are found, with the copy method and named format to read', () => {
@@ -380,6 +406,42 @@ describe('reads a pruned build cannot see', () => {
       '5:1 say say(on ? "a.b" : key)',
       '6:1 Text <Text id={id} />',
     ]);
+  });
+
+  test('a read under a has check of the same key is seen, and under one of another key or receiver is not', () => {
+    const code = [
+      "import { Text } from 'prosebook/react';",
+      'if (copy.has(error.message)) copy.t(error.message);',
+      'copy.has(e.key) ? copy.t(e.key) : fallback;',
+      'copy.has(id) && <Text id={id} />;',
+      'function say(k) {',
+      '  if (!has(k)) return k;',
+      '  return t(k);',
+      '}',
+      'if (!copy.has(a.key) || other) {} else copy.t(a.key);',
+      'if (copy.has(x)) t(y);',
+      'if (set.has(x)) copy.t(x);',
+      'if (copy.has(x)) {} else copy.t(x);',
+      'copy.has(z) || copy.t(z);',
+    ].join('\n');
+    expect(unseen(code)).toEqual(['10:18 t t(y)', '11:17 t copy.t(x)', '12:26 t copy.t(x)', '13:16 t copy.t(z)']);
+  });
+
+  test("a key marked with prosebook's key() is seen, in the read or in a const holding it", () => {
+    const code = [
+      "import { key as k } from 'prosebook';",
+      "const NOT_FOUND = k('api-errors.not-found');",
+      "const ERRORS = { missing: k('api-errors.missing'), gone: 'api-errors.gone' };",
+      "let loose = k('api-errors.loose');",
+      "t(k('api-errors.forbidden'));",
+      't(NOT_FOUND);',
+      't(ERRORS[code]);',
+      't(loose);',
+      't(other);',
+    ].join('\n');
+    expect(unseen(code)).toEqual(['8:1 t t(loose)', '9:1 t t(other)']);
+    // Not prosebook's: a key() of another module's says nothing of its argument.
+    expect(unseen("import { key } from './keys';\nt(key('a.b'));")).toEqual(["2:1 t t(key('a.b'))"]);
   });
 
   test('a name imported here is kept for the build to match against aliases bound elsewhere', () => {

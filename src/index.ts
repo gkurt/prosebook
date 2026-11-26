@@ -5,7 +5,7 @@
  * `prosebook generate` compiles it into typed modules, one per locale, whose messages are plain
  * functions: this runtime looks them up, picks the locale and falls back, and parses nothing.
  */
-export { addArea, createCopy, defineCatalog, type Catalog, type Copy, type CopyOptions, type Translate } from './runtime/copy.ts';
+export { addArea, createCopy, defineCatalog, key, type Catalog, type Copy, type CopyOptions, type Translate } from './runtime/copy.ts';
 export { acceptedLocales, chainOf, dirOf, negotiate, preferredLocales } from './runtime/locale.ts';
 export { localeRoutes, type LocaleRoutes, type LocaleRoutesOptions } from './runtime/routes.ts';
 export { createHelpers, flatten, type HelperOptions } from './runtime/helpers.ts';
@@ -44,6 +44,7 @@ export type {
   HotHook,
   ListFormatName,
   ListItem,
+  Key,
   MessageKey,
   MessageShape,
   MessageShapes,

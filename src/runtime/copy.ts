@@ -27,6 +27,7 @@ import type {
   Helpers,
   DevHooks,
   ListFormatName,
+  MessageKey,
   MessageShapes,
   NumberFormatName,
   RegisteredLocale,
@@ -115,6 +116,13 @@ export async function addArea(id: string, area: string, messages: Pieces['messag
   for (const result of await Promise.allSettled([...r.copies].map((take) => take(area))))
     if (result.status === 'rejected') console.error(`prosebook: the ${area} area did not load:`, result.reason);
 }
+
+/**
+ * Marks a string as a key of the catalog, where code names one ahead of the read that says it: an
+ * error's, a route's, a contract's. It returns the key as given, typed as that key, and the tools take
+ * it for a key: pruning keeps its message, and a read of a `const` holding one is seen.
+ */
+export const key = <K extends MessageKey>(named: K): K => named;
 
 /**
  * Ties a generated catalog to its message shapes. Called by generated code. Throws where the generated

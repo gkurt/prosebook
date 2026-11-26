@@ -40,6 +40,13 @@ export type RegisteredLocale = Register extends { locale: infer L extends string
  * as a key at every read. `MessageKey<M>` is a key of another catalog's `Messages`.
  */
 export type MessageKey<M extends MessageShapes = RegisteredMessages> = Extract<keyof M, string>;
+/**
+ * A key of the catalog under an area, as `key()` returns one: `Key<'api-errors'>` for a key of the
+ * `api-errors` area, or under it. `Key` alone is any key; `Key<Area, M>` one of another catalog's `Messages`.
+ */
+export type Key<Area extends string = string, M extends MessageShapes = RegisteredMessages> = string extends Area
+  ? MessageKey<M>
+  : MessageKey<M> & `${Area}.${string}`;
 /** Tags the provider renders unless a call site says otherwise. */
 export type DefaultTags = Register extends { tags: infer T extends string } ? T : never;
 /** The number formats the config names (`formats.number`), which `copy.number` takes by name. */

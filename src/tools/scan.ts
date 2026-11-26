@@ -381,7 +381,7 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     flush();
   };
 
-  const visit = (node: Node, inProse: boolean, around: readonly string[]) => {
+  const visit = (node: Node, inProse: boolean, around: readonly string[], base?: { name: string; root: string }) => {
     let prose = inProse;
     let inside = around;
     if (node.type === 'JSXElement') {
@@ -401,34 +401,73 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
         if (value.type === 'JSXExpressionContainer') reportShown(value.expression as Node, attr, 'jsx', inside);
       }
       // Its expression is no child of the element, but may hold JSX of its own, or call `toast`.
-      if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose, inside);
+      if (value?.type === 'JSXExpressionContainer') visit(value.expression as Node, prose, inside, base);
       return;
     }
-    if (node.type === 'CallExpression') {
-      const callee = calleeOf(node.callee as Node);
+    if (node.type === 'CallExpression' || node.type === 'NewExpression') {
+      // `super('…')` is a call to the class extended, by its name.
+      const callee = (node.callee as Node).type === 'Super' ? base : calleeOf(node.callee as Node);
       if (callee !== undefined && CLASS_CALLS.has(callee.root)) return;
-      if (callee !== undefined && calls.includes(callee.root)) {
+      if (callee !== undefined && named.has(callee.root)) {
         for (const arg of node.arguments as Node[]) {
           if (arg.type !== 'ObjectExpression') reportShown(arg, callee.name, 'call');
           else for (const p of arg.properties as Node[]) if (p.type === 'Property') reportShown(p.value as Node, callee.name, 'call');
         }
       }
     }
-    if (component && node.type === 'Property' && node.kind === 'init') {
+    if (node.type === 'Property' && node.kind === 'init') {
       const name = propertyName(node);
-      if (name !== undefined && properties.includes(name)) reportShown(node.value as Node, name, 'property');
+      if (name !== undefined && properties.includes(name) && (component || ANY_SCRIPT.has(name)))
+        reportShown(node.value as Node, name, 'property');
     }
+    const extended = node.type === 'ClassDeclaration' || node.type === 'ClassExpression' ? superOf(node) : base;
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
-        for (const child of value) if (isNode(child)) visit(child, prose, inside);
+        for (const child of value) if (isNode(child)) visit(child, prose, inside, extended);
       } else if (isNode(value)) {
-        visit(value, prose, inside);
+        visit(value, prose, inside, extended);
       }
     }
   };
+  // A class extending one `calls` names is named too, `class NotFound extends AppError`, as is one extending it.
+  const named = new Set(calls);
+  const classes = classesIn(program as unknown as Node);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [name, parent] of classes) {
+      if (!named.has(name) && named.has(parent)) {
+        named.add(name);
+        grew = true;
+      }
+    }
+  }
+  const superOf = (node: Node) => (isNode(node.superClass) ? calleeOf(node.superClass) : undefined);
   visit(program as unknown as Node, true, []);
   // An element's text is found as the element is, before its attributes.
   return found.sort((a, b) => (a.line === b.line ? a.column - b.column : a.line - b.line));
+}
+
+/** Properties read in any script, not only in components: an error's or a result's `message` is a person's to read. */
+const ANY_SCRIPT = new Set(['message']);
+
+/** A module's classes that extend another by name, `class NotFound extends AppError`, as name to the name extended. */
+function classesIn(program: Node): Map<string, string> {
+  const classes = new Map<string, string>();
+  const visit = (node: Node) => {
+    if ((node.type === 'ClassDeclaration' || node.type === 'ClassExpression') && isNode(node.id) && isNode(node.superClass)) {
+      const parent = calleeOf(node.superClass);
+      if (parent !== undefined) classes.set(node.id.name as string, parent.root);
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const child of value) if (isNode(child)) visit(child);
+      } else if (isNode(value)) {
+        visit(value);
+      }
+    }
+  };
+  visit(program);
+  return classes;
 }
 
 /** A string a JSX child writes as a literal, `{' '}` or `{"Save"}`, which is text where it stands. */
@@ -845,7 +884,7 @@ const PREFIX = /^[a-z0-9][\w-]*(?:\.[\w-]+)*\.$/;
 const WRAPPERS = new Set(['ParenthesizedExpression', 'TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'TSTypeAssertion']);
 
 /** Whether `keyRefs` finds every key an expression can be: a literal, or a template or sum after a key prefix. */
-function keySeen(node: Node | undefined, maps: KeyMaps = new Map()): boolean {
+function keySeen(node: Node | undefined, maps: KeyMaps = noMaps()): boolean {
   if (node === undefined) return false;
   if (WRAPPERS.has(node.type)) return keySeen(node.expression as Node, maps);
   switch (node.type) {
@@ -858,6 +897,10 @@ function keySeen(node: Node | undefined, maps: KeyMaps = new Map()): boolean {
     }
     case 'Literal':
       return typeof node.value === 'string';
+    case 'Identifier':
+      return maps.get(node.name as string)?.value === true;
+    case 'CallExpression':
+      return maps.marks(node);
     case 'TemplateLiteral': {
       const [head] = node.quasis as { value: { cooked: string | null } }[];
       return (node.expressions as Node[]).length === 0 || PREFIX.test(head?.value.cooked ?? '');
@@ -880,15 +923,26 @@ export const unwrapped = (node: Node): Node => (WRAPPERS.has(node.type) ? unwrap
 /**
  * A module's `const` maps of keys, by name: `direct` where every value is a key (`{ done: 'run.done' }`,
  * `['a.b', 'a.c']`), and `props` the properties every value holds a key under (`{ done: { label:
- * 'run.done' } }`). A read through one is seen: every key it can read is written in the map, which
- * pruning keeps.
+ * 'run.done' } }`); `value` where the `const` holds one key itself. A read through one is seen: every key
+ * it can read is written in the module, which pruning keeps. `marks` says whether a call is prosebook's
+ * `key('a.b')`, which is a key as its literal is.
  */
-type KeyMaps = Map<string, { direct: boolean; props: Set<string> }>;
+type KeyMaps = Map<string, { direct: boolean; props: Set<string>; value?: boolean }> & { marks: (node: Node) => boolean };
 
-const isKey = (node: Node) => node.type === 'Literal' && typeof node.value === 'string' && /^[a-z0-9][\w-]*(?:\.[\w-]+)+$/.test(node.value);
+const KEY = /^[a-z0-9][\w-]*(?:\.[\w-]+)+$/;
+const isKeyLiteral = (node: Node | undefined) => node?.type === 'Literal' && typeof node.value === 'string' && KEY.test(node.value);
 
-function keyMapsIn(program: Node): KeyMaps {
-  const maps: KeyMaps = new Map();
+/** Maps of keys none of, and no marker: for a module that imports no `key`. */
+const noMaps = (): KeyMaps => Object.assign(new Map(), { marks: () => false });
+
+function keyMapsIn(program: Node, markers: ReadonlySet<string>): KeyMaps {
+  const marks = (node: Node) => {
+    const callee = node.callee as Node;
+    const args = node.arguments as Node[];
+    return callee.type === 'Identifier' && markers.has(callee.name as string) && args.length === 1 && isKeyLiteral(unwrapped(args[0]!));
+  };
+  const isKey = (node: Node) => isKeyLiteral(node) || (node.type === 'CallExpression' && marks(node));
+  const maps: KeyMaps = Object.assign(new Map(), { marks });
   for (const top of program.body as Node[]) {
     const statement = top.type === 'ExportNamedDeclaration' && top.declaration ? (top.declaration as Node) : top;
     if (statement.type !== 'VariableDeclaration' || statement.kind !== 'const') continue;
@@ -896,6 +950,10 @@ function keyMapsIn(program: Node): KeyMaps {
       const id = d.id as Node;
       const init = d.init === null || d.init === undefined ? undefined : unwrapped(d.init as Node);
       if (id.type !== 'Identifier' || init === undefined) continue;
+      if (isKey(init)) {
+        maps.set(id.name as string, { direct: false, props: new Set(), value: true });
+        continue;
+      }
       const values =
         init.type === 'ArrayExpression'
           ? (init.elements as (Node | null)[])
@@ -995,27 +1053,64 @@ function astroReads(file: string, code: string): Reads {
 
 type Report = (start: number, end: number, name: string) => void;
 
+/**
+ * The keys a `has` check found, where a read stands: `copy|k` for `copy.has(k)`, `|k` for a bare
+ * `has(k)`, and `*|k` for either, which `<Text>` reads, having no receiver. A read of `k` under one is
+ * seen: where the build pruned its message, `has` says so and the read never runs.
+ */
+type Guards = ReadonlySet<string>;
+
+/** The guards a test makes where it `holds`, or where it doesn't: `!copy.has(k)` guards its `else`. */
+function guardsOf(test: Node, holds: boolean, text: (n: Node) => string): string[] {
+  const n = unwrapped(test);
+  if (n.type === 'UnaryExpression' && n.operator === '!') return guardsOf(n.argument as Node, !holds, text);
+  if (n.type === 'LogicalExpression' && n.operator === (holds ? '&&' : '||'))
+    return [...guardsOf(n.left as Node, holds, text), ...guardsOf(n.right as Node, holds, text)];
+  if (!holds || n.type !== 'CallExpression' || (n.arguments as Node[]).length !== 1) return [];
+  const callee = n.callee as Node;
+  const arg = text((n.arguments as Node[])[0]!);
+  if (callee.type === 'Identifier' && callee.name === 'has') return [`|${arg}`, `*|${arg}`];
+  if (callee.type === 'MemberExpression' && callee.computed !== true && nameOf(callee.property as Node) === 'has')
+    return [`${text(callee.object as Node)}|${arg}`, `*|${arg}`];
+  return [];
+}
+
+/** Whether a statement always leaves the block it stands in: a `return`, `throw`, `break` or `continue`, or a block ending in one. */
+function exits(statement: Node): boolean {
+  if (['ReturnStatement', 'ThrowStatement', 'BreakStatement', 'ContinueStatement'].includes(statement.type)) return true;
+  const body = statement.type === 'BlockStatement' ? (statement.body as Node[]) : [];
+  return body.length > 0 && exits(body.at(-1)!);
+}
+
 function readsIn(file: string, code: string, as: string, pieces: Piece[], markup?: (texts: Set<string>, report: Report) => void): Reads {
-  const programs = pieces.map((piece) => ({ at: piece.at, program: parseSync(as, piece.code).program as unknown as Node }));
+  const programs = pieces.map((piece) => ({ ...piece, program: parseSync(as, piece.code).program as unknown as Node }));
   const { position, ignored } = lineIndex(code);
   const unseen: UnseenRead[] = [];
   const aliases = new Set<string>();
   /** Local name to the name it was imported by. */
   const imported = new Map<string, string>();
   const texts = new Set<string>();
-  const maps: KeyMaps = new Map();
+  /** What prosebook's `key` is imported as. */
+  const markers = new Set<string>();
   for (const { program } of programs) {
-    for (const [name, map] of keyMapsIn(program)) maps.set(name, map);
     for (const statement of program.body as Node[]) {
       if (statement.type !== 'ImportDeclaration') continue;
+      const source = String((statement.source as Node).value);
       for (const s of statement.specifiers as Node[]) {
         const name = s.type === 'ImportSpecifier' ? nameOf(s.imported as Node) : undefined;
         const local = nameOf(s.local as Node);
         if (name === undefined || local === undefined) continue;
-        if (name === 'Text' && TEXT_SOURCES.has(String((statement.source as Node).value))) texts.add(local);
+        if (name === 'Text' && TEXT_SOURCES.has(source)) texts.add(local);
+        else if (name === 'key' && source === 'prosebook') markers.add(local);
         else imported.set(local, name);
       }
     }
+  }
+  const maps = noMaps();
+  for (const { program } of programs) {
+    const found = keyMapsIn(program, markers);
+    maps.marks = found.marks;
+    for (const [name, map] of found) maps.set(name, map);
   }
   const report: Report = (start, end, name) => {
     const at = position(start);
@@ -1025,7 +1120,10 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
   };
   // Calls by a plain name, kept until every alias in the module is known.
   const calls: [start: number, end: number, name: string][] = [];
-  const visit = (node: Node, at: number) => {
+  const visit = (node: Node, piece: Piece, held: Guards) => {
+    const { at } = piece;
+    const text = (n: Node) => piece.code.slice(n.start, n.end).replace(/\s+/g, '');
+    const guarded = (receiver: string, arg: Node | undefined) => arg !== undefined && held.has(`${receiver}|${text(arg)}`);
     if (node.type === 'ObjectPattern') {
       for (const p of node.properties as Node[]) {
         if (p.type === 'Property' && READERS.has(nameOf(p.key as Node) ?? '') && (p.value as Node).type === 'Identifier')
@@ -1034,8 +1132,10 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
     }
     if (node.type === 'CallExpression' && !keySeen((node.arguments as Node[])[0], maps)) {
       const callee = node.callee as Node;
-      if (callee.type === 'Identifier') calls.push([at + node.start, at + node.end, callee.name as string]);
-      else if (callee.type === 'MemberExpression' && !callee.computed && READERS.has(nameOf(callee.property as Node) ?? ''))
+      const [arg] = node.arguments as Node[];
+      const reader = callee.type === 'MemberExpression' && !callee.computed && READERS.has(nameOf(callee.property as Node) ?? '');
+      if (callee.type === 'Identifier' && !guarded('', arg)) calls.push([at + node.start, at + node.end, callee.name as string]);
+      else if (reader && !guarded(text(callee.object as Node), arg))
         report(at + node.start, at + node.end, nameOf(callee.property as Node)!);
     }
     if (node.type === 'JSXOpeningElement' && texts.has(nameOf(node.name as Node) ?? '')) {
@@ -1044,19 +1144,54 @@ function readsIn(file: string, code: string, as: string, pieces: Piece[], markup
       if (
         value !== null &&
         value !== undefined &&
-        !keySeen(value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value, maps)
+        !keySeen(value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value, maps) &&
+        !guarded('*', value.type === 'JSXExpressionContainer' ? (value.expression as Node) : value)
       )
         report(at + node.start, at + node.end, 'Text');
     }
+    const under = (child: Node | null | undefined, test: Node, holds: boolean) => {
+      if (child === null || child === undefined) return;
+      const more = guardsOf(test, holds, text);
+      visit(child, piece, more.length === 0 ? held : new Set([...held, ...more]));
+    };
+    switch (node.type) {
+      case 'IfStatement':
+      case 'ConditionalExpression':
+        visit(node.test as Node, piece, held);
+        under(node.consequent as Node, node.test as Node, true);
+        under(node.alternate as Node | null, node.test as Node, false);
+        return;
+      case 'LogicalExpression':
+        if (node.operator === '??') break;
+        visit(node.left as Node, piece, held);
+        under(node.right as Node, node.left as Node, node.operator === '&&');
+        return;
+      case 'Program':
+      case 'BlockStatement':
+      case 'StaticBlock':
+      case 'SwitchCase': {
+        // `if (!copy.has(k)) return;` guards the statements after it.
+        let now = held;
+        if (node.type === 'SwitchCase' && isNode(node.test)) visit(node.test, piece, now);
+        for (const statement of (node.type === 'SwitchCase' ? node.consequent : node.body) as Node[]) {
+          visit(statement, piece, now);
+          if (statement.type === 'IfStatement' && !isNode(statement.alternate) && exits(statement.consequent as Node)) {
+            const more = guardsOf(statement.test as Node, false, text);
+            if (more.length > 0) now = new Set([...now, ...more]);
+          }
+        }
+        return;
+      }
+    }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
-        for (const child of value) if (isNode(child)) visit(child, at);
+        for (const child of value) if (isNode(child)) visit(child, piece, held);
       } else if (isNode(value)) {
-        visit(value, at);
+        visit(value, piece, held);
       }
     }
   };
-  for (const { program, at } of programs) visit(program, at);
+  for (const piece of programs) visit(piece.program, piece, new Set());
   markup?.(texts, report);
   for (const [start, end, local] of calls) {
     if (READERS.has(local) || aliases.has(local)) report(start, end, local);

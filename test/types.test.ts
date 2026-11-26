@@ -5,7 +5,7 @@
  */
 import { expect, test } from 'bun:test';
 
-import { createCopy, defineCatalog, type MessageKey, type Translate } from 'prosebook';
+import { createCopy, defineCatalog, key, type Key, type MessageKey, type Translate } from 'prosebook';
 
 // As the generated index registers the formats the config names.
 declare module 'prosebook' {
@@ -55,11 +55,19 @@ export function typed() {
   const labels: Record<'on' | 'off', MessageKey<Messages>> = { on: 'a.plain', off: 'a.link' };
   // @ts-expect-error: not a key
   const wrong: MessageKey<Messages> = 'a.nope';
+  // A key marked where code names it, typed by its area. No catalog is registered here, so `key` takes any.
+  const marked: Key<'a'> = key('a.plain');
+  // @ts-expect-error: a key of another area
+  const elsewhere: Key<'b'> = key('a.plain');
+  const plain: Key<'a', Messages> = 'a.plain';
+  // @ts-expect-error: no key of the catalog
+  const nope: Key<'a', Messages> = 'a.nope';
+  const anyKey: Key = marked;
   const title = (t: Translate<Messages>) => t(labels.on) + t('a.count', { n: 2 });
   title(copy.t);
   // @ts-expect-error: the argument is required
   const untitled = (t: Translate<Messages>) => t('a.count');
-  void [wrong, untitled];
+  void [wrong, untitled, elsewhere, plain, nope, anyKey];
 }
 
 test('the type checks above compile', () => {
