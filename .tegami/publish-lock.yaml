@@ -1,44 +1,44 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### `prosebook/test` finds the page's text by key, and `scan` finds tests that say the copy's words\n\n`copy.t('cart.checkout')` and `copy.match('cart.items')` read the catalog's YAML as it is now, with no setup or generated\nmodules. `match` gives a regular expression that matches any text where a placeholder isn't given, and any arm where a plural\nor select isn't given, and with `distance` text a few characters off. `scan` and `check` warn of test literals that a message says (`test-text`, over `scan.tests` and the\ntest files under `scan.dirs`), `scan --fix` rewrites them to read the catalog, and `diff` names the tests still saying an\nentry's old text.\n"
-    filename: test-copy.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### test-text passes codes, keys and arms that are only a placeholder; prosebook/test's copy formats values and matches a text's start or end\n"
+    filename: test-copy-fixes.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - test-copy.md
+      - test-copy-fixes.md
     id: npm:prosebook
     updated: true
-  - id: npm:example-vite
-    updated: false
   - id: npm:site
-    updated: false
-  - id: npm:example-rspack
-    updated: false
-  - id: npm:example-bun
-    updated: false
-  - id: npm:example-node
-    updated: false
-  - id: npm:example-next
-    updated: false
-  - id: npm:example-tanstack-start
     updated: false
   - id: npm:example-vue
     updated: false
+  - id: npm:example-rspack
+    updated: false
   - id: npm:example-preact
+    updated: false
+  - id: npm:example-vite
+    updated: false
+  - id: npm:example-tanstack-start
+    updated: false
+  - id: npm:example-solid
+    updated: false
+  - id: npm:example-node
     updated: false
   - id: npm:example-svelte
     updated: false
-  - id: npm:example-solid
+  - id: npm:example-bun
+    updated: false
+  - id: npm:example-next
     updated: false
 npm:packages:
   - id: npm:prosebook
-  - id: npm:example-vite
   - id: npm:site
-  - id: npm:example-rspack
-  - id: npm:example-bun
-  - id: npm:example-node
-  - id: npm:example-next
-  - id: npm:example-tanstack-start
   - id: npm:example-vue
+  - id: npm:example-rspack
   - id: npm:example-preact
-  - id: npm:example-svelte
+  - id: npm:example-vite
+  - id: npm:example-tanstack-start
   - id: npm:example-solid
+  - id: npm:example-node
+  - id: npm:example-svelte
+  - id: npm:example-bun
+  - id: npm:example-next
