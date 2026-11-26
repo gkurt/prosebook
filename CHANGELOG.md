@@ -1,3 +1,7 @@
+## prosebook@0.33.1
+
+### test-text passes a literal of one word, which is more often test data equal to a label than copy
+
 ## prosebook@0.33.0
 
 ### test-text reads only what a test expects of the page, and a placeholder only beside a phrase of the message's own
