@@ -8,7 +8,7 @@
  * with this project's config, so the two sides differ only in their files.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 
@@ -17,6 +17,7 @@ import type { ResolvedConfig } from './config.ts';
 import { wordDiff, type DiffPart } from './diff.ts';
 import { lint, type Finding } from './lint.ts';
 import { readLock, reconcile } from './lock.ts';
+import { says, testFiles, testLiterals, testPatterns } from './tests.ts';
 
 export interface TranslationChange {
   locale: string;
@@ -43,6 +44,8 @@ export interface CopyChange {
   untranslated: string[];
   /** What the lint says of the words this change wrote, in any locale. */
   findings: Finding[];
+  /** Tests saying the source as it was before, in a literal, which the change breaks: `e2e/cart.spec.ts:12`. */
+  tests: string[];
 }
 
 export interface Review {
@@ -69,7 +72,7 @@ export function reviewOf(config: ResolvedConfig, base: string): Review | { probl
   }
   const before = catalogAt(config, top, base);
   const after = loadCatalog(config, undefined, { partial: true });
-  return { base, changes: compare(config, before, after) };
+  return { base, changes: compare(config, before, after, literalsInTests(config)) };
 }
 
 /** The catalog as `base` had it, read with this project's config. */
@@ -96,6 +99,31 @@ function catalogAt(config: ResolvedConfig, top: string, base: string): Catalog {
   }
 }
 
+interface PlacedLiteral {
+  at: string;
+  text: string;
+}
+
+/** Every string literal in the tests `test-text` reads, by where it stands. */
+function literalsInTests(config: ResolvedConfig): PlacedLiteral[] {
+  return testFiles(config).flatMap((path) => {
+    const file = relative(config.root, path).replaceAll('\\', '/');
+    try {
+      return testLiterals(file, readFileSync(path, 'utf8')).map((l) => ({ at: `${file}:${l.line}`, text: l.text.trim() }));
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** The tests saying `old`'s source text that `now`'s, the same entry's after the change, no longer says. */
+function oldInTests(config: ResolvedConfig, literals: PlacedLiteral[], old: Message, now: Message | undefined): string[] {
+  const [was] = testPatterns([old], config.source);
+  if (was === undefined) return [];
+  const [is] = now === undefined ? [] : testPatterns([now], config.source);
+  return literals.filter((l) => says(l.text, was) && (is === undefined || !says(l.text, is))).map((l) => l.at);
+}
+
 const FIELDS = ['context', 'kind', 'surface', 'fragment', 'args', 'closed', 'min', 'allow', 'comment', 'remove'] as const;
 
 function fieldsOf(m: Message): Record<(typeof FIELDS)[number], string> {
@@ -114,7 +142,7 @@ function fieldsOf(m: Message): Record<(typeof FIELDS)[number], string> {
   };
 }
 
-function compare(config: ResolvedConfig, before: Catalog, after: Catalog): CopyChange[] {
+function compare(config: ResolvedConfig, before: Catalog, after: Catalog, literals: PlacedLiteral[]): CopyChange[] {
   const was = new Map(before.messages.map((m) => [m.key, m]));
   const now = new Map(after.messages.map((m) => [m.key, m]));
   const removed = before.messages.filter((m) => !now.has(m.key));
@@ -158,6 +186,7 @@ function compare(config: ResolvedConfig, before: Catalog, after: Catalog): CopyC
       stale: [...stale].filter(([, keys]) => sourceChanged && keys.has(m.key)).map(([locale]) => locale),
       untranslated: old === undefined ? after.locales.filter((l) => !m.translations.has(l)) : [],
       findings: findings.filter((f) => f.key === m.key && touched.has(f.locale)),
+      tests: old !== undefined && sourceChanged ? oldInTests(config, literals, old, m) : [],
     });
   }
   const gone = (m: Message): CopyChange => ({
@@ -169,6 +198,7 @@ function compare(config: ResolvedConfig, before: Catalog, after: Catalog): CopyC
     stale: [],
     untranslated: [],
     findings: [],
+    tests: oldInTests(config, literals, m, undefined),
   });
   changes.push(...removed.map(gone));
   return changes.sort((a, b) => (a.key < b.key ? -1 : 1));
@@ -193,10 +223,12 @@ function summaryOf(review: Review): string {
   const parts = (['changed', 'added', 'removed', 'renamed'] as const).flatMap((c) => (count(c) > 0 ? [`${count(c)} ${c}`] : []));
   const stale = review.changes.reduce((n, c) => n + c.stale.length, 0);
   const findings = review.changes.reduce((n, c) => n + c.findings.length, 0);
+  const tests = review.changes.reduce((n, c) => n + c.tests.length, 0);
   return [
     `${plural(review.changes.length, 'entry', 'entries')} changed since ${review.base}: ${parts.join(', ')}`,
     ...(stale > 0 ? [`${plural(stale, 'translation')} now stale`] : []),
     ...(findings > 0 ? [plural(findings, 'lint finding')] : []),
+    ...(tests > 0 ? [`${plural(tests, 'test')} still saying the text before`] : []),
   ].join('. ');
 }
 
@@ -268,6 +300,9 @@ function notesOf(c: CopyChange): string[] {
     ...(c.fields.length > 0 ? [`${c.fields.join(', ')} changed`] : []),
     ...(c.stale.length > 0 ? [`stale in ${c.stale.join(', ')}: their translations were made from the text before`] : []),
     ...(c.untranslated.length > 0 ? [`not yet translated in ${c.untranslated.join(', ')}`] : []),
+    ...(c.tests.length > 0
+      ? [`still said in ${c.tests.join(', ')}: read it by key with prosebook/test, copy.t or copy.match('${c.key}')`]
+      : []),
   ];
 }
 

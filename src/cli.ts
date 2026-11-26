@@ -48,6 +48,7 @@ import { SarifReport } from './tools/sarif.ts';
 import { inPaths, isReferenced, scan, sourceFiles, unscanned, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { lintScanned, scannedMessages, scannedOf, type PlacedFinding } from './tools/scanned.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
+import { fixTestText, testTextIn } from './tools/tests.ts';
 import { todoOf } from './tools/todo.ts';
 import { translateLocale } from './tools/translate.ts';
 
@@ -78,9 +79,10 @@ Commands:
                           locale, through the config's translate.model: the model gets what todo
                           --prompt says, and its reply is checked as import checks one
   scan                    Find hardcoded text in JSX, numbers, dates and lists formatted in code, catalog
-                          keys no code reads, and reads whose key a pruned build can't see
+                          keys no code reads, reads whose key a pruned build can't see, and tests
+                          saying the copy's words where they could read it by key
                           (--strict: fail on any of them; --lint: hold the hardcoded text to the
-                          writing rules too)
+                          writing rules too; --fix: rewrite those tests to read prosebook/test)
   extract [paths]         Move hardcoded JSX text into the catalog and rewrite the code to read it
                           (dry run unless --write; --area <name> puts every entry in one area)
   migrate <1|2>           Rewrite the catalog and translations in ICU MessageFormat (1) or MessageFormat 2
@@ -104,7 +106,8 @@ Commands:
                           the docs' prose the same way
   check                   generate --check, lint and status --strict together, for CI: fails on
                           entries not judged as written (judge.unjudged: 'warn' to warn instead),
-                          and warns of reads whose key a pruned build can't see
+                          and warns of reads whose key a pruned build can't see and of tests
+                          saying the copy's words
 
 Options:
   --root <dir>            Project root (default: the current directory)
@@ -165,6 +168,7 @@ const RULES = {
   'unused-key': 'Code reads every catalog key.',
   'formatted-in-code': "Numbers, dates and lists are formatted by the copy, in its locale and the config's named formats.",
   'unseen-read': 'Every read names its key where a build can see it, so pruning keeps its message.',
+  'test-text': 'A test finds the copy by key, through prosebook/test, not by the words the catalog says now.',
   allow: "An entry's exemption names a rule the entry breaks, and says why in a sentence.",
 };
 
@@ -289,7 +293,7 @@ async function main(argv: string[]): Promise<number> {
       case 'translate':
         return await runTranslate(config, rest);
       case 'scan':
-        code = runScan(config, values.strict === true, values.lint === true, report);
+        code = runScan(config, values.strict === true, values.lint === true, values.fix === true, report);
         break;
       case 'extract':
         return runExtract(config, rest, values.write === true, values.area);
@@ -314,6 +318,7 @@ async function main(argv: string[]): Promise<number> {
         }
         const results = [runGenerate(config, true, report), runLint(config, report), runStatus(config, true, false, report)];
         runUnseen(config, 'warning', report);
+        runTestText(config, loadCatalog(config, undefined, { partial: true }), 'warning', false, report);
         code = checkUnjudged(config) || results.some((r) => r !== 0) ? 1 : 0;
         break;
       }
@@ -1289,7 +1294,7 @@ async function runTranslate(config: ResolvedConfig, named: string[]): Promise<nu
   return failed ? 1 : 0;
 }
 
-function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, report?: SarifReport): number {
+function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, fix: boolean, report?: SarifReport): number {
   if (config.inCode) {
     // Every string is in the code, by design: what scan finds is what the lint reads.
     const { hardcoded, files } = scan(config.scan, config.root, unscanned(config));
@@ -1306,6 +1311,7 @@ function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, repo
   const unused = catalog.messages.filter((m) => !more.has(m.key) && !isReferenced(m.key, result.refs));
   for (const m of unused) err(`${m.file} ${m.key}: no code reads this key`);
   const unseen = runUnseen(config, strict ? 'error' : 'warning', report);
+  const tests = runTestText(config, catalog, strict ? 'error' : 'warning', fix, report);
   if (report !== undefined) {
     const level = strict ? 'error' : 'warning';
     const locate = entryLocator(config.root);
@@ -1331,7 +1337,7 @@ function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, repo
       : '',
   ].filter(Boolean);
   out(
-    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${result.formatted.length} formatted in code, ${unused.length} unused key(s), ${unseen} unseen read(s)` +
+    `prosebook: scanned ${result.files} file(s): ${result.hardcoded.length} hardcoded string(s), ${result.formatted.length} formatted in code, ${unused.length} unused key(s), ${unseen} unseen read(s), ${tests} test(s) saying the copy as text` +
       (hints.length > 0 ? `. ${hints.join('; ')}.` : ''),
   );
   let lintErrors = 0;
@@ -1347,11 +1353,52 @@ function runScan(config: ResolvedConfig, strict: boolean, lintToo: boolean, repo
       sayTotals(findings, messages, hint, ' in the hardcoded text');
     }
   }
-  return strict && result.hardcoded.length + result.formatted.length + unused.length + unseen > 0
+  return strict && result.hardcoded.length + result.formatted.length + unused.length + unseen + tests > 0
     ? 1
     : errorsIn(catalog).length + lintErrors > 0
       ? 1
       : 0;
+}
+
+/**
+ * Literals in tests that say a message of the catalog, which break once the catalog changes: each with
+ * the read from `prosebook/test` that finds it by key, written in its place under `--fix`.
+ */
+function runTestText(config: ResolvedConfig, catalog: Catalog, level: 'error' | 'warning', fix: boolean, report?: SarifReport): number {
+  const { found } = testTextIn(config, catalog.messages, catalog.locales);
+  let left = found;
+  if (fix) {
+    const files = Map.groupBy(
+      found.filter((f) => f.read !== undefined),
+      (f) => f.file,
+    );
+    for (const [file, inFile] of files) {
+      const path = join(config.root, file);
+      writeFileSync(path, fixTestText(readFileSync(path, 'utf8'), inFile));
+    }
+    const written = found.length - (left = found.filter((f) => f.read === undefined)).length;
+    if (written > 0) out(`prosebook: ${written} test literal(s) in ${files.size} file(s) now read the catalog through prosebook/test`);
+  }
+  const named = (h: { key: string; locale: string }) => (h.locale === config.source ? h.key : `${h.key} in ${h.locale}`);
+  const fixOf = (f: (typeof found)[number]) =>
+    f.read !== undefined
+      ? `read ${f.read} from prosebook/test, which follows the catalog (prosebook scan --fix writes it)`
+      : f.says.length > 1
+        ? 'read the one it means with copy.t or copy.match from prosebook/test'
+        : `read it with ${f.says[0]!.locale === config.source ? 'copy' : `copy.in('${f.says[0]!.locale}')`}.match('${f.says[0]!.key}') from prosebook/test, in place of the file's own copy`;
+  for (const f of left) {
+    err(
+      `${level === 'error' ? 'error' : 'warn '} ${f.file}:${f.line}:${f.column} test says "${f.text}", the text of ${f.says.map(named).join(', ')}: ${fixOf(f)}`,
+    );
+  }
+  if (report !== undefined) {
+    report.rule('test-text', RULES['test-text']);
+    for (const f of left) {
+      const message = `"${f.text}" is the text of ${f.says.map(named).join(', ')}, and breaks once the catalog changes it: ${fixOf(f)}`;
+      report.add({ rule: 'test-text', level, message, file: f.file, line: f.line, column: f.column });
+    }
+  }
+  return left.length;
 }
 
 /**

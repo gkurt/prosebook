@@ -5,17 +5,13 @@
  * those in `browser/`, `node:fs` by an in-memory volume (`browser/fs.ts`) that every call fills anew.
  */
 import { volume } from './browser/fs.ts';
-import { RUNTIME, type Catalog as RuntimeCatalog } from './runtime/copy.ts';
-import type { Formats } from './runtime/formats.ts';
-import { numberLadder } from './runtime/ladder.ts';
-import { relativeTime } from './runtime/relative.ts';
-import type { CompiledMessages } from './runtime/types.ts';
+import type { Catalog as RuntimeCatalog } from './runtime/copy.ts';
 import { CatalogError, loadCatalog, type EntryLocation, type Message, type Problem } from './tools/catalog.ts';
-import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { resolveConfig, type ProsebookConfig } from './tools/config.ts';
 import { inspectorEndpoints } from './tools/endpoints.ts';
 import { applyFixes } from './tools/entry.ts';
-import { formatsCode, render, runtimeParts } from './tools/generate.ts';
+import { evaluatedCatalog } from './tools/evaluated.ts';
+import { render } from './tools/generate.ts';
 import { lint, type Finding } from './tools/lint.ts';
 
 export type { EntryLocation, Finding, Message, Problem, ProsebookConfig };
@@ -37,8 +33,6 @@ export interface Played {
 }
 
 const ROOT = '/play';
-/** The runtime's parts a catalog holds where it uses them, as the generated index imports them. */
-const PARTS = { relativeTime, numberLadder };
 
 function load(files: Files, config: ProsebookConfig) {
   volume.clear();
@@ -47,12 +41,6 @@ function load(files: Files, config: ProsebookConfig) {
 }
 
 const fromRoot = (path: string) => path.slice(ROOT.length + 1);
-
-/** A locale's messages as the generated module holds them, run. */
-function evaluate(entries: Entry[]): CompiledMessages {
-  // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- running the compiler's own output is the point
-  return new Function(`return ${localeExpression(compileLocale(entries))};`)() as CompiledMessages;
-}
 
 /** A thrown problem, such as a native target refusing a message, as the problems it names. */
 const problemsOf = (e: unknown): Problem[] =>
@@ -70,18 +58,7 @@ export function play(files: Files, config: ProsebookConfig = {}): Played {
     generated = render({ ...resolved, native: [] }, undefined, { partial: true });
     generated.catalog.problems.push(...problems);
   }
-  const locales = [...generated.entries.keys()];
-  const formats = formatsCode(resolved);
-  const catalog: RuntimeCatalog = {
-    runtime: RUNTIME,
-    source: resolved.source,
-    locales,
-    messages: Object.fromEntries([...generated.entries].map(([locale, entries]) => [locale, evaluate(entries)])),
-    loaders: {},
-    // oxlint-disable-next-line no-new-func, typescript/no-implied-eval -- the formats as the generated index ships them, each text compiled
-    ...(formats !== undefined && { formats: new Function(`return ${formats};`)() as Formats }),
-    ...Object.fromEntries(runtimeParts(resolved, generated.catalog).map((p) => [p.field, PARTS[p.name]])),
-  };
+  const catalog = evaluatedCatalog(resolved, generated);
   return {
     generated: Object.fromEntries([...generated.files].map(([path, content]) => [fromRoot(path), content])),
     problems: generated.catalog.problems,

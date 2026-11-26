@@ -30,6 +30,7 @@ export default defineConfig([
       'inspector/index': 'src/inspector/index.ts',
       config: 'src/tools/config.ts',
       tools: 'src/tools/index.ts',
+      test: 'src/test.ts',
       cli: 'src/cli.ts',
       ai: 'src/ai.ts',
     },

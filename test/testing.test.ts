@@ -1,0 +1,181 @@
+import { describe, expect, test } from 'bun:test';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { loadCopy } from '#src/test.ts';
+import { loadCatalog } from '#src/tools/catalog.ts';
+import { reviewOf, reviewText } from '#src/tools/review.ts';
+import { fixTestText, testPatterns, testText } from '#src/tools/tests.ts';
+import { cli, fixture } from './fixture.ts';
+
+const git = (root: string, ...args: string[]) => {
+  const proc = Bun.spawnSync(['git', ...args], { cwd: root });
+  if (proc.exitCode !== 0) throw new Error(proc.stderr.toString());
+  return proc.stdout.toString();
+};
+
+const project = () =>
+  fixture(
+    {
+      'prosebook.config.json': '{ "require": [] }',
+      'copy/catalog/cart.yaml': [
+        'cart.checkout: Check out',
+        'cart.items: "{count, plural, one {# item} other {# items}}"',
+        'cart.greeting: "Hi {name}, <b>welcome</b> back."',
+        'cart.state: "{state, select, open {Open} other {Closed}}"',
+        'cart.total: "Total: {sum, number, ::currency/EUR}"',
+        'cart.owner: "{name} has {count, plural, one {# item} other {# items}}"',
+        '',
+      ].join('\n'),
+      'copy/locales/de/cart.yaml': 'cart.checkout: Zur Kasse\n',
+    },
+    { require: [] },
+  );
+
+describe('prosebook/test', () => {
+  test('t reads the YAML as written now, no generate first', async () => {
+    const copy = await loadCopy({ root: project().root });
+    expect(copy.t('cart.checkout')).toBe('Check out');
+    expect(copy.t('cart.items', { count: 2 })).toBe('2 items');
+    expect(copy.t('cart.greeting', { name: 'Ada' })).toBe('Hi Ada, welcome back.');
+  });
+
+  test('t throws on a key the catalog lacks, and on a placeholder with no value', async () => {
+    const copy = await loadCopy({ root: project().root });
+    expect(() => copy.t('cart.nope' as never)).toThrow('the catalog has no entry cart.nope');
+    expect(() => copy.t('cart.items' as never)).toThrow("copy.match('cart.items')");
+  });
+
+  test('match takes any text for a placeholder not given, and any arm of a plural or select', async () => {
+    const copy = await loadCopy({ root: project().root });
+    const items = copy.match('cart.items');
+    expect(items.test('1 item')).toBe(true);
+    expect(items.test('12 items')).toBe(true);
+    expect(items.test('12 things')).toBe(false);
+    expect(copy.match('cart.greeting').test('Hi  Grace Hopper,\nwelcome back.')).toBe(true);
+    expect(copy.match('cart.greeting').test('Hi Grace, welcome back')).toBe(false);
+    expect(copy.match('cart.state').test('Closed')).toBe(true);
+    expect(copy.match('cart.checkout').test('Check out (2)')).toBe(false);
+    expect(copy.match('cart.checkout', {}, { partial: true }).test('Check out (2)')).toBe(true);
+  });
+
+  test('match writes a value given as the app would', async () => {
+    const copy = await loadCopy({ root: project().root });
+    expect(copy.match('cart.items', { count: 1 }).test('1 item')).toBe(true);
+    expect(copy.match('cart.items', { count: 1 }).test('2 items')).toBe(false);
+    expect(copy.match('cart.state', { state: 'open' }).test('Open')).toBe(true);
+    expect(copy.match('cart.state', { state: 'open' }).test('Closed')).toBe(false);
+    expect(copy.match('cart.total', { sum: 1234.5 }).test('Total: €1,234.50')).toBe(true);
+    expect(copy.match('cart.total', { sum: 1234.5 }).test('Total: €9.00')).toBe(false);
+    const owner = copy.match('cart.owner', { count: 3 });
+    expect(owner.test('Ada has 3 items')).toBe(true);
+    expect(owner.test('Ada has 1 item')).toBe(false);
+  });
+
+  test('in reads another locale, falling back to the source where it has no translation', async () => {
+    const de = (await loadCopy({ root: project().root })).in('de');
+    expect(de.t('cart.checkout')).toBe('Zur Kasse');
+    expect(de.match('cart.checkout').test('Zur Kasse')).toBe(true);
+    expect(de.match('cart.items').test('3 items')).toBe(true);
+    expect(() => de.in('fr')).toThrow('the catalog has no locale fr: name one of en, de');
+  });
+
+  test('a project with no catalog says where it looked', async () => {
+    const root = fixture({}, {}).root;
+    expect(loadCopy({ root: `${root}/missing` })).rejects.toThrow('no catalog at');
+  });
+});
+
+const spec = [
+  "import { test, expect } from '@playwright/test';",
+  '',
+  "test('checks out', async ({ page }) => {",
+  "  await page.getByRole('button', { name: 'Check out' }).click();",
+  "  await expect(page.getByText('3 items')).toBeVisible();",
+  "  await page.goto('/cart');",
+  '  // prosebook-ignore',
+  "  await page.getByText('Check out').hover();",
+  '});',
+  '',
+].join('\n');
+
+describe('test-text', () => {
+  test('finds the copy a test says, and scan --fix reads it by key', () => {
+    const config = project();
+    mkdirSync(join(config.root, 'e2e'), { recursive: true });
+    writeFileSync(join(config.root, 'e2e', 'cart.spec.ts'), spec);
+    const scanned = cli(config.root, 'scan');
+    expect(scanned.stderr).toContain(
+      `warn  e2e/cart.spec.ts:4:42 test says "Check out", the text of cart.checkout: read copy.t('cart.checkout') from prosebook/test`,
+    );
+    expect(scanned.stderr).toContain(`e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read copy.match('cart.items')`);
+    // Not a test's title, the route, nor a line marked to be left.
+    expect(scanned.stderr).not.toContain('checks out"');
+    expect(scanned.stderr).not.toContain(':8:');
+    expect(scanned.stdout).toContain('2 test(s) saying the copy as text');
+    expect(scanned.code).toBe(0);
+    expect(cli(config.root, 'scan', '--strict').code).toBe(1);
+
+    const fixed = cli(config.root, 'scan', '--fix');
+    expect(fixed.stdout).toContain('2 test literal(s) in 1 file(s) now read the catalog through prosebook/test');
+    const code = readFileSync(join(config.root, 'e2e', 'cart.spec.ts'), 'utf8');
+    expect(code).toContain("import { test, expect } from '@playwright/test';\nimport { copy } from 'prosebook/test';\n");
+    expect(code).toContain("{ name: copy.t('cart.checkout') }");
+    expect(code).toContain("page.getByText(copy.match('cart.items'))");
+    expect(cli(config.root, 'scan').stdout).toContain('0 test(s) saying the copy as text');
+  });
+
+  test("a file's own copy has no match, so only plain messages are fixed", () => {
+    const patterns = testPatterns(
+      loadCatalog(project()).messages.filter((m) => m.key !== 'cart.state'),
+      'en',
+    );
+    const code = "import { copy } from './copy.ts';\nexpect(a).toBe('Check out');\nexpect(b).toBe('2 items');\n";
+    const found = testText('e2e/a.spec.ts', code, patterns, 'en');
+    expect(found.map((f) => f.read)).toEqual(["copy.t('cart.checkout')", undefined]);
+    expect(fixTestText(code, found)).toBe(
+      "import { copy } from './copy.ts';\nexpect(a).toBe(copy.t('cart.checkout'));\nexpect(b).toBe('2 items');\n",
+    );
+  });
+
+  test('a literal mostly placeholder is no message', () => {
+    const patterns = testPatterns(loadCatalog(project()).messages, 'en');
+    expect(testText('e2e/a.spec.ts', "fill('Hi Grace Hopper, how are you today?');", patterns, 'en')).toEqual([]);
+    expect(testText('e2e/a.spec.ts', "fill('Hi Ada, welcome back.');", patterns, 'en').map((f) => f.read)).toEqual([
+      "copy.match('cart.greeting')",
+    ]);
+  });
+
+  test('scan.ignore keeps it out of a folder', () => {
+    const config = fixture(
+      {
+        'prosebook.config.json': JSON.stringify({ require: [], scan: { ignore: { 'test-text': ['e2e'] } } }),
+        'copy/catalog/cart.yaml': 'cart.checkout: Check out\n',
+        'e2e/cart.spec.ts': spec,
+      },
+      { require: [] },
+    );
+    expect(cli(config.root, 'scan').stdout).toContain('0 test(s) saying the copy as text');
+  });
+
+  test('diff names the tests still saying the text a change rewrote', () => {
+    const config = fixture(
+      {
+        'prosebook.config.json': '{ "require": [] }',
+        'copy/catalog/cart.yaml': 'cart.checkout: Check out\n',
+        'e2e/cart.spec.ts': "page.getByText('Check out');\n",
+      },
+      { require: [] },
+    );
+    git(config.root, 'init', '-q');
+    git(config.root, 'add', '-A');
+    git(config.root, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-q', '-m', 'catalog');
+    writeFileSync(join(config.catalog, 'cart.yaml'), 'cart.checkout: Pay now\n');
+    const review = reviewOf(config, 'HEAD');
+    if ('problem' in review) throw new Error(review.problem);
+    expect(review.changes[0]!.tests).toEqual(['e2e/cart.spec.ts:1']);
+    expect(reviewText(review)).toContain(
+      "still said in e2e/cart.spec.ts:1: read it by key with prosebook/test, copy.t or copy.match('cart.checkout')",
+    );
+  });
+});

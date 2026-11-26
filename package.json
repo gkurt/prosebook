@@ -173,6 +173,13 @@
         "default": "./dist/tools.js"
       }
     },
+    "./test": {
+      "prosebook@dev": "./src/test.ts",
+      "import": {
+        "types": "./dist/test.d.ts",
+        "default": "./dist/test.js"
+      }
+    },
     "./playground": {
       "prosebook@dev": "./src/playground.ts",
       "import": {

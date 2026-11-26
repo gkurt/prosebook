@@ -580,29 +580,49 @@ A zone `Intl` refuses shows each date as its placeholder, `{when}`, and `onError
 
 ### In tests
 
-An end-to-end test finds the page's text through the catalog, so a copy edit doesn't break it:
+A test finds the page's text through the catalog, by key, so a copy edit doesn't break it. `prosebook/test` reads the
+catalog's YAML as it is now, with no generated modules and no setup:
 
 ```ts
-// e2e/copy.ts
-import { createCopy } from 'prosebook';
-import { catalog } from '../src/copy/index.ts';
-
-export const copy = createCopy(catalog); // the source locale; await copy.setLocale('de') for another
-```
-
-```ts
-import { copy } from './copy.ts';
+import { copy } from 'prosebook/test';
 
 test('checks out', async ({ page }) => {
   await page.getByRole('button', { name: copy.t('cart.checkout') }).click();
-  await expect(page.getByText(copy.t('cart.items', { count: 2 }))).toBeVisible();
+  await expect(page.getByText(copy.match('cart.items'))).toBeVisible();
+  await expect(page.getByText(copy.match('cart.items', { count: 2 }))).toBeVisible();
 });
 ```
 
-- A test reads the generated modules on disk, so run `prosebook generate` before the tests where `src/copy/` isn't committed.
-- A runner that doesn't resolve the index's `./en.js` to `en.ts` runs it with `importExtension: '.ts'`.
-- `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them.
-- A fixed clock, `createCopy(catalog, { now: () => Date.UTC(2026, 10, 9) })`, reads a relative time the same on every run.
+- `copy.t` gives plain text, a tag's words without the tag, as `getByText` and an accessible name read them. It throws on a
+  key the catalog lacks, and on a placeholder given no value.
+- `copy.match` gives a regular expression matching every text the message can come to, for a test that doesn't know every value:
+  a placeholder given is written as the app writes it (`{ sum: 9.5 }` as `€9.50`), any other matches any text, and a plural or
+  select not given matches any of its arms. Whitespace matches any run of it, so the no-break spaces `Intl` writes match too.
+  It matches the whole text; `copy.match('cart.items', {}, { partial: true })` matches inside it. Playwright, Vitest, Cypress and
+  Testing Library all take a regular expression where they take text.
+- `copy.in('de')` reads another locale, falling back as the app does.
+- `copy` is the project whose config is nearest from the working directory up. `loadCopy({ root, locale, timeZone, now })`
+  loads another, or with options: the app's `timeZone`, and a fixed clock, `now: () => Date.UTC(2026, 10, 9)`, which reads a
+  relative time the same on every run.
+- The keys are typed where the tests' tsconfig includes the generated index, so a test naming a removed key fails `tsc`.
+
+`prosebook scan` finds tests that say the copy's words instead (`test-text`, a warning), and `prosebook scan --fix`
+rewrites each to read the catalog:
+
+```
+warn  e2e/cart.spec.ts:4:42 test says "Check out", the text of cart.checkout: read copy.t('cart.checkout') from prosebook/test, which follows the catalog (prosebook scan --fix writes it)
+warn  e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read copy.match('cart.items') from prosebook/test, which follows the catalog (prosebook scan --fix writes it)
+```
+
+- It reads every source file under `scan.tests` (`e2e`, `tests`, `test`, `cypress` and `playwright` by default, those
+  there are) and the test files under `scan.dirs` (`*.test.ts`, `*.spec.tsx`). `scan.ignore['test-text']` leaves a folder
+  out, and `prosebook-ignore` a line.
+- A literal is a message's text where the whole of it matches the message and at least half its letters are the message's own
+  words, so `'Hi Grace, how are you today?'` isn't `Hi {name}`. A test's title, an import and an object's key aren't read.
+- A literal two messages say is reported with both, and not rewritten. A file with a `copy` of its own gets `copy.t` for a
+  message with no placeholders, and is told to read `prosebook/test` for the rest.
+- `prosebook check` warns of them too, `scan --strict` fails on them, and [`prosebook diff`](#diff) names the tests still saying
+  the text a change rewrote.
 
 ## The catalog
 
@@ -1536,8 +1556,8 @@ prosebook scan
 Finds text a person reads that is still in the code: JSX text, readable attributes (`title`, `alt`, `placeholder`, `aria-label`),
 what expressions render (`{pending ? 'Saving…' : 'Save'}`, `{name ?? 'Guest'}`), the text given to `scan.calls` (`toast`, `alert`,
 `confirm`), the values of `scan.properties` in components, and of `scan.scriptProperties` (`message`) in any script. Also catalog
-keys no code reads, and [unseen reads](#pruning). Tests
-and stories are left out, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
+keys no code reads, [unseen reads](#pruning), and [tests saying the copy's words](#in-tests) where they could read it by key. Tests
+and stories are left out of the rest, and their helpers (`A.spec.helper.tsx`); mark a deliberate literal with `prosebook-ignore` on its line or the line above.
 `scan.dirs` names the folders read (`src` unset), or single files: `['src', 'desktop/app.config.ts']`.
 
 ```ts
@@ -1590,7 +1610,7 @@ Code whose text no person reads, as a server tool's results, leaves a check out 
 ```ts
 scan: {
   ignore: {
-    'formatted-in-code': ['src/server', '**/*.server.ts'], // and 'hardcoded-text'
+    'formatted-in-code': ['src/server', '**/*.server.ts'], // and 'hardcoded-text', 'test-text'
     '*': ['src/admin'], // every check
   },
 },
@@ -1776,8 +1796,10 @@ added    cart.total: {+Total: {sum, number, ::currency/EUR}+}
          not yet translated in de
 ```
 
-The base is `HEAD` by default. A key gone and one come with the same words is a rename. `--format markdown` writes a table for a
-pull request's comment, which the [GitHub action](#github-action) posts.
+The base is `HEAD` by default. A key gone and one come with the same words is a rename. An entry whose words changed, or that
+went, names the tests still saying its text before (`still said in e2e/cart.spec.ts:12`), which the change breaks: they
+read the catalog [through `prosebook/test`](#in-tests). `--format markdown` writes a table for a pull request's comment, which
+the [GitHub action](#github-action) posts.
 
 ### GitHub action
 

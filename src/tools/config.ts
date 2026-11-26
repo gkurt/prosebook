@@ -295,6 +295,12 @@ export interface ProsebookConfig {
   scan?: {
     /** Folders, read through, and single files: `['src', 'desktop/app.config.ts']`. */
     dirs?: string[];
+    /**
+     * Folders and files of tests, whose string literals `test-text` reads for text the catalog says, beside
+     * the test files under `dirs` (`*.test.ts`, `*.spec.tsx`): `['e2e', 'tests', 'test', 'cypress', 'playwright']`
+     * by default, those there are. `[]` for only those beside the code.
+     */
+    tests?: string[];
     extensions?: string[];
     /** JSX attributes whose literal value a person reads. */
     attributes?: string[];
@@ -334,12 +340,14 @@ export interface ProsebookConfig {
 }
 
 /** The checks `scan` runs file by file, which `scan.ignore` can keep out of folders. */
-export const SCAN_CHECKS = ['hardcoded-text', 'formatted-in-code'] as const;
+export const SCAN_CHECKS = ['hardcoded-text', 'formatted-in-code', 'test-text'] as const;
 export type ScanCheck = (typeof SCAN_CHECKS)[number];
 
 /** What `scan` reads, and where. */
 export interface ScanOptions {
   dirs: string[];
+  /** The tests' folders and files, `test-text`'s beside the test files under `dirs`. */
+  tests: string[];
   extensions: string[];
   attributes: string[];
   calls: (string | RegExp)[];
@@ -715,6 +723,7 @@ export function resolveConfig(root: string, config: ProsebookConfig): ResolvedCo
     extract: { ...config.extract },
     scan: {
       dirs: (config.scan?.dirs ?? ['src']).map(at),
+      tests: (config.scan?.tests ?? ['e2e', 'tests', 'test', 'cypress', 'playwright']).map(at),
       extensions: config.scan?.extensions ?? ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.vue', '.svelte', '.astro'],
       attributes: config.scan?.attributes ?? READABLE_ATTRIBUTES,
       calls: config.scan?.calls ?? ['toast', 'alert', 'confirm'],
@@ -741,7 +750,7 @@ function scanIgnore(ignore: Record<string, string[] | undefined>, at: (path: str
       throw new Error(`scan.ignore.${check} is not a check scan runs file by file: ${SCAN_CHECKS.join(', ')}, or * for all`);
   }
   const paths = (check: ScanCheck) => [...(ignore['*'] ?? []), ...(ignore[check] ?? [])].map(at);
-  return { 'hardcoded-text': paths('hardcoded-text'), 'formatted-in-code': paths('formatted-in-code') };
+  return Object.fromEntries(SCAN_CHECKS.map((check) => [check, paths(check)])) as Record<ScanCheck, string[]>;
 }
 
 /**

@@ -305,7 +305,7 @@ test('scan.ignore keeps a check out of a folder', () => {
   const c = fixture(files, { scan: { ignore: { 'formatted-in-code': ['src/server'] } } });
   expect(scan(c.scan, c.root).hardcoded.map((h) => h.text)).toEqual(['Total ${n.toLocaleString()}']);
   expect(() => fixture({}, { scan: { ignore: { formatted: ['src'] } as never } })).toThrow(
-    'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code, or * for all',
+    'scan.ignore.formatted is not a check scan runs file by file: hardcoded-text, formatted-in-code, test-text, or * for all',
   );
 });
 

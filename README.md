@@ -172,6 +172,7 @@ generated copy](API.md#voice-guidelines), held to the messages and their context
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.
+- [**In tests**](API.md#in-tests): `copy.t('cart.checkout')` and `copy.match('cart.items')` from `prosebook/test` find the page's text by key, and `scan --fix` rewrites tests that say it.
 - [**GitHub action**](API.md#github-action): `uses: gkurt/prosebook@main` checks the copy on a pull request, shows the findings in code scanning and posts the diff.
 - [**Translate**](API.md#translating-with-a-model): `prosebook translate` asks a model for what a locale is missing, and writes only what holds.
 - [**Locale in the URL**](API.md#locale-in-the-url): `localeRoutes` reads `/de/cart`, writes a page's URL in another locale, lists `hreflang` alternates and says where to redirect.

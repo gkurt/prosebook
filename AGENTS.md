@@ -129,7 +129,7 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
   ships as source for the app's Svelte compiler (tsdown copies it and its `.d.ts`), renders them. It
   imports `prosebook/svelte` by name, and its types name prosebook by package, as they ship beside it.
 
-Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
+Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/config`, `prosebook/vite`, `prosebook/next`, `prosebook/webpack`, `prosebook/metro`, `prosebook/bun`,
 `prosebook/astro`, `prosebook/ai`, the CLI):
 
 - `src/tools/config.ts`: the config, its defaults and loading, and which rule runs at what severity.
@@ -462,7 +462,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   message's text through its literals (`literalsIn`), since the readings lose positions; a literal
   escaped in the text has none, so neither has a finding in it.
 - `src/playground.ts`: `prosebook/playground`, `play` and `fix`: `render`, `lint` and `applyFixes` over files held in
-  memory, each locale compiled and run for `createCopy`. A second tsdown build, for the browser, replaces each `node:`
+  memory, each locale compiled and run for `createCopy` (`evaluatedCatalog`, `evaluated.ts`, which `prosebook/test` shares). A second tsdown build, for the browser, replaces each `node:`
   module the tools import with its stand-in in `src/browser/` (`BROWSER_SHIMS`): `fs.ts` is the in-memory volume every
   call fills anew, `path.ts` POSIX paths. A tool that reaches a new Node API needs it there too, or that build fails; keep
   `oxc-parser` and TypeScript out of what `playground.ts` imports. `test/playground.test.ts` builds it the same way, as
@@ -470,11 +470,24 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   `endpoints` is the inspector's endpoints (`inspectorEndpoints`) over files it keeps: each request loads them into the
   volume and is answered in the same turn (`withConfig`, `endpoints.ts`, which also reads a POST's body first), since
   any other call clears the volume, and `written` takes the files back out after an edit.
+- `src/test.ts`: `prosebook/test`, the catalog in a test: `copy`, loaded with top-level await from the nearest config up
+  from the working directory (a failed load kept, thrown by each read, so importing `loadCopy` alone works), and
+  `loadCopy`. It renders the YAML in memory (`render` without native targets, `evaluatedCatalog`), and makes a copy per
+  locale up front, each awaited, since `setLocale` is asynchronous and `in` isn't; `negotiate` falling back to the source
+  is refused there. Its copies throw from `onMissing` and `onError`, as a test should fail. `match` is
+  `matcher.ts`'s `messageRegExp` over the locale's AST, found along `chainOf`: each element a pattern, a placeholder not
+  given `ANY`, a plural or select not given every arm, one given rendered alone by `renderer` (`compile.ts`), so its text is
+  the runtime's; the arm a given plural or select takes is learnt by rendering it with each arm saying its own name
+  (`rearmed`), and a `#` by every arm saying `#`. `tests.ts`: `test-text`, the literals in test files (`scan.tests`
+  and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale (`says`: the whole
+  text, at least half its letters the message's own), past titles, imports and keys (`testLiterals`); `fixTestText`
+  writes `copy.t` (no placeholders) or `copy.match`, and the import after the file's last, which `scan --fix` runs and
+  `check` warns of. A file binding a `copy` of its own (`copyBinding`) gets only `copy.t`.
 - `src/tools/review.ts`: `prosebook diff`, the copy changed since a git revision. The base's catalog,
   translations and lock are read out of git (`ls-tree`, `show`) into a temporary folder and loaded with
   this project's config; entries are compared by key, a key gone and one come with the same words
   being a rename. Stale locales come from `reconcile` over the working lock, findings from `lint`,
-  kept to the locales whose words the change wrote. Text in `git diff --word-diff`'s notation, or
+  kept to the locales whose words the change wrote, and the tests still saying an entry's old text (`oldInTests`, through `tests.ts`). Text in `git diff --word-diff`'s notation, or
   Markdown for a pull request's comment, opening with `REVIEW_MARKER` and every cell escaped.
 - `src/tools/judge.ts`: `prosebook judge`, each entry held to the guidelines by the config's
   `judge.models`, each a `Judge` (an `id` and `judge({ state, questions })`). `askedOf` builds one request
