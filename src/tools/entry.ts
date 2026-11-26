@@ -137,10 +137,28 @@ export function applyFixes(config: ResolvedConfig, catalog: Catalog, findings: F
     );
     fixed += count;
   }
+  for (const f of findings) {
+    if (f.unallow === undefined) continue;
+    const content = contentOf(config, f.file, unsaved);
+    const next = withoutAllow(content, f.key, f.unallow);
+    if (next === content) continue;
+    unsaved.set(resolve(config.root, f.file), next);
+    fixed += 1;
+  }
   const { problems } = checkEdit(config, unsaved);
   if (problems.length > 0) return { fixed: 0, problems };
   for (const [path, content] of unsaved) writeFileSync(path, content);
   return { fixed, problems: [] };
+}
+
+/** An entry's exemption from one rule taken out, and `allow` with it once it holds none. */
+function withoutAllow(file: string, key: string, rule: string): string {
+  const doc = parse(file);
+  const allow = doc.getIn([key, 'allow'], true);
+  if (!isMap(allow) || !allow.has(rule)) return file;
+  allow.delete(rule);
+  if (allow.items.length === 0) doc.deleteIn([key, 'allow']);
+  return print(doc);
 }
 
 export interface Imported {

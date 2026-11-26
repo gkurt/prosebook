@@ -206,6 +206,8 @@ export interface Finding {
   suggestion?: string;
   /** Its `fix` is a rewrite, not a mechanical change: written by `lint --fix --unsafe` only. */
   unsafe?: boolean;
+  /** The rule whose exemption the entry no longer needs, which `lint --fix --unsafe` takes out of its `allow`. */
+  unallow?: string;
 }
 
 /** Tags whose content is code or a literal the reader types, not prose. */
@@ -1369,7 +1371,8 @@ export function lint(messages: Message[], config: ResolvedConfig, catalog: reado
       } else if (severityOf(config, name, message) === 'off') {
         continue;
       } else if (!fired.has(name) && !unjudged.has(name)) {
-        findings.push({ ...at, message: `allow.${name} exempts the entry from a rule it passes: remove it` });
+        // Unsafe: the words it excused may be on their way back, or a judge yet to weigh them.
+        findings.push({ ...at, message: `allow.${name} exempts the entry from a rule it passes: remove it`, unallow: name, unsafe: true });
       } else if (REASON_NAME.test(why) && config.lint.reasons[why] === undefined) {
         const named = Object.keys(config.lint.reasons);
         findings.push({

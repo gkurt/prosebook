@@ -512,7 +512,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
   reportFindings(config, findings, report);
   const errors = findings.filter((f) => f.severity === 'error').length;
   const fixable = findings.filter((f) => f.fix !== undefined && f.unsafe !== true).length;
-  const rewritable = new Set(findings.filter((f) => f.unsafe === true).map((f) => `${f.locale}\u0000${f.key}`)).size;
+  const rewritable = new Set(findings.filter((f) => f.suggestion !== undefined).map((f) => `${f.locale}\u0000${f.key}`)).size;
+  const unneeded = findings.filter((f) => f.unallow !== undefined).length;
   const broken = errorsIn(catalog).length;
   if (findings.length === 0) {
     out(
@@ -523,6 +524,8 @@ function runLint(config: ResolvedConfig, report?: SarifReport, fix = false, unsa
     if (fixable > 0) err(`${fixable} of them can be fixed with prosebook lint --fix.`);
     const rewrites = `${rewritable} entr${rewritable === 1 ? 'y has' : 'ies have'} a judge's rewrite`;
     if (rewritable > 0) err(`${rewrites}: read it, then write it with prosebook lint --fix --unsafe.`);
+    const exemptions = `${unneeded} exemption${unneeded === 1 ? ' is' : 's are'} no longer needed`;
+    if (unneeded > 0) err(`${exemptions}: prosebook lint --fix --unsafe removes them.`);
   }
   return errors + broken > 0 ? 1 : 0;
 }

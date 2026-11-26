@@ -296,7 +296,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/config`, `prosebook
   in any script (`new` and `super(...)` too, the classes extending one named counting as named, `classesIn`; a name a
   `RegExp` matches, `namedIn`; text `scan.developerText` opens, `[React] …`, being a developer's), never a call `scan.skipCalls` names, nor anything inside one, `scan.scriptProperties`' values in any
   script and, in components only, `scan.properties`', a call's or property's lowercase string with no space being a code
-  (`IDENTIFIER`), none of it in tests or stories
+  (`IDENTIFIER`, `CAMEL`, and a call's `CONSTANT`), an options object's property naming no text read only as a phrase
+  (`PHRASE`), each place reported once, none of it in tests or stories
   or their helpers (`NOT_APP`). An element's run of text and values (`isRunValue`: `{name}`, or `pickOf`'s
   ternary between two strings) is one string,
   each value a template's hole, as `jsxText` renders it, with `decodeEntities`, since oxc leaves `&nbsp;`

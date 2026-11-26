@@ -1312,7 +1312,8 @@ lint: {
 },
 ```
 
-A shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs.
+A shrug (`Intentional.`) fails, and so does an exemption the entry no longer needs, which `lint --fix --unsafe` removes: unsafe, as
+the words it excused may be on their way back.
 
 **Plugins as code.** A rule gets the entry and its readings, and returns findings:
 
@@ -1547,10 +1548,14 @@ scan: {
 }
 ```
 
-- A name is written out or matched by a regular expression. `/.Error$/` names every error subclass and leaves out `Error`,
-  whose messages are mostly checks for developers. A class a name covers counts with the classes extending it in the same module.
-- In a call or a property, a lowercase string with no space is a code or a category, not text: `new TeamError('not-found')`,
-  `{ message: 'messages' }`.
+- A name is written out or matched by a regular expression, against the call's whole name, `PlatformError.systemError`, and
+  its first part. `/.Error$/` names every error subclass and leaves out `Error`, whose messages are mostly checks for
+  developers. A class a name covers counts with the classes extending it in the same module.
+- In a call or a property, a string with no space in lowercase or camel case is a code or a category, not text:
+  `new TeamError('not-found')`, `NotYourMessageError('sendNow')`, `{ message: 'messages' }`; so is a constant's name given to a
+  call, `ORPCError('UNAUTHORIZED')`.
+- In an options object a call is given, a property `scan.properties` or `scan.scriptProperties` names is text; any other is read
+  only where it is more than a word, so `{ _tag: 'Unknown', module: 'ChildProcess' }` passes.
 - A message for developers opens with a name in brackets, and isn't read: `[React] useDrawer must be used inside a Drawer.`
   Write them so, and `Error` can stand in `scan.calls` too. `scan.developerText` is how such a message starts, a regular
   expression (its source as a string in JSON), or `false` to read them all.

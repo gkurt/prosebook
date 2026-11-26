@@ -129,6 +129,25 @@ export const fail = () => {
     // Without developerText, a developer's text in brackets is read as any other.
     expect(found('server.ts', code, options)).toContain('7:30 TeamError(…) [React] useTeam must be used inside a TeamProvider.');
   });
+
+  test('constants and camel case are codes, a call matches by its whole name, and an option that names no text is read as a phrase', () => {
+    const code = `
+export const fail = () => {
+  if (a) throw new ORPCError('UNAUTHORIZED');
+  if (b) throw new NotYourMessageError('sendNow');
+  if (c) throw PlatformError.systemError({ _tag: 'Unknown', module: 'ChildProcess', cause: 'The process exited early.' });
+  if (d) throw PlatformError.badArgument({ module: 'FileSystem' });
+  toast('Saved', { description: 'Draft', id: 'save' });
+  return { label: 'NEW' };
+};`;
+    const options = { calls: [/Error$/, 'toast'], skipCalls: ['PlatformError.badArgument'], scriptProperties: ['label', 'description'] };
+    expect(found('server.ts', code, options)).toEqual([
+      '5:92 PlatformError.systemError(…) The process exited early.',
+      '7:9 toast(…) Saved',
+      '7:33 toast(…) Draft',
+      '8:19 label: NEW',
+    ]);
+  });
 });
 
 test('numbers, dates and lists formatted in code are found, with the copy method and named format to read', () => {

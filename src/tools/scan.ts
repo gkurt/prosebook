@@ -324,12 +324,19 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
   const { program } = parseSync(file, code);
   const found: Hardcoded[] = [];
   const { position, ignored, allowed } = lineIndex(code);
-  const report = (node: Node, text: string, where: string, via: Hardcoded['via'], inside: readonly string[]) => {
+  const reported = new Set<number>();
+  const report = (node: Node, text: string, where: string, via: Hardcoded['via'], inside: readonly string[], phrase = false) => {
     const trimmed = text.replace(/\s+/g, ' ').trim();
     if (!LETTER.test(trimmed) || looksLikeCode(trimmed)) return;
-    // A call's or a property's value may be a code, `new TeamError('not-found')`, or a category, `message: 'messages'`.
-    if (via !== 'jsx' && IDENTIFIER.test(trimmed)) return;
+    // A call's or a property's value may be a code, `new TeamError('not-found')`, `ORPCError('UNAUTHORIZED')`,
+    // or a category, `message: 'messages'`.
+    if (via !== 'jsx' && (IDENTIFIER.test(trimmed) || CAMEL.test(trimmed) || (via === 'call' && CONSTANT.test(trimmed)))) return;
+    // An option of a call that names no text, `_tag: 'Unknown'`, is read only where it is more than a word.
+    if (phrase && !PHRASE.test(trimmed)) return;
     if (via !== 'jsx' && developerText !== undefined && matches(developerText, trimmed)) return;
+    // An option named as a property too, `toast('…', { description: '…' })`, is found once, as the call's.
+    if (reported.has(node.start)) return;
+    reported.add(node.start);
     const at = position(node.start + Math.max(0, code.slice(node.start, node.end).search(/\S/)));
     if (ignored(at.line)) return;
     const allow = allowed(at.line);
@@ -344,14 +351,14 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     });
   };
   // A template's text is its words, so `${a} ${b}` is none; it is shown as written, placeholders and all.
-  const reportShown = (expr: Node | undefined, where: string, via: Hardcoded['via'], inside: readonly string[] = []) => {
+  const reportShown = (expr: Node | undefined, where: string, via: Hardcoded['via'], inside: readonly string[] = [], phrase = false) => {
     for (const node of shownLiterals(expr)) {
       if (node.type === 'Literal') {
-        report(node, via === 'jsx' ? decodeEntities(node.value as string) : (node.value as string), where, via, inside);
+        report(node, via === 'jsx' ? decodeEntities(node.value as string) : (node.value as string), where, via, inside, phrase);
         continue;
       }
       const words = (node.quasis as { value: { cooked: string } }[]).map((q) => q.value.cooked).join('');
-      if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via, inside);
+      if (LETTER.test(words)) report(node, code.slice(node.start + 1, node.end - 1), where, via, inside, phrase);
     }
   };
 
@@ -410,11 +417,21 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
     if (node.type === 'CallExpression' || node.type === 'NewExpression') {
       // `super('…')` is a call to the class extended, by its name.
       const callee = (node.callee as Node).type === 'Super' ? base : calleeOf(node.callee as Node);
-      if (callee !== undefined && (CLASS_CALLS.has(callee.root) || namedIn(skipCalls, callee.root))) return;
-      if (callee !== undefined && isNamed(callee.root)) {
+      if (callee !== undefined && (CLASS_CALLS.has(callee.root) || namedIn(skipCalls, callee.name) || namedIn(skipCalls, callee.root)))
+        return;
+      if (callee !== undefined && (isNamed(callee.name) || isNamed(callee.root))) {
         for (const arg of node.arguments as Node[]) {
-          if (arg.type !== 'ObjectExpression') reportShown(arg, callee.name, 'call');
-          else for (const p of arg.properties as Node[]) if (p.type === 'Property') reportShown(p.value as Node, callee.name, 'call');
+          if (arg.type !== 'ObjectExpression') {
+            reportShown(arg, callee.name, 'call');
+            continue;
+          }
+          // An options object's text is under a property that names text; under any other, a phrase.
+          for (const p of arg.properties as Node[]) {
+            if (p.type !== 'Property') continue;
+            const name = propertyName(p) ?? '';
+            const text = properties.includes(name) || scriptProperties.includes(name);
+            reportShown(p.value as Node, callee.name, 'call', [], !text);
+          }
         }
       }
     }
@@ -453,6 +470,12 @@ export function hardcodedText(file: string, code: string, options: Pick<ScanOpti
 
 /** A string no person reads as words: lowercase with no space, as a reason code, `not-found`, or a category, `messages`. */
 const IDENTIFIER = /^[a-z][a-z0-9]*(?:[-_.:/][a-z0-9]+)*$/;
+/** A name in camel or Pascal case, a capital inside it: `sendNow`, `ChildProcess`. */
+const CAMEL = /^(?=.*[a-z])[A-Za-z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$/;
+/** A constant's name, `UNAUTHORIZED`, `NOT_FOUND`: a code where a call is given it, a label's text where a property is. */
+const CONSTANT = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
+/** Text that reads as more than a word: a space in it, or a stop or an ellipsis at its end. */
+const PHRASE = /\s|[.!?…:]$/u;
 
 /** Whether `names` holds a name, written out or matched by a regular expression. */
 function namedIn(names: readonly (string | RegExp)[], name: string): boolean {

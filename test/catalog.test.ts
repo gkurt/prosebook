@@ -350,6 +350,25 @@ describe('lint', () => {
     ]);
   });
 
+  test('an exemption no longer needed is removed by lint --fix --unsafe only, and allow with it once empty', () => {
+    const config = fixture({
+      'copy/catalog/app.yaml': [
+        'app.c:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: The legal name of the plan, which is fixed.\n  en: Pro',
+        'app.d:\n  kind: name\n  context: A title.\n  allow:\n    word-budget: The legal name of the plan, which is fixed.\n    no-period: The plan name ends in its own period here.\n  en: Plus.',
+      ].join('\n'),
+    });
+    const file = join(config.root, 'copy/catalog/app.yaml');
+    const before = readFileSync(file, 'utf8');
+    expect(cli(config.root, 'lint').stderr).toContain('2 exemptions are no longer needed: prosebook lint --fix --unsafe removes them.');
+    cli(config.root, 'lint', '--fix');
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    cli(config.root, 'lint', '--fix', '--unsafe');
+    const after = readFileSync(file, 'utf8');
+    expect(after).not.toContain('word-budget');
+    expect(after).toContain('allow:\n    no-period: The plan name ends in its own period here.');
+    expect(after).toMatch(/app\.c:\n {2}kind: name\n {2}context: A title\.\n {2}en: Pro/);
+  });
+
   const house = definePlugin({
     name: 'house',
     rules: {
