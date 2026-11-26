@@ -27,6 +27,8 @@ const project = () =>
         'cart.owner: "{name} has {count, plural, one {# item} other {# items}}"',
         'cart.role: "{role, select, assistant {Assistant} other {{role}}}"',
         'cart.method: "{method} {path}"',
+        'cart.on: "On {branch}"',
+        `cart.host: "{host} isn't a public address."`,
         '',
       ].join('\n'),
       'copy/locales/de/cart.yaml': 'cart.checkout: Zur Kasse\n',
@@ -199,12 +201,30 @@ describe('test-text', () => {
     ]);
   });
 
-  test('a literal mostly placeholder is no message', () => {
+  test('through a placeholder taking words, only where the message says a phrase around it', () => {
     const patterns = testPatterns(loadCatalog(project()).messages, 'en');
-    expect(testText('e2e/a.spec.ts', "fill('Hi Grace Hopper, how are you today?');", patterns, 'en')).toEqual([]);
-    expect(testText('e2e/a.spec.ts', "fill('Hi Ada, welcome back.');", patterns, 'en').map((f) => f.read)).toEqual([
-      "copy.match('cart.greeting')",
-    ]);
+    const reads = (line: string) => testText('e2e/a.spec.ts', line, patterns, 'en').map((f) => f.read);
+    expect(reads("expect(a).toBe('Hi Grace Hopper, how are you today?');")).toEqual([]);
+    // `Hi {name}, welcome back.` has three words of its own, and `On {branch}` one: words of the test's own fill them.
+    expect(reads("expect(a).toBe('Hi Ada, welcome back.');")).toEqual([]);
+    expect(reads("expect(a).toBe('On it.');")).toEqual([]);
+    expect(reads(`expect(a).toHaveText("localhost isn't a public address.");`)).toEqual(["copy.match('cart.host')"]);
+    // A number fills its placeholder with no letters, as the catalog writes it, and nothing else does.
+    expect(reads("expect(a).toHaveText('12 items');")).toEqual(["copy.match('cart.items')"]);
+    expect(reads("expect(a).toHaveText('the items');")).toEqual([]);
+  });
+
+  test('only what a test expects of the page, less what it put in itself', () => {
+    const patterns = testPatterns(loadCatalog(project()).messages, 'en');
+    const code = [
+      "await page.getByLabel('Name').fill('Check out');",
+      "await expect(page.getByText('Check out')).toBeVisible();",
+      "seed({ title: 'Closed' });",
+      "await page.locator('li').filter({ hasText: 'Open' }).click();",
+      "expect(screen.getAllByRole('button', { name: 'Assistant' })).toHaveLength(1);",
+      '',
+    ].join('\n');
+    expect(testText('e2e/a.spec.ts', code, patterns, 'en').map((f) => f.text)).toEqual(['Open', 'Assistant']);
   });
 
   test('scan.ignore keeps it out of a folder', () => {

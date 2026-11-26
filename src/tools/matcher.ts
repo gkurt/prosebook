@@ -55,7 +55,12 @@ interface Context {
   locale: string;
   values: Values;
   helpers: HelperOptions;
+  /** What a number not given matches: any text, or with `numbers`, text with no letters. */
+  number: string;
 }
+
+/** A number written out, with no letter: `3`, `€1,234.50`, `12 %`. Only in a pattern with the `u` flag. */
+const NUMBER = '\\P{L}+?';
 
 const given = (values: Values, name: string) => Object.hasOwn(values, name) && values[name] !== undefined && values[name] !== null;
 
@@ -109,7 +114,7 @@ function elementPattern(el: MessageFormatElement, cx: Context, pound: Pound, edi
       edits,
     );
   }
-  if (el.type === TYPE.pound) return pound ?? ANY;
+  if (el.type === TYPE.pound) return pound ?? cx.number;
   if (el.type === TYPE.tag) return patternOf(el.children, cx, pound, edits);
   if (el.type === TYPE.select) {
     if (!given(cx.values, el.value)) return alternatives(Object.values(el.options).map((o) => patternOf(o.value, cx, pound, edits)));
@@ -138,7 +143,8 @@ function elementPattern(el: MessageFormatElement, cx: Context, pound: Pound, edi
   // A placeholder: plain, a number, a date, a time, or prosebook's list, duration or relative time.
   const name = extensionOf(el)?.value ?? (el as { value?: string }).value;
   const names = name === undefined ? [] : [name, ...Object.values(optionArgsOf(el) ?? {}).map((o) => o.arg)];
-  return names.length > 0 && names.every((n) => given(cx.values, n)) ? literalPattern(rendered(el, cx)) : ANY;
+  if (names.length > 0 && names.every((n) => given(cx.values, n))) return literalPattern(rendered(el, cx));
+  return el.type === TYPE.number ? cx.number : ANY;
 }
 
 export interface PatternOptions {
@@ -148,13 +154,17 @@ export interface PatternOptions {
   distance?: number;
   /** How dates and relative times are written, as the copy's options say: its time zone and clock. */
   helpers?: HelperOptions;
+  /** A number not given, a `#` or `{n, number}`, matches only text with no letters, as a number written out has none. */
+  numbers?: boolean;
 }
 
 /** A message's text in `locale` as a regular expression, the placeholders in `values` as written and the rest any text. */
 export function messageRegExp(ast: MessageFormatElement[], locale: string, values: Values = {}, options: PatternOptions = {}): RegExp {
   const distance = options.distance ?? 0;
   if (!Number.isInteger(distance) || distance < 0) throw new Error(`distance is ${distance}: give a whole number of characters, 0 or more`);
-  const body = patternOf(inlined(ast), { locale, values, helpers: options.helpers ?? {} }, undefined, distance);
+  const numbers = options.numbers === true;
+  const cx = { locale, values, helpers: options.helpers ?? {}, number: numbers ? NUMBER : ANY };
+  const body = patternOf(inlined(ast), cx, undefined, distance);
   if (body.length > LONGEST) {
     const why = `a distance of ${distance} makes this message an expression of ${body.length} characters`;
     throw new Error(`${why}: give a smaller one, or values for its plurals and selects`);
@@ -162,5 +172,5 @@ export function messageRegExp(ast: MessageFormatElement[], locale: string, value
   const { partial } = options;
   const start = partial === true || partial === 'end' ? '' : '^\\s*';
   const end = partial === true || partial === 'start' ? '' : '\\s*$';
-  return new RegExp(`${start}${body}${end}`);
+  return new RegExp(`${start}${body}${end}`, numbers ? 'u' : '');
 }

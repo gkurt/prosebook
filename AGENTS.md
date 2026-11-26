@@ -485,8 +485,11 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   between the first element with words and the rest, a literal word by word (each edit is one word's or one space's,
   so the split loses no alignment, and is far shorter than splitting by character), and `fuzzyPattern` spends it in a
   word. It grows as the length to the power of the distance, so past `LONGEST` it throws. `tests.ts`: `test-text`, the literals in test files (`scan.tests`
-  and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale (`says`: the whole
-  text, at least half its letters the message's own, each arm of a plural or select a pattern of its own, `textsOf`, up to
+  and the `*.test.*`/`*.spec.*` files under `scan.dirs`, `testFiles`) that say a message in any locale, of those a test expects
+  (`expectedLiterals`: a matcher's or a locator's arguments, `isMatcher`, `LOCATORS`, `HAS_TEXT`, less any the file also
+  puts in elsewhere) (`says`: the whole text, a number not given matching only text with no letters (`numbers` in
+  `messageRegExp`, `\P{L}`), a placeholder taking words only beside `PHRASE_WORDS` of the message's own, at least half its
+  letters the message's own, each arm of a plural or select a pattern of its own, `textsOf`, up to
   `MOST_TEXTS`, so an arm that is only a placeholder matches nothing; a literal shaped as code, scan's `IDENTIFIER`,
   `CAMEL`, `CONSTANT` or `looksLikeCode`, only a plain message saying it alone), past titles, imports, keys and every
   argument of a read (`READS`: `copy.t('k', { source: 'GitHub' })`, `copy.in('de')`) (`testLiterals`); `fixTestText`

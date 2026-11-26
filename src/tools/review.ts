@@ -17,7 +17,7 @@ import type { ResolvedConfig } from './config.ts';
 import { wordDiff, type DiffPart } from './diff.ts';
 import { lint, type Finding } from './lint.ts';
 import { readLock, reconcile } from './lock.ts';
-import { says, testFiles, testLiterals, testPatterns } from './tests.ts';
+import { expectedLiterals, says, testFiles, testPatterns } from './tests.ts';
 
 export interface TranslationChange {
   locale: string;
@@ -109,7 +109,7 @@ function literalsInTests(config: ResolvedConfig): PlacedLiteral[] {
   return testFiles(config).flatMap((path) => {
     const file = relative(config.root, path).replaceAll('\\', '/');
     try {
-      return testLiterals(file, readFileSync(path, 'utf8')).map((l) => ({ at: `${file}:${l.line}`, text: l.text.trim() }));
+      return expectedLiterals(file, readFileSync(path, 'utf8')).map((l) => ({ at: `${file}:${l.line}`, text: l.text.trim() }));
     } catch {
       return [];
     }
@@ -118,10 +118,9 @@ function literalsInTests(config: ResolvedConfig): PlacedLiteral[] {
 
 /** The tests saying `old`'s source text that `now`'s, the same entry's after the change, no longer says. */
 function oldInTests(config: ResolvedConfig, literals: PlacedLiteral[], old: Message, now: Message | undefined): string[] {
-  const [was] = testPatterns([old], config.source);
-  if (was === undefined) return [];
-  const [is] = now === undefined ? [] : testPatterns([now], config.source);
-  return literals.filter((l) => says(l.text, was) && (is === undefined || !says(l.text, is))).map((l) => l.at);
+  const was = testPatterns([old], config.source);
+  const is = now === undefined ? [] : testPatterns([now], config.source);
+  return literals.filter((l) => was.some((p) => says(l.text, p)) && !is.some((p) => says(l.text, p))).map((l) => l.at);
 }
 
 const FIELDS = ['context', 'kind', 'surface', 'fragment', 'args', 'closed', 'min', 'allow', 'comment', 'remove'] as const;

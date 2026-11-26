@@ -625,12 +625,17 @@ warn  e2e/cart.spec.ts:5:31 test says "3 items", the text of cart.items: read co
 - It reads every source file under `scan.tests` (`e2e`, `tests`, `test`, `cypress` and `playwright` by default, those
   there are) and the test files under `scan.dirs` (`*.test.ts`, `*.spec.tsx`). `scan.ignore['test-text']` leaves a folder
   out, and `prosebook-ignore` a line.
-- A literal is a message's text where the whole of it matches the message and at least half its letters are the message's own
-  words, so `'Hi Grace, how are you today?'` isn't `Hi {name}`. Each arm of a plural or select is a text of its own, so
-  `{role, select, assistant {Assistant} other {{role}}}` says `'Assistant'` but not every literal. A literal that reads as
-  code, `'assistant'`, `'POST'` or `'sendNow'`, is only a message that says that alone. A test's title, an import, an
-  object's key and what a read of the copy is given (`copy.t('cart.checkout', { source: 'GitHub' })`, `copy.in('de')`)
-  aren't read.
+- Only what a test expects of the page is read: a matcher's argument, `expect(…).toHaveText('…')`, and a locator's text,
+  `getByText`, `getByRole`'s name, `getByLabel`, `filter({ hasText })` or Cypress's `contains`. What a test puts in, typed
+  with `fill`, seeded, sent or scripted, isn't, and nor is a literal the same file also puts in, as a test finding its own
+  data again says no copy.
+- A literal is text the catalog returns: the whole of it matches the message, each arm of a plural or select apart. A
+  number the message shows matches only text with no letters, so `'12 items'` is `{count, plural, …}` but `'the items'`
+  isn't. A placeholder taking words counts only where the message has four words of its own around it:
+  `"localhost isn't a public address."` is `{host} isn't a public address.`, but `'On it.'` isn't `On {branch}`. A literal
+  that reads as code, `'assistant'`, `'POST'` or `'sendNow'`, is only a message that says that alone. A test's title, an
+  import, an object's key and what a read of the copy is given (`copy.t('cart.checkout', { source: 'GitHub' })`) aren't
+  read.
 - A literal two messages say is reported with both, and not rewritten. A file with a `copy` of its own gets `copy.t` for a
   message with no placeholders, and is told to read `prosebook/test` for the rest.
 - `prosebook check` warns of them too, `scan --strict` fails on them, and [`prosebook diff`](#diff) names the tests still saying
