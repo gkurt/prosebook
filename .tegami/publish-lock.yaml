@@ -1,44 +1,52 @@
 core:changelogs:
-  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### test-text passes a literal of one word, which is more often test data equal to a label than copy\n"
-    filename: test-text-one-word.md
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### prosebook init installs deictic for the copy inspector, and adds prosebook to the bundler's config\n\nWhere the project can't import deictic, `init` installs it with the project's package manager (`--no-install` only says the command), and adds prosebook's integration to the Vite, Astro, webpack or Rspack config, or wraps Next's or Metro's, printing the snippet where it can't tell where. The server's record of reads now stops once the last dev server using it closes.\n"
+    filename: init-deictic.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: patch\n---\n\n### The copy inspector's key is a purple tag in deictic's caption, and hovering the key in the Copy tab outlines the string\n\nIts own label over the string could cover deictic's caption. In the tab, More starts closed each time, and Save shows its keys as caps in place of a hint beside it.\n"
+    filename: inspector-tag.md
+    v: 0.0.0
+  - content: "---\npackages:\n  prosebook:\n    type: minor\n---\n\n### The copy inspector is a deictic plugin: install deictic and every integration adds it, merged into an app's own deictic\n\n`prosebook/deictic` is the plugin, and its edits land in deictic's history, so undo takes them back. `prosebook/inspector` is gone, `inspect` takes `{ shortcut }` as a deictic shortcut, `prosebook/bun`'s `inspector()` is async and answers deictic's routes, the playground's `endpoints` is `standalone`, deictic's `Standalone`, and `editEntry` hands back each file's new text instead of writing it.\n"
+    filename: deictic-inspector.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - test-text-one-word.md
+      - init-deictic.md
+      - inspector-tag.md
+      - deictic-inspector.md
     id: npm:prosebook
     updated: true
   - id: npm:site
     updated: false
-  - id: npm:example-vue
+  - id: npm:example-next
     updated: false
   - id: npm:example-rspack
     updated: false
-  - id: npm:example-next
-    updated: false
   - id: npm:example-node
     updated: false
-  - id: npm:example-svelte
-    updated: false
-  - id: npm:example-preact
-    updated: false
-  - id: npm:example-tanstack-start
+  - id: npm:example-vue
     updated: false
   - id: npm:example-vite
     updated: false
+  - id: npm:example-tanstack-start
+    updated: false
   - id: npm:example-bun
+    updated: false
+  - id: npm:example-preact
+    updated: false
+  - id: npm:example-svelte
     updated: false
   - id: npm:example-solid
     updated: false
 npm:packages:
   - id: npm:prosebook
   - id: npm:site
-  - id: npm:example-vue
-  - id: npm:example-rspack
   - id: npm:example-next
+  - id: npm:example-rspack
   - id: npm:example-node
-  - id: npm:example-svelte
-  - id: npm:example-preact
-  - id: npm:example-tanstack-start
+  - id: npm:example-vue
   - id: npm:example-vite
+  - id: npm:example-tanstack-start
   - id: npm:example-bun
+  - id: npm:example-preact
+  - id: npm:example-svelte
   - id: npm:example-solid
