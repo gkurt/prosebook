@@ -252,7 +252,7 @@
     "ai": "^7.0.164",
     "astro": "^7.4.5",
     "cldr-core": "48",
-    "deictic": "link:deictic",
+    "deictic": "^0.10.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "metro": "^0.87.3",

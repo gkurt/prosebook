@@ -116,9 +116,8 @@ const ownDir = normalize(fileURLToPath(new URL('.', import.meta.url)));
 /** The catalog's plugin, and where deictic is installed, deictic's with the copy inspector. */
 export function prosebook(options: ProsebookPluginOptions = {}): PluginOption[] {
   const inspector = copyInspector(options.inspect, { root: options.root, config: options.config });
-  // deictic's Plugin is typed by the Vite deictic resolves, which may not be this one: the same object to Vite.
   const deictic = inspector.then(async (plugin) =>
-    plugin === undefined ? undefined : ((await import('deictic/vite')).deictic(added(plugin)) as unknown as Plugin),
+    plugin === undefined ? undefined : (await import('deictic/vite')).deictic(added(plugin)),
   );
   return [catalogPlugin(options, inspector), deictic];
 }

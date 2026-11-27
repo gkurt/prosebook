@@ -44,7 +44,7 @@ export function prosebook(options: ProsebookPluginOptions = {}): AstroIntegratio
           return;
         }
         const { deictic, CLIENT } = await import('deictic/vite');
-        updateConfig({ vite: { plugins: [deictic(added(inspector)) as unknown as Plugin] } });
+        updateConfig({ vite: { plugins: [deictic(added(inspector))] } });
         injectScript('page', `import ${JSON.stringify(CLIENT)};`);
       },
     },
