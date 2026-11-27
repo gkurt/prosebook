@@ -79,7 +79,8 @@ test("in dev, every page gets deictic's overlay with the copy inspector, what th
     expect(page).toContain('prosebook/dev');
     expect(page).toContain('deictic/client');
     const reads = (await (await fetch(`${origin}__deictic/plugins/prosebook/reads`)).json()) as [string, { key: string }[]][];
-    expect(reads.map(([text, [read]]) => [text, read!.key])).toEqual([
+    // The record lasts as long as the process, which is every test file's here: the page's reads are its newest.
+    expect(reads.map(([text, [read]]) => [text, read!.key]).slice(-2)).toEqual([
       ['Server title', 'app.title'],
       ['Read the terms.', 'app.terms'],
     ]);
