@@ -22,7 +22,7 @@
     "@ai-sdk/typesafe-ai": "^3.0.35",
     "@astrojs/check": "^0.9.12",
     "ai": "^7.0.164",
-    "deictic": "^0.11.0",
+    "deictic": "^0.12.0",
     "typescript": "^6.0.3"
   }
 }

@@ -1,7 +1,7 @@
 /**
  * The Copy tab's editor: one entry, opened on its text as read, in its locale, with what lint says of it; the
  * source beside a translation; and the rest of the entry (its other locales, context, role, placeholders) under
- * More, which stays open once opened.
+ * More, closed each time it opens.
  *
  * Saving is deictic's `apply`: the server half checks the edit as the whole catalog and hands back the files'
  * new text, which deictic writes and keeps in its history, so the popup's undo takes it back. While typing, the
@@ -27,16 +27,21 @@ export interface EditorContext {
   open: (place: Place) => Promise<void>;
   /** Says what leaving would lose: the Save button while there's an edit, else nothing. */
   unsaved: (action: HTMLElement | undefined) => void;
+  /** Outlines the string on the page while the key is hovered, where the panel was opened on one: answers what ends it. */
+  outline?: () => () => void;
 }
 
 type Reply = { view?: EntryView; problems?: Problem[] };
 
-const MORE = 'prosebook:inspector:more';
+/** The copy inspector's color, its tag's in deictic's caption and its key's in the panel, apart from deictic's accent. */
+export const PURPLE = '#7c3aed';
 
 export const STYLE = `
 .prosebook { display: grid; gap: 12px; }
 .prosebook .bar { display: flex; align-items: center; gap: 8px; }
-.prosebook .key { font: 600 12px/1.5 ui-monospace, monospace; color: var(--deictic-on-accent); background: var(--deictic-accent); padding: 1px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prosebook .key { font: 600 12px/1.5 ui-monospace, monospace; color: #fff; background: ${PURPLE}; padding: 1px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prosebook button kbd { display: inline-block; box-sizing: border-box; min-width: 18px; margin-left: 6px; padding: 0 4px; border: 1px solid rgb(255 255 255 / 0.3); border-bottom-width: 2px; border-radius: 4px; font: 11px/15px ui-monospace, monospace; text-align: center; }
+.prosebook button kbd + kbd { margin-left: 3px; }
 .prosebook .grow { flex: 1; }
 .prosebook button.quiet { border: 0; color: var(--deictic-muted); }
 .prosebook button.quiet:hover { color: var(--deictic-fg); }
@@ -85,24 +90,6 @@ export function button(props: object, onClick: () => void): HTMLButtonElement {
 
 const rowsFor = (text: string) => Math.min(10, Math.max(2, text.split('\n').length + (text.length > 50 ? 1 : 0)));
 
-/** localStorage, which a private window or blocked site data may refuse. */
-const stored = {
-  get: (name: string) => {
-    try {
-      return localStorage.getItem(name);
-    } catch {
-      return null;
-    }
-  },
-  set: (name: string, value: string) => {
-    try {
-      localStorage.setItem(name, value);
-    } catch {
-      // Remembered for this page only.
-    }
-  },
-};
-
 /** Draws the editor for an entry into `container`, once it's read; answers what stops it. */
 export function showEntry(container: HTMLElement, context: EditorContext, key: string, locale: string): () => void {
   let editor: Editor | undefined;
@@ -133,7 +120,9 @@ const nameOf = (view: EntryView, locale: string) => (locale === view.source ? 'm
 class Editor {
   private readonly problems = el('ul', { className: 'problems' });
   private readonly more = el('details');
-  private readonly saveButton = button({ className: 'primary', textContent: 'Save' }, () => void this.save());
+  /** What the Save button says, beside its keys' caps. */
+  private readonly saying = el('span', { textContent: 'Save' });
+  private readonly saveButton = button({ className: 'primary' }, () => void this.save());
   /** What lint said, and each locale's text it said it of: a finding's place and fix are in that text. */
   private findings: EntryFinding[] = [];
   private checked = new Map<string, string>();
@@ -179,7 +168,7 @@ class Editor {
   private readonly edited = () => {
     const changed = JSON.stringify(this.fields()) !== this.saved;
     this.context.unsaved(changed ? this.saveButton : undefined);
-    if (changed) this.saveButton.textContent = 'Save';
+    if (changed) this.saying.textContent = 'Save';
     this.check();
   };
 
@@ -188,23 +177,21 @@ class Editor {
       { className: 'quiet', textContent: 'Open entry ↗', title: 'Open the entry in your editor' },
       () => void this.openFile(),
     );
-    return el(
-      'div',
-      { className: 'bar' },
-      el('span', { className: 'key', textContent: this.view.key, title: this.view.key }),
-      el('span', { className: 'grow' }),
-      open,
-    );
+    const key = el('span', { className: 'key', textContent: this.view.key, title: this.view.key });
+    let unlit: (() => void) | undefined;
+    key.addEventListener('pointerenter', () => (unlit = this.context.outline?.()));
+    key.addEventListener('pointerleave', () => {
+      unlit?.();
+      unlit = undefined;
+    });
+    return el('div', { className: 'bar' }, key, el('span', { className: 'grow' }), open);
   }
 
   private footer(): HTMLElement {
     const mac = /Mac|iP/.test(navigator.platform);
-    return el(
-      'div',
-      { className: 'bar' },
-      el('span', { className: 'hint grow', textContent: `${mac ? '⌘' : 'Ctrl'}+Enter saves` }),
-      this.saveButton,
-    );
+    // Its keys as caps in the button itself, as in deictic's own tips.
+    this.saveButton.append(this.saying, el('kbd', { textContent: mac ? '⌘' : 'Ctrl' }), el('kbd', { textContent: '↵' }));
+    return el('div', { className: 'bar' }, el('span', { className: 'grow' }), this.saveButton);
   }
 
   /** The text as read, the source beside a translation, and the rest of the entry under More. */
@@ -213,8 +200,6 @@ class Editor {
     const f = view.fields;
     const translated = locale !== view.source;
 
-    this.more.open = stored.get(MORE) === 'open';
-    this.more.addEventListener('toggle', () => stored.set(MORE, this.more.open ? 'open' : ''));
     const placeholders = new Set(view.argNames);
     // Beside the placeholders, the tags `args` describes too.
     const argNames = [...new Set([...placeholders, ...Object.keys(f.args)])];
@@ -384,21 +369,21 @@ class Editor {
     if (b.disabled) return;
     clearTimeout(this.timer);
     b.disabled = true;
-    b.textContent = 'Saving…';
+    this.saying.textContent = 'Saving…';
     const fields = this.fields();
     try {
       await this.context.apply({ key: this.view.key, fields });
     } catch {
       // deictic shows why, under the panel.
       b.disabled = false;
-      b.textContent = 'Save';
+      this.saying.textContent = 'Save';
       return;
     }
     this.saved = JSON.stringify(fields);
     this.context.unsaved(undefined);
     this.showProblems([]);
     b.disabled = false;
-    b.textContent = 'Saved';
+    this.saying.textContent = 'Saved';
   }
 
   private async openFile(): Promise<void> {

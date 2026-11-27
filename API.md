@@ -1916,8 +1916,8 @@ Under Next the server can't link the areas' files; only hydration waits one requ
 ## Inspector
 
 The copy inspector is a [deictic](https://github.com/gkurt/deictic) plugin. Install deictic beside prosebook and, in dev, with any
-integration but webpack's and Metro's: hold <kbd>Alt</kbd> to see which entry each string comes from, and Alt-click one to edit
-it on the page, in deictic's **Copy** tab.
+integration but webpack's and Metro's: hold <kbd>Alt</kbd> to see which entry each string comes from (its key, a purple tag in
+deictic's caption), and Alt-click one to edit it on the page, in deictic's **Copy** tab.
 
 ```sh
 npm install -D deictic
@@ -1930,7 +1930,7 @@ npm install -D deictic
   `deictic({ plugins: [prosebook({ shortcut: { modifiers: ['Shift'] } })] })`, from `prosebook/deictic`.
 - The tab opens on the text pressed, in the locale it was read in, the source beside a translation, with lint's findings as you
   type and a **Fix** for each. **More** holds the rest of the entry: its other locales, context, kind, surface, what each
-  placeholder holds, and stays open once opened. Opened on an element some other way, it lists the strings in it to pick from.
+  placeholder holds, closed each time. Hovering the key outlines the string on the page. Opened on an element some other way, it lists the strings in it to pick from.
 - <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place, and deictic's
   undo takes the edit back. **Open entry** opens it in your editor, in the file of the field last in focus.
 - **Comment** and **Mark for removal** write `comment:` and `remove: true`, warnings in `generate` and `check` for whoever edits

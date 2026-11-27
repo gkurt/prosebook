@@ -1,6 +1,6 @@
 /**
  * `prosebook/deictic/client`: the copy inspector's page half. While deictic's keys are held, the string under
- * the pointer is outlined, its key over it; the Copy tab edits that string's entry (`panel.ts`), or, opened on
+ * the pointer is outlined and its key is a tag in deictic's caption (`tag`); the Copy tab edits that string's entry (`panel.ts`), or, opened on
  * an element some other way, lets you pick among the strings in it.
  *
  * Text carries no key: `<Text>` renders a fragment and `t()` returns a bare string, so the runtime reports every
@@ -11,7 +11,7 @@
 import type { ClientContext, ClientPlugin, PanelContext } from 'deictic';
 
 import { caretAt, keyAt, linesOf, rangeOf, type Hit } from './locate.ts';
-import { button, el, showEntry, STYLE } from './panel.ts';
+import { button, el, PURPLE, showEntry, STYLE, type EditorContext } from './panel.ts';
 import { listen, type Read, type Reads } from './reads.ts';
 import type { EntryEdit, Place } from './routes.ts';
 
@@ -58,10 +58,9 @@ function stringsIn(element: Element): { text: string; read: Read }[] {
 const LAYER = `
 .prosebook-lines { position: fixed; inset: 0; z-index: 2147483646; pointer-events: none; }
 .prosebook-lines .line { position: fixed; box-sizing: border-box; outline: 2px solid #a78bfa; background: rgb(167 139 250 / 0.12); border-radius: 2px; }
-.prosebook-lines .label { position: fixed; padding: 1px 6px; border-radius: 3px; font: 12px/1.5 ui-monospace, monospace; white-space: nowrap; color: #fff; background: #7c3aed; }
 `;
 
-/** An outline per line of the string under the pointer, its key on the first. */
+/** An outline per line of the string under the pointer, or of the one the panel's key is hovered for. */
 function outline(context: ClientContext): { show: (hit: Hit | undefined) => void; remove: () => void } {
   const layer = el('div', { className: 'prosebook-lines' }, el('style', { textContent: LAYER }));
   context.root.append(layer);
@@ -69,23 +68,12 @@ function outline(context: ClientContext): { show: (hit: Hit | undefined) => void
     show(hit) {
       const style = layer.firstChild!;
       if (hit === undefined) return layer.replaceChildren(style);
-      const lines = linesOfHit(hit);
-      const first = lines[0]!;
-      const label = el('div', {
-        className: 'label',
-        textContent: `${hit.read.key} · ${hit.read.locale}${hit.others > 0 ? ` · +${hit.others} with this text` : ''}`,
-      });
-      // Above the first line, or below it where there's no room above.
-      Object.assign(label.style, {
-        left: `${first.left - 2}px`,
-        ...(first.top < 24 ? { top: `${first.bottom + 2}px` } : { bottom: `${innerHeight - first.top + 2}px` }),
-      });
-      const boxes = lines.map((r) => {
+      const boxes = linesOfHit(hit).map((r) => {
         const box = el('div', { className: 'line' });
         Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
         return box;
       });
-      layer.replaceChildren(style, ...boxes, label);
+      layer.replaceChildren(style, ...boxes);
     },
     remove: () => layer.remove(),
   };
@@ -120,13 +108,19 @@ export default {
       lines.remove();
     };
   },
+  tag(_context, at) {
+    const hit = hitAt(at.x, at.y);
+    if (hit === undefined) return undefined;
+    const others = hit.others > 0 ? ` +${hit.others}` : '';
+    return { text: `${hit.read.key} · ${hit.read.locale}${others}`, color: PURPLE };
+  },
   pressed(_context, element) {
     press = { element, hit: pointer === undefined ? undefined : hitAt(pointer.x, pointer.y) };
   },
   mount(panel, context) {
     const root = el('div', { className: 'prosebook' });
     panel.append(el('style', { textContent: STYLE }), root);
-    const editor = {
+    const editor: EditorContext = {
       request: context.request,
       apply: (edit: EntryEdit) => context.apply(edit),
       unsaved: context.unsaved,
@@ -139,6 +133,12 @@ export default {
 
     const hit = hitOf(context);
     if (hit !== undefined) {
+      // The key's hover outlines the string on the page, for as long as it lasts.
+      editor.outline = () => {
+        const lines = outline(context);
+        lines.show(hit);
+        return lines.remove;
+      };
       show(hit.read);
       return () => stop();
     }

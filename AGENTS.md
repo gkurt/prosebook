@@ -443,13 +443,14 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   `entry` (GET a view, POST a check as it's typed), `place` (where an entry is, from deictic's root, for `context.edit`)
   and `reads`, what `serverReads` records in the dev server's own process, where Vite's and Astro's renders run, until the
   last dev server using it closes (deictic's `onClose`, counted in `__PROSEBOOK_SERVED__`).
-  `client.ts` is the page half: `pointing` outlines the string under the pointer with its key, `pressed` takes the string
+  `client.ts` is the page half: `pointing` outlines the string under the pointer and `tag` puts its key in deictic's caption,
+  purple (`PURPLE`, as the panel's key, which outlines the string while hovered), `pressed` takes the string
   under the press before the popup covers it, and `mount` edits that one (`panel.ts`), the spot's (`context.at`), or
   lists the strings in the element to pick. `locate.ts` matches text under the pointer to the reads the runtime
   reported, since the DOM carries no keys, and to those the server reported; its test drives `keyAt` over a DOM.
   `reads.ts` is the record (`listen`, once per page: each integration's dev module calls it before any copy reads).
   `panel.ts` draws in deictic's shadow root with its custom properties, every class under `.prosebook`: the text as read
-  and, beside a translation, the source; the rest under More, whose state `localStorage` keeps. While typing it posts
+  and, beside a translation, the source; the rest under More, closed each time; Save shows its keys as caps. While typing it posts
   the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships to the browser;
   Save is `context.apply`, and `unsaved` names Save while there's an edit. Its comment field and Mark for removal write
   the entry's `comment` and `remove`: requests for whoever edits next, which `loadCatalog` reports as warnings so agents
