@@ -1,3 +1,17 @@
+## prosebook@0.34.0
+
+### prosebook init installs deictic for the copy inspector, and adds prosebook to the bundler's config
+
+Where the project can't import deictic, `init` installs it with the project's package manager (`--no-install` only says the command), and adds prosebook's integration to the Vite, Astro, webpack or Rspack config, or wraps Next's or Metro's, printing the snippet where it can't tell where. The server's record of reads now stops once the last dev server using it closes.
+
+### The copy inspector's key is a purple tag in deictic's caption, and hovering the key in the Copy tab outlines the string
+
+Its own label over the string could cover deictic's caption. In the tab, More starts closed each time, and Save shows its keys as caps in place of a hint beside it.
+
+### The copy inspector is a deictic plugin: install deictic and every integration adds it, merged into an app's own deictic
+
+`prosebook/deictic` is the plugin, and its edits land in deictic's history, so undo takes them back. `prosebook/inspector` is gone, `inspect` takes `{ shortcut }` as a deictic shortcut, `prosebook/bun`'s `inspector()` is async and answers deictic's routes, the playground's `endpoints` is `standalone`, deictic's `Standalone`, and `editEntry` hands back each file's new text instead of writing it.
+
 ## prosebook@0.33.1
 
 ### test-text passes a literal of one word, which is more often test data equal to a label than copy
