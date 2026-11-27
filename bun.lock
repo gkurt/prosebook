@@ -22,7 +22,7 @@
         "ai": "^7.0.164",
         "astro": "^7.4.5",
         "cldr-core": "48",
-        "deictic": "^0.10.0",
+        "deictic": "^0.11.0",
         "husky": "^9.1.7",
         "lint-staged": "^17.6.0",
         "metro": "^0.87.3",
@@ -46,7 +46,7 @@
         "@rspack/core": ">=1",
         "ai": ">=7.0.130",
         "astro": ">=6",
-        "deictic": ">=0.10.0",
+        "deictic": ">=0.11.0",
         "metro": ">=0.80",
         "next": ">=16",
         "preact": ">=10",
@@ -230,7 +230,7 @@
         "@ai-sdk/typesafe-ai": "^3.0.35",
         "@astrojs/check": "^0.9.12",
         "ai": "^7.0.164",
-        "deictic": "^0.10.0",
+        "deictic": "^0.11.0",
         "typescript": "^6.0.3",
       },
     },
@@ -1060,7 +1060,7 @@
 
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
 
-    "deictic": ["deictic@0.10.0", "", { "dependencies": { "commander": "^15.1.0", "magic-string": "^1.4.5", "oxc-parser": "^0.159.0" }, "peerDependencies": { "@rrweb/rrweb-plugin-console-record": "^2.2.2", "@rrweb/rrweb-plugin-network-record": "^2.2.2", "@rspack/core": ">=1", "@vercel/board": ">=0.53.0", "astro": ">=5", "bippy": "^0.7.3", "launch-editor": "^2.9.0", "modern-screenshot": "^4.7.0", "next": ">=16", "playwright-core": "^1.50.0", "react": ">=18", "rrweb": "^2.2.2", "rrweb-player": "^2.2.2", "rrweb-snapshot": "^2.2.2", "vite": ">=6", "webpack": ">=5" }, "optionalPeers": ["@rrweb/rrweb-plugin-console-record", "@rrweb/rrweb-plugin-network-record", "@rspack/core", "@vercel/board", "astro", "bippy", "launch-editor", "modern-screenshot", "next", "playwright-core", "react", "rrweb", "rrweb-player", "rrweb-snapshot", "vite", "webpack"], "bin": { "deictic": "dist/cli.js" } }, "sha512-CdhoFp1Dei1WXrIySyt759WXFii9UkC0JLXKI76G7n1UHU8IBSX9r6gXLrycOYZu9WknHxmWDzioXwZchuedAw=="],
+    "deictic": ["deictic@0.11.0", "", { "dependencies": { "commander": "^15.1.0", "magic-string": "^1.4.5", "oxc-parser": "^0.159.0" }, "peerDependencies": { "@rrweb/rrweb-plugin-console-record": "^2.2.2", "@rrweb/rrweb-plugin-network-record": "^2.2.2", "@rspack/core": ">=1", "@vercel/board": ">=0.53.0", "astro": ">=5", "bippy": "^0.7.3", "launch-editor": "^2.9.0", "modern-screenshot": "^4.7.0", "next": ">=16", "playwright-core": "^1.50.0", "react": ">=18", "rrweb": "^2.2.2", "rrweb-player": "^2.2.2", "rrweb-snapshot": "^2.2.2", "vite": ">=6", "webpack": ">=5" }, "optionalPeers": ["@rrweb/rrweb-plugin-console-record", "@rrweb/rrweb-plugin-network-record", "@rspack/core", "@vercel/board", "astro", "bippy", "launch-editor", "modern-screenshot", "next", "playwright-core", "react", "rrweb", "rrweb-player", "rrweb-snapshot", "vite", "webpack"], "bin": { "deictic": "dist/cli.js" } }, "sha512-7DR2rxuSLruTjRIZJsIX9La4vuk5t9kVMKpdpErPgYSNOu5E1MlTeV+3492k+auu6zbSivHbU+cQpvqMr574Ww=="],
 
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 

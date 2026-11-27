@@ -441,7 +441,8 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   an `EntryEdit` into each changed catalog file whole (`editsOf`), as `TextEdit`s deictic writes and keeps in its history,
   a file the edit makes from offset 0; `routes.ts` (nothing of deictic's, so the playground carries none) answers
   `entry` (GET a view, POST a check as it's typed), `place` (where an entry is, from deictic's root, for `context.edit`)
-  and `reads`, what `serverReads` records in the dev server's own process, where Vite's and Astro's renders run.
+  and `reads`, what `serverReads` records in the dev server's own process, where Vite's and Astro's renders run, until the
+  last dev server using it closes (deictic's `onClose`, counted in `__PROSEBOOK_SERVED__`).
   `client.ts` is the page half: `pointing` outlines the string under the pointer with its key, `pressed` takes the string
   under the press before the popup covers it, and `mount` edits that one (`panel.ts`), the spot's (`context.at`), or
   lists the strings in the element to pick. `locate.ts` matches text under the pointer to the reads the runtime
@@ -537,6 +538,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   model (`idOf`), so a model reached through another provider keeps its answers only under an `id`; and `languageTranslator`, a `Translator` over
   a language model, the prompt in and the reply's text out. Its cost is the AI Gateway's where it says
   one, else the tokens at the `price` given.
+- `src/tools/setup.ts`: what `prosebook init` does past the config and catalog (`cli.ts`'s `init`): deictic installed with
+  the project's package manager where the project can't import it (`--no-install` says the command), and the integration
+  added to the bundler's config (`bundlerOf`, from the dependencies) through deictic's own editor, `deictic/setup`'s
+  `addToConfig`, imported from the project, last in the list, as deictic goes first; Next's and Metro's configs wrapped.
+  Bun, a config it can't read, or a deictic without that editor get the snippet. `test/setup.test.ts` runs it in folders
+  outside the repo, so nothing above them is found.
 - `src/tools/find.ts`: `prosebook find`, entries by the words they say in any arm (lint's `readings`)
   and their key past its area, which the writing guide tells writers to run before adding one.
 - `src/tools/rename.ts`: `prosebook rename`, a key and the keys under it moved as text, each entry's

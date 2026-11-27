@@ -51,7 +51,9 @@ export function prosebook(options: ProsebookPluginOptions = {}): ServerPlugin<nu
       const folder = resolve(context.root, options.root ?? '.');
       // Loaded at each request: anew once the config file changed, as it is everywhere else.
       configOf = () => loadConfig(folder, options.config);
-      reads = serverReads();
+      const served = serverReads();
+      reads = served.reads;
+      context.onClose(served.release);
     },
     routes: { entry: routes.entry, place: routes.place, reads: routes.reads },
     async apply(_source, _target, edit) {
@@ -84,17 +86,28 @@ function fromRoot(root: string, path: string): string {
 /**
  * Starts recording what every copy in this process reads, as the page does: a dev server rendering pages in
  * its own process (Vite's, Astro's) hands these to the page half, so text only the server read can be traced
- * too. The process's one record, however many plugins ask, kept for as long as it runs.
+ * too. The process's one record, however many dev servers ask, until the last of them `release`s it as it closes.
  */
-export function serverReads(): Reads {
-  const hooks = globalThis as DevHooks & { __PROSEBOOK_SERVED__?: { reads: Reads; hook: ReadHook } };
+export function serverReads(): { reads: Reads; release: () => void } {
+  const hooks = globalThis as DevHooks & { __PROSEBOOK_SERVED__?: { reads: Reads; hook: ReadHook; users: number } };
   let served = hooks.__PROSEBOOK_SERVED__;
   if (served === undefined) {
     const reads: Reads = new Map();
-    served = hooks.__PROSEBOOK_SERVED__ = { reads, hook: (key, text, locale) => record(reads, key, text, locale) };
+    served = hooks.__PROSEBOOK_SERVED__ = { reads, hook: (key, text, locale) => record(reads, key, text, locale), users: 0 };
   }
+  served.users++;
   hooks.__PROSEBOOK_READ__ ??= served.hook;
-  return served.reads;
+  const mine = served;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (--mine.users > 0) return;
+    // Only the hook it set: a page's own record, in a test's DOM say, stays.
+    if (hooks.__PROSEBOOK_READ__ === mine.hook) delete hooks.__PROSEBOOK_READ__;
+    if (hooks.__PROSEBOOK_SERVED__ === mine) delete hooks.__PROSEBOOK_SERVED__;
+  };
+  return { reads: served.reads, release };
 }
 
 export default prosebook;

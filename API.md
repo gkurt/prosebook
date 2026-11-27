@@ -1238,7 +1238,7 @@ message is padded to the length a translation is likely to reach. Builds through
 
 | Command                  |                                                                                                                           |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `init`                   | A config and a first catalog file.                                                                                        |
+| `init`                   | A config and a first catalog file, deictic installed and prosebook added to the bundler's config (`--no-install`).        |
 | `generate`               | The typed modules (`--check`, `--watch`).                                                                                 |
 | `lint`                   | The words against the writing rules (`--fix`, `--fix --unsafe`, [rewrites](#suggestions)); [in code](#without-a-catalog). |
 | `status`                 | Coverage and stale translations per locale (`--strict`, `--verbose`).                                                     |
@@ -1922,6 +1922,8 @@ it on the page, in deictic's **Copy** tab.
 ```sh
 npm install -D deictic
 ```
+
+`prosebook init` installs it where it's missing, with the project's package manager (`--no-install` only says the command).
 
 - The integration adds deictic with the plugin itself. An app that has deictic of its own keeps it: the two become one, with
   the app's shortcut and plugins, and the Copy tab beside them. List the plugin there to give it options of your own:

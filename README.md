@@ -43,7 +43,7 @@ catalog, it lints the [text in the code](API.md#without-a-catalog) under the str
 
 ```bash
 bun add prosebook
-bunx prosebook init       # prosebook.config.ts and copy/catalog/app.yaml
+bunx prosebook init       # prosebook.config.ts, copy/catalog/app.yaml, the bundler's config, and deictic
 bunx prosebook generate   # src/copy/: a module per locale, and the types
 ```
 

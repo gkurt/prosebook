@@ -47,6 +47,7 @@ import { reviewMarkdown, reviewOf, reviewText } from './tools/review.ts';
 import { SarifReport } from './tools/sarif.ts';
 import { inPaths, isReferenced, scan, sourceFiles, unscanned, whereOf as hardcodedWhere } from './tools/scan.ts';
 import { lintScanned, scannedMessages, scannedOf, type PlacedFinding } from './tools/scanned.ts';
+import { setUp } from './tools/setup.ts';
 import { SYNTAX_NAME } from './tools/syntax.ts';
 import { fixTestText, testTextIn } from './tools/tests.ts';
 import { todoOf } from './tools/todo.ts';
@@ -57,7 +58,8 @@ const HELP = `prosebook: every string your app shows, in one typed catalog
 Usage: prosebook <command> [options]
 
 Commands:
-  init                    Create a config and a first catalog file
+  init                    Create a config and a first catalog file, install deictic for the copy
+                          inspector, and add prosebook to the bundler's config  (--no-install)
   generate                Compile the catalog into typed modules  (--check: fail if out of date, --watch)
   lint [paths]            Check the messages and their translations against the writing rules, those
                           in the files and folders named where paths are given
@@ -227,6 +229,7 @@ async function main(argv: string[]): Promise<number> {
       surface: { type: 'string' },
       format: { type: 'string' },
       docs: { type: 'boolean' },
+      'no-install': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -258,7 +261,7 @@ async function main(argv: string[]): Promise<number> {
     out = err;
   }
   const root = values.root ?? process.cwd();
-  if (command === 'init') return init(root);
+  if (command === 'init') return init(root, values['no-install'] !== true);
   const loaded = await configAt(root, command);
   if (loaded.inCode && CATALOG_COMMANDS.includes(command)) {
     err(`prosebook: ${command} reads the catalog, and catalog is false in the config: set catalog to a folder to use it`);
@@ -1520,7 +1523,7 @@ const SAMPLE_CATALOG = `${SCHEMA_LINE}
 #   en: Welcome back, {name}.
 `;
 
-function init(root: string): number {
+async function init(root: string, install: boolean): Promise<number> {
   const configured = CONFIG_FILES.find((f) => existsSync(join(root, f)));
   if (configured === undefined) {
     writeFileSync(join(root, 'prosebook.config.ts'), SAMPLE_CONFIG);
@@ -1533,6 +1536,7 @@ function init(root: string): number {
     writeFileSync(join(catalogDir, 'app.yaml'), SAMPLE_CATALOG);
     out('created copy/catalog/app.yaml');
   }
+  await setUp(root, { install, log: out });
   out('\nNext: write the first entries in copy/catalog/app.yaml (its comments show how), or move the');
   out('text already in your JSX there with `prosebook extract`, then `prosebook generate` and');
   out('`createCopy(catalog)` from the generated src/copy.');

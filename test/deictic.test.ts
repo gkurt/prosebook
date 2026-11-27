@@ -145,10 +145,39 @@ describe('the deictic plugin', () => {
       { require: [] },
     );
     const plugin = prosebook({ config: { require: [] } });
-    await plugin.setup!({ root: config.root, use: () => undefined, report: () => {} });
-    return { config, plugin };
+    const closing: (() => unknown)[] = [];
+    await plugin.setup!({ root: config.root, use: () => undefined, report: () => {}, onClose: (run) => void closing.push(run) });
+    return { config, plugin, close: () => closing.forEach((run) => run()) };
   };
   const target = { loc: { file: 'src/App.tsx', line: 1, column: 1 }, tag: 'h1' };
+
+  test('records what the server reads until the last dev server using it closes', async () => {
+    // The process's record, which other files' dev servers may hold: set aside for this test's own.
+    const hooks = globalThis as DevHooks & { __PROSEBOOK_SERVED__?: unknown };
+    const before = { read: hooks.__PROSEBOOK_READ__, served: hooks.__PROSEBOOK_SERVED__ };
+    delete hooks.__PROSEBOOK_READ__;
+    delete hooks.__PROSEBOOK_SERVED__;
+    try {
+      await recordsUntilClosed(hooks);
+    } finally {
+      hooks.__PROSEBOOK_READ__ = before.read;
+      hooks.__PROSEBOOK_SERVED__ = before.served;
+    }
+  });
+
+  const recordsUntilClosed = async (hooks: DevHooks) => {
+    const first = await set();
+    const second = await set();
+    copyOf({ en: { 'a.title': 'Cart' } }).t('a.title');
+    const read = async () =>
+      (await (await first.plugin.routes!.reads!(new Request('http://x/'), {} as never)).json()) as [string, unknown][];
+    expect((await read()).map(([text]) => text)).toContain('Cart');
+    first.close();
+    expect(hooks.__PROSEBOOK_READ__).toBeDefined();
+    second.close();
+    second.close();
+    expect(hooks.__PROSEBOOK_READ__).toBeUndefined();
+  };
 
   test("hands deictic each file an edit changes, whole, and a locale's new file from its start", async () => {
     const { config, plugin } = await set();
