@@ -1,9 +1,9 @@
 import { createCopy, type DevHooks } from 'prosebook';
-import type { Read } from 'prosebook/inspector';
+import type { Read } from 'prosebook/deictic';
 import { catalog } from './copy/index.ts';
 
 /**
- * What the build read, by the text it came to. The built page carries it (`#reads`) for its inspector,
+ * What the build read, by the text it came to. The built page carries it (`#reads`) for its copy inspector,
  * which has no dev server to ask what the server rendered; in dev the integration keeps its own.
  */
 export const reads = new Map<string, Read[]>();

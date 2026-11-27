@@ -20,16 +20,19 @@
  * hands the new messages to every copy (`HotHook`), which re-renders in the locale and state it was in.
  * The index accepts its own too, since its doc comments change with the source text, and reloads the
  * page only when a locale was added or removed. In the browser the index imports the dev module first,
- * which sets up the hooks and the inspector (`inspector/index.ts`) before any copy exists, so frameworks that
- * render their own HTML (TanStack Start, React Router) get them too. The server opens the entry the
- * inspector asks for through Vite's own `/__open-in-editor`, so the editor is whichever Vite already
- * launches.
+ * which sets up the hooks and the record of reads (`deictic/reads.ts`) before any copy exists, so frameworks
+ * that render their own HTML (TanStack Start, React Router) get them too.
+ *
+ * Where deictic is installed it comes with the copy inspector, deictic's own Vite plugin with the prosebook
+ * plugin (`deictic/register.ts`), which merges into an app's own deictic.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Plugin } from 'vite';
+import type { Plugin, PluginOption } from 'vite';
+
+import { copyInspector, added, NO_DEICTIC, recordReads, type Inspect } from './deictic/register.ts';
 
 import {
   AREA,
@@ -48,8 +51,6 @@ import {
   hotLocale,
   importingAreas,
   inAreas,
-  installInspector,
-  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -61,11 +62,10 @@ import {
   unseenOf,
   withAreaFiles,
 } from './tools/bundle.ts';
-import { CatalogError, type EntryLocation } from './tools/catalog.ts';
+import { CatalogError } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import { CONFIG_FILES, loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
-import { inspectorEndpoints, nodeMiddleware, redirect, serverReads } from './tools/endpoints.ts';
 import { generate, writeFiles, type Generated } from './tools/generate.ts';
 import { keyRefs, SFC, unseenReads, type KeyRefs, type Reads } from './tools/scan.ts';
 
@@ -96,8 +96,8 @@ export interface ProsebookPluginOptions {
    */
   split?: boolean;
   /**
-   * In dev, Alt-click a string on the page to edit its entry. On by default; `{ modifiers, button }`
-   * changes the keys held and the button pressed.
+   * In dev, the copy inspector: deictic's shortcut on a string edits its entry, where deictic is installed. On
+   * by default; `{ shortcut }` is deictic's shortcut that opens the Copy tab directly.
    */
   inspect?: Inspect;
 }
@@ -109,11 +109,21 @@ const AREA_ID = '\0prosebook/area/';
 
 const normalize = (path: string) => resolve(path).replaceAll('\\', '/');
 
-const inspectorPath = beside(import.meta.url, 'inspector/index');
+const readsPath = beside(import.meta.url, 'deictic/reads');
 // prosebook's own modules, which read keys handed to them: `<Text>` calls `rich(props.id)`.
 const ownDir = normalize(fileURLToPath(new URL('.', import.meta.url)));
 
-export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
+/** The catalog's plugin, and where deictic is installed, deictic's with the copy inspector. */
+export function prosebook(options: ProsebookPluginOptions = {}): PluginOption[] {
+  const inspector = copyInspector(options.inspect, { root: options.root, config: options.config });
+  // deictic's Plugin is typed by the Vite deictic resolves, which may not be this one: the same object to Vite.
+  const deictic = inspector.then(async (plugin) =>
+    plugin === undefined ? undefined : ((await import('deictic/vite')).deictic(added(plugin)) as unknown as Plugin),
+  );
+  return [catalogPlugin(options, inspector), deictic];
+}
+
+function catalogPlugin(options: ProsebookPluginOptions, inspector: Promise<unknown>): Plugin {
   let config: ResolvedConfig;
   let generated: Generated | undefined;
   let building = false;
@@ -129,9 +139,6 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
   const placeholders: { locale: string; areas?: string[] }[] = [];
   let groups: Groups = new Map();
   const shipped = { total: 0, kept: 0 };
-  // One per server: on a restart Vite makes the new server before closing the old, both through this
-  // plugin when Vite was handed it inline rather than reading it from a config file, so a close stops the oldest.
-  const stopReads: (() => void)[] = [];
 
   const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 
@@ -163,6 +170,8 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       configRoot = options.root === undefined ? resolved.root : resolve(resolved.root, options.root);
       restarts = !resolved.plugins.some((p) => p.name === ASTRO_PLUGIN);
       config = await loadConfig(configRoot, options.config);
+      if (resolved.command === 'serve' && options.inspect === undefined && (await inspector) === undefined)
+        resolved.logger.info(NO_DEICTIC);
     },
 
     resolveId(id) {
@@ -237,27 +246,10 @@ export function prosebook(options: ProsebookPluginOptions = {}): Plugin {
       server.watcher.on('change', onChange);
       server.watcher.on('add', onChange);
       server.watcher.on('unlink', onChange);
-      if (options.inspect === false) return;
-
-      // Each entry opens through Vite's own `/__open-in-editor`, so the editor is whichever Vite launches.
-      const editor = ({ file, line, column }: EntryLocation) =>
-        redirect(`${base}__open-in-editor?file=${encodeURIComponent(`${file}:${line}:${column}`)}`);
-      // A server render (Astro's, a framework's first frame) runs here, in this process.
-      const served = serverReads();
-      stopReads.push(served.stop);
-      server.middlewares.use(nodeMiddleware(inspectorEndpoints(() => config, { base, open: editor, reads: served.reads })));
-    },
-
-    // In dev, once the server closes.
-    closeBundle() {
-      stopReads.shift()?.();
     },
 
     load(id, loadOptions) {
-      if (id === DEV_ID) {
-        if (options.inspect === false) return HOT_SET;
-        return HOT_SET + installInspector(inspectorPath, base, options.inspect);
-      }
+      if (id === DEV_ID) return HOT_SET + recordReads(readsPath);
       if (id.startsWith(AREA_ID) && generated !== undefined) {
         const [area = '', locale] = id.slice(AREA_ID.length).split('/');
         if (locale !== undefined) return `export default ${placeholder(locale, membersOf(groups, area))};\n`;

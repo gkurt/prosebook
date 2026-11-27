@@ -4,10 +4,10 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import type { DevHooks } from 'prosebook';
 import { entryLocation, loadCatalog } from 'prosebook/tools';
 
-import { keyAt, rangeOf } from '#src/inspector/locate.ts';
-import { record, type Reads } from '#src/inspector/reads.ts';
-import { checkShortcut, gestureOf, type Modifier } from '#src/inspector/shortcut.ts';
-import { installInspector } from '#src/tools/bundle.ts';
+import { prosebook, type EntryEdit } from '#src/deictic/index.ts';
+import { keyAt, rangeOf } from '#src/deictic/locate.ts';
+import { listen, record, type Reads } from '#src/deictic/reads.ts';
+import { readEntry } from '#src/tools/entry.ts';
 import { copyOf, fixture } from './fixture.ts';
 
 beforeAll(() => GlobalRegistrator.register());
@@ -121,37 +121,78 @@ test("an entry is found in the translation's file, or the catalog's", () => {
   expect(where('tr')).toBe('copy/catalog/cart.yaml:3:1');
 });
 
-describe('the gesture', () => {
-  const keys = (flags: Partial<Record<'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey', boolean>>) =>
-    new MouseEvent('click', { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, ...flags });
+test("the page's record of reads starts once, and every copy reports to it", () => {
+  const hooks = globalThis as DevHooks;
+  try {
+    const reads = listen();
+    expect(listen()).toBe(reads);
+    copyOf({ en: { 'a.title': 'Cart' } }).t('a.title');
+    expect(reads.get('Cart')).toEqual([{ key: 'a.title', locale: 'en' }]);
+  } finally {
+    delete hooks.__PROSEBOOK_READ__;
+    delete hooks.__PROSEBOOK_READS__;
+  }
+});
 
-  test('is Alt and the left button unset', () => {
-    const gesture = gestureOf(checkShortcut());
-    expect(gesture.button).toBe(0);
-    expect(gesture.held(keys({ altKey: true }))).toBe(true);
-    expect(gesture.isModifier('Alt')).toBe(true);
+describe('the deictic plugin', () => {
+  const set = async () => {
+    const config = fixture(
+      {
+        'copy/catalog/cart.yaml': 'cart.title: Cart\n',
+        'copy/locales/fr/app.yaml': 'app.title: Boutique\n',
+        'copy/catalog/app.yaml': 'app.title: Shop\n',
+      },
+      { require: [] },
+    );
+    const plugin = prosebook({ config: { require: [] } });
+    await plugin.setup!({ root: config.root, use: () => undefined, report: () => {} });
+    return { config, plugin };
+  };
+  const target = { loc: { file: 'src/App.tsx', line: 1, column: 1 }, tag: 'h1' };
+
+  test("hands deictic each file an edit changes, whole, and a locale's new file from its start", async () => {
+    const { config, plugin } = await set();
+    const fields = { ...readEntry(config, 'cart.title').fields, message: 'Basket', translations: { fr: 'Panier' } };
+    const edits = (await plugin.apply!(new Error(), target, { key: 'cart.title', fields } satisfies EntryEdit)) as {
+      file: string;
+      start: number;
+      end: number;
+      text: string;
+    }[];
+    expect(edits).toEqual([
+      { file: 'copy/catalog/cart.yaml', start: 0, end: 'cart.title: Cart\n'.length, text: 'cart.title: Basket\n' },
+      { file: 'copy/locales/fr/cart.yaml', start: 0, end: 0, text: 'cart.title: Panier\n' },
+    ]);
   });
 
-  test('holds exactly its keys, so AltGr, Control and Alt, is not Alt', () => {
-    const alt = gestureOf(checkShortcut());
-    expect(alt.held(keys({ altKey: true, ctrlKey: true }))).toBe(false);
-    const both = gestureOf(checkShortcut({ modifiers: ['Control', 'Shift'], button: 'right' }));
-    expect(both.button).toBe(2);
-    expect(both.held(keys({ ctrlKey: true }))).toBe(false);
-    expect(both.held(keys({ ctrlKey: true, shiftKey: true }))).toBe(true);
-    expect(both.isModifier('Shift')).toBe(true);
-    expect(both.isModifier('Alt')).toBe(false);
+  test('refuses an edit that would break the catalog, or changes nothing', async () => {
+    const { config, plugin } = await set();
+    const fields = readEntry(config, 'cart.title').fields;
+    // Why deictic is refused the edit: the message its panel shows.
+    const refused = async (edit: EntryEdit) => {
+      try {
+        await plugin.apply!(new Error(), target, edit);
+        return '';
+      } catch (e) {
+        return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      }
+    };
+    expect(await refused({ key: 'cart.title', fields })).toContain('Refusal: nothing to change');
+    expect(await refused({ key: 'cart.title', fields: { ...fields, message: '{oops' } })).toMatch(/^Refusal: .*cart\.yaml/);
   });
 
-  test('refuses no keys, a key it does not know and a button it does not know', () => {
-    expect(() => checkShortcut({ modifiers: [] })).toThrow('hold at least one');
-    expect(() => checkShortcut({ modifiers: ['Ctrl' as Modifier] })).toThrow("has 'Ctrl': name one of 'Alt', 'Control', 'Meta', 'Shift'");
-    expect(() => checkShortcut({ button: 'back' as 'left' })).toThrow("is 'back': name one of 'left', 'middle', 'right'");
-  });
-
-  test('travels to the page in the code that starts the inspector, checked as it is written', () => {
-    expect(installInspector('/i.js', '/', undefined)).toContain('"shortcut":{"modifiers":["Alt"],"button":"left"}');
-    expect(installInspector('/i.js', '/', { button: 'middle' })).toContain('"shortcut":{"modifiers":["Alt"],"button":"middle"}');
-    expect(() => installInspector('/i.js', '/', { modifiers: [] })).toThrow('hold at least one');
+  test('answers the entry, a check as it is typed, and where it is written', async () => {
+    const { plugin } = await set();
+    const { entry, place } = plugin.routes!;
+    const read = (await (await entry!(new Request('http://x/?key=cart.title'), {} as never)).json()) as { key: string };
+    expect(read.key).toBe('cart.title');
+    const fields = { ...readEntry((await set()).config, 'cart.title').fields, message: 'Your  cart' };
+    const checked = await entry!(
+      new Request('http://x/', { method: 'POST', body: JSON.stringify({ key: 'cart.title', fields }) }),
+      {} as never,
+    );
+    expect(((await checked.json()) as { view: { findings: { rule: string }[] } }).view.findings.map((f) => f.rule)).toContain('whitespace');
+    const at = await place!(new Request('http://x/?key=cart.title&locale=fr'), {} as never);
+    expect(await at.json()).toEqual({ file: 'copy/catalog/cart.yaml', line: 1, column: 1 });
   });
 });

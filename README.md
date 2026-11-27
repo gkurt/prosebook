@@ -168,7 +168,7 @@ generated copy](API.md#voice-guidelines), held to the messages and their context
 
 ## More features
 
-- [**Inspector**](API.md#inspector): in dev, Alt-click any text on the page to edit its entry there.
+- [**Inspector**](API.md#inspector): in dev, with [deictic](https://github.com/gkurt/deictic), Alt-click any text on the page to edit its entry there.
 - [**Splitting**](API.md#splitting): each route loads only the messages it reads, in every locale.
 - [**Rename**](API.md#rename): a key or an area, renamed in the catalog, every translation and the code.
 - [**Diff**](API.md#diff): the copy a pull request changes, as words, posted as a comment.

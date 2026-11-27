@@ -21,7 +21,7 @@ bun run examples:generate     # build, then `prosebook generate` in every exampl
 bun run examples:smoke <name>  # an example's production build, served and checked (after its `build`)
 bun run e2e        # build, then the Vite example's Playwright suite (`bunx playwright install chromium` once)
 bun run size       # the runtime and each binding, minified and gzipped from dist, against budgets (after `build`)
-bun run dev        # build, then the homepage's dev server (site/, Astro), with the inspector
+bun run dev        # build, then the homepage's dev server (site/, Astro), with the copy inspector
 bun run site       # build, then the homepage (site/, Astro) into _site/, as Pages deploys it
 bun run tegami     # write a changelog entry (.tegami/<slug>.md); config in scripts/tegami.mts
 ```
@@ -48,8 +48,8 @@ Runtime (`prosebook`, `prosebook/react`, `prosebook/react/server`, `prosebook/pr
 
 - `src/runtime/types.ts`: what generated code and the runtime agree on; `Register` for module augmentation;
   `DevHooks`, the globals the Vite plugin sets in dev: `ReadHook`, which the runtime calls on every read
-  for the inspector, and the `HotHook` set every copy adds itself to, so an edited locale's messages
-  are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
+  for the copy inspector (`__PROSEBOOK_READS__` its record), and the `HotHook` set every copy adds itself to, so an edited
+  locale's messages are swapped in place. A copy's `version` counts both kinds of change; `useCopy()` follows it.
 - `src/runtime/helpers.ts`: the one-letter helpers compiled messages call (`h.n`, `h.p`, …), per locale
   and per copy's `timeZone`, which `dateFormat` puts under a zone a message names itself.
   None throws: `n` and `d` give nothing back for a missing value or one `Intl` refuses, and `e` returns
@@ -350,7 +350,7 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   copy's and the error they fail a build with, `scanSources` for bundlers that load a locale before
   the code reading it, the pruned locale module, the catalog watcher (`watchCatalog`, which loads the
   config again when its file or the formatters module changes, for the CLI's `--watch`, Next and Bun), and the dev code appended to the
-  generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`, `installInspector`).
+  generated modules (`hotLocale`, `HOT_INDEX`, `HOT_SET`, `notifyingLocale`; `recordReads`, in `deictic/register.ts`).
   A build writes nothing in the project (`buildGenerated`: `render`, strict, never `writeFiles`), so a
   checkout stays as committed whichever runtime builds it; only caches under `node_modules/.prosebook`.
   It serves every generated module from memory (`generatedModule` where unpruned), the files on disk only
@@ -365,11 +365,6 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   build from the imports under `scan.dirs`: areas loaded by the same entries, the app's own and each
   dynamic import, less those that load once the area is already in memory, as Rollup chunks them.
   A guess that costs a request when wrong, never a message: the copy takes each area's own keys.
-  `endpoints.ts`: the inspector's `/__prosebook/open` and `/__prosebook/entry` over `Request` and
-  `Response`, with each dev server's editor launcher handed in as `open`; `nodeMiddleware` mounts them
-  on Vite's server and Next's. Vite's adds `/__prosebook/reads`: `serverReads` sets the read hook in
-  the dev server's own process, where Vite's and Astro's server renders run, until the last server
-  using it closes, so text only the server read can be traced too.
 - `src/vite.ts`: regenerate on change, prune in builds. Its `transform` runs `pre`, so keys and reads
   are found in the source as written (JSX, lines, `prosebook-ignore`); `prune: 'strict'`, the
   default, fails in `buildEnd` on a read `unseenReads` reports. `root` names the config's folder for
@@ -378,9 +373,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   to Astro (`addWatchFile`), whose restart does more than Vite's. An edit to the formatters module loads
   the config again and regenerates, without a restart, in Astro too. In dev it makes the generated modules accept their own updates (the index
   reloads only when the locales change), and the index, in the browser, imports `virtual:prosebook/dev`
-  first: the dev hooks and the inspector, there before any copy, in frameworks that write their own
-  HTML too. It serves the inspector's endpoints and opens an entry by redirecting to Vite's
-  `/__open-in-editor`. With `split`, in the browser only, the index is loaded as a catalog with no
+  first: the dev hooks and the record of reads, there before any copy, in frameworks that write their own
+  HTML too. `prosebook()` answers that plugin and, where deictic is installed, a promise of deictic's Vite plugin with
+  the copy inspector (`copyInspector`, `added`), which Vite awaits and merges into an app's own deictic. With `split`, in the browser only, the index is loaded as a catalog with no
   messages, each module naming an area's keys gets `import "virtual:prosebook/area/<area>"` appended
   (imports run first wherever they sit, so no line moves), and the area module awaits `addArea` with
   its messages: in a build placeholders filled per area in `renderChunk`, its lazy locales
@@ -395,11 +390,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   path's end (Turbopack's root may be the monorepo's). `loader.ts` is the loader those rules name
   by path (a tsdown entry of its own, shared with `webpack.ts`): in a build each locale's pruned module travels to it as its
   options, so no config is loaded in Turbopack's workers; in dev, in the browser, the index sets the
-  hot set and starts the inspector (imported by a relative path), and each locale, run again by Fast
-  Refresh, updates the copies. An app route needs a file in the app, so in dev the inspector's
-  endpoints run on a local port of their own, once per process, and a `beforeFiles` rewrite of
-  `/__prosebook/*` proxies to it; Next forwards the page's host, which the same-origin check reads, and
-  an entry opens by redirect to `/__nextjs_launch-editor`. With `split`, Turbopack having no
+  hot set and starts the record of reads (imported by a relative path), and each locale, run again by Fast
+  Refresh, updates the copies. Where deictic is installed, the dev config is wrapped in its `withDeictic` too, with the
+  copy inspector, which an app's own `withDeictic` around it merges. With `split`, Turbopack having no
   virtual modules, the areas are files under `node_modules/.prosebook/areas` (`areaFile`), foreign
   code to Turbopack, written in dev (whole, rewritten on each edit) and in builds (pruned); the
   index's browser rule hands over the split index, and a rule per source extension under `scan.dirs`,
@@ -423,10 +416,11 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   both ways, and nothing here runs a device.
 - `src/bun.ts`: the Bun plugin. `Bun.build` names `entrypoints`, so the plugin prunes there; the dev
   server (bunfig.toml's `[serve.static]`) names none, so there the plugin watches and appends the Vite
-  plugin's hot code, which Bun's `import.meta.hot` runs as Vite's does, and starts the inspector from
-  the index unless `NODE_ENV` is `production`. `inspector()` is the inspector's endpoints as
-  `Bun.serve` routes, opening entries with `Bun.openInEditor`; the Bun example imports `inspector()`
-  only in dev, and the example's build marks the module external.
+  plugin's hot code, which Bun's `import.meta.hot` runs as Vite's does, and starts the record of reads from
+  the index unless `NODE_ENV` is `production`. Where deictic is installed it sets up deictic's Bun plugin with the copy
+  inspector last, as Bun loads with the first `onLoad` that answers. `inspector()` is deictic's endpoints with the
+  plugin, as `Bun.serve` routes (awaited); the Bun example imports it only in dev, and the example's build marks the
+  module external.
   With `split`, areas are modules of its own namespace, and the source under `scan.dirs` is loaded
   here to append their imports, as Bun has no transform hook. A full-stack `Bun.build` loads each
   module once per side and names it in `onLoad`'s `side`, not in Bun's types (a server's own build
@@ -436,25 +430,29 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   in the written output, from this build's page or, in a server's own build, from that file.
   bunfig.toml takes a module's default export, so the example's dev plugin is `prosebook.plugin.ts`.
 - `src/astro.ts`: the Astro integration: the Vite plugin, and the dev module injected into every
-  page, since a page Astro renders may have no script importing the index. Astro leaves a module the
+  page, since a page Astro renders may have no script importing the index; where deictic is installed, deictic's Vite
+  plugin with the copy inspector and its client injected too (the Vite plugin's own is off there). Astro leaves a module the
   browser imports too to the browser's hot update, which can't change the HTML the server wrote, so
   `reloadOnEdit` drops a generated module's update from the server's runner and reloads the page.
-- `src/inspector/`: browser code, loaded from beside each integration (`index.ts`, a tsdown entry of
-  its own). One gesture: Alt shows each string's key, Alt-click opens the dialog. The integrations'
-  `inspect` may name other keys and button (`shortcut.ts`), which `installInspector` checks as it
-  writes the code starting the inspector; a press ends in `click`, `auxclick` or `contextmenu` by its
-  button and platform, each kept from the page, the first opening the dialog. `install` runs once
-  per page, since Bun and Next run the index again on every change. `locate.ts` matches the text under
-  the pointer to the reads the runtime reported, since the DOM carries no keys, and to those the server
-  reported (`/__prosebook/reads`), asked for again each time Alt goes down; its test drives `keyAt`
-  over a DOM. `reads.ts` is the record of them both keep. `install`'s `fetch` (`Ask`) answers the endpoints in a dev
-  server's place, the dialog's requests too; `prosebook/inspector` exports it for a page with none. `dialog.ts`, in a shadow root, edits an
-  entry through the plugin's `/__prosebook/entry`: the text as read and, beside a translation, the
-  source; the rest under More, whose state `localStorage` keeps. While typing it posts the edit unsaved
-  and shows the view's `findings`, each with its `fixed` text, so no lint code ships to the browser.
-  Its comment field and Mark for removal write the entry's `comment` and `remove`: requests for whoever
-  edits next, which `loadCatalog` reports as warnings so agents find them. Keep it lean: what the
-  dialog doesn't show by default belongs under More, and editing as YAML is the editor's.
+- `src/deictic/`: the copy inspector, a deictic plugin (`prosebook/deictic`, `prosebook/deictic/client`). deictic is an
+  optional peer, imported only where it's installed: `register.ts` is how the integrations add it (`copyInspector`, the
+  plugin or nothing; `added`, deictic's options with `defaults: true`, so an app's own deictic and its own `prosebook()`
+  win; `NO_DEICTIC`, said once where `inspect` is unset and deictic missing). `index.ts` is the server half: `apply` turns
+  an `EntryEdit` into each changed catalog file whole (`editsOf`), as `TextEdit`s deictic writes and keeps in its history,
+  a file the edit makes from offset 0; `routes.ts` (nothing of deictic's, so the playground carries none) answers
+  `entry` (GET a view, POST a check as it's typed), `place` (where an entry is, from deictic's root, for `context.edit`)
+  and `reads`, what `serverReads` records in the dev server's own process, where Vite's and Astro's renders run.
+  `client.ts` is the page half: `pointing` outlines the string under the pointer with its key, `pressed` takes the string
+  under the press before the popup covers it, and `mount` edits that one (`panel.ts`), the spot's (`context.at`), or
+  lists the strings in the element to pick. `locate.ts` matches text under the pointer to the reads the runtime
+  reported, since the DOM carries no keys, and to those the server reported; its test drives `keyAt` over a DOM.
+  `reads.ts` is the record (`listen`, once per page: each integration's dev module calls it before any copy reads).
+  `panel.ts` draws in deictic's shadow root with its custom properties, every class under `.prosebook`: the text as read
+  and, beside a translation, the source; the rest under More, whose state `localStorage` keeps. While typing it posts
+  the edit unsaved and shows the view's `findings`, each with its `fixed` text, so no lint code ships to the browser;
+  Save is `context.apply`, and `unsaved` names Save while there's an edit. Its comment field and Mark for removal write
+  the entry's `comment` and `remove`: requests for whoever edits next, which `loadCatalog` reports as warnings so agents
+  find them. Keep it lean: what the tab doesn't show by default belongs under More, and editing as YAML is the editor's.
 - `src/tools/entry.ts`: an entry in every locale, as fields, and edits to it. Every edit is checked as the whole catalog (`loadCatalog`'s `unsaved`, which also reads
   translation files an edit would create) before a file is written; fields go into the parsed document
   so the rest of the file stays as it was. An empty translation removes the key from its locale.
@@ -468,9 +466,9 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
   call fills anew, `path.ts` POSIX paths. A tool that reaches a new Node API needs it there too, or that build fails; keep
   `oxc-parser` and TypeScript out of what `playground.ts` imports. `test/playground.test.ts` builds it the same way, as
   from source the tools would read the real disk. The homepage's demo (`site/src/demo/view.ts`) loads it lazily.
-  `endpoints` is the inspector's endpoints (`inspectorEndpoints`) over files it keeps: each request loads them into the
-  volume and is answered in the same turn (`withConfig`, `endpoints.ts`, which also reads a POST's body first), since
-  any other call clears the volume, and `written` takes the files back out after an edit.
+  `standalone` is deictic's endpoints for the prosebook plugin alone over files it keeps, a deictic `Standalone`: each
+  request loads them into the volume and is answered in the same turn (`withConfig`, `routes.ts`, a POST's body read
+  first), since any other call clears the volume; `apply`, `undo` and `redo` keep a history of their own in memory.
 - `src/test.ts`: `prosebook/test`, the catalog in a test: `copy`, loaded with top-level await from the nearest config up
   from the working directory (a failed load kept, thrown by each read, so importing `loadCopy` alone works), and
   `loadCopy`. It renders the YAML in memory (`render` without native targets, `evaluatedCatalog`), and makes a copy per
@@ -560,12 +558,12 @@ Tools (`prosebook/tools`, `prosebook/playground`, `prosebook/test`, `prosebook/c
 as the examples do, through `prosebook/astro`. `.github/workflows/pages.yml` builds it into `_site` and
 deploys it on every push to main. Its words are its own catalog's (`site/copy/catalog`), read by the
 page as it is built and by its scripts in the browser; code samples, names and the tool's own words, which
-prosebook says in English, stay in the code. The whole page is inspectable by the real inspector: in dev the
-integration's, and built, `src/inspect.ts`, which installs `prosebook/inspector` with a `fetch` of its own.
-`copy.ts` records what the build reads (the read hook, the page's own keys only), the page carries it
-(`#reads`) and `inspect.ts` answers `__prosebook/reads` with it; an entry's requests go to `backend.ts`,
-loaded on the first, which is `prosebook/playground`'s `endpoints` over the catalog's YAML (`import.meta.glob`,
-raw) under `src/lint.ts`, the lint the config has too. A saved edit is played again: the hot hooks get the
+prosebook says in English, stay in the code. The whole page is inspectable by the real copy inspector: in dev the
+integration's, and built, deictic's `standalone` (`astro.config.ts` lists deictic with the plugin, which the integration's
+merges into in dev), whose client `src/inspect.ts` imports. `copy.ts` records what the build reads (the read hook, the
+page's own keys only), the page carries it (`#reads`), and deictic's requests go to `src/standalone.ts`, which loads
+`backend.ts` on the first: `prosebook/playground`'s `standalone` over the catalog's YAML (`import.meta.glob`, raw)
+under `src/lint.ts`, the lint the config has too, answering the plugin's `reads` with `#reads`. A saved edit is played again: the hot hooks get the
 messages, each text that changed is rewritten where the page says it (text nodes, `ATTRIBUTES`, the title)
 and taken out of the build's reads. Open in editor opens the entry on GitHub.
 Its demo (`#try`, `src/demo/`) is one catalog entry the visitor edits: `view.ts` runs `prosebook/playground`

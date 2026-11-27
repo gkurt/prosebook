@@ -25,6 +25,8 @@ beforeAll(async () => {
           build.onResolve({ filter: /^node:(fs|path|crypto|module|url)$/ }, ({ path }) => ({
             path: join(ROOT, 'src', 'browser', `${path.slice('node:'.length)}.ts`),
           }));
+          // prosebook's own modules, bundled as tsdown bundles them, not left to the package's `imports` and the real disk.
+          build.onResolve({ filter: /^#src\// }, ({ path }) => ({ path: join(ROOT, 'src', path.slice('#src/'.length)) }));
         },
       },
     ],
@@ -99,31 +101,42 @@ const OTHER = {
   ].join('\n'),
 };
 
-test('answers the inspector over files in memory, and keeps an edit', async () => {
+test("answers deictic's requests for the copy inspector over files in memory, and undoes an edit", async () => {
   const saved: Record<string, string>[] = [];
   const opened: { file: string; line: number }[] = [];
-  const answer = playground.endpoints(files, config, { open: (at) => opened.push(at), saved: (next) => saved.push(next) });
-  const entry = 'http://page.test/__prosebook/entry';
-  const post = (body: object) =>
-    answer(new Request(entry, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  const answer = playground.standalone(files, config, { open: (at) => opened.push(at), saved: (next) => saved.push(next) });
+  const at = (route: string) => `http://page.test/__deictic/${route}`;
+  const post = (route: string, body: object) =>
+    answer(new Request(at(route), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
 
-  expect(await answer(new Request('http://page.test/elsewhere'))).toBeUndefined();
-  const view = (await (await answer(new Request(`${entry}?key=order.items`)))!.json()) as { key: string; fields: { message: string } };
+  expect((await answer(new Request('http://page.test/elsewhere'))).status).toBe(404);
+  const entry = at('plugins/prosebook/entry');
+  const view = (await (await answer(new Request(`${entry}?key=order.items`))).json()) as { key: string; fields: { message: string } };
   expect(view.key).toBe('order.items');
 
   // Another call fills the files anew between the requests, as a page running `play` beside the inspector does.
   playground.play(OTHER, config);
   const fields = { ...view.fields, message: '{count, plural, one {# thing} other {# things}}' };
-  expect((await post({ key: 'order.items', fields, write: false }))!.status).toBe(200);
+  expect((await post('plugins/prosebook/entry', { key: 'order.items', fields })).status).toBe(200);
   expect(saved).toEqual([]);
-  expect((await post({ key: 'order.items', fields, write: true }))!.status).toBe(200);
+  const target = { loc: { file: 'src/App.tsx', line: 1, column: 1 }, tag: 'p' };
+  expect((await post('apply', { plugin: 'prosebook', target, op: { key: 'order.items', fields } })).status).toBe(200);
   expect(saved).toHaveLength(1);
   expect(saved[0]!['copy/catalog/order.yaml']).toContain('{count, plural, one {# thing} other {# things}}');
 
   playground.play(OTHER, config);
-  const again = (await (await answer(new Request(`${entry}?key=order.items`)))!.json()) as typeof view;
+  const again = (await (await answer(new Request(`${entry}?key=order.items`))).json()) as typeof view;
   expect(again.fields.message).toBe('{count, plural, one {# thing} other {# things}}');
 
-  expect((await answer(new Request('http://page.test/__prosebook/open?key=order.items')))!.status).toBe(204);
+  expect((await post('undo', {})).status).toBe(200);
+  expect(saved.at(-1)!['copy/catalog/order.yaml']).toBe(files['copy/catalog/order.yaml']);
+  expect((await post('undo', {})).status).toBe(422);
+
+  const place = (await (await answer(new Request(`${at('plugins/prosebook/place')}?key=order.items`))).json()) as {
+    file: string;
+    line: number;
+    column: number;
+  };
+  expect((await answer(new Request(`${at('open')}?file=${place.file}&line=${place.line}&column=1`))).status).toBe(204);
   expect(opened[0]!.file).toBe('copy/catalog/order.yaml');
 });

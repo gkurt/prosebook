@@ -134,7 +134,7 @@ plugins = ["prosebook/bun"]
 const dev = process.env.NODE_ENV !== 'production';
 
 Bun.serve({
-  routes: { ...(dev ? (await import('prosebook/bun')).inspector() : {}), '/': index },
+  routes: { ...(dev ? await (await import('prosebook/bun')).inspector() : {}), '/': index },
   development: dev && { hmr: true },
 });
 ```
@@ -197,7 +197,7 @@ Each of `prosebook()` (Vite), `withProsebook(config, options)`, `prosebook()` (B
 | `prune`   | `'strict'` | Ship only the messages the code reads. `'loose'` skips the [unseen read](#pruning) check, `false` ships all. |
 | `keep`    | `[]`       | Keys a build always keeps, exactly or as `prefix.*`.                                                         |
 | `split`   | `false`    | [Split](#splitting) each locale by area.                                                                     |
-| `inspect` | `true`     | The [inspector](#inspector), in dev, and its [shortcut](#inspector).                                         |
+| `inspect` | `true`     | The [inspector](#inspector), in dev, with deictic, and its [shortcut](#inspector).                           |
 
 In dev, an edit to `prosebook.config.*` restarts Vite's and Astro's server. Next, webpack, Metro, Bun and `generate --watch`
 regenerate with
@@ -1915,24 +1915,28 @@ Under Next the server can't link the areas' files; only hydration waits one requ
 
 ## Inspector
 
-In dev, with any integration: hold <kbd>Alt</kbd> to see which entry each string comes from, and Alt-click one to edit it on
-the page.
+The copy inspector is a [deictic](https://github.com/gkurt/deictic) plugin. Install deictic beside prosebook and, in dev, with any
+integration but webpack's and Metro's: hold <kbd>Alt</kbd> to see which entry each string comes from, and Alt-click one to edit
+it on the page, in deictic's **Copy** tab.
 
-- The dialog opens on the text as read, in its locale, the source beside a translation, with lint's findings as you type and a
-  **Fix** for each. **More** holds the rest of the entry: its other locales, context, kind, surface, what each placeholder holds,
-  and stays open once opened.
-- <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place.
-  **Open in editor** opens the entry in your editor instead, in the file of the field last in focus.
+```sh
+npm install -D deictic
+```
+
+- The integration adds deictic with the plugin itself. An app that has deictic of its own keeps it: the two become one, with
+  the app's shortcut and plugins, and the Copy tab beside them. List the plugin there to give it options of your own:
+  `deictic({ plugins: [prosebook({ shortcut: { modifiers: ['Shift'] } })] })`, from `prosebook/deictic`.
+- The tab opens on the text pressed, in the locale it was read in, the source beside a translation, with lint's findings as you
+  type and a **Fix** for each. **More** holds the rest of the entry: its other locales, context, kind, surface, what each
+  placeholder holds, and stays open once opened. Opened on an element some other way, it lists the strings in it to pick from.
+- <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> saves after checking the whole catalog; the page updates in place, and deictic's
+  undo takes the edit back. **Open entry** opens it in your editor, in the file of the field last in focus.
 - **Comment** and **Mark for removal** write `comment:` and `remove: true`, warnings in `generate` and `check` for whoever edits
   next, a coding agent included.
 - It matches the text under the pointer to what the runtime read: text changed after reading (`.toUpperCase()`) can't be traced.
   Under Vite and Astro that includes what the dev server rendered; under Next and Bun, only text read in the browser.
-- The editor: Vite's and Astro's `/__open-in-editor` (`LAUNCH_EDITOR`), Next's `/__nextjs_launch-editor` (`REACT_EDITOR`), Bun's
-  `Bun.openInEditor` (`VISUAL`, `EDITOR`). Turn it off with `inspect: false`.
-- Another shortcut, where Alt is taken: `inspect: { modifiers: ['Control', 'Shift'], button: 'right' }`. `modifiers` are held,
-  and no others, to show the keys (`'Alt'`, `'Control'`, `'Meta'`, `'Shift'`; `['Alt']` unset), and `button` is pressed with
-  them to edit (`'left'`, `'middle'`, `'right'`; `'left'` unset). Exactly those keys, so AltGr, which is Control and Alt, isn't
-  Alt.
+- `inspect: false` turns it off, and quiets the line the dev server says where deictic isn't installed. `inspect: { shortcut }` is a
+  deictic shortcut that opens the Copy tab directly.
 
 ## Playground
 
@@ -1961,32 +1965,28 @@ const fixed = fix(files, played.findings, config); // the files with the fixes m
 
 ### The inspector without a dev server
 
-A built page can run the [inspector](#inspector) too, as the homepage does: `endpoints` answers it in the browser, over the
-catalog's files held in memory.
+A built page can run the [inspector](#inspector) too, as the homepage does: deictic's `standalone` module answers it in the
+browser, with `standalone`, over the catalog's files held in memory.
 
 ```ts
-import { install } from 'prosebook/inspector';
-import { endpoints } from 'prosebook/playground';
+// vite.config.ts: deictic in the build too, its requests answered by a module of the page's
+deictic({ standalone: 'src/standalone.ts', plugins: [prosebook()] }); // prosebook from 'prosebook/deictic'
 
-const answer = endpoints(files, config, {
+// src/standalone.ts
+import { standalone } from 'prosebook/playground';
+
+export default standalone(files, config, {
   open: ({ file, line }) => window.open(`${repo}/blob/main/${file}#L${line}`),
-  saved: (files) => show(play(files, config)), // an edit was written: read the catalog again
-});
-
-install({
-  base: '/',
-  fetch: async (url, init) => {
-    if (url.endsWith('__prosebook/reads')) return Response.json(reads); // what the build read
-    return (await answer(new Request(new URL(url, location.href), init))) ?? new Response(null, { status: 404 });
-  },
+  saved: (files) => show(play(files, config)), // an edit, undo or redo: read the catalog again
+  reads: () => reads, // what the build read
 });
 ```
 
-- `install` takes the place of the integration's `inspect`: `base`, the `shortcut` and, as `fetch`, what answers in the dev
-  server's place. Call it before the page's first read.
-- An edit is kept in memory, for the requests after it; `saved` gets the files, for the page to show the new text.
+- An edit is kept in memory, for the requests after it, and deictic's undo and redo take it back and make it again there;
+  `saved` gets the files, for the page to show the new text.
 - The DOM carries no keys, so the page carries what its build read: set `globalThis.__PROSEBOOK_READ__` (`ReadHook`) while
-  building, and answer `__prosebook/reads` with each text and its reads, `[text, [{ key, locale }]][]`.
+  building, and hand `reads` each text and its reads, `[text, [{ key, locale }]][]`.
+- A page that renders no JSX in the browser imports deictic's client itself: `import('virtual:deictic/client')`.
 
 ## Native targets
 

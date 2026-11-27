@@ -118,8 +118,9 @@ export type Values = { readonly [name: string]: any };
 
 /**
  * Told of every message read: its key, the text it came to and the locale it was found in, which is
- * the fallback's when the current locale lacks it. The Vite plugin's dev inspector sets one on
- * `globalThis` to map text on screen back to keys; nothing sets it in a build.
+ * the fallback's when the current locale lacks it. Each integration's dev module sets one on
+ * `globalThis`, which keeps `__PROSEBOOK_READS__` for deictic's prosebook plugin to map text on screen
+ * back to keys; nothing sets it in a build.
  */
 export type ReadHook = (key: string, text: string, locale: string) => void;
 
@@ -130,7 +131,12 @@ export type HotHook = (locale: string, messages: CompiledMessages) => void;
  * What the Vite plugin sets on `globalThis` in dev. `__PROSEBOOK_HOT__` is there before the app runs,
  * so each copy adds itself, and the generated modules call every copy when they are updated.
  */
-export type DevHooks = { __PROSEBOOK_READ__?: ReadHook; __PROSEBOOK_HOT__?: Set<HotHook> };
+export type DevHooks = {
+  __PROSEBOOK_READ__?: ReadHook;
+  __PROSEBOOK_HOT__?: Set<HotHook>;
+  /** What the page read, by the text it came to: `Reads` in `deictic/reads.ts`. */
+  __PROSEBOOK_READS__?: Map<string, { key: string; locale: string }[]>;
+};
 
 /** One compiled message. */
 export type Compiled = string | ((values: Values, h: Helpers) => unknown);

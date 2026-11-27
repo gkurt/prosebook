@@ -11,9 +11,9 @@
  * read here once, and each pruned module travels to the loader as its options. The index travels too,
  * without the pseudo-locale, which is for dev.
  *
- * In dev the browser's index also starts the inspector (`inspector/index.ts`). Its endpoints can't be a
- * route of the app without a file in it, so a server of their own answers them on a local port, and a
- * rewrite sends `/__prosebook/*` there; an entry opens through Next's own `/__nextjs_launch-editor`.
+ * In dev the browser's index also starts the record of reads (`deictic/reads.ts`), and where deictic is
+ * installed the config is wrapped in deictic's `withDeictic` too, with the copy inspector, which an app's own
+ * `withDeictic` around it merges into its own.
  *
  * With `split`, client components get the catalog split by area, as under Vite (`tools/bundle.ts`).
  * Turbopack has no virtual modules, so the areas are files, written under `node_modules/.prosebook`,
@@ -23,10 +23,9 @@
  *
  * Turbopack only: Next 16 fails a Turbopack build whose config has a `webpack` key, so none is added.
  */
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { join, relative, resolve } from 'node:path';
 
+import { added, copyInspector, NO_DEICTIC, recordReads, type Inspect } from './deictic/register.ts';
 import type { LoaderOptions } from './loader.ts';
 import {
   areaFile,
@@ -38,8 +37,6 @@ import {
   fileSpecifiers,
   HOT_SET,
   inAreas,
-  installInspector,
-  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -57,7 +54,6 @@ import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression } from './tools/compile.ts';
 import type { Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
-import { inspectorEndpoints, nodeMiddleware, redirect } from './tools/endpoints.ts';
 import { generate, writeFiles, type Generated } from './tools/generate.ts';
 
 export interface ProsebookNextOptions {
@@ -82,28 +78,23 @@ export interface ProsebookNextOptions {
    */
   split?: boolean;
   /**
-   * In dev, Alt-click a string on the page to edit its entry. On by default; `{ modifiers, button }`
-   * changes the keys held and the button pressed.
+   * In dev, the copy inspector: deictic's shortcut on a string edits its entry, where deictic is installed. On
+   * by default; `{ shortcut }` is deictic's shortcut that opens the Copy tab directly.
    */
   inspect?: Inspect;
 }
 
 type Rules = { [glob: string]: unknown };
-type Rewrite = { source: string; destination: string };
-type Rewrites = Rewrite[] | { beforeFiles?: Rewrite[]; afterFiles?: Rewrite[]; fallback?: Rewrite[] };
 type ConfigFunction<C> = (phase: string, context: { defaultConfig: C }) => C | Promise<C>;
 
 const DEV = 'phase-development-server';
 const BUILD = 'phase-production-build';
 
 const loaderPath = beside(import.meta.url, 'loader');
-const inspectorPath = beside(import.meta.url, 'inspector/index');
+const readsPath = beside(import.meta.url, 'deictic/reads');
 
-// Next loads its config more than once in a process; one watcher and one inspector server per catalog
-// is enough. Each catalog's config as last loaded, by its folder at start, for the inspector to read.
+// Next loads its config more than once in a process; one watcher per catalog is enough.
 const watching = new Set<string>();
-const serving = new Map<string, Promise<number>>();
-const latest = new Map<string, ResolvedConfig>();
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -120,7 +111,6 @@ export function withProsebook<C extends object>(
     const resolved = typeof next === 'function' ? await next(phase, context) : next;
     if (phase !== DEV && phase !== BUILD) return resolved;
     const config = await loadConfig(resolve(options.root ?? process.cwd()), options.config);
-    latest.set(config.catalog, config);
     if (config.language === 'ts' && config.importExtension === '.js')
       throw new Error("prosebook: Turbopack doesn't resolve `./en.js` to `en.ts`: set `importExtension: ''` in the prosebook config");
     if (phase === BUILD) return withRules(resolved, buildRules(config, buildGenerated(config), options.prune ?? 'strict', options));
@@ -128,12 +118,18 @@ export function withProsebook<C extends object>(
     const generated = generate(config, { partial: true });
     if (brokenIn(generated) !== undefined) console.error(brokenIn(generated));
     watch(config, options);
-    if (options.inspect === false) return withRules(resolved, hotRules(config, generated, HOT_SET, options));
-    const base = `${(resolved as { basePath?: string }).basePath ?? ''}/`;
     // A relative import, which Turbopack resolves as it would the app's own.
-    const path = relative(config.out, inspectorPath).replaceAll('\\', '/');
-    const prepend = HOT_SET + installInspector(path.startsWith('.') ? path : `./${path}`, base, options.inspect);
-    return withRewrite(withRules(resolved, hotRules(config, generated, prepend, options)), await serveInspector(config, base));
+    const path = relative(config.out, readsPath).replaceAll('\\', '/');
+    const prepend = HOT_SET + recordReads(path.startsWith('.') ? path : `./${path}`);
+    const ruled = withRules(resolved, hotRules(config, generated, prepend, options));
+    const inspector = await copyInspector(options.inspect, { root: options.root, config: options.config });
+    if (inspector === undefined) {
+      if (options.inspect === undefined) console.info(NO_DEICTIC);
+      return ruled;
+    }
+    // deictic's own wrapper, with the prosebook plugin: an app's `withDeictic` around this one merges it in.
+    const { withDeictic } = await import('deictic/next');
+    return withDeictic(ruled, { ...added(inspector), ...(options.root === undefined ? {} : { root: options.root }) })(phase, context);
   };
 }
 
@@ -153,44 +149,6 @@ function withRules<C extends object>(resolved: C, rules: Rules): C {
   };
 }
 
-/** Sends `/__prosebook/*` to the inspector's server, before any of the app's own rewrites. */
-function withRewrite<C extends object>(resolved: C, port: number): C {
-  const theirs = (resolved as { rewrites?: () => Promise<Rewrites> }).rewrites;
-  const ours = [{ source: '/__prosebook/:path*', destination: `http://127.0.0.1:${port}/__prosebook/:path*` }];
-  const rewrites = async (): Promise<Rewrites> => {
-    const r = (await theirs?.()) ?? [];
-    return Array.isArray(r) ? { beforeFiles: ours, afterFiles: r } : { ...r, beforeFiles: [...ours, ...(r.beforeFiles ?? [])] };
-  };
-  return { ...resolved, rewrites };
-}
-
-/**
- * Serves the inspector's endpoints on a free local port, for as long as the process lives. Next's
- * rewrite forwards the page's host, so an edit is still checked against the page's origin.
- */
-function serveInspector(config: ResolvedConfig, base: string): Promise<number> {
-  let port = serving.get(config.catalog);
-  if (port !== undefined) return port;
-  const handle = inspectorEndpoints(() => latest.get(config.catalog) ?? config, {
-    open: ({ file, line, column }) =>
-      redirect(`${base}__nextjs_launch-editor?${new URLSearchParams({ file, line1: String(line), column1: String(column) })}`),
-  });
-  const middleware = nodeMiddleware(handle);
-  const server = createServer((req, res) =>
-    middleware(req, res, () => {
-      res.statusCode = 404;
-      res.end();
-    }),
-  );
-  port = new Promise<number>((done, fail) => {
-    server.once('error', fail);
-    server.listen(0, '127.0.0.1', () => done((server.address() as AddressInfo).port));
-  });
-  server.unref();
-  serving.set(config.catalog, port);
-  return port;
-}
-
 /** Regenerates on each edit, with the config as it then reads; the rules keep the paths it named at start. */
 function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
   const key = config.catalog;
@@ -201,7 +159,6 @@ function watch(config: ResolvedConfig, options: ProsebookNextOptions): void {
     config,
     options.config,
     (next) => {
-      latest.set(key, next);
       try {
         const generated = generate(next, { partial: true });
         if (options.split === true) writeAreas(next, generated);
@@ -228,7 +185,7 @@ function rule(config: ResolvedConfig, name: string, options: LoaderOptions, side
 }
 
 /**
- * In the browser: the index starts with `prepend`, the hot hooks and the inspector, there before any
+ * In the browser: the index starts with `prepend`, the hot hooks and the record of reads, there before any
  * copy exists, and each locale updates the copies.
  */
 function hotRules(config: ResolvedConfig, generated: Generated, prepend: string, options: ProsebookNextOptions): Rules {

@@ -1,5 +1,5 @@
 /**
- * One entry as the dev inspector's dialog edits it, as fields, in every locale.
+ * One entry as the copy inspector (deictic's prosebook plugin) edits it, as fields, in every locale.
  *
  * An edit is checked as the whole catalog, with the edited files read from memory, before anything is
  * written: a save that would break the build comes back as problems instead, and the dev server never
@@ -73,15 +73,15 @@ export function checkEdit(config: ResolvedConfig, unsaved: ReadonlyMap<string, s
 }
 
 /**
- * Applies an edit and checks the catalog with it. With `write`, a clean edit is written; without, it
- * only comes back as the view, with what lint says of it, which is how the dialog checks as you type.
+ * An edit checked as the whole catalog: what lint says of the entry with it, and each file it changes as its
+ * new text, by absolute path, for whoever writes them (deictic's prosebook plugin, so the edit lands in its
+ * history). Nothing is written here. With problems, there are no files.
  */
 export function editEntry(
   config: ResolvedConfig,
   key: string,
   fields: EntryFields,
-  write: boolean,
-): { view?: EntryView; problems: Problem[] } {
+): { view?: EntryView; problems: Problem[]; files: Map<string, string> } {
   const loaded = loadCatalog(config, undefined, { partial: true });
   const current = viewOf(config, loaded, key);
   const message = loaded.messages.find((m) => m.key === key)!;
@@ -96,16 +96,9 @@ export function editEntry(
   }
 
   const { catalog, problems } = checkEdit(config, unsaved);
-  if (problems.length > 0) return { problems };
-
-  if (write) {
-    for (const [path, content] of unsaved) {
-      if (existsSync(path) && readFileSync(path, 'utf8') === content) continue;
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, content);
-    }
-  }
-  return { view: viewOf(config, catalog, key), problems: [] };
+  if (problems.length > 0) return { problems, files: new Map() };
+  const files = new Map([...unsaved].filter(([path, content]) => !existsSync(path) || readFileSync(path, 'utf8') !== content));
+  return { view: viewOf(config, catalog, key), problems: [], files };
 }
 
 /**

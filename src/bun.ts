@@ -10,8 +10,9 @@
  * Named in bunfig.toml's `[serve.static] plugins`, it serves `Bun.serve`'s bundler instead, which
  * names no entry points: it regenerates whenever a catalog or translation file changes, and each
  * locale module accepts its own update and hands the new messages to every copy, as under Vite. The
- * index starts the inspector on the page too, whose endpoints are `inspector()`'s routes, spread into
- * `Bun.serve`'s; an entry opens in the editor `Bun.openInEditor` finds.
+ * index starts the record of reads on the page too (`deictic/reads.ts`), and where deictic is installed the
+ * plugin sets up deictic's Bun plugin with the copy inspector, which merges into an app's own deictic; its
+ * endpoints are `inspector()`'s routes, spread into `Bun.serve`'s, or the app's deictic's.
  *
  * With `split`, the page's catalog is split by area as the Vite plugin's is (`tools/bundle.ts`): each
  * source file under `scan.dirs` naming an area's keys imports the area, a module of the plugin's own
@@ -25,6 +26,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
 import type { BunPlugin, PluginBuilder } from 'bun';
+
+import { added, copyInspector, NO_DEICTIC, recordReads, type Inspect } from './deictic/register.ts';
 
 import {
   AREA,
@@ -41,8 +44,6 @@ import {
   hotLocale,
   importingAreas,
   inAreas,
-  installInspector,
-  type Inspect,
   keeper,
   lazyAreas,
   membersOf,
@@ -60,7 +61,6 @@ import { CatalogError } from './tools/catalog.ts';
 import { areaGroups } from './tools/chunks.ts';
 import { compileLocale, localeExpression, type Entry } from './tools/compile.ts';
 import { loadConfig, type ProsebookConfig, type ResolvedConfig } from './tools/config.ts';
-import { inspectorEndpoints } from './tools/endpoints.ts';
 import { generate, writeFiles, type Generated } from './tools/generate.ts';
 
 export interface ProsebookBunOptions {
@@ -87,13 +87,13 @@ export interface ProsebookBunOptions {
    */
   split?: boolean;
   /**
-   * Under the dev server, Alt-click a string on the page to edit its entry. On by default;
-   * `{ modifiers, button }` changes the keys held and the button pressed.
+   * Under the dev server, the copy inspector: deictic's shortcut on a string edits its entry, where deictic is
+   * installed. On by default; `{ shortcut }` is deictic's shortcut that opens the Copy tab directly.
    */
   inspect?: Inspect;
 }
 
-const inspectorPath = beside(import.meta.url, 'inspector/index');
+const readsPath = beside(import.meta.url, 'deictic/reads');
 const NAMESPACE = 'prosebook-area';
 
 const describe = (e: unknown) => (e instanceof CatalogError ? e.message : e instanceof Error ? (e.stack ?? e.message) : String(e));
@@ -129,7 +129,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         if (unseen.length > 0) throw new Error(unseenMessage(unseen, config.root));
         kept = keeper(refs, options.keep, config.formats);
       }
-      const inspector = dev && options.inspect !== false ? installInspector(inspectorPath, '/', options.inspect) : '';
+      const reads = dev ? recordReads(readsPath) : '';
       if (dev) {
         // An edit to the config regenerates with it; the paths it names stay as they were at start.
         const fail = (e: unknown) => console.error(describe(e));
@@ -156,7 +156,7 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
         const name = nameOf(args.path);
         if (name === 'index' && split && client(args)) {
           const index = splitIndex(config, generated, options.keep);
-          return { contents: building ? index : HOT_SET + inspector + index + HOT_INDEX, loader: 'js' };
+          return { contents: building ? index : HOT_SET + reads + index + HOT_INDEX, loader: 'js' };
         }
         if (name === 'index' && !dev) return { contents: serverIndex(buildIndex(config, generated)), loader: 'js' };
         const entries = generated.entries.get(name);
@@ -167,29 +167,37 @@ export function prosebook(options: ProsebookBunOptions = {}): BunPlugin {
           return { contents: generatedModule(config, generated, name) ?? '', loader };
         }
         if (entries !== undefined) return { contents: readFileSync(args.path, 'utf8') + hotLocale(name), loader };
-        return name === 'index' ? { contents: HOT_SET + inspector + readFileSync(args.path, 'utf8') + HOT_INDEX, loader } : undefined;
+        return name === 'index' ? { contents: HOT_SET + reads + readFileSync(args.path, 'utf8') + HOT_INDEX, loader } : undefined;
       });
-      if (!split) return;
-
-      // `cart`, or in a build `cart/de`, a lazy locale's part of the group `cart` leads.
-      build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({ path: path.slice(AREA.length), namespace: NAMESPACE }));
-      build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
-        const [area = '', locale] = path.split('/');
-        if (locale !== undefined) {
-          const entries = inAreas(generated.entries.get(locale) ?? [], membersOf(groups, area));
-          return { contents: prunedModule(entries, kept), loader: 'js' };
-        }
-        const inline = building ? (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) : undefined;
-        return { contents: areaModule(config, generated, area, inline, undefined, groups), loader: 'js' };
-      });
-      const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
-      const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);
-      build.onLoad({ filter: new RegExp(`^(?:${dirs})(?:[\\\\/].*\\.[cm]?[jt]sx?)?$`) }, (args) => {
-        if (!client(args) || out.test(args.path) || /[\\/]node_modules[\\/]/.test(args.path)) return undefined;
-        const code = readFileSync(args.path, 'utf8');
-        const areas = areasNamed(code, lazyAreas(generated, options.keep));
-        return areas.length === 0 ? undefined : { contents: importingAreas(code, args.path, areas), loader: args.loader };
-      });
+      if (split) {
+        // `cart`, or in a build `cart/de`, a lazy locale's part of the group `cart` leads.
+        build.onResolve({ filter: new RegExp(`^${escape(AREA)}`) }, ({ path }) => ({
+          path: path.slice(AREA.length),
+          namespace: NAMESPACE,
+        }));
+        build.onLoad({ filter: /.*/, namespace: NAMESPACE }, ({ path }) => {
+          const [area = '', locale] = path.split('/');
+          if (locale !== undefined) {
+            const entries = inAreas(generated.entries.get(locale) ?? [], membersOf(groups, area));
+            return { contents: prunedModule(entries, kept), loader: 'js' };
+          }
+          const inline = building ? (_locale: string, entries: Entry[]) => localeExpression(compileLocale(entries, kept)) : undefined;
+          return { contents: areaModule(config, generated, area, inline, undefined, groups), loader: 'js' };
+        });
+        const dirs = config.scan.dirs.map((dir) => folderPattern(resolve(config.root, dir))).join('|');
+        const out = new RegExp(`^${folderPattern(config.out)}[\\\\/]`);
+        build.onLoad({ filter: new RegExp(`^(?:${dirs})(?:[\\\\/].*\\.[cm]?[jt]sx?)?$`) }, (args) => {
+          if (!client(args) || out.test(args.path) || /[\\/]node_modules[\\/]/.test(args.path)) return undefined;
+          const code = readFileSync(args.path, 'utf8');
+          const areas = areasNamed(code, lazyAreas(generated, options.keep));
+          return areas.length === 0 ? undefined : { contents: importingAreas(code, args.path, areas), loader: args.loader };
+        });
+      }
+      if (!dev) return;
+      // Bun loads a module with the first `onLoad` that answers, so deictic's marking comes after ours.
+      const inspector = await copyInspector(options.inspect, { root: options.root, config: options.config });
+      if (inspector === undefined && options.inspect === undefined) console.info(NO_DEICTIC);
+      if (inspector !== undefined) await (await import('deictic/bun')).deictic({ ...added(inspector), root: config.root }).setup(build);
     },
   };
 }
@@ -257,24 +265,14 @@ export interface InspectorRoutesOptions {
 }
 
 /**
- * The inspector's endpoints as `Bun.serve` routes: `routes: { ...inspector(), '/': index }`. For dev
- * only: they read and write the catalog.
+ * The copy inspector's endpoints, deictic's, as `Bun.serve` routes: `routes: { ...(await inspector()), '/': index }`.
+ * For dev only: they read and write the catalog. An app with deictic of its own spreads its routes instead, which
+ * have the prosebook plugin the dev server's plugin added.
  */
-export function inspector(options: InspectorRoutesOptions = {}): Record<string, (req: Request) => Promise<Response>> {
-  const root = resolve(options.root ?? process.cwd());
-  // Loaded per request, so an edit is checked by the config as it is now.
-  const handle = inspectorEndpoints(() => loadConfig(root, options.config), {
-    open: ({ file, line, column }) => {
-      try {
-        Bun.openInEditor(file, { line, column });
-        return new Response(null, { status: 204 });
-      } catch (e) {
-        return new Response(`${e instanceof Error ? e.message : String(e)}: set VISUAL or EDITOR to the editor's command`, { status: 500 });
-      }
-    },
-  });
-  const route = async (req: Request) => (await handle(req)) ?? new Response(null, { status: 404 });
-  return { '/__prosebook/open': route, '/__prosebook/entry': route };
+export async function inspector(options: InspectorRoutesOptions = {}): Promise<Record<string, (req: Request) => Promise<Response>>> {
+  const plugin = await copyInspector(true, options);
+  if (plugin === undefined) throw new Error(NO_DEICTIC);
+  return (await import('deictic/bun')).deictic({ ...added(plugin), root: resolve(options.root ?? process.cwd()) }).routes;
 }
 
 // bunfig.toml names the module, and Bun takes its default export as the plugin.

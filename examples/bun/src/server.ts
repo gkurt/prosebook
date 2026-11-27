@@ -8,9 +8,9 @@ const dev = process.env.NODE_ENV !== 'production';
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3000),
   routes: {
-    // In dev, the inspector's endpoints: Alt-click a string on the page to open its entry in the
-    // editor, Alt-right-click to edit it there. Imported only then, so a build leaves them out.
-    ...(dev ? (await import('prosebook/bun')).inspector() : {}),
+    // In dev, the copy inspector's endpoints, deictic's: Alt-click a string on the page to edit its entry
+    // there. Imported only then, so a build leaves them out.
+    ...(dev ? await (await import('prosebook/bun')).inspector() : {}),
     '/': index,
     // Read on the server: one copy per request, in the locale the request asks for.
     '/api/cart': async (req) => {

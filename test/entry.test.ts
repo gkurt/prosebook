@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
-import { editEntry, readEntry } from 'prosebook/tools';
+import { editEntry, readEntry, type EntryFields, type ResolvedConfig } from 'prosebook/tools';
 
 import { fixture } from './fixture.ts';
 
@@ -16,6 +16,16 @@ cart.items:
     count: how many items
   en: '{count, plural, one {# item} other {# items}}'
 `;
+
+/** An edit written as deictic writes the files it hands back. */
+function save(config: ResolvedConfig, key: string, fields: EntryFields) {
+  const edited = editEntry(config, key, fields);
+  for (const [path, content] of edited.files) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content);
+  }
+  return edited;
+}
 
 // German in a folder of area files, Turkish in one file, French in a folder without a cart file yet.
 const project = () =>
@@ -51,7 +61,7 @@ describe('editing an entry in place', () => {
       context: 'Heads the cart.',
       translations: { de: 'Dein Warenkorb', fr: 'Panier', tr: 'Sepet: hepsi' },
     };
-    expect(editEntry(config, 'cart.title', fields, true).problems).toEqual([]);
+    expect(save(config, 'cart.title', fields).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(
       CATALOG.replace('cart.title: Cart', 'cart.title:\n  kind: name\n  context: Heads the cart.\n  en: Your cart'),
     );
@@ -67,20 +77,20 @@ describe('editing an entry in place', () => {
     const view = readEntry(config, 'cart.items');
     expect(view.fields).toMatchObject({ comment: '', remove: false });
     const marked = { ...view.fields, comment: 'Say "in your cart".', remove: true };
-    expect(editEntry(config, 'cart.items', marked, true).problems).toEqual([]);
+    expect(save(config, 'cart.items', marked).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toContain(
       `    count: how many items\n  comment: Say "in your cart".\n  remove: true\n  en: '{count`,
     );
     expect(readEntry(config, 'cart.items').fields).toMatchObject({ comment: 'Say "in your cart".', remove: true });
 
-    expect(editEntry(config, 'cart.items', view.fields, true).problems).toEqual([]);
+    expect(save(config, 'cart.items', view.fields).problems).toEqual([]);
     expect(read(config, 'copy/catalog/cart.yaml')).toBe(CATALOG);
   });
 
   test('a translation left empty is removed, and the locale falls back', () => {
     const config = project();
     const view = readEntry(config, 'cart.title');
-    expect(editEntry(config, 'cart.title', { ...view.fields, translations: { de: '' } }, true).problems).toEqual([]);
+    expect(save(config, 'cart.title', { ...view.fields, translations: { de: '' } }).problems).toEqual([]);
     expect(read(config, 'copy/locales/de/cart.yaml')).toBe("cart.items: '{count, plural, other {# Artikel}}'\n");
     expect(existsSync(join(config.root, 'copy/locales/fr/cart.yaml'))).toBe(false);
   });
@@ -89,7 +99,7 @@ describe('editing an entry in place', () => {
     const config = project();
     const view = readEntry(config, 'cart.items');
     const fields = { ...view.fields, message: '{n, plural, one {# item} other {# items}}', translations: { tr: 'Sepet {' } };
-    const problems = editEntry(config, 'cart.items', fields, true)
+    const problems = save(config, 'cart.items', fields)
       .problems.map((p) => p.message)
       .join('\n');
     expect(problems).toContain('args.count is neither a placeholder nor a tag of this message');
@@ -100,7 +110,7 @@ describe('editing an entry in place', () => {
   test('an edit checked without writing comes back with what lint says of it', () => {
     const config = project();
     const view = readEntry(config, 'cart.title');
-    const preview = editEntry(config, 'cart.title', { ...view.fields, message: 'Your  cart' }, false);
+    const preview = editEntry(config, 'cart.title', { ...view.fields, message: 'Your  cart' });
     expect(preview.problems).toEqual([]);
     expect(preview.view?.fields.message).toBe('Your  cart');
     expect(preview.view?.findings.find((f) => f.rule === 'whitespace')?.fixed).toBe('Your cart');

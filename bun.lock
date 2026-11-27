@@ -22,6 +22,7 @@
         "ai": "^7.0.164",
         "astro": "^7.4.5",
         "cldr-core": "48",
+        "deictic": "link:deictic",
         "husky": "^9.1.7",
         "lint-staged": "^17.6.0",
         "metro": "^0.87.3",
@@ -45,6 +46,7 @@
         "@rspack/core": ">=1",
         "ai": ">=7.0.130",
         "astro": ">=6",
+        "deictic": ">=0.10.0",
         "metro": ">=0.80",
         "next": ">=16",
         "preact": ">=10",
@@ -60,6 +62,7 @@
         "@rspack/core",
         "ai",
         "astro",
+        "deictic",
         "metro",
         "next",
         "preact",
@@ -227,6 +230,7 @@
         "@ai-sdk/typesafe-ai": "^3.0.35",
         "@astrojs/check": "^0.9.12",
         "ai": "^7.0.164",
+        "deictic": "link:deictic",
         "typescript": "^6.0.3",
       },
     },
@@ -1055,6 +1059,8 @@
     "deepmerge": ["deepmerge@4.3.1", "", {}, "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="],
 
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
+
+    "deictic": ["deictic@link:deictic", { "hasInstallScript": true, "bin": { "deictic": "./dist/cli.js" } }],
 
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 

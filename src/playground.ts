@@ -5,10 +5,10 @@
  * those in `browser/`, `node:fs` by an in-memory volume (`browser/fs.ts`) that every call fills anew.
  */
 import { volume } from './browser/fs.ts';
+import { copyRoutes, editsOf, type EntryEdit } from './deictic/routes.ts';
 import type { Catalog as RuntimeCatalog } from './runtime/copy.ts';
 import { CatalogError, loadCatalog, type EntryLocation, type Message, type Problem } from './tools/catalog.ts';
 import { resolveConfig, type ProsebookConfig } from './tools/config.ts';
-import { inspectorEndpoints } from './tools/endpoints.ts';
 import { applyFixes } from './tools/entry.ts';
 import { evaluatedCatalog } from './tools/evaluated.ts';
 import { render } from './tools/generate.ts';
@@ -79,35 +79,84 @@ export function fix(files: Files, findings: Finding[], config: ProsebookConfig =
   return { files: Object.fromEntries(Object.keys(files).map((path) => [path, volume.get(`${ROOT}/${path}`)!])), problems: [] };
 }
 
-export interface EndpointsOptions {
-  /** The path the endpoints sit under, ending in `/`, as the inspector's `base`. `/` unset. */
+export interface StandaloneOptions {
+  /** The path deictic's endpoints sit under, ending in `/`, as the page's `base`. `/` unset. */
   base?: string;
-  /** Asked to open an entry, its `file` a path from the project's folder: a link to its source, say. */
+  /** Asked to open a place, its `file` a path from the project's folder: a link to its source, say. */
   open?: (at: EntryLocation) => void;
-  /** Told the files after each edit written, for the page to show: `play` them and read again. */
+  /** Told the files after each edit, undo or redo, for the page to show: `play` them and read again. */
   saved?: (files: Files) => void;
+  /** What the page's build read, for the Copy tab to match text to where the page read none itself. */
+  reads?: () => [string, { key: string; locale: string }[]][];
+}
+
+interface Change {
+  id: number;
+  at: string;
+  label: string;
+  before: Files;
+  after: Files;
 }
 
 /**
- * The inspector's endpoints over `files`, for a page with no dev server: what `prosebook/inspector`'s
- * `install` takes as `fetch`, once each request is a `Request`. An edit is kept for the requests after it.
+ * deictic's endpoints for the prosebook plugin alone, over `files`, for a page with no dev server: the default
+ * export of deictic's `standalone` module (`deictic/vite`'s `standalone` option), a `Standalone`. An edit is
+ * kept for the requests after it, and undone and redone from a history of its own, in memory.
  */
-export function endpoints(
-  files: Files,
-  config: ProsebookConfig = {},
-  { base, open, saved }: EndpointsOptions = {},
-): (request: Request) => Promise<Response | undefined> {
+export function standalone(files: Files, config: ProsebookConfig = {}, { base = '/', open, saved, reads }: StandaloneOptions = {}) {
   let current = files;
-  return inspectorEndpoints(() => load(current, config), {
-    ...(base !== undefined && { base }),
-    open: (at) => {
-      open?.({ ...at, file: fromRoot(at.file) });
+  let done: Change[] = [];
+  let undone: Change[] = [];
+  const summary = ({ id, at, label, after }: Change) => ({ id, at, label, files: Object.keys(after) });
+  const routes = copyRoutes(
+    () => load(current, config),
+    fromRoot,
+    () => new Map(reads?.() ?? []),
+  );
+  const refused = (problem: string) => Response.json({ problem }, { status: 422 });
+  const swap = (from: Change[], to: Change[], side: 'before' | 'after') => {
+    const change = from.pop();
+    if (change === undefined) return refused(`nothing to ${side === 'before' ? 'undo' : 'redo'}`);
+    to.push(change);
+    current = { ...current, ...change[side] };
+    for (const [path, content] of Object.entries(change[side])) if (content === '') delete current[path];
+    saved?.(current);
+    return Response.json({ change: summary(change) });
+  };
+
+  return async (request: Request): Promise<Response> => {
+    const url = new URL(request.url);
+    const prefix = `${base}__deictic/`;
+    if (!url.pathname.startsWith(prefix)) return new Response(null, { status: 404 });
+    const route = url.pathname.slice(prefix.length);
+    if (route === 'plugins/prosebook/entry') return routes.entry(request);
+    if (route === 'plugins/prosebook/place') return routes.place(request);
+    if (route === 'plugins/prosebook/reads') return routes.reads();
+    if (route === 'history') return Response.json({ done: done.map(summary), undone: undone.map(summary) });
+    if (route === 'open') {
+      open?.({
+        file: url.searchParams.get('file') ?? '',
+        line: Number(url.searchParams.get('line')),
+        column: Number(url.searchParams.get('column')),
+      });
       return new Response(null, { status: 204 });
-    },
-    written: () => {
-      const prefix = `${ROOT}/`;
-      current = Object.fromEntries([...volume].flatMap(([path, content]) => (path.startsWith(prefix) ? [[fromRoot(path), content]] : [])));
-      saved?.(current);
-    },
-  });
+    }
+    if (route === 'undo') return swap(done, undone, 'before');
+    if (route === 'redo') return swap(undone, done, 'after');
+    if (route === 'read') return Response.json({ model: null });
+    if (route !== 'apply') return route === 'problem' ? Response.json({}) : new Response(null, { status: 404 });
+    // Read before the files are loaded, so the edit is made in the same turn.
+    const { op } = (await request.json()) as { op: EntryEdit };
+    const edits = editsOf(load(current, config), op);
+    if (typeof edits === 'string') return refused(edits);
+    const after = Object.fromEntries([...edits].map(([path, content]) => [fromRoot(path), content]));
+    // An empty file stands for one the edit made, which undo takes away.
+    const before = Object.fromEntries(Object.keys(after).map((path) => [path, current[path] ?? '']));
+    const change = { id: done.length + undone.length + 1, at: new Date().toISOString(), label: `prosebook ${op.key}`, before, after };
+    done.push(change);
+    undone = [];
+    current = { ...current, ...after };
+    saved?.(current);
+    return Response.json({ model: null, change: summary(change) });
+  };
 }

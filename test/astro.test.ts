@@ -67,7 +67,7 @@ test("a strict build fails on a read in a component's frontmatter or markup whos
   expect(error).toMatch(/1 read\(s\) whose key the build can't see[^]*src\/pages\/index\.astro:4:15 {2}t\(key as never\)/);
 });
 
-test('in dev, every page gets the inspector, what the server read reaches it, and an edit reloads the page', async () => {
+test("in dev, every page gets deictic's overlay with the copy inspector, what the server read reaches it, and an edit reloads the page", async () => {
   const { root } = fixture(site([]));
   const server = await dev(config(root, { server: { port: 0 } }));
   try {
@@ -77,7 +77,8 @@ test('in dev, every page gets the inspector, what the server read reaches it, an
     expect(html).toMatch(/<h1[^>]*>Server title<\/h1>/);
     const page = await (await fetch(new URL(/src="([^"]*astro:scripts\/page\.js)"/.exec(html)![1]!, origin))).text();
     expect(page).toContain('prosebook/dev');
-    const reads = (await (await fetch(`${origin}__prosebook/reads`)).json()) as [string, { key: string }[]][];
+    expect(page).toContain('deictic/client');
+    const reads = (await (await fetch(`${origin}__deictic/plugins/prosebook/reads`)).json()) as [string, { key: string }[]][];
     expect(reads.map(([text, [read]]) => [text, read!.key])).toEqual([
       ['Server title', 'app.title'],
       ['Read the terms.', 'app.terms'],
@@ -92,8 +93,6 @@ test('in dev, every page gets the inspector, what the server read reaches it, an
   } finally {
     await server.stop();
   }
-  // Once the server is gone, nothing in the process records reads any more.
-  expect((globalThis as { __PROSEBOOK_READ__?: unknown }).__PROSEBOOK_READ__).toBeUndefined();
 });
 
 test('in dev, an edit to the config file restarts the server with it', async () => {

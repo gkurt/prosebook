@@ -2,8 +2,8 @@ import { join } from 'node:path';
 
 import { defineConfig } from 'tsdown';
 
-// One entry per export in package.json, plus the CLI, the dev inspector each integration loads from
-// beside itself and the loader the Next config and the webpack plugin name by path. The frameworks, Vite, Bun and
+// One entry per export in package.json, plus the CLI, the record of reads each integration's dev module loads
+// from beside itself, and the loader the Next config and the webpack plugin name by path. The frameworks, Vite, Bun and
 // Node built-ins stay external.
 /** Where the playground's build finds each Node built-in the tools import: in memory, or a stand-in. */
 export const BROWSER_SHIMS = Object.fromEntries(
@@ -27,7 +27,9 @@ export default defineConfig([
       metro: 'src/metro.ts',
       bun: 'src/bun.ts',
       astro: 'src/astro.ts',
-      'inspector/index': 'src/inspector/index.ts',
+      'deictic/index': 'src/deictic/index.ts',
+      'deictic/client': 'src/deictic/client.ts',
+      'deictic/reads': 'src/deictic/reads.ts',
       config: 'src/tools/config.ts',
       tools: 'src/tools/index.ts',
       test: 'src/test.ts',
@@ -38,7 +40,7 @@ export default defineConfig([
     platform: 'node',
     // `@types/bun` declares the `bun` module ambiently, which the declaration bundler can't follow.
     // `Text.svelte` ships as source, with its types, for the app's Svelte compiler.
-    deps: { neverBundle: ['bun', /\.svelte$/] },
+    deps: { neverBundle: ['bun', /\.svelte$/, /^deictic(\/|$)/] },
     copy: [{ from: ['src/svelte/Text.svelte', 'src/svelte/Text.svelte.d.ts'], to: 'dist/svelte' }],
     // `.js`, as package.json names them: the package is `type: module`.
     fixedExtension: false,

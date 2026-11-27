@@ -21,7 +21,7 @@ bun run docs        # the README, API.md, CONTRIBUTING.md and AGENTS.md held to 
 bun run docs:judge  # and to the guidelines, by a model; needs TYPESAFE_AI_API_KEY (ANTHROPIC_API_KEY adds Haiku, which suggests rewrites), then commit prosebook.lock.json
 bun run judge       # the site's and the Vite example's catalogs the same way; then commit their copy/lock.json
 bun run example     # build, then the Vite example's dev server
-bun run dev         # build, then the homepage's dev server, with the inspector
+bun run dev         # build, then the homepage's dev server, with the copy inspector
 bun run site        # the homepage (site/, Astro) built into _site/
 ```
 
@@ -47,7 +47,7 @@ bun run size                       # what the runtime and each binding weigh, gz
 - [API.md](API.md) is the full reference. A change to a user-facing API updates it, and AGENTS.md, in the same commit.
 - `site/` is the homepage, an Astro site whose words are in its own catalog. Its demo (`site/src/demo/`) runs the real tools
   on an entry the visitor edits, so what it shows is what `prosebook lint` says. Every string on it can be Alt-clicked, in dev
-  and built: the built page runs the real inspector too (`site/src/inspect.ts`), answered in the browser.
+  and built: the built page runs the real copy inspector too, deictic's, answered in the browser (`site/src/standalone.ts`).
 
 ## Releases
 

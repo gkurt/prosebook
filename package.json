@@ -187,11 +187,18 @@
         "default": "./dist/playground.js"
       }
     },
-    "./inspector": {
-      "prosebook@dev": "./src/inspector/index.ts",
+    "./deictic": {
+      "prosebook@dev": "./src/deictic/index.ts",
       "import": {
-        "types": "./dist/inspector/index.d.ts",
-        "default": "./dist/inspector/index.js"
+        "types": "./dist/deictic/index.d.ts",
+        "default": "./dist/deictic/index.js"
+      }
+    },
+    "./deictic/client": {
+      "prosebook@dev": "./src/deictic/client.ts",
+      "import": {
+        "types": "./dist/deictic/client.d.ts",
+        "default": "./dist/deictic/client.js"
       }
     },
     "./ai": {
@@ -245,6 +252,7 @@
     "ai": "^7.0.164",
     "astro": "^7.4.5",
     "cldr-core": "48",
+    "deictic": "link:deictic",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "metro": "^0.87.3",
@@ -268,6 +276,7 @@
     "@rspack/core": ">=1",
     "ai": ">=7.0.130",
     "astro": ">=6",
+    "deictic": ">=0.10.0",
     "metro": ">=0.80",
     "next": ">=16",
     "preact": ">=10",
@@ -287,6 +296,9 @@
       "optional": true
     },
     "astro": {
+      "optional": true
+    },
+    "deictic": {
       "optional": true
     },
     "metro": {

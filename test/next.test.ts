@@ -155,10 +155,10 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   expect(rules['index.ts']!.condition).toEqual({ all: ['browser', { path: expect.any(RegExp) }] });
   const index = run(rules['index.ts']!, '// index\n');
   expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();\n');
-  expect(index).toEndWith('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}});\n// index\n');
+  expect(index).toEndWith('listenForReads();\n// index\n');
   // Imported from beside the index, as Turbopack resolves the app's own imports.
-  const inspector = /from "(\.[^"]+)"/.exec(index)![1]!;
-  expect(readFileSync(join(config.root, 'src/copy', inspector), 'utf8')).toContain('function install');
+  const reads = /from "(\.[^"]+)"/.exec(index)![1]!;
+  expect(readFileSync(join(config.root, 'src/copy', reads), 'utf8')).toContain('function listen');
 
   const path = join(config.root, 'src/copy/de.ts');
   writeFileSync(path, run(rules['de.ts']!, readFileSync(path, 'utf8')));
@@ -174,43 +174,39 @@ test('in dev, the index sets up the hot hooks in the browser, and each locale ru
   }
 });
 
-test("in dev, a rewrite sends the inspector's requests to a server that edits from the page only and opens through Next's launcher", async () => {
+test("in dev, the config is wrapped in deictic's, whose rewrite reaches the Copy tab's routes and opens through Next's launcher", async () => {
   const { config, next } = await load('phase-development-server');
   const { beforeFiles } = (await next.rewrites!()) as { beforeFiles: { source: string; destination: string }[] };
-  expect(beforeFiles[0]!.source).toBe('/__prosebook/:path*');
+  expect(beforeFiles[0]!.source).toBe('/__deictic/:path*');
   const target = beforeFiles[0]!.destination.replace(':path*', '');
   // As Next's rewrite sends it: the page's host forwarded.
   const page = { 'X-Forwarded-Host': 'localhost:3000' };
 
-  const open = await fetch(`${target}open?key=app.used&locale=de`, { headers: page, redirect: 'manual' });
+  const read = (await (await fetch(`${target}plugins/prosebook/entry?key=app.used`, { headers: page })).json()) as EntryView;
+  expect(read.fields.message).toBe('Used message');
+  const place = (await (await fetch(`${target}plugins/prosebook/place?key=app.used&locale=de`, { headers: page })).json()) as {
+    file: string;
+    line: number;
+    column: number;
+  };
+  expect(place).toEqual({ file: 'copy/locales/de.yaml', line: 1, column: 1 });
+  const open = await fetch(`${target}open?file=${place.file}&line=1&column=1`, { headers: page, redirect: 'manual' });
   expect(open.status).toBe(307);
   const launch = new URL(open.headers.get('location')!, 'http://localhost:3000');
   expect(launch.pathname).toBe('/__nextjs_launch-editor');
   expect(launch.searchParams.get('file')).toBe(join(config.root, 'copy/locales/de.yaml'));
-  expect(launch.searchParams.get('line1')).toBe('1');
-
-  const read = (await (await fetch(`${target}entry?key=app.used`, { headers: page })).json()) as EntryView;
-  expect(read.fields.message).toBe('Used message');
-  const post = (origin: string) =>
-    fetch(`${target}entry`, {
-      method: 'POST',
-      headers: { ...page, 'Content-Type': 'application/json', Origin: origin },
-      body: JSON.stringify({ key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true }),
-    });
-  expect((await post('https://elsewhere.example')).status).toBe(403);
-  expect((await post('http://localhost:3000')).status).toBe(200);
-  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toStartWith(`${SCHEMA_LINE}\napp.used: Still used\n`);
-  expect((await fetch(`${target}nothing`)).status).toBe(404);
+  // deictic's client, which the page imports, starts the overlay with the Copy tab.
+  expect(readFileSync(join(config.root, '.deictic/client.js'), 'utf8')).toContain('prosebook/deictic/client');
 });
 
-test('the app keeps its own rewrites, after the inspector', async () => {
+test('the app keeps its own rewrites, after deictic', async () => {
   const theirs = [{ source: '/old', destination: '/new' }];
   const config = fixture(files);
   const next = await withProsebook<Config>(
     { rewrites: () => Promise.resolve(theirs) },
     { config: { require: [], importExtension: '' }, root: config.root },
   )('phase-development-server', { defaultConfig: {} });
-  expect(await next.rewrites!()).toEqual({ beforeFiles: [expect.objectContaining({ source: '/__prosebook/:path*' })], afterFiles: theirs });
+  expect(await next.rewrites!()).toEqual({ beforeFiles: [expect.objectContaining({ source: '/__deictic/:path*' })], afterFiles: theirs });
   const off = await withProsebook<Config>({}, { config: { require: [], importExtension: '' }, root: config.root, inspect: false })(
     'phase-development-server',
     { defaultConfig: {} },

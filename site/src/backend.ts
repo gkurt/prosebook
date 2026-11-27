@@ -1,11 +1,11 @@
 /**
- * What answers the built page's inspector: `prosebook/playground`'s endpoints over the catalog's own YAML,
- * held to the lint the CLI holds it to. An edit is kept in memory, and shown on the page as a dev server's
- * hot update would show it; a reload brings the published words back.
+ * What answers the built page's copy inspector: `prosebook/playground`'s deictic standalone over the catalog's
+ * own YAML, held to the lint the CLI holds it to. An edit is kept in memory, undone and redone there, and shown
+ * on the page as a dev server's hot update would show it; a reload brings the published words back.
  */
 import { createCopy, type DevHooks } from 'prosebook';
-import type { Read } from 'prosebook/inspector';
-import { endpoints, play, type Files, type ProsebookConfig } from 'prosebook/playground';
+import type { Read } from 'prosebook/deictic';
+import { play, standalone, type Files, type ProsebookConfig } from 'prosebook/playground';
 import { lint } from './lint.ts';
 
 const REPO = 'https://github.com/gkurt/prosebook';
@@ -40,11 +40,14 @@ function rewrite(before: string, after: string) {
 }
 
 let shown = read(files).texts;
-let served: [string, Read[]][] = [];
+// What the build read, which the page carries since the DOM carries no keys; an edit takes its old text out.
+const served = JSON.parse(document.querySelector('#reads')!.textContent) as [string, Read[]][];
 
-const handle = endpoints(files, CONFIG, {
+/** Answers deictic's requests. */
+export const answer = standalone(files, CONFIG, {
   base: import.meta.env.BASE_URL.replace(/\/?$/, '/'),
   open: ({ file, line }) => window.open(`${REPO}/blob/main/site/${file}#L${line}`, '_blank', 'noopener'),
+  reads: () => served,
   saved(next) {
     // Reading each entry again tells the inspector its new text, as any read does.
     const { messages, texts } = read(next);
@@ -60,9 +63,3 @@ const handle = endpoints(files, CONFIG, {
     shown = texts;
   },
 });
-
-/** Answers a request of the inspector's; `reads` is the build's, which an edit takes its old text out of. */
-export function answer(reads: [string, Read[]][], request: Request): Promise<Response | undefined> {
-  served = reads;
-  return handle(request);
-}

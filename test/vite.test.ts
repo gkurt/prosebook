@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { build, createServer } from 'vite';
+import { build, createServer, type Plugin } from 'vite';
 
 import type { EntryView } from 'prosebook/tools';
 
@@ -227,7 +227,7 @@ test('in dev, a split catalog serves each area its generated locales whole, impo
     'copy/catalog/cart.yaml': 'cart.title: Cart\n',
     'copy/locales/de/cart.yaml': 'cart.title: Warenkorb\n',
   });
-  const plugin = prosebook({ config: { require: [] }, split: true });
+  const plugin = prosebook({ config: { require: [] }, split: true, inspect: false })[0] as Plugin;
   type Hook = (...args: unknown[]) => unknown;
   await (plugin.configResolved as Hook)({ command: 'serve', base: '/', root: config.root, plugins: [] });
   (plugin.buildStart as Hook).call({});
@@ -321,9 +321,10 @@ test('with root, an app beside the catalog reads its config and bundles its cata
   ).toContain('Shared title');
 });
 
-test('in dev, the index brings the hot hooks and the inspector to the page, the generated modules accept their updates, and entries edit from the page only', async () => {
+test("in dev, the index brings the hot hooks and the record of reads to the page, the generated modules accept their updates, and deictic's copy inspector edits entries, undoably", async () => {
   const config = fixture({
     'copy/catalog/app.yaml': `${SCHEMA_LINE}\napp.used: Used message\n`,
+    'src/App.tsx': 'export const App = () => <h1>{t("app.used")}</h1>;\n',
     'index.html': '<html><head></head><body></body></html>',
   });
   const server = await createServer({
@@ -339,42 +340,52 @@ test('in dev, the index brings the hot hooks and the inspector to the page, the 
     expect((await server.transformRequest('/src/copy/index.ts'))?.code).toContain('import "/@id/__x00__prosebook/dev"');
     expect((await server.transformRequest('/src/copy/index.ts', { ssr: true }))?.code).not.toContain('prosebook/dev');
     const origin = server.resolvedUrls!.local[0]!;
-    const inspector = await fetch(`${origin}@id/__x00__prosebook/dev`);
-    expect(inspector.status).toBe(200);
-    const entry = await inspector.text();
-    expect(entry).toContain('globalThis.__PROSEBOOK_HOT__ ??= new Set()');
-    expect(entry).toContain('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}})');
+    const dev = await (await fetch(`${origin}@id/__x00__prosebook/dev`)).text();
+    expect(dev).toContain('globalThis.__PROSEBOOK_HOT__ ??= new Set()');
+    expect(dev).toContain('listenForReads();');
+    expect(await (await fetch(new URL(/from "([^"]+)"/.exec(dev)![1]!, origin))).text()).toContain('function listen');
     expect(await (await fetch(`${origin}src/copy/en.ts`)).text()).toContain('update("en", next.default)');
     expect(await (await fetch(`${origin}src/copy/index.ts`)).text()).toContain('next.catalog.locales.join() !== catalog.locales.join()');
-    const client = await fetch(new URL(/from "([^"]+)"/.exec(entry)![1]!, origin));
-    expect(await client.text()).toContain('function install');
-    const missing = await fetch(`${origin}__prosebook/open?key=app.gone&locale=en`);
+    // deictic marks the app's elements, and its client starts the overlay with the Copy tab.
+    expect((await server.transformRequest('/src/App.tsx'))?.code).toContain('src/App.tsx:1:26');
+    // The page half by its package's path, as Vite resolves it: `dist` once built, the source before.
+    expect(await (await fetch(`${origin}@id/__x00__deictic/client`)).text()).toMatch(/prosebook\/(dist|src)\/deictic\/client\.[jt]s/);
+
+    const routes = `${origin}__deictic/plugins/prosebook/`;
+    const missing = await fetch(`${routes}place?key=app.gone&locale=en`);
     expect(missing.status).toBe(404);
     expect(await missing.text()).toContain('no entry for "app.gone"');
-    // Handed on to Vite's own launcher, which the browser follows to.
-    const open = await fetch(`${origin}__prosebook/open?key=app.used&locale=en`, { redirect: 'manual' });
-    expect(open.status).toBe(307);
-    expect(decodeURIComponent(open.headers.get('location')!)).toMatch(/^\/__open-in-editor\?file=.*copy[\\/]catalog[\\/]app\.yaml:2:1$/);
+    expect(await (await fetch(`${routes}place?key=app.used&locale=en`)).json()).toEqual({
+      file: 'copy/catalog/app.yaml',
+      line: 2,
+      column: 1,
+    });
 
-    const read = (await (await fetch(`${origin}__prosebook/entry?key=app.used`)).json()) as EntryView;
+    const read = (await (await fetch(`${routes}entry?key=app.used`)).json()) as EntryView;
     expect(read.fields.message).toBe('Used message');
-    const post = (body: object, headers: Record<string, string> = {}) =>
-      fetch(`${origin}__prosebook/entry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify(body),
-      });
+    const post = (url: string, body: object, headers: Record<string, string> = { Origin: origin.replace(/\/$/, '') }) =>
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
     expect(read.findings).toEqual([]);
-    // Checked unsaved, as the dialog does while typing: lint's findings come back, with each fix made.
-    const typed = await post({ key: 'app.used', fields: { ...read.fields, message: 'Used  message' } });
+    // Checked unsaved, as the tab does while typing: lint's findings come back, with each fix made.
+    const typed = await post(`${routes}entry`, { key: 'app.used', fields: { ...read.fields, message: 'Used  message' } });
     const { view } = (await typed.json()) as { view: EntryView };
     expect(view.findings.map((f) => [f.rule, f.at, f.fixed])).toEqual([['whitespace', { start: 4, end: 6 }, 'Used message']]);
-    expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe(`${SCHEMA_LINE}\napp.used: Used message\n`);
-    const edit = { key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true };
-    expect((await post(edit, { Origin: 'https://elsewhere.example' })).status).toBe(403);
-    expect((await post({ ...edit, fields: { ...read.fields, message: 'Broken {' } })).status).toBe(422);
-    expect((await post(edit)).status).toBe(200);
-    expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe(`${SCHEMA_LINE}\napp.used: Still used\n`);
+    const catalog = () => readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8');
+    expect(catalog()).toBe(`${SCHEMA_LINE}\napp.used: Used message\n`);
+
+    const target = { loc: { file: 'src/App.tsx', line: 1, column: 26 }, tag: 'h1' };
+    const apply = (message: string, headers?: Record<string, string>) =>
+      post(
+        `${origin}__deictic/apply`,
+        { plugin: 'prosebook', target, op: { key: 'app.used', fields: { ...read.fields, message } } },
+        headers,
+      );
+    expect((await apply('Still used', { Origin: 'https://elsewhere.example' })).status).toBe(403);
+    expect((await apply('Broken {')).status).toBe(422);
+    expect((await apply('Still used')).status).toBe(200);
+    expect(catalog()).toBe(`${SCHEMA_LINE}\napp.used: Still used\n`);
+    expect((await post(`${origin}__deictic/undo`, { plugin: 'prosebook', target })).status).toBe(200);
+    expect(catalog()).toBe(`${SCHEMA_LINE}\napp.used: Used message\n`);
   } finally {
     await server.close();
   }

@@ -341,41 +341,35 @@ async function devServer(env: string) {
   return { config, filter, load };
 }
 
-test("under Bun's dev server, the index sets up the hot hooks and the inspector, and each locale accepts its own update", async () => {
+test("under Bun's dev server, the index sets up the hot hooks and the record of reads, and each locale accepts its own update", async () => {
   const { config, filter, load } = await devServer('development');
   const index = (await load('index.ts'))!.contents;
   expect(index).toStartWith('globalThis.__PROSEBOOK_HOT__ ??= new Set();');
-  expect(index).toContain('installInspector({"base":"/","shortcut":{"modifiers":["Alt"],"button":"left"}})');
-  expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('function install');
+  expect(index).toContain('listenForReads();');
+  expect(readFileSync(/from "([^"]+)"/.exec(index)![1]!, 'utf8')).toContain('function listen');
   expect((await load('de.ts'))?.contents).toContain('update("de", next.default)');
   expect(filter.test(join(config.root, 'src', 'main.ts'))).toBe(false);
-  // Served in production, the page has no inspector.
-  expect((await (await devServer('production')).load('index.ts'))!.contents).not.toContain('installInspector');
+  // Served in production, the page records no reads.
+  expect((await (await devServer('production')).load('index.ts'))!.contents).not.toContain('listenForReads');
 });
 
-test("the inspector's routes read and edit entries from the page only, and open them with Bun.openInEditor", async () => {
+test("the inspector's routes are deictic's, with the Copy tab's, and open an entry with Bun.openInEditor", async () => {
   const config = fixture(files);
-  const routes = inspector({ root: config.root, config: { require: [] } });
+  const route = (await inspector({ root: config.root, config: { require: [] } }))['/__deictic/*']!;
+  const ask = async (path: string) => route(new Request(`http://localhost:3000/__deictic/${path}`));
+  const read = (await (await ask('plugins/prosebook/entry?key=app.used')).json()) as EntryView;
+  expect(read.fields.message).toBe('Used message');
+  const place = (await (await ask('plugins/prosebook/place?key=app.used&locale=de')).json()) as {
+    file: string;
+    line: number;
+    column: number;
+  };
+  expect(place).toEqual({ file: 'copy/locales/de.yaml', line: 1, column: 1 });
   const opened = spyOn(Bun, 'openInEditor').mockImplementation(() => {});
   try {
-    const open = await routes['/__prosebook/open']!(new Request('http://localhost:3000/__prosebook/open?key=app.used&locale=de'));
-    expect(open.status).toBe(204);
+    expect((await ask(`open?file=${place.file}&line=1&column=1`)).status).toBe(204);
     expect(opened).toHaveBeenCalledWith(join(config.root, 'copy/locales/de.yaml'), { line: 1, column: 1 });
   } finally {
     opened.mockRestore();
   }
-  const entry = routes['/__prosebook/entry']!;
-  const read = (await (await entry(new Request('http://localhost:3000/__prosebook/entry?key=app.used'))).json()) as EntryView;
-  expect(read.fields.message).toBe('Used message');
-  const post = (origin: string) =>
-    entry(
-      new Request('http://localhost:3000/__prosebook/entry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: origin },
-        body: JSON.stringify({ key: 'app.used', fields: { ...read.fields, message: 'Still used' }, write: true }),
-      }),
-    );
-  expect((await post('https://elsewhere.example')).status).toBe(403);
-  expect((await post('http://localhost:3000')).status).toBe(200);
-  expect(readFileSync(join(config.root, 'copy/catalog/app.yaml'), 'utf8')).toBe('app.used: Still used\napp.unused: Unused message\n');
 });

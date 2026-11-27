@@ -60,9 +60,9 @@ describe('a broken entry', () => {
       comment: '',
       remove: false,
     };
-    const edited = editEntry(config, 'cart.title', fields, true);
+    const edited = editEntry(config, 'cart.title', fields);
     expect(edited.problems).toEqual([]);
-    expect(read(config.root, 'copy/catalog/cart.yaml')).toContain('en: Your basket');
+    expect([...edited.files.values()][0]).toContain('en: Your basket');
     const imported = importTranslations(config, 'de', 'cart.title: Dein Warenkorb\n');
     expect(imported).toEqual({ written: ['cart.title'], unchanged: [], problems: [] });
   });

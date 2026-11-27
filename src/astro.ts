@@ -1,11 +1,12 @@
 /**
- * `prosebook/astro`: the Vite plugin (`vite.ts`) in an Astro app, and the inspector on every page.
+ * `prosebook/astro`: the Vite plugin (`vite.ts`) in an Astro app, and the copy inspector on every page.
  *
  * Astro renders a page on the server and may send it with no script at all, so nothing in the browser
- * imports the generated index, which is what loads the dev module (the hooks and the inspector) under
- * Vite. The integration injects that module into every page in dev instead. The page's text was read
- * on the server, in the dev server's own process, and reaches the inspector from there
- * (`serverReads` in `tools/endpoints.ts`).
+ * imports the generated index, which is what loads the dev module (the hooks and the record of reads) under
+ * Vite. The integration injects that module into every page in dev instead, and where deictic is installed,
+ * deictic's Vite plugin with the prosebook plugin and deictic's client, as deictic's own Astro integration
+ * does. The page's text was read on the server, in the dev server's own process, and reaches the inspector
+ * from there (`serverReads` in `deictic/index.ts`).
  *
  * An edit regenerates the modules. Astro reloads the page for a module only the server imports, but
  * leaves one the browser imports too to the browser's hot update, which re-renders the copies there and
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import type { AstroIntegration } from 'astro';
 import type { EnvironmentModuleNode, Plugin } from 'vite';
 
+import { added, copyInspector, NO_DEICTIC } from './deictic/register.ts';
 import { ASTRO_PLUGIN, DEV } from './tools/bundle.ts';
 import { CONFIG_FILES, loadConfig } from './tools/config.ts';
 import { prosebook as vitePlugin, type ProsebookPluginOptions } from './vite.ts';
@@ -28,12 +30,22 @@ export function prosebook(options: ProsebookPluginOptions = {}): AstroIntegratio
   return {
     name: 'prosebook',
     hooks: {
-      'astro:config:setup': ({ command, config, updateConfig, injectScript, addWatchFile }) => {
-        updateConfig({ vite: { plugins: [vitePlugin(options), reloadOnEdit(options)] } });
+      'astro:config:setup': async ({ command, config, updateConfig, injectScript, addWatchFile, logger }) => {
+        // The inspector is added here, with the client every page needs, not by the Vite plugin.
+        updateConfig({ vite: { plugins: [vitePlugin({ ...options, inspect: false }), reloadOnEdit(options)] } });
         // Astro restarts for these as for its own config: the dev server whole, with the edit.
         const root = resolve(fileURLToPath(config.root), options.root ?? '.');
         if (options.config === undefined) for (const name of CONFIG_FILES) addWatchFile(join(root, name));
-        if (command === 'dev' && options.inspect !== false) injectScript('page', `import ${JSON.stringify(DEV)};`);
+        if (command !== 'dev') return;
+        injectScript('page', `import ${JSON.stringify(DEV)};`);
+        const inspector = await copyInspector(options.inspect, { root: options.root, config: options.config });
+        if (inspector === undefined) {
+          if (options.inspect === undefined) logger.info(NO_DEICTIC);
+          return;
+        }
+        const { deictic, CLIENT } = await import('deictic/vite');
+        updateConfig({ vite: { plugins: [deictic(added(inspector)) as unknown as Plugin] } });
+        injectScript('page', `import ${JSON.stringify(CLIENT)};`);
       },
     },
   };
