@@ -22,7 +22,7 @@
         "ai": "^7.0.164",
         "astro": "^7.4.5",
         "cldr-core": "48",
-        "deictic": "^0.12.0",
+        "deictic": "^0.12.1",
         "husky": "^9.1.7",
         "lint-staged": "^17.6.0",
         "metro": "^0.87.3",
@@ -230,7 +230,7 @@
         "@ai-sdk/typesafe-ai": "^3.0.35",
         "@astrojs/check": "^0.9.12",
         "ai": "^7.0.164",
-        "deictic": "^0.12.0",
+        "deictic": "^0.12.1",
         "typescript": "^6.0.3",
       },
     },
@@ -1060,7 +1060,7 @@
 
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
 
-    "deictic": ["deictic@0.12.0", "", { "dependencies": { "commander": "^15.1.0", "magic-string": "^1.4.5", "oxc-parser": "^0.159.0" }, "peerDependencies": { "@rrweb/rrweb-plugin-console-record": "^2.2.2", "@rrweb/rrweb-plugin-network-record": "^2.2.2", "@rspack/core": ">=1", "@vercel/board": ">=0.53.0", "astro": ">=5", "bippy": "^0.7.3", "launch-editor": "^2.9.0", "modern-screenshot": "^4.7.0", "next": ">=16", "playwright-core": "^1.50.0", "react": ">=18", "rrweb": "^2.2.2", "rrweb-player": "^2.2.2", "rrweb-snapshot": "^2.2.2", "vite": ">=6", "webpack": ">=5" }, "optionalPeers": ["@rrweb/rrweb-plugin-console-record", "@rrweb/rrweb-plugin-network-record", "@rspack/core", "@vercel/board", "astro", "bippy", "launch-editor", "modern-screenshot", "next", "playwright-core", "react", "rrweb", "rrweb-player", "rrweb-snapshot", "vite", "webpack"], "bin": { "deictic": "dist/cli.js" } }, "sha512-9Ja59SB/c6j+Obp2fUuK/2/EPWXd5J1FGI+bwRky6EsR9KuJkY5x6Y6KyXqcdUyXH6Al3mn2dyCQYJl1rjEAxQ=="],
+    "deictic": ["deictic@0.12.1", "", { "dependencies": { "commander": "^15.1.0", "magic-string": "^1.4.5", "oxc-parser": "^0.159.0" }, "peerDependencies": { "@rrweb/rrweb-plugin-console-record": "^2.2.2", "@rrweb/rrweb-plugin-network-record": "^2.2.2", "@rspack/core": ">=1", "@vercel/board": ">=0.53.0", "astro": ">=5", "bippy": "^0.7.3", "launch-editor": "^2.9.0", "modern-screenshot": "^4.7.0", "next": ">=16", "playwright-core": "^1.50.0", "react": ">=18", "rrweb": "^2.2.2", "rrweb-player": "^2.2.2", "rrweb-snapshot": "^2.2.2", "vite": ">=6", "webpack": ">=5" }, "optionalPeers": ["@rrweb/rrweb-plugin-console-record", "@rrweb/rrweb-plugin-network-record", "@rspack/core", "@vercel/board", "astro", "bippy", "launch-editor", "modern-screenshot", "next", "playwright-core", "react", "rrweb", "rrweb-player", "rrweb-snapshot", "vite", "webpack"], "bin": { "deictic": "dist/cli.js" } }, "sha512-xRCzfFMJGn97+91kjHumSp+q6lyZ2F6HBUVcDfZAr2R31t57dY5EC+/B0nfKRXxyy+W/qjyvw5eq2jHNIs7/ng=="],
 
     "dequal": ["dequal@2.0.3", "", {}, "sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA=="],
 
